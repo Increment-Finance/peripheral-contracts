@@ -27,8 +27,13 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
 
     uint256 public immutable initialTimestamp = block.timestamp;
 
-    uint256 public inflationRate;       // initial inflation rate = 1,463,752.93 x 10^18 INCR/year
-    uint256 public reductionFactor;     // initial reduction factor = 2^0.25 = 1.189207115 x 10^18
+    /// @notice The amount of INCR emitted per year
+    /// @dev initial inflation rate = 1,463,752.93 x 10^18 INCR/year
+    uint256 public inflationRate;
+
+    /// @notice The factor by which the inflation rate is reduced each year
+    /// @dev initial reduction factor = 2^0.25 = 1.189207115 x 10^18
+    uint256 public reductionFactor;
 
     /// @notice Mapping of gauge address to weight
     /// @dev Weights are basis points, i.e., 100 = 1%, 10000 = 100%
