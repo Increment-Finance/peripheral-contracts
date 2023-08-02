@@ -73,7 +73,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param idx Index of the perpetual market in the ClearingHouse
     /// @param user Address of the liquidity provier
     function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
-        require(idx < clearingHouse.getNumMarkets(), "Invalid perpetual index");
+        require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = perp.getLpLiquidity(user);
@@ -81,7 +81,6 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 newRewards;
         if (newLpPosition >= prevLpPosition) {
             // Added liquidity
-
             newRewards = _calcUserRewards(
                 user,
                 idx,
@@ -135,11 +134,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /*    External User   */
     /* ****************** */
 
+    /// Fetches and stores the caller's LP positions and updates the total liquidity in each market
+    /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
     function registerPositions() external nonReentrant {
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for(uint i; i < numMarkets; ++i) {
-            require(i < clearingHouse.getNumMarkets(), "Invalid perpetual index");
-            require(lpPositionsPerUser[msg.sender][i] == 0, "Position already registered");
+            require(i < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+            require(lpPositionsPerUser[msg.sender][i] == 0, "RewardDistributor: Position already registered");
             IPerpetual perp = clearingHouse.perpetuals(i);
             uint256 lpPosition = perp.getLpLiquidity(msg.sender);
             lpPositionsPerUser[msg.sender][i] = lpPosition;
@@ -147,11 +148,14 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         }
     }
 
+    /// Fetches and stores the caller's LP positions and updates the total liquidity in each market
+    /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
+    /// @param _marketIndexes Indexes of the perpetual markets in the ClearingHouse to sync with
     function registerPositions(uint256[] calldata _marketIndexes) external nonReentrant {
         for(uint i; i < _marketIndexes.length; ++i) {
             uint256 idx = _marketIndexes[i];
-            require(idx < clearingHouse.getNumMarkets(), "Invalid perpetual index");
-            require(lpPositionsPerUser[msg.sender][idx] == 0, "Position already registered");
+            require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+            require(lpPositionsPerUser[msg.sender][idx] == 0, "RewardDistributor: Position already registered");
             IPerpetual perp = clearingHouse.perpetuals(idx);
             uint256 lpPosition = perp.getLpLiquidity(msg.sender);
             lpPositionsPerUser[msg.sender][idx] = lpPosition;
@@ -159,10 +163,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         }
     }
 
+    /// Accrues and then distributes rewards for all markets to the caller
     function claimRewards() public override {
         claimRewardsFor(msg.sender);
     }
 
+    /// Accrues and then distributes rewards for all markets to the given user
+    /// @param user Address of the user to claim rewards for
     function claimRewardsFor(address user) public override nonReentrant whenNotPaused {
         for (uint i; i < clearingHouse.getNumMarkets(); ++i) {
             accrueRewards(i, user);
