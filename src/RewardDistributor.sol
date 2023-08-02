@@ -23,7 +23,7 @@ import {LibMath} from "increment-protocol/lib/LibMath.sol";
 import {LibPerpetual} from "increment-protocol/lib/LibPerpetual.sol";
 import {LibReserve} from "increment-protocol/lib/LibReserve.sol";
 
-contract RewardDistributor is IRewardDistributor, GaugeController {
+contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeController {
     using SafeERC20 for IERC20Metadata;
     using LibMath for uint256;
 
@@ -32,6 +32,17 @@ contract RewardDistributor is IRewardDistributor, GaugeController {
 
     /// @notice Last timestamp when user accrued rewards
     mapping(address => uint256) public lastAccrualTimeByUser;
+
+    /// @notice Last timestamp when user withdrew liquidity
+    mapping(address => uint256) public lastWithdrawalTimeByUser;
+
+    /// @notice Latest LP positions per user and market index
+    /// @dev Market index is ClearingHouse.perpetuals index
+    mapping(address => uint256[]) public lpPositionsPerUser;
+
+    /// @notice Total LP tokens registered for rewards per market
+    /// @dev Market index is ClearingHouse.perpetuals index
+    mapping(uint256 => uint256) public totalLiquidityPerMarket;
 
     /// @notice INCR token used for rewards
     IERC20Metadata public override rewardToken;
@@ -54,9 +65,59 @@ contract RewardDistributor is IRewardDistributor, GaugeController {
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
     }
 
+    /* *********************** */
+    /* External Clearing House */
+    /* *********************** */
+
+    function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
+        require(idx < clearingHouse.getNumMarkets(), "Invalid perpetual index");
+        IPerpetual perp = clearingHouse.perpetuals(idx);
+        uint256 prevLpPosition = lpPositionsPerUser[user][idx];
+        uint256 newLpPosition = perp.getLpLiquidity(user);
+        uint256 prevTotalLiquidity = totalLiquidityPerMarket[idx];
+        if (newLpPosition >= prevLpPosition) {
+            // Added liquidity
+
+        } else {
+            // Removed liquidity - need to check if within early withdrawal threshold
+            if (block.timestamp - lastWithdrawalTimeByUser[user] < earlyWithdrawalThreshold) {
+                // Early withdrawal - apply penalty
+
+            } else {
+                // Not an early withdrawal - no penalty
+
+            }
+            lastWithdrawalTimeByUser[user] = block.timestamp;
+        }
+    }
+
     /* ****************** */
     /*    External User   */
     /* ****************** */
+
+    function registerPositions() external nonReentrant {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        for(uint i; i < numMarkets; ++i) {
+            require(i < clearingHouse.getNumMarkets(), "Invalid perpetual index");
+            require(lpPositionsPerUser[msg.sender][i] == 0, "Position already registered");
+            IPerpetual perp = clearingHouse.perpetuals(i);
+            uint256 lpPosition = perp.getLpLiquidity(msg.sender);
+            lpPositionsPerUser[msg.sender][i] = lpPosition;
+            totalLiquidityPerMarket[i] += lpPosition;
+        }
+    }
+
+    function registerPositions(uint256[] calldata _marketIndexes) external nonReentrant {
+        for(uint i; i < _marketIndexes.length; ++i) {
+            uint256 idx = _marketIndexes[i];
+            require(idx < clearingHouse.getNumMarkets(), "Invalid perpetual index");
+            require(lpPositionsPerUser[msg.sender][idx] == 0, "Position already registered");
+            IPerpetual perp = clearingHouse.perpetuals(idx);
+            uint256 lpPosition = perp.getLpLiquidity(msg.sender);
+            lpPositionsPerUser[msg.sender][idx] = lpPosition;
+            totalLiquidityPerMarket[idx] += lpPosition;
+        }
+    }
 
     function claimRewards() public override {
         claimRewardsFor(msg.sender);
