@@ -36,11 +36,9 @@ interface IGaugeController {
     function inflationRate() external view returns (uint256);
     function reductionFactor() external view returns (uint256);
     function clearingHouse() external view returns (IClearingHouse);
-    function safetyModule() external view returns (address);
     function gaugeWeights(address gauge) external view returns (uint16);
 
     function updateGaugeWeights(uint16[] calldata weights) external;
     function updateInflationRate(uint256 _newInflationRate) external;
     function updateReductionFactor(uint256 _newReductionFactor) external;
-    function setSafetyModule(address _safetyModule) external;
 }

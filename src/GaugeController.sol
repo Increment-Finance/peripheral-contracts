@@ -42,17 +42,17 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     /// @notice Clearing House contract
     IClearingHouse public clearingHouse;
 
-    /// @notice Safety Module contract
-    address public safetyModule;
+    modifier onlyClearingHouse {
+        require(msg.sender == address(clearingHouse), "GaugeController: caller must be clearing house");
+        _;
+    }
 
     constructor(
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor,
-        address _clearingHouse, 
-        address _safetyModule
+        address _clearingHouse 
     ) {
         clearingHouse = IClearingHouse(_clearingHouse);
-        safetyModule = _safetyModule;
         inflationRate = _initialInflationRate;
         reductionFactor = _initialReductionFactor;
     }
@@ -70,18 +70,10 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
         uint256 perpetualsLength = clearingHouse.getNumMarkets();
         require(_weights.length == perpetualsLength + 1, "Incorrect number of weights");
         uint16 totalWeight;
-        for (uint i; i <= perpetualsLength; ++i) {
+        for (uint i; i < perpetualsLength; ++i) {
             uint16 weight = _weights[i];
             require(weight <= 10000, "Weight exceeds 100%");
-            address gauge;
-            if (i < perpetualsLength) {
-                gauge = address(clearingHouse.perpetuals(i));
-            } else {
-                if (safetyModule == address(0)) {
-                    require(weight == 0, "Safety module weight should be 0 if address not set");
-                }
-                gauge = safetyModule;
-            }
+            address gauge = address(clearingHouse.perpetuals(i));
             gaugeWeights[gauge] = weight;
             totalWeight += weight;
         }
@@ -102,12 +94,6 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
         uint256 oldReductionFactor = reductionFactor;
         reductionFactor = _newReductionFactor;
         emit NewReductionFactor(block.timestamp, oldReductionFactor, _newReductionFactor);
-    }
-
-    function setSafetyModule(address _safetyModule) external onlyRole(GOVERNANCE) {
-        address oldSafetyModule = safetyModule;
-        safetyModule = _safetyModule;
-        emit NewSafetyModule(block.timestamp, oldSafetyModule, _safetyModule);
     }
 
     /* ****************** */
