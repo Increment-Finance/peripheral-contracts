@@ -26,6 +26,12 @@ interface IGaugeController {
         uint256 newFactor
     );
 
+    event NewSafetyModule(
+        uint256 indexed timestamp,
+        address indexed prevModule,
+        address indexed newModule
+    );
+
     function initialTimestamp() external view returns (uint256);
     function inflationRate() external view returns (uint256);
     function reductionFactor() external view returns (uint256);
@@ -36,4 +42,5 @@ interface IGaugeController {
     function updateGaugeWeights(uint16[] calldata weights) external;
     function updateInflationRate(uint256 _newInflationRate) external;
     function updateReductionFactor(uint256 _newReductionFactor) external;
+    function setSafetyModule(address _safetyModule) external;
 }

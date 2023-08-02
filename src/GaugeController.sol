@@ -104,6 +104,12 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
         emit NewReductionFactor(block.timestamp, oldReductionFactor, _newReductionFactor);
     }
 
+    function setSafetyModule(address _safetyModule) external onlyRole(GOVERNANCE) {
+        address oldSafetyModule = safetyModule;
+        safetyModule = _safetyModule;
+        emit NewSafetyModule(block.timestamp, oldSafetyModule, _safetyModule);
+    }
+
     /* ****************** */
     /*      Internal      */
     /* ****************** */
