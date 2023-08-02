@@ -42,6 +42,7 @@ interface IRewardDistributor {
     function rewardToken() external view returns (IERC20Metadata);
     function earlyWithdrawalThreshold() external view returns (uint256);
 
+    function accrueRewards(uint256, address) external;
     function registerPositions() external;
     function registerPositions(uint256[] calldata) external;
     function claimRewards() external;
