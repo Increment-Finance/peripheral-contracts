@@ -30,26 +30,61 @@ contract RewardDistributor is IRewardDistributor, GaugeController {
     /// @notice Rewards accrued and not yet claimed by user
     mapping(address => uint256) public rewardsAccruedByUser;
 
+    /// @notice Last timestamp when user accrued rewards
+    mapping(address => uint256) public lastAccrualTimeByUser;
+
     /// @notice INCR token used for rewards
     IERC20Metadata public override rewardToken;
 
-    /// @notice Vault contract
-    IVault public override vault;
+    /// @notice Amount of time after which LPs can remove liquidity without penalties
+    uint256 public override earlyWithdrawalThreshold;
 
     constructor(
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor,
         address _rewardToken, 
         address _clearingHouse,
-        address _safetyModule,
-        address _vault
+        uint256 _earlyWithdrawalThreshold
     ) GaugeController(
         _initialInflationRate, 
         _initialReductionFactor, 
-        _clearingHouse, 
-        _safetyModule
+        _clearingHouse
     ) {
         rewardToken = IERC20Metadata(_rewardToken);
-        vault = IVault(_vault);
+        earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
+    }
+
+    /* ****************** */
+    /*    External User   */
+    /* ****************** */
+
+    function claimRewards() public override {
+        claimRewardsFor(msg.sender);
+    }
+
+    function claimRewardsFor(address user) public override nonReentrant whenNotPaused {
+        uint256 rewards = rewardsAccruedByUser[user];
+        require(rewards > 0, "RewardDistributor: no rewards to claim");
+        lastAccrualTimeByUser[user] = block.timestamp;
+        rewardsAccruedByUser[user] = _distributeReward(user, rewards);
+        emit RewardClaimed(user, rewards);
+    }
+
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    function _distributeReward(address _to, uint256 _amount) internal returns (uint256) {
+        uint256 rewardsRemaining = _rewardTokenBalance();
+        if (_amount > 0 && _amount <= rewardsRemaining) {
+            rewardToken.safeTransfer(_to, _amount);
+            return 0;
+        }
+        return _amount;
+    }
+
+    function _rewardTokenBalance() internal view returns (uint256) {
+        return rewardToken.balanceOf(address(this));
     }
 }
