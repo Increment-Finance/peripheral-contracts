@@ -116,6 +116,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param user Address of the liquidity provier
     function accrueRewards(uint256 idx, address user) public override {
         require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+        require(
+            block.timestamp >= lastWithdrawalTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
+            "RewardDistributor: Cannot manually accrue rewards for user before early withdrawal threshold"
+        );
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
         require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
