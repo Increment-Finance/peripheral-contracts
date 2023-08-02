@@ -65,30 +65,50 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
     }
 
-    /* *********************** */
-    /* External Clearing House */
-    /* *********************** */
+    /* ****************** */
+    /*   Reward Accrual   */
+    /* ****************** */
 
+    /// Accrues rewards and updates the stored LP position of a user and the total LP of a market
+    /// @param idx Index of the perpetual market in the ClearingHouse
+    /// @param user Address of the liquidity provier
     function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
         require(idx < clearingHouse.getNumMarkets(), "Invalid perpetual index");
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = perp.getLpLiquidity(user);
         uint256 prevTotalLiquidity = totalLiquidityPerMarket[idx];
+        uint256 newRewards;
         if (newLpPosition >= prevLpPosition) {
             // Added liquidity
 
+            newRewards = _calcUserRewards(
+                user,
+                idx,
+                prevLpPosition,
+                prevTotalLiquidity
+            );
+            totalLiquidityPerMarket[idx] += newLpPosition - prevLpPosition;
         } else {
             // Removed liquidity - need to check if within early withdrawal threshold
-            if (block.timestamp - lastWithdrawalTimeByUser[user] < earlyWithdrawalThreshold) {
+            if (block.timestamp - lastWithdrawalTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
                 // Early withdrawal - apply penalty
 
             } else {
                 // Not an early withdrawal - no penalty
-
+                newRewards = _calcUserRewards(
+                    user,
+                    idx,
+                    prevLpPosition,
+                    prevTotalLiquidity
+                );
             }
-            lastWithdrawalTimeByUser[user] = block.timestamp;
+            totalLiquidityPerMarket[idx] -= prevLpPosition - newLpPosition;
+            lastWithdrawalTimeByUserByMarket[user][idx] = block.timestamp;
         }
+        rewardsAccruedByUser[user] += newRewards;
+        lpPositionsPerUser[user][idx] = newLpPosition;
+        lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
     }
 
     /// Accrues rewards for a user in a market
@@ -165,6 +185,20 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             return 0;
         }
         return _amount;
+    }
+
+    function _calcUserRewards(
+        address lp, 
+        uint256 idx, 
+        uint256 position, 
+        uint256 totalLiquidity
+    ) internal view returns (uint256) {
+        address perp = address(clearingHouse.perpetuals(idx));
+        uint256 percentOfLP = position * 10000 / totalLiquidity;    // Percentauge of total LP tokens as BPS
+        uint256 lastAccrualTimestamp = lastAccrualTimeByUserByMarket[lp][idx];
+        uint256 marketEmissionsSinceLastAccrual = _calcEmmisionsPerGauge(perp, block.timestamp) 
+                                                - _calcEmmisionsPerGauge(perp, lastAccrualTimestamp);
+        return percentOfLP * marketEmissionsSinceLastAccrual / 10000;
     }
 
     function _rewardTokenBalance() internal view returns (uint256) {
