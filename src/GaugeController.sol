@@ -77,6 +77,9 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
             if (i < perpetualsLength) {
                 gauge = address(clearingHouse.perpetuals(i));
             } else {
+                if (safetyModule == address(0)) {
+                    require(weight == 0, "Safety module weight should be 0 if address not set");
+                }
                 gauge = safetyModule;
             }
             gaugeWeights[gauge] = weight;
