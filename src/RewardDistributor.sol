@@ -34,7 +34,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     mapping(address => mapping(uint256 => uint256)) public lastAccrualTimeByUserByMarket;
 
     /// @notice Last timestamp when user withdrew liquidity from a market
-    mapping(address => mapping(uint256 => uint256)) public lastWithdrawalTimeByUserByMarket;
+    mapping(address => mapping(uint256 => uint256)) public lastDepositTimeByUserByMarket;
 
     /// @notice Latest LP positions per user and market index
     /// @dev Market index is ClearingHouse.perpetuals index
@@ -88,11 +88,14 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 prevTotalLiquidity
             );
             totalLiquidityPerMarket[idx] += newLpPosition - prevLpPosition;
+            lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
         } else {
             // Removed liquidity - need to check if within early withdrawal threshold
-            if (block.timestamp - lastWithdrawalTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
+            if (block.timestamp - lastDepositTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
                 // Early withdrawal - apply penalty
 
+                // Reset timer
+                lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
             } else {
                 // Not an early withdrawal - no penalty
                 newRewards = _calcUserRewards(
@@ -103,7 +106,6 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 );
             }
             totalLiquidityPerMarket[idx] -= prevLpPosition - newLpPosition;
-            lastWithdrawalTimeByUserByMarket[user][idx] = block.timestamp;
         }
         rewardsAccruedByUser[user] += newRewards;
         lpPositionsPerUser[user][idx] = newLpPosition;
@@ -117,7 +119,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function accrueRewards(uint256 idx, address user) public override {
         require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
         require(
-            block.timestamp >= lastWithdrawalTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
+            block.timestamp >= lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
             "RewardDistributor: Cannot manually accrue rewards for user before early withdrawal threshold"
         );
         IPerpetual perp = clearingHouse.perpetuals(idx);
