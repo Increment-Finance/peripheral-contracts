@@ -30,11 +30,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @notice Rewards accrued and not yet claimed by user
     mapping(address => uint256) public rewardsAccruedByUser;
 
-    /// @notice Last timestamp when user accrued rewards
-    mapping(address => uint256) public lastAccrualTimeByUser;
+    /// @notice Last timestamp when user accrued rewards from a market
+    mapping(address => mapping(uint256 => uint256)) public lastAccrualTimeByUserByMarket;
 
-    /// @notice Last timestamp when user withdrew liquidity
-    mapping(address => uint256) public lastWithdrawalTimeByUser;
+    /// @notice Last timestamp when user withdrew liquidity from a market
+    mapping(address => mapping(uint256 => uint256)) public lastWithdrawalTimeByUserByMarket;
 
     /// @notice Latest LP positions per user and market index
     /// @dev Market index is ClearingHouse.perpetuals index
@@ -91,6 +91,26 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         }
     }
 
+    /// Accrues rewards for a user in a market
+    /// @dev Requires that the user's LP position hasn't changed since the last call to updateStakingPosition
+    /// @param idx Index of the perpetual market in the ClearingHouse
+    /// @param user Address of the liquidity provier
+    function accrueRewards(uint256 idx, address user) public override {
+        require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+        IPerpetual perp = clearingHouse.perpetuals(idx);
+        uint256 lpPosition = lpPositionsPerUser[user][idx];
+        require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
+        uint256 totalLiquidity = totalLiquidityPerMarket[idx];
+        uint256 newRewards = _calcUserRewards(
+            user,
+            idx,
+            lpPosition,
+            totalLiquidity
+        );
+        rewardsAccruedByUser[user] += newRewards;
+        lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
+    }
+
     /* ****************** */
     /*    External User   */
     /* ****************** */
@@ -124,9 +144,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     }
 
     function claimRewardsFor(address user) public override nonReentrant whenNotPaused {
+        for (uint i; i < clearingHouse.getNumMarkets(); ++i) {
+            accrueRewards(i, user);
+        }
         uint256 rewards = rewardsAccruedByUser[user];
         require(rewards > 0, "RewardDistributor: no rewards to claim");
-        lastAccrualTimeByUser[user] = block.timestamp;
         rewardsAccruedByUser[user] = _distributeReward(user, rewards);
         emit RewardClaimed(user, rewards);
     }
