@@ -14,22 +14,20 @@ interface IGaugeController {
         uint16 newWeight
     );
 
+    /// Emitted when a new inflation rate is set by governance
+    /// @param prevRate the previous inflation rate
+    /// @param newRate the new inflation rate
     event NewInflationRate(
-        uint256 indexed timestamp,
         uint256 prevRate,
         uint256 newRate
     );
 
+    /// Emitted when a new reduction factor is set by governance
+    /// @param prevFactor the previous reduction factor
+    /// @param newFactor the new reduction factor
     event NewReductionFactor(
-        uint256 indexed timestamp,
         uint256 prevFactor,
         uint256 newFactor
-    );
-
-    event NewSafetyModule(
-        uint256 indexed timestamp,
-        address indexed prevModule,
-        address indexed newModule
     );
 
     function initialTimestamp() external view returns (uint256);

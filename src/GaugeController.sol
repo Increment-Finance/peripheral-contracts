@@ -85,7 +85,7 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     function updateInflationRate(uint256 _newInflationRate) external onlyRole(GOVERNANCE) {
         uint256 oldInflationRate = inflationRate;
         inflationRate = _newInflationRate;
-        emit NewInflationRate(block.timestamp, oldInflationRate, _newInflationRate);
+        emit NewInflationRate(oldInflationRate, _newInflationRate);
     }
 
     /// Sets the reduction factor used to reduce emissions over time
@@ -93,7 +93,7 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     function updateReductionFactor(uint256 _newReductionFactor) external onlyRole(GOVERNANCE) {
         uint256 oldReductionFactor = reductionFactor;
         reductionFactor = _newReductionFactor;
-        emit NewReductionFactor(block.timestamp, oldReductionFactor, _newReductionFactor);
+        emit NewReductionFactor(oldReductionFactor, _newReductionFactor);
     }
 
     /* ****************** */
