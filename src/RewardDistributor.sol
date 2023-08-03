@@ -88,14 +88,23 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 prevTotalLiquidity
             );
             totalLiquidityPerMarket[idx] += newLpPosition - prevLpPosition;
-            lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+            if (lastDepositTimeByUserByMarket[user][idx] == 0) {
+                lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+            }
         } else {
             // Removed liquidity - need to check if within early withdrawal threshold
             if (block.timestamp - lastDepositTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
                 // Early withdrawal - apply penalty
 
-                // Reset timer
-                lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+                
+                if (newLpPosition > 0) {
+                    // Reset timer
+                    lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+                } else {
+                    // Full withdrawal, so next deposit is an initial deposit
+                    lastDepositTimeByUserByMarket[user][idx] = 0;
+                }
+                
             } else {
                 // Not an early withdrawal - no penalty
                 newRewards = _calcUserRewards(
@@ -104,35 +113,15 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                     prevLpPosition,
                     prevTotalLiquidity
                 );
+                if (newLpPosition == 0) {
+                    // Full withdrawal, so next deposit is an initial deposit
+                    lastDepositTimeByUserByMarket[user][idx] = 0;
+                }
             }
             totalLiquidityPerMarket[idx] -= prevLpPosition - newLpPosition;
         }
         rewardsAccruedByUser[user] += newRewards;
         lpPositionsPerUser[user][idx] = newLpPosition;
-        lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
-    }
-
-    /// Accrues rewards for a user in a market
-    /// @dev Requires that the user's LP position hasn't changed since the last call to updateStakingPosition
-    /// @param idx Index of the perpetual market in the ClearingHouse
-    /// @param user Address of the liquidity provier
-    function accrueRewards(uint256 idx, address user) public override {
-        require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
-        require(
-            block.timestamp >= lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
-            "RewardDistributor: Cannot manually accrue rewards for user before early withdrawal threshold"
-        );
-        IPerpetual perp = clearingHouse.perpetuals(idx);
-        uint256 lpPosition = lpPositionsPerUser[user][idx];
-        require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
-        uint256 totalLiquidity = totalLiquidityPerMarket[idx];
-        uint256 newRewards = _calcUserRewards(
-            user,
-            idx,
-            lpPosition,
-            totalLiquidity
-        );
-        rewardsAccruedByUser[user] += newRewards;
         lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
     }
 
@@ -178,7 +167,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param user Address of the user to claim rewards for
     function claimRewardsFor(address user) public override nonReentrant whenNotPaused {
         for (uint i; i < clearingHouse.getNumMarkets(); ++i) {
-            accrueRewards(i, user);
+            _accrueRewards(i, user);
         }
         uint256 rewards = rewardsAccruedByUser[user];
         require(rewards > 0, "RewardDistributor: no rewards to claim");
@@ -190,6 +179,26 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /* ****************** */
     /*      Internal      */
     /* ****************** */
+
+    function _accrueRewards(uint256 idx, address user) internal {
+        require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+        require(
+            block.timestamp >= lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
+            "RewardDistributor: Cannot manually accrue rewards for user before early withdrawal threshold"
+        );
+        IPerpetual perp = clearingHouse.perpetuals(idx);
+        uint256 lpPosition = lpPositionsPerUser[user][idx];
+        require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
+        uint256 totalLiquidity = totalLiquidityPerMarket[idx];
+        uint256 newRewards = _calcUserRewards(
+            user,
+            idx,
+            lpPosition,
+            totalLiquidity
+        );
+        rewardsAccruedByUser[user] += newRewards;
+        lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
+    }
 
     function _distributeReward(address _to, uint256 _amount) internal returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance();
