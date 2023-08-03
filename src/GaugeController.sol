@@ -61,14 +61,14 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     /*     Governance     */
     /* ****************** */
 
-    /// Sets the weights for all perpetual markets and the safety module
-    /// @param _weights List of weights for each gauge, in the order of perpetual markets, then safety module
+    /// Sets the weights for all perpetual markets
+    /// @param _weights List of weights for each gauge, in the order of perpetual markets
     /// @dev Weights are basis points, i.e., 100 = 1%, 10000 = 100%
     function updateGaugeWeights(
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        require(_weights.length == perpetualsLength + 1, "Incorrect number of weights");
+        require(_weights.length == perpetualsLength, "Incorrect number of weights");
         uint16 totalWeight;
         for (uint i; i < perpetualsLength; ++i) {
             uint16 weight = _weights[i];
