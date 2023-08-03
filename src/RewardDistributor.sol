@@ -181,6 +181,8 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /* ****************** */
 
     function _accrueRewards(uint256 idx, address user) internal {
+        // Used to update rewards before claiming them, assuming LP position hasn't changed
+        // Updating rewards due to changes in LP position is handled by updateStakingPosition
         require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
         require(
             block.timestamp >= lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
