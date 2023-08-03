@@ -78,15 +78,14 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = perp.getLpLiquidity(user);
         uint256 prevTotalLiquidity = totalLiquidityPerMarket[idx];
-        uint256 newRewards;
+        uint256 newRewards = _calcUserRewards(
+            user,
+            idx,
+            prevLpPosition,
+            prevTotalLiquidity
+        );
         if (newLpPosition >= prevLpPosition) {
             // Added liquidity
-            newRewards = _calcUserRewards(
-                user,
-                idx,
-                prevLpPosition,
-                prevTotalLiquidity
-            );
             totalLiquidityPerMarket[idx] += newLpPosition - prevLpPosition;
             if (lastDepositTimeByUserByMarket[user][idx] == 0) {
                 lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
@@ -95,28 +94,14 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             // Removed liquidity - need to check if within early withdrawal threshold
             if (block.timestamp - lastDepositTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
                 // Early withdrawal - apply penalty
-
-                
-                if (newLpPosition > 0) {
-                    // Reset timer
-                    lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
-                } else {
-                    // Full withdrawal, so next deposit is an initial deposit
-                    lastDepositTimeByUserByMarket[user][idx] = 0;
-                }
-                
+                newRewards -= newRewards * (prevLpPosition - newLpPosition) / prevLpPosition;
+            } 
+            if (newLpPosition > 0) {
+                // Reset timer
+                lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
             } else {
-                // Not an early withdrawal - no penalty
-                newRewards = _calcUserRewards(
-                    user,
-                    idx,
-                    prevLpPosition,
-                    prevTotalLiquidity
-                );
-                if (newLpPosition == 0) {
-                    // Full withdrawal, so next deposit is an initial deposit
-                    lastDepositTimeByUserByMarket[user][idx] = 0;
-                }
+                // Full withdrawal, so next deposit is an initial deposit
+                lastDepositTimeByUserByMarket[user][idx] = 0;
             }
             totalLiquidityPerMarket[idx] -= prevLpPosition - newLpPosition;
         }
