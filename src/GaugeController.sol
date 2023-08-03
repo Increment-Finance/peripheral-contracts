@@ -76,6 +76,7 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
             address gauge = address(clearingHouse.perpetuals(i));
             gaugeWeights[gauge] = weight;
             totalWeight += weight;
+            emit NewWeight(gauge, weight);
         }
         require(totalWeight == 10000, "Total weight does not equal 100%");
     }
@@ -83,17 +84,15 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     /// Sets the inflation rate used to calculate emissions over time
     /// @param _newInflationRate The new inflation rate in INCR/year, scaled by 1e18
     function updateInflationRate(uint256 _newInflationRate) external onlyRole(GOVERNANCE) {
-        uint256 oldInflationRate = inflationRate;
         inflationRate = _newInflationRate;
-        emit NewInflationRate(oldInflationRate, _newInflationRate);
+        emit NewInflationRate(_newInflationRate);
     }
 
     /// Sets the reduction factor used to reduce emissions over time
     /// @param _newReductionFactor The new reduction factor, scaled by 1e18
     function updateReductionFactor(uint256 _newReductionFactor) external onlyRole(GOVERNANCE) {
-        uint256 oldReductionFactor = reductionFactor;
         reductionFactor = _newReductionFactor;
-        emit NewReductionFactor(oldReductionFactor, _newReductionFactor);
+        emit NewReductionFactor(_newReductionFactor);
     }
 
     /* ****************** */
