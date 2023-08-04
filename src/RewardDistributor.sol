@@ -85,14 +85,12 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 lastTotalLP = totalLiquidityPerMarketPerDay[idx][lastUpdate];
         uint256 newTotalLP = lastTotalLP - prevLpPosition + newLpPosition;
         _updateTotalLiquidityPerDay(idx, newTotalLP);
-        // uint256 prevTotalLiquidity = totalLiquidityPerMarketPerDay[idx];
         uint256 newRewards = _calcUserRewards(
             user,
             idx
         );
         if (newLpPosition >= prevLpPosition) {
             // Added liquidity
-            // totalLiquidityPerMarketPerDay[idx] += newLpPosition - prevLpPosition;
             if (lastDepositTimeByUserByMarket[user][idx] == 0) {
                 lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
             }
@@ -109,7 +107,6 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 // Full withdrawal, so next deposit is an initial deposit
                 lastDepositTimeByUserByMarket[user][idx] = 0;
             }
-            // totalLiquidityPerMarketPerDay[idx] -= prevLpPosition - newLpPosition;
         }
         rewardsAccruedByUser[user] += newRewards;
         lpPositionsPerUser[user][idx] = newLpPosition;
@@ -239,8 +236,8 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             percentOfLP += prevLpPosition * 10000 / totalLiquidity;
         }
         percentOfLP = percentOfLP / daysSinceLastAccrual;
-        uint256 marketEmissionsSinceLastAccrual = _calcEmmisionsPerGauge(address(perp), block.timestamp) 
-                                                - _calcEmmisionsPerGauge(address(perp), lastAccrualTimestamp);
+        uint256 marketEmissionsSinceLastAccrual = _calcEmmisionsPerGauge(address(perp), today) 
+                                                - _calcEmmisionsPerGauge(address(perp), lastAccrualDay);
         return percentOfLP * marketEmissionsSinceLastAccrual / 10000;
     }
 
