@@ -233,7 +233,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 percentOfLP;
         for (uint256 t = lastAccrualDay; t < today; t += 1 days) {
             uint256 totalLiquidity = totalLiquidityPerMarketPerDay[idx][t];
-            percentOfLP += prevLpPosition * 10000 / totalLiquidity;
+            if (totalLiquidity > 0) {
+                // Should not be possible for totalLiquidity to be 0, since prevLpPosition > 0,
+                // and because _updateTotalLiquidityPerDay always runs before this function
+                percentOfLP += prevLpPosition * 10000 / totalLiquidity;
+            }
         }
         percentOfLP = percentOfLP / daysSinceLastAccrual;
         uint256 marketEmissionsSinceLastAccrual = _calcEmmisionsPerGauge(address(perp), today) 
