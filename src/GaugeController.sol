@@ -23,7 +23,7 @@ import {LibMath} from "increment-protocol/lib/LibMath.sol";
 import {LibPerpetual} from "increment-protocol/lib/LibPerpetual.sol";
 import {LibReserve} from "increment-protocol/lib/LibReserve.sol";
 
-contract GaugeController is IGaugeController, IncreAccessControl, Pausable, ReentrancyGuard {
+abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausable, ReentrancyGuard {
 
     uint256 public immutable initialTimestamp = block.timestamp;
 
@@ -58,6 +58,15 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     }
 
     /* ****************** */
+    /*      Abstract      */
+    /* ****************** */
+
+    /// Updates the reward accumulator for a given market
+    /// @dev Executes when any of the following variables are changed: inflationRate, gaugeWeights, liquidity
+    /// @param idx Index of the perpetual market in the ClearingHouse
+    function updateMarketRewards(uint256 idx) public virtual;
+
+    /* ****************** */
     /*     Governance     */
     /* ****************** */
 
@@ -71,6 +80,7 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
         require(_weights.length == perpetualsLength, "Incorrect number of weights");
         uint16 totalWeight;
         for (uint i; i < perpetualsLength; ++i) {
+            updateMarketRewards(i);
             uint16 weight = _weights[i];
             require(weight <= 10000, "Weight exceeds 100%");
             address gauge = address(clearingHouse.perpetuals(i));
@@ -84,6 +94,10 @@ contract GaugeController is IGaugeController, IncreAccessControl, Pausable, Reen
     /// Sets the inflation rate used to calculate emissions over time
     /// @param _newInflationRate The new inflation rate in INCR/year, scaled by 1e18
     function updateInflationRate(uint256 _newInflationRate) external onlyRole(GOVERNANCE) {
+        uint256 perpetualsLength = clearingHouse.getNumMarkets();
+        for (uint i; i < perpetualsLength; ++i) {
+            updateMarketRewards(i);
+        }
         inflationRate = _newInflationRate;
         emit NewInflationRate(_newInflationRate);
     }
