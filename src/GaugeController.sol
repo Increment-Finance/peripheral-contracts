@@ -108,19 +108,4 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         reductionFactor = _newReductionFactor;
         emit NewReductionFactor(_newReductionFactor);
     }
-
-    /* ****************** */
-    /*      Internal      */
-    /* ****************** */
-
-    function _calcEmissions(uint256 timestamp) internal view returns (uint256) {
-        uint256 timeElapsed = timestamp - initialTimestamp;
-        uint256 emissions = inflationRate / (reductionFactor ^ (timeElapsed / 365 days));
-        return emissions;
-    }
-
-    function _calcEmmisionsPerGauge(address gauge, uint256 timestamp) internal view returns (uint256) {
-        uint256 emissions = _calcEmissions(timestamp);
-        return emissions * gaugeWeights[gauge] / 10000;
-    }
 }
