@@ -27,14 +27,17 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     using SafeERC20 for IERC20Metadata;
     using LibMath for uint256;
 
+    /// @notice INCR token used for rewards
+    IERC20Metadata public override rewardToken;
+
+    /// @notice Amount of time after which LPs can remove liquidity without penalties
+    uint256 public override earlyWithdrawalThreshold;
+
     /// @notice Rewards accrued and not yet claimed by user
     mapping(address => uint256) public rewardsAccruedByUser;
 
-    /// @notice Last timestamp when user accrued rewards from a market
-    mapping(address => mapping(uint256 => uint256)) public lastAccrualTimeByUserByMarket;
-
     /// @notice Last timestamp when user withdrew liquidity from a market
-    mapping(address => mapping(uint256 => uint256)) public lastDepositTimeByUserByMarket;
+    mapping(address => uint256[]) public lastDepositTimeByUserByMarket;
 
     /// @notice Latest LP positions per user and market index
     /// @dev Market index is ClearingHouse.perpetuals index
@@ -42,17 +45,19 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     /// @notice Total LP tokens registered for rewards per market per day
     /// @dev Market index is ClearingHouse.perpetuals index
-    /// @dev Day is a timestamp rounded down to the nearest day
-    mapping(uint256 => mapping(uint256 => uint256)) public totalLiquidityPerMarketPerDay;
+    uint256[] public totalLiquidityPerMarket;
 
-    /// @notice Last timestamp (rounded to nearest day) when total liquidity was updated for a market
-    mapping(uint256 => uint256) public lastLiquidityUpdatePerMarket;
+    /// @notice Reward accumulator for total market rewards
+    /// @dev Market index is ClearingHouse.perpetuals index
+    uint256[] public cumulativeRewardPerLpToken;
 
-    /// @notice INCR token used for rewards
-    IERC20Metadata public override rewardToken;
+    /// @notice Timestamp of the most recent update to the reward accumulator
+    /// @dev Market index is ClearingHouse.perpetuals index
+    uint256[] public timeOfLastCumRewardUpdate;
 
-    /// @notice Amount of time after which LPs can remove liquidity without penalties
-    uint256 public override earlyWithdrawalThreshold;
+    /// @notice Reward accumulator value when user rewards were last updated
+    /// @dev Market index is ClearingHouse.perpetuals index
+    mapping(address => uint256[]) public cumulativeRewardPerLpTokenPerUser;
 
     constructor(
         uint256 _initialInflationRate,
@@ -73,22 +78,33 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /*   Reward Accrual   */
     /* ****************** */
 
+    /// Updates the reward accumulator for a given market
+    /// @dev Executes when any of the following variables are changed: inflationRate, gaugeWeights
+    /// @param idx Index of the perpetual market in the ClearingHouse
+    function updateMarketRewards(uint256 idx) public override nonReentrant {
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[idx];
+        uint256 totalTimeElapsed = block.timestamp - initialTimestamp;
+        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
+        uint256 inflationRatePerSecond = inflationRate / 365 days / (reductionFactor ^ (totalTimeElapsed / 365 days));
+        uint256 liquidity = totalLiquidityPerMarket[idx];
+        address gauge = address(clearingHouse.perpetuals(idx));
+        cumulativeRewardPerLpToken[idx] += (inflationRatePerSecond * gaugeWeights[gauge] / 10000 * deltaTime * 1e18) / liquidity;
+        // Set timeOfLastCumRewardUpdate to the currentTime
+        timeOfLastCumRewardUpdate[idx] = block.timestamp;
+    }
+
     /// Accrues rewards and updates the stored LP position of a user and the total LP of a market
+    /// @dev Executes whenever a user's liquidity is updated for any reason
     /// @param idx Index of the perpetual market in the ClearingHouse
     /// @param user Address of the liquidity provier
     function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
         require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+        updateMarketRewards(idx);
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = perp.getLpLiquidity(user);
-        uint256 lastUpdate = lastLiquidityUpdatePerMarket[idx];
-        uint256 lastTotalLP = totalLiquidityPerMarketPerDay[idx][lastUpdate];
-        uint256 newTotalLP = lastTotalLP - prevLpPosition + newLpPosition;
-        _updateTotalLiquidityPerDay(idx, newTotalLP);
-        uint256 newRewards = _calcUserRewards(
-            user,
-            idx
-        );
+        /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+        uint256 newRewards = prevLpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
         if (newLpPosition >= prevLpPosition) {
             // Added liquidity
             if (lastDepositTimeByUserByMarket[user][idx] == 0) {
@@ -110,7 +126,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         }
         rewardsAccruedByUser[user] += newRewards;
         lpPositionsPerUser[user][idx] = newLpPosition;
-        lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
+        cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];
     }
 
     /* ****************** */
@@ -122,15 +138,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function registerPositions() external nonReentrant {
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for(uint i; i < numMarkets; ++i) {
-            require(i < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
             require(lpPositionsPerUser[msg.sender][i] == 0, "RewardDistributor: Position already registered");
             IPerpetual perp = clearingHouse.perpetuals(i);
             uint256 lpPosition = perp.getLpLiquidity(msg.sender);
-            uint256 lastUpdate = lastLiquidityUpdatePerMarket[i];
-            uint256 lastTotalLP = totalLiquidityPerMarketPerDay[i][lastUpdate];
-            uint256 newTotalLP = lastTotalLP + lpPosition;
-            _updateTotalLiquidityPerDay(i, newTotalLP);
             lpPositionsPerUser[msg.sender][i] = lpPosition;
+            totalLiquidityPerMarket[i] += lpPosition;
         }
     }
 
@@ -144,11 +156,8 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             require(lpPositionsPerUser[msg.sender][idx] == 0, "RewardDistributor: Position already registered");
             IPerpetual perp = clearingHouse.perpetuals(idx);
             uint256 lpPosition = perp.getLpLiquidity(msg.sender);
-            uint256 lastUpdate = lastLiquidityUpdatePerMarket[idx];
-            uint256 lastTotalLP = totalLiquidityPerMarketPerDay[idx][lastUpdate];
-            uint256 newTotalLP = lastTotalLP + lpPosition;
-            _updateTotalLiquidityPerDay(idx, newTotalLP);
             lpPositionsPerUser[msg.sender][idx] = lpPosition;
+            totalLiquidityPerMarket[idx] += lpPosition;
         }
     }
 
@@ -174,19 +183,6 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /*      Internal      */
     /* ****************** */
 
-    function _updateTotalLiquidityPerDay(uint256 idx, uint256 newTotal) internal {
-        uint256 today = block.timestamp - (block.timestamp % 1 days);
-        uint256 lastUpdate = lastLiquidityUpdatePerMarket[idx];
-        uint256 lastTotalLP = totalLiquidityPerMarketPerDay[idx][lastUpdate];
-        if (lastUpdate < today) {
-            for (uint t = lastUpdate + 1 days; t < today; t += 1 days) {
-                totalLiquidityPerMarketPerDay[idx][t] = lastTotalLP;
-            }
-        }
-        totalLiquidityPerMarketPerDay[idx][today] = newTotal;
-        lastLiquidityUpdatePerMarket[idx] = today;
-    }
-
     function _accrueRewards(uint256 idx, address user) internal {
         // Used to update rewards before claiming them, assuming LP position hasn't changed
         // Updating rewards due to changes in LP position is handled by updateStakingPosition
@@ -197,16 +193,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         );
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
-        uint256 lastUpdate = lastLiquidityUpdatePerMarket[idx];
-        uint256 lastTotalLP = totalLiquidityPerMarketPerDay[idx][lastUpdate];
-        _updateTotalLiquidityPerDay(idx, lastTotalLP);
         require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
-        uint256 newRewards = _calcUserRewards(
-            user,
-            idx
-        );
+        uint256 newRewards = lpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
         rewardsAccruedByUser[user] += newRewards;
-        lastAccrualTimeByUserByMarket[user][idx] = block.timestamp;
+        cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];
     }
 
     function _distributeReward(address _to, uint256 _amount) internal returns (uint256) {
@@ -216,33 +206,6 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             return 0;
         }
         return _amount;
-    }
-
-    function _calcUserRewards(
-        address lp, 
-        uint256 idx
-    ) internal view returns (uint256) {
-        IPerpetual perp = clearingHouse.perpetuals(idx);
-        uint256 prevLpPosition = lpPositionsPerUser[lp][idx];
-        if (prevLpPosition == 0) return 0;
-        uint256 lastAccrualTimestamp = lastAccrualTimeByUserByMarket[lp][idx];
-        uint256 lastAccrualDay = lastAccrualTimestamp - (lastAccrualTimestamp % 1 days);
-        uint256 today = block.timestamp - (block.timestamp % 1 days);
-        if (today == lastAccrualDay) return 0;
-        uint256 daysSinceLastAccrual = (today - lastAccrualDay) / 1 days;
-        uint256 percentOfLP;
-        for (uint256 t = lastAccrualDay; t < today; t += 1 days) {
-            uint256 totalLiquidity = totalLiquidityPerMarketPerDay[idx][t];
-            if (totalLiquidity > 0) {
-                // Should not be possible for totalLiquidity to be 0, since prevLpPosition > 0,
-                // and because _updateTotalLiquidityPerDay always runs before this function
-                percentOfLP += prevLpPosition * 10000 / totalLiquidity;
-            }
-        }
-        percentOfLP = percentOfLP / daysSinceLastAccrual;
-        uint256 marketEmissionsSinceLastAccrual = _calcEmmisionsPerGauge(address(perp), today) 
-                                                - _calcEmmisionsPerGauge(address(perp), lastAccrualDay);
-        return percentOfLP * marketEmissionsSinceLastAccrual / 10000;
     }
 
     function _rewardTokenBalance() internal view returns (uint256) {

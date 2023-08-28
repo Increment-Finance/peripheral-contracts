@@ -30,6 +30,7 @@ interface IGaugeController {
     function clearingHouse() external view returns (IClearingHouse);
     function gaugeWeights(address gauge) external view returns (uint16);
 
+    function updateMarketRewards(uint256 idx) external;
     function updateGaugeWeights(uint16[] calldata weights) external;
     function updateInflationRate(uint256 _newInflationRate) external;
     function updateReductionFactor(uint256 _newReductionFactor) external;
