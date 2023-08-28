@@ -88,7 +88,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 inflationRatePerSecond = inflationRate / 365 days / (reductionFactor ^ (totalTimeElapsed / 365 days));
         uint256 liquidity = totalLiquidityPerMarket[idx];
         address gauge = address(clearingHouse.perpetuals(idx));
-        cumulativeRewardPerMarket[idx] += (inflationRatePerSecond * gaugeWeights[gauge] * deltaTime * 1e18) / liquidity;
+        cumulativeRewardPerMarket[idx] += (inflationRatePerSecond * gaugeWeights[gauge] / 10000 * deltaTime * 1e18) / liquidity;
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[idx] = block.timestamp;
     }
