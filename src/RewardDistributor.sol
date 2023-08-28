@@ -49,7 +49,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     /// @notice Reward accumulator for total market rewards
     /// @dev Market index is ClearingHouse.perpetuals index
-    uint256[] public cumulativeRewardPerMarket;
+    uint256[] public cumulativeRewardPerLpToken;
 
     /// @notice Timestamp of the most recent update to the reward accumulator
     /// @dev Market index is ClearingHouse.perpetuals index
@@ -57,7 +57,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     /// @notice Reward accumulator value when user rewards were last updated
     /// @dev Market index is ClearingHouse.perpetuals index
-    mapping(address => uint256[]) public cumulativeRewardPerMarketPerUser;
+    mapping(address => uint256[]) public cumulativeRewardPerLpTokenPerUser;
 
     constructor(
         uint256 _initialInflationRate,
@@ -88,7 +88,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 inflationRatePerSecond = inflationRate / 365 days / (reductionFactor ^ (totalTimeElapsed / 365 days));
         uint256 liquidity = totalLiquidityPerMarket[idx];
         address gauge = address(clearingHouse.perpetuals(idx));
-        cumulativeRewardPerMarket[idx] += (inflationRatePerSecond * gaugeWeights[gauge] / 10000 * deltaTime * 1e18) / liquidity;
+        cumulativeRewardPerLpToken[idx] += (inflationRatePerSecond * gaugeWeights[gauge] / 10000 * deltaTime * 1e18) / liquidity;
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[idx] = block.timestamp;
     }
@@ -104,7 +104,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = perp.getLpLiquidity(user);
         /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-        uint256 newRewards = prevLpPosition * (cumulativeRewardPerMarket[idx] - cumulativeRewardPerMarketPerUser[user][idx]);
+        uint256 newRewards = prevLpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
         if (newLpPosition >= prevLpPosition) {
             // Added liquidity
             if (lastDepositTimeByUserByMarket[user][idx] == 0) {
@@ -126,7 +126,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         }
         rewardsAccruedByUser[user] += newRewards;
         lpPositionsPerUser[user][idx] = newLpPosition;
-        cumulativeRewardPerMarketPerUser[user][idx] = cumulativeRewardPerMarket[idx];
+        cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];
     }
 
     /* ****************** */
@@ -194,9 +194,9 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
         require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
-        uint256 newRewards = lpPosition * (cumulativeRewardPerMarket[idx] - cumulativeRewardPerMarketPerUser[user][idx]);
+        uint256 newRewards = lpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
         rewardsAccruedByUser[user] += newRewards;
-        cumulativeRewardPerMarketPerUser[user][idx] = cumulativeRewardPerMarket[idx];
+        cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];
     }
 
     function _distributeReward(address _to, uint256 _amount) internal returns (uint256) {
