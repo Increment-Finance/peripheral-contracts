@@ -27,6 +27,10 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
 
     uint256 public immutable initialTimestamp = block.timestamp;
 
+    uint256 public immutable maxInflationRate;
+
+    uint256 public immutable minReductionFactor;
+
     /// @notice The amount of INCR emitted per year
     /// @dev initial inflation rate = 1,463,752.93 x 10^18 INCR/year
     uint256 public inflationRate;
@@ -49,12 +53,18 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
 
     constructor(
         uint256 _initialInflationRate,
+        uint256 _maxInflationRate,
         uint256 _initialReductionFactor,
+        uint256 _minReductionFactor,
         address _clearingHouse 
     ) {
         clearingHouse = IClearingHouse(_clearingHouse);
+        require(_initialInflationRate <= _maxInflationRate, "GaugeController: initial inflation rate must be less than or equal to max");
         inflationRate = _initialInflationRate;
+        maxInflationRate = _maxInflationRate;
+        require(_minReductionFactor <= _initialReductionFactor, "GaugeController: initial reduction factor must be greater than or equal to min");
         reductionFactor = _initialReductionFactor;
+        minReductionFactor = _minReductionFactor;
     }
 
     /* ****************** */
@@ -94,6 +104,7 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// Sets the inflation rate used to calculate emissions over time
     /// @param _newInflationRate The new inflation rate in INCR/year, scaled by 1e18
     function updateInflationRate(uint256 _newInflationRate) external onlyRole(GOVERNANCE) {
+        require(_newInflationRate <= maxInflationRate, "GaugeController: new inflation rate exceeds max");
         uint256 perpetualsLength = clearingHouse.getNumMarkets();
         for (uint i; i < perpetualsLength; ++i) {
             updateMarketRewards(i);
@@ -105,6 +116,7 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// Sets the reduction factor used to reduce emissions over time
     /// @param _newReductionFactor The new reduction factor, scaled by 1e18
     function updateReductionFactor(uint256 _newReductionFactor) external onlyRole(GOVERNANCE) {
+        require(_newReductionFactor >= minReductionFactor, "GaugeController: new reduction factor below min");
         reductionFactor = _newReductionFactor;
         emit NewReductionFactor(_newReductionFactor);
     }
