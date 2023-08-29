@@ -61,13 +61,17 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     constructor(
         uint256 _initialInflationRate,
+        uint256 _maxInflationRate,
         uint256 _initialReductionFactor,
+        uint256 _minReductionFactor,
         address _rewardToken, 
         address _clearingHouse,
         uint256 _earlyWithdrawalThreshold
     ) GaugeController(
         _initialInflationRate, 
+        _maxInflationRate,
         _initialReductionFactor, 
+        _minReductionFactor,
         _clearingHouse
     ) {
         rewardToken = IERC20Metadata(_rewardToken);
@@ -176,6 +180,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         require(rewards > 0, "RewardDistributor: no rewards to claim");
         rewardsAccruedByUser[user] = _distributeReward(user, rewards);
         emit RewardClaimed(user, rewards);
+    }
+
+    function paused() public view override returns (bool) {
+        return super.paused() || Pausable(address(clearingHouse)).paused();
     }
 
 
