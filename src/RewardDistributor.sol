@@ -59,6 +59,12 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Market index is ClearingHouse.perpetuals index
     mapping(address => uint256[]) public cumulativeRewardPerLpTokenPerUser;
 
+    error InvalidMarketIndex(uint256 index, uint256 maxIndex);
+    error NoRewardsToClaim(address user);
+    error PositionAlreadyRegistered(address lp, uint256 marketIndex, uint256 position);
+    error EarlyRewardAccrual(address user, uint256 marketIndex, uint256 claimAllowedTimestamp);
+    error LpPositionMismatch(address lp, uint256 marketIndex, uint256 prevPosition, uint256 newPosition);
+
     constructor(
         uint256 _initialInflationRate,
         uint256 _maxInflationRate,
@@ -102,7 +108,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param idx Index of the perpetual market in the ClearingHouse
     /// @param user Address of the liquidity provier
     function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
-        require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
+        if(idx >= clearingHouse.getNumMarkets()) revert InvalidMarketIndex(idx, clearingHouse.getNumMarkets());
         updateMarketRewards(idx);
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
@@ -142,7 +148,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function registerPositions() external nonReentrant {
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for(uint i; i < numMarkets; ++i) {
-            require(lpPositionsPerUser[msg.sender][i] == 0, "RewardDistributor: Position already registered");
+            if(lpPositionsPerUser[msg.sender][i] != 0) revert PositionAlreadyRegistered(msg.sender, i, lpPositionsPerUser[msg.sender][i]);
             IPerpetual perp = clearingHouse.perpetuals(i);
             uint256 lpPosition = perp.getLpLiquidity(msg.sender);
             lpPositionsPerUser[msg.sender][i] = lpPosition;
@@ -156,8 +162,8 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function registerPositions(uint256[] calldata _marketIndexes) external nonReentrant {
         for(uint i; i < _marketIndexes.length; ++i) {
             uint256 idx = _marketIndexes[i];
-            require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
-            require(lpPositionsPerUser[msg.sender][idx] == 0, "RewardDistributor: Position already registered");
+            if(idx >= clearingHouse.getNumMarkets()) revert InvalidMarketIndex(idx, clearingHouse.getNumMarkets());
+            if(lpPositionsPerUser[msg.sender][idx] != 0) revert PositionAlreadyRegistered(msg.sender, idx, lpPositionsPerUser[msg.sender][idx]);
             IPerpetual perp = clearingHouse.perpetuals(idx);
             uint256 lpPosition = perp.getLpLiquidity(msg.sender);
             lpPositionsPerUser[msg.sender][idx] = lpPosition;
@@ -177,7 +183,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             _accrueRewards(i, user);
         }
         uint256 rewards = rewardsAccruedByUser[user];
-        require(rewards > 0, "RewardDistributor: no rewards to claim");
+        if(rewards == 0) revert NoRewardsToClaim(user);
         rewardsAccruedByUser[user] = _distributeReward(user, rewards);
         emit RewardClaimed(user, rewards);
     }
@@ -194,14 +200,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function _accrueRewards(uint256 idx, address user) internal {
         // Used to update rewards before claiming them, assuming LP position hasn't changed
         // Updating rewards due to changes in LP position is handled by updateStakingPosition
-        require(idx < clearingHouse.getNumMarkets(), "RewardDistributor: Invalid perpetual index");
-        require(
-            block.timestamp >= lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold,
-            "RewardDistributor: Cannot manually accrue rewards for user before early withdrawal threshold"
-        );
+        if(idx >= clearingHouse.getNumMarkets()) revert InvalidMarketIndex(idx, clearingHouse.getNumMarkets());
+        if(
+            block.timestamp < lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold
+        ) revert EarlyRewardAccrual(user, idx, lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold);
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
-        require(lpPosition == perp.getLpLiquidity(user), "RewardDistributor: LP position should not have changed");
+        if(lpPosition != perp.getLpLiquidity(user)) revert LpPositionMismatch(user, idx, lpPosition, perp.getLpLiquidity(user));
         uint256 newRewards = lpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
         rewardsAccruedByUser[user] += newRewards;
         cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];

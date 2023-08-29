@@ -46,8 +46,15 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// @notice Clearing House contract
     IClearingHouse public clearingHouse;
 
+    error CallerIsNotClearingHouse(address caller);
+    error AboveMaxInflationRate(uint256 rate, uint256 max);
+    error BelowMinReductionFactor(uint256 factor, uint256 min);
+    error IncorrectWeightsCount(uint256 actual, uint256 expected);
+    error IncorrectWeightsSum(uint16 actual, uint16 expected);
+    error WeightExceedsMax(uint16 weight, uint16 max);
+
     modifier onlyClearingHouse {
-        require(msg.sender == address(clearingHouse), "GaugeController: caller must be clearing house");
+        if(msg.sender != address(clearingHouse)) revert CallerIsNotClearingHouse(msg.sender);
         _;
     }
 
@@ -59,10 +66,10 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         address _clearingHouse 
     ) {
         clearingHouse = IClearingHouse(_clearingHouse);
-        require(_initialInflationRate <= _maxInflationRate, "GaugeController: initial inflation rate must be less than or equal to max");
+        if(_initialInflationRate > _maxInflationRate) revert AboveMaxInflationRate(_initialInflationRate, _maxInflationRate);
         inflationRate = _initialInflationRate;
         maxInflationRate = _maxInflationRate;
-        require(_minReductionFactor <= _initialReductionFactor, "GaugeController: initial reduction factor must be greater than or equal to min");
+        if(_minReductionFactor > _initialReductionFactor) revert BelowMinReductionFactor(_initialReductionFactor, _minReductionFactor);
         reductionFactor = _initialReductionFactor;
         minReductionFactor = _minReductionFactor;
     }
@@ -87,24 +94,24 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        require(_weights.length == perpetualsLength, "Incorrect number of weights");
+        if(_weights.length != perpetualsLength) revert IncorrectWeightsCount(_weights.length, perpetualsLength);
         uint16 totalWeight;
         for (uint i; i < perpetualsLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _weights[i];
-            require(weight <= 10000, "Weight exceeds 100%");
+            if(weight > 10000) revert WeightExceedsMax(weight, 10000);
             address gauge = address(clearingHouse.perpetuals(i));
             gaugeWeights[gauge] = weight;
             totalWeight += weight;
             emit NewWeight(gauge, weight);
         }
-        require(totalWeight == 10000, "Total weight does not equal 100%");
+        if(totalWeight != 10000) revert IncorrectWeightsSum(totalWeight, 10000);
     }
 
     /// Sets the inflation rate used to calculate emissions over time
     /// @param _newInflationRate The new inflation rate in INCR/year, scaled by 1e18
     function updateInflationRate(uint256 _newInflationRate) external onlyRole(GOVERNANCE) {
-        require(_newInflationRate <= maxInflationRate, "GaugeController: new inflation rate exceeds max");
+        if(_newInflationRate > maxInflationRate) revert AboveMaxInflationRate(_newInflationRate, maxInflationRate);
         uint256 perpetualsLength = clearingHouse.getNumMarkets();
         for (uint i; i < perpetualsLength; ++i) {
             updateMarketRewards(i);
@@ -116,7 +123,7 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// Sets the reduction factor used to reduce emissions over time
     /// @param _newReductionFactor The new reduction factor, scaled by 1e18
     function updateReductionFactor(uint256 _newReductionFactor) external onlyRole(GOVERNANCE) {
-        require(_newReductionFactor >= minReductionFactor, "GaugeController: new reduction factor below min");
+        if(minReductionFactor > _newReductionFactor) revert BelowMinReductionFactor(_newReductionFactor, minReductionFactor);
         reductionFactor = _newReductionFactor;
         emit NewReductionFactor(_newReductionFactor);
     }
