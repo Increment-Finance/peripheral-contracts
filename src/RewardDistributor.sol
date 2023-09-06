@@ -19,14 +19,12 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     using SafeERC20 for IERC20Metadata;
     using LibMath for uint256;
 
-    /// @notice INCR token used for rewards
-    IERC20Metadata public override rewardToken;
-
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
 
     /// @notice Rewards accrued and not yet claimed by user
-    mapping(address => uint256) public rewardsAccruedByUser;
+    /// @dev First address is user, second is reward token
+    mapping(address => mapping(address => uint256)) public rewardsAccruedByUser;
 
     /// @notice Last timestamp when user withdrew liquidity from a market
     mapping(address => uint256[]) public lastDepositTimeByUserByMarket;
@@ -39,17 +37,17 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Market index is ClearingHouse.perpetuals index
     uint256[] public totalLiquidityPerMarket;
 
-    /// @notice Reward accumulator for total market rewards
-    /// @dev Market index is ClearingHouse.perpetuals index
-    uint256[] public cumulativeRewardPerLpToken;
+    /// @notice Reward accumulator for total market rewards per reward token
+    /// @dev Address is reward token, array index is ClearingHouse.perpetuals index
+    mapping(address => uint256[]) public cumulativeRewardPerLpToken;
 
     /// @notice Timestamp of the most recent update to the reward accumulator
     /// @dev Market index is ClearingHouse.perpetuals index
     uint256[] public timeOfLastCumRewardUpdate;
 
-    /// @notice Reward accumulator value when user rewards were last updated
-    /// @dev Market index is ClearingHouse.perpetuals index
-    mapping(address => uint256[]) public cumulativeRewardPerLpTokenPerUser;
+    /// @notice Reward accumulator value per reward token when user rewards were last updated
+    /// @dev First address is user, second is reward token, array index is ClearingHouse.perpetuals index
+    mapping(address => mapping(address => uint256[])) public cumulativeRewardPerLpTokenPerUser;
 
     error InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error NoRewardsToClaim(address user);
@@ -59,6 +57,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     constructor(
         uint256 _initialInflationRate,
+        uint256 _maxRewardTokens,
         uint256 _maxInflationRate,
         uint256 _initialReductionFactor,
         uint256 _minReductionFactor,
@@ -66,13 +65,15 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         address _clearingHouse,
         uint256 _earlyWithdrawalThreshold
     ) GaugeController(
+        _rewardToken,
+        _maxRewardTokens,
         _initialInflationRate, 
         _maxInflationRate,
         _initialReductionFactor, 
         _minReductionFactor,
         _clearingHouse
     ) {
-        rewardToken = IERC20Metadata(_rewardToken);
+        // rewardToken = IERC20Metadata(_rewardToken);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
     }
 
@@ -84,13 +85,19 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Executes when any of the following variables are changed: inflationRate, gaugeWeights
     /// @param idx Index of the perpetual market in the ClearingHouse
     function updateMarketRewards(uint256 idx) public override nonReentrant {
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[idx];
-        uint256 totalTimeElapsed = block.timestamp - initialTimestamp;
-        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-        uint256 inflationRatePerSecond = inflationRate / 365 days / (reductionFactor ^ (totalTimeElapsed / 365 days));
         uint256 liquidity = totalLiquidityPerMarket[idx];
-        address gauge = address(clearingHouse.perpetuals(idx));
-        cumulativeRewardPerLpToken[idx] += (inflationRatePerSecond * gaugeWeights[gauge] / 10000 * deltaTime * 1e18) / liquidity;
+        for(uint256 i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            RewardInfo memory rewardInfo = rewardInfoByToken[token];
+            uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[idx];
+            uint256 totalTimeElapsed = block.timestamp - rewardInfo.initialTimestamp;
+            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
+            uint256 inflationRatePerSecond = rewardInfo.inflationRate / 365 days 
+                                           / (rewardInfo.reductionFactor ^ (totalTimeElapsed / 365 days));
+            cumulativeRewardPerLpToken[token][idx] += (
+                inflationRatePerSecond * rewardInfo.gaugeWeights[idx] / 10000 * deltaTime * 1e18
+            ) / liquidity;
+        }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[idx] = block.timestamp;
     }
@@ -105,30 +112,36 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = perp.getLpLiquidity(user);
-        /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-        uint256 newRewards = prevLpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
-        if (newLpPosition >= prevLpPosition) {
-            // Added liquidity
-            if (lastDepositTimeByUserByMarket[user][idx] == 0) {
-                lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
-            }
-        } else {
-            // Removed liquidity - need to check if within early withdrawal threshold
-            if (block.timestamp - lastDepositTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
-                // Early withdrawal - apply penalty
-                newRewards -= newRewards * (prevLpPosition - newLpPosition) / prevLpPosition;
-            } 
-            if (newLpPosition > 0) {
-                // Reset timer
-                lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+        for(uint256 i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            uint256 newRewards = prevLpPosition * (
+                cumulativeRewardPerLpToken[token][idx] - cumulativeRewardPerLpTokenPerUser[user][token][idx]
+            );
+            if (newLpPosition >= prevLpPosition) {
+                // Added liquidity
+                if (lastDepositTimeByUserByMarket[user][idx] == 0) {
+                    lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+                }
             } else {
-                // Full withdrawal, so next deposit is an initial deposit
-                lastDepositTimeByUserByMarket[user][idx] = 0;
+                // Removed liquidity - need to check if within early withdrawal threshold
+                if (block.timestamp - lastDepositTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
+                    // Early withdrawal - apply penalty
+                    newRewards -= newRewards * (prevLpPosition - newLpPosition) / prevLpPosition;
+                } 
+                if (newLpPosition > 0) {
+                    // Reset timer
+                    lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+                } else {
+                    // Full withdrawal, so next deposit is an initial deposit
+                    lastDepositTimeByUserByMarket[user][idx] = 0;
+                }
             }
+            rewardsAccruedByUser[user][token] += newRewards;
+            cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
+            emit RewardAccrued(user, token, address(perp), newRewards);
         }
-        rewardsAccruedByUser[user] += newRewards;
         lpPositionsPerUser[user][idx] = newLpPosition;
-        cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];
     }
 
     /* ****************** */
@@ -174,10 +187,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         for (uint i; i < clearingHouse.getNumMarkets(); ++i) {
             _accrueRewards(i, user);
         }
-        uint256 rewards = rewardsAccruedByUser[user];
-        if(rewards == 0) revert NoRewardsToClaim(user);
-        rewardsAccruedByUser[user] = _distributeReward(user, rewards);
-        emit RewardClaimed(user, rewards);
+        for (uint i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            uint256 rewards = rewardsAccruedByUser[user][token];
+            if(rewards == 0) revert NoRewardsToClaim(user);
+            rewardsAccruedByUser[user][token] = _distributeReward(token, user, rewards);
+            emit RewardClaimed(user, token, rewards);
+        }
     }
 
     function paused() public view override returns (bool) {
@@ -199,21 +215,29 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         IPerpetual perp = clearingHouse.perpetuals(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
         if(lpPosition != perp.getLpLiquidity(user)) revert LpPositionMismatch(user, idx, lpPosition, perp.getLpLiquidity(user));
-        uint256 newRewards = lpPosition * (cumulativeRewardPerLpToken[idx] - cumulativeRewardPerLpTokenPerUser[user][idx]);
-        rewardsAccruedByUser[user] += newRewards;
-        cumulativeRewardPerLpTokenPerUser[user][idx] = cumulativeRewardPerLpToken[idx];
+        for(uint i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            uint256 newRewards = lpPosition * (
+                cumulativeRewardPerLpToken[token][idx] - cumulativeRewardPerLpTokenPerUser[user][token][idx]
+            );
+            rewardsAccruedByUser[user][token] += newRewards;
+            cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
+            emit RewardAccrued(user, token, address(perp), newRewards);
+        }
     }
 
-    function _distributeReward(address _to, uint256 _amount) internal returns (uint256) {
-        uint256 rewardsRemaining = _rewardTokenBalance();
+    function _distributeReward(address _token, address _to, uint256 _amount) internal returns (uint256) {
+        uint256 rewardsRemaining = _rewardTokenBalance(_token);
         if (_amount > 0 && _amount <= rewardsRemaining) {
+            IERC20Metadata rewardToken = IERC20Metadata(_token);
             rewardToken.safeTransfer(_to, _amount);
             return 0;
         }
         return _amount;
     }
 
-    function _rewardTokenBalance() internal view returns (uint256) {
+    function _rewardTokenBalance(address _token) internal view returns (uint256) {
+        IERC20Metadata rewardToken = IERC20Metadata(_token);
         return rewardToken.balanceOf(address(this));
     }
 }
