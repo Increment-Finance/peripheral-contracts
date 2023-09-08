@@ -26,6 +26,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev First address is user, second is reward token
     mapping(address => mapping(address => uint256)) public rewardsAccruedByUser;
 
+    /// @notice Total rewards accrued and not claimed by all users
+    /// @dev Address is reward token
+    mapping(address => uint256) public totalUnclaimedRewards;
+
     /// @notice Last timestamp when user withdrew liquidity from a market
     mapping(address => uint256[]) public lastDepositTimeByUserByMarket;
 
@@ -138,10 +142,81 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 }
             }
             rewardsAccruedByUser[user][token] += newRewards;
+            totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
             emit RewardAccrued(user, token, address(perp), newRewards);
         }
         lpPositionsPerUser[user][idx] = newLpPosition;
+    }
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
+    /// Adds a new reward token
+    /// @param _rewardToken Address of the reward token
+    /// @param _initialInflationRate Initial inflation rate for the new token
+    /// @param _initialReductionFactor Initial reduction factor for the new token
+    /// @param _gaugeWeights Initial weights per gauge/market for the new token
+    function addRewardToken(
+        address _rewardToken,
+        uint256 _initialInflationRate,
+        uint256 _initialReductionFactor,
+        uint16[] calldata _gaugeWeights
+    ) external nonReentrant onlyRole(GOVERNANCE) {
+        if(rewardTokens.length >= maxRewardTokens) revert AboveMaxRewardTokens(maxRewardTokens);
+        uint256 perpetualsLength = clearingHouse.getNumMarkets();
+        if(_gaugeWeights.length != perpetualsLength) revert IncorrectWeightsCount(_gaugeWeights.length, perpetualsLength);
+        // Validate weights
+        uint16 totalWeight;
+        for (uint i; i < perpetualsLength; ++i) {
+            updateMarketRewards(i);
+            uint16 weight = _gaugeWeights[i];
+            if(weight > 10000) revert WeightExceedsMax(weight, 10000);
+            address gauge = address(clearingHouse.perpetuals(i));
+            totalWeight += weight;
+            emit NewWeight(gauge, _rewardToken, weight);
+        }
+        if(totalWeight != 10000) revert IncorrectWeightsSum(totalWeight, 10000);
+        // Add reward token info
+        rewardTokens.push(_rewardToken);
+        rewardInfoByToken[_rewardToken] = RewardInfo({
+            token: IERC20Metadata(_rewardToken),
+            initialTimestamp: block.timestamp,
+            inflationRate: _initialInflationRate,
+            reductionFactor: _initialReductionFactor,
+            gaugeWeights: _gaugeWeights
+        });
+        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
+    }
+
+    /// Removes a reward token
+    /// @param _token Address of the reward token to remove
+    function removeRewardToken(address _token) external nonReentrant onlyRole(GOVERNANCE) {
+        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
+        uint256 perpetualsLength = clearingHouse.getNumMarkets();
+        // Update rewards for all markets before removal
+        for (uint i; i < perpetualsLength; ++i) {
+            updateMarketRewards(i);
+        }
+        // The `delete` keyword applied to arrays does not reduce array length
+        for(uint i = 0; i < rewardTokens.length; ++i){
+            if(rewardTokens[i] == _token){
+                // Find the token in the array and swap it with the last element
+                rewardTokens[i] = rewardTokens[rewardTokens.length - 1];
+                // Delete the last element
+                rewardTokens.pop();
+                break;
+            }
+        }
+        delete rewardInfoByToken[_token];
+        // Determine how much of the removed token should be sent back to governance
+        uint256 balance = IERC20Metadata(_token).balanceOf(address(this));
+        uint256 unclaimedAccruals = totalUnclaimedRewards[_token];
+        uint256 unaccruedBalance = balance - unclaimedAccruals;
+        // Transfer remaining tokens to governance (which is the sender)
+        IERC20Metadata(_token).safeTransfer(msg.sender, unaccruedBalance);
+        emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
     }
 
     /* ****************** */
@@ -221,6 +296,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 cumulativeRewardPerLpToken[token][idx] - cumulativeRewardPerLpTokenPerUser[user][token][idx]
             );
             rewardsAccruedByUser[user][token] += newRewards;
+            totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
             emit RewardAccrued(user, token, address(perp), newRewards);
         }
@@ -231,6 +307,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         if (_amount > 0 && _amount <= rewardsRemaining) {
             IERC20Metadata rewardToken = IERC20Metadata(_token);
             rewardToken.safeTransfer(_to, _amount);
+            totalUnclaimedRewards[_token] -= _amount;
             return 0;
         }
         return _amount;
