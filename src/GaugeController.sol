@@ -81,6 +81,7 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
             reductionFactor: _initialReductionFactor,
             gaugeWeights: new uint16[](perpetualsLength)
         });
+        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
 
     /* ****************** */
@@ -95,42 +96,6 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /* ****************** */
     /*     Governance     */
     /* ****************** */
-
-    /// Adds a new reward token
-    /// @param _rewardToken Address of the reward token
-    /// @param _initialInflationRate Initial inflation rate for the new token
-    /// @param _initialReductionFactor Initial reduction factor for the new token
-    /// @param _gaugeWeights Initial weights per gauge/market for the new token
-    function addRewardToken(
-        address _rewardToken,
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
-        uint16[] calldata _gaugeWeights
-    ) external nonReentrant onlyRole(GOVERNANCE) {
-        if(rewardTokens.length >= maxRewardTokens) revert AboveMaxRewardTokens(maxRewardTokens);
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        if(_gaugeWeights.length != perpetualsLength) revert IncorrectWeightsCount(_gaugeWeights.length, perpetualsLength);
-        // Validate weights
-        uint16 totalWeight;
-        for (uint i; i < perpetualsLength; ++i) {
-            updateMarketRewards(i);
-            uint16 weight = _gaugeWeights[i];
-            if(weight > 10000) revert WeightExceedsMax(weight, 10000);
-            address gauge = address(clearingHouse.perpetuals(i));
-            totalWeight += weight;
-            emit NewWeight(gauge, _rewardToken, weight);
-        }
-        if(totalWeight != 10000) revert IncorrectWeightsSum(totalWeight, 10000);
-        // Add reward token info
-        rewardTokens.push(_rewardToken);
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            initialTimestamp: block.timestamp,
-            inflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            gaugeWeights: _gaugeWeights
-        });
-    }
 
     /// Sets the weights for all perpetual markets
     /// @param _weights List of weights for each gauge, in the order of perpetual markets
