@@ -4,6 +4,27 @@ pragma solidity 0.8.15;
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 
 interface IGaugeController {
+    /// Emitted when a new reward token is added
+    /// @param rewardToken reward token address
+    /// @param initialTimestamp timestamp when reward token was added
+    /// @param initialInflationRate initial inflation rate for the reward token
+    /// @param initialReductionFactor initial reduction factor for the reward token
+    event RewardTokenAdded(
+        address indexed rewardToken,
+        uint256 initialTimestamp,
+        uint256 initialInflationRate,
+        uint256 initialReductionFactor
+    );
+
+    /// Emitted when governance removes a reward token
+    /// @param rewardToken the reward token address
+    /// @param remainingBalance the remaining balance of the reward token, sent to governance
+    event RewardTokenRemoved(
+        address indexed rewardToken,
+        uint256 unclaimedRewards,
+        uint256 remainingBalance
+    );
+
     /// Emitted when a gauge weight is updated
     /// @param gauge the address of the perp market or safety module (i.e., gauge)
     /// @param newWeight the new weight value
