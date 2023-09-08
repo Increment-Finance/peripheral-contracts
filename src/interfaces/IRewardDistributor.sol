@@ -46,4 +46,5 @@ interface IRewardDistributor {
     function registerPositions(uint256[] calldata) external;
     function claimRewards() external;
     function claimRewardsFor(address) external;
+    function claimRewardsFor(address, address[] memory) external;
 }

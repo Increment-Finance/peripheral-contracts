@@ -257,17 +257,24 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     }
 
     /// Accrues and then distributes rewards for all markets to the given user
-    /// @param user Address of the user to claim rewards for
-    function claimRewardsFor(address user) public override nonReentrant whenNotPaused {
+    /// @param _user Address of the user to claim rewards for
+    function claimRewardsFor(address _user) public override {
+        claimRewardsFor(_user, rewardTokens);
+    }
+
+    /// Accrues and then distributes rewards for all markets to the given user
+    /// @param _user Address of the user to claim rewards for
+    function claimRewardsFor(address _user, address[] memory _rewardTokens) public override nonReentrant whenNotPaused {
         for (uint i; i < clearingHouse.getNumMarkets(); ++i) {
-            _accrueRewards(i, user);
+            _accrueRewards(i, _user);
         }
-        for (uint i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
-            uint256 rewards = rewardsAccruedByUser[user][token];
-            if(rewards == 0) revert NoRewardsToClaim(user);
-            rewardsAccruedByUser[user][token] = _distributeReward(token, user, rewards);
-            emit RewardClaimed(user, token, rewards);
+        for (uint i; i < _rewardTokens.length; ++i) {
+            address token = _rewardTokens[i];
+            uint256 rewards = rewardsAccruedByUser[_user][token];
+            if(rewards > 0){
+                rewardsAccruedByUser[_user][token] = _distributeReward(token, _user, rewards);
+                emit RewardClaimed(_user, token, rewards);
+            }
         }
     }
 
