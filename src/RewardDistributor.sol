@@ -100,7 +100,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     }
 
     /* ****************** */
-    /*   Reward Accrual   */
+    /*       Gauges       */
     /* ****************** */
 
     /// @inheritdoc GaugeController
@@ -120,6 +120,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function getCurrentPosition(address lp, address gauge) public view virtual returns (uint256) {
         return IPerpetual(gauge).getLpLiquidity(lp);
     }
+
+    /* ****************** */
+    /*   Reward Accrual   */
+    /* ****************** */
 
     /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override nonReentrant {
