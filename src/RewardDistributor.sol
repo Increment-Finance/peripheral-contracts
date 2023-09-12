@@ -76,7 +76,8 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 _minReductionFactor,
         address _rewardToken, 
         address _clearingHouse,
-        uint256 _earlyWithdrawalThreshold
+        uint256 _earlyWithdrawalThreshold,
+        uint16[] memory _initialGaugeWeights
     ) GaugeController(
         _maxRewardTokens,
         _initialInflationRate, 
@@ -87,14 +88,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
-        uint256 gaugesLength = getNumGauges();
         rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             initialTimestamp: block.timestamp,
             inflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
-            gaugeWeights: new uint16[](gaugesLength)
+            gaugeWeights: _initialGaugeWeights
         });
         emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
