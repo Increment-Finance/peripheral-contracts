@@ -8,7 +8,6 @@ import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.so
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 import {IGaugeController} from "./interfaces/IGaugeController.sol";
 
 abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausable, ReentrancyGuard {
@@ -38,9 +37,6 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
 
-    /// @notice Clearing House contract
-    IClearingHouse public clearingHouse;
-
     error CallerIsNotClearingHouse(address caller);
     error AboveMaxRewardTokens(uint256 max);
     error AboveMaxInflationRate(uint256 rate, uint256 max);
@@ -50,38 +46,19 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     error IncorrectWeightsSum(uint16 actual, uint16 expected);
     error WeightExceedsMax(uint16 weight, uint16 max);
 
-    modifier onlyClearingHouse {
-        if(msg.sender != address(clearingHouse)) revert CallerIsNotClearingHouse(msg.sender);
-        _;
-    }
-
     constructor(
-        address _rewardToken,
         uint256 _maxRewardTokens,
         uint256 _initialInflationRate,
         uint256 _maxInflationRate,
         uint256 _initialReductionFactor,
-        uint256 _minReductionFactor,
-        address _clearingHouse 
+        uint256 _minReductionFactor
     ) {
-        clearingHouse = IClearingHouse(_clearingHouse);
         maxRewardTokens = _maxRewardTokens;
         if(_maxRewardTokens < 1) revert AboveMaxRewardTokens(_maxRewardTokens);
         if(_initialInflationRate > _maxInflationRate) revert AboveMaxInflationRate(_initialInflationRate, _maxInflationRate);
         if(_minReductionFactor > _initialReductionFactor) revert BelowMinReductionFactor(_initialReductionFactor, _minReductionFactor);
         maxInflationRate = _maxInflationRate;
         minReductionFactor = _minReductionFactor;
-        // Add reward token info
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        rewardTokens.push(_rewardToken);
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            initialTimestamp: block.timestamp,
-            inflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            gaugeWeights: new uint16[](perpetualsLength)
-        });
-        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
 
     /* ****************** */
@@ -92,6 +69,17 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// @dev Executes when any of the following variables are changed: inflationRate, gaugeWeights, liquidity
     /// @param idx Index of the perpetual market in the ClearingHouse
     function updateMarketRewards(uint256 idx) public virtual;
+
+    /// Gets the number of gauges to be used for reward distribution
+    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @return Number of gauges
+    function getNumGauges() public view virtual returns (uint256);
+
+    /// Gets the address of a gauge
+    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param idx Index of the gauge
+    /// @return Address of the gauge
+    function getGaugeAddress(uint256 idx) public view virtual returns (address);
 
     /* ****************** */
     /*     Governance     */
@@ -105,14 +93,14 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        if(_weights.length != perpetualsLength) revert IncorrectWeightsCount(_weights.length, perpetualsLength);
+        uint256 gaugesLength = getNumGauges();
+        if(_weights.length != gaugesLength) revert IncorrectWeightsCount(_weights.length, gaugesLength);
         uint16 totalWeight;
-        for (uint i; i < perpetualsLength; ++i) {
+        for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _weights[i];
             if(weight > 10000) revert WeightExceedsMax(weight, 10000);
-            address gauge = address(clearingHouse.perpetuals(i));
+            address gauge = getGaugeAddress(i);
             rewardInfoByToken[_token].gaugeWeights[i] = weight;
             totalWeight += weight;
             emit NewWeight(gauge, _token, weight);
@@ -128,8 +116,8 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     ) external onlyRole(GOVERNANCE) {
         if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
         if(_newInflationRate > maxInflationRate) revert AboveMaxInflationRate(_newInflationRate, maxInflationRate);
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        for (uint i; i < perpetualsLength; ++i) {
+        uint256 gaugesLength = getNumGauges();
+        for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
         }
         rewardInfoByToken[_token].inflationRate = _newInflationRate;

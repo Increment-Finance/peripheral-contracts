@@ -8,6 +8,7 @@ import {GaugeController} from "./GaugeController.sol";
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
 import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
@@ -18,6 +19,9 @@ import {LibMath} from "increment-protocol/lib/LibMath.sol";
 contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeController {
     using SafeERC20 for IERC20Metadata;
     using LibMath for uint256;
+
+    /// @notice Clearing House contract
+    IClearingHouse public clearingHouse;
 
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
@@ -37,27 +41,32 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Market index is ClearingHouse.perpetuals index
     mapping(address => uint256[]) public lpPositionsPerUser;
 
-    /// @notice Total LP tokens registered for rewards per market per day
-    /// @dev Market index is ClearingHouse.perpetuals index
-    uint256[] public totalLiquidityPerMarket;
-
     /// @notice Reward accumulator for total market rewards per reward token
     /// @dev Address is reward token, array index is ClearingHouse.perpetuals index
     mapping(address => uint256[]) public cumulativeRewardPerLpToken;
+
+    /// @notice Reward accumulator value per reward token when user rewards were last updated
+    /// @dev First address is user, second is reward token, array index is ClearingHouse.perpetuals index
+    mapping(address => mapping(address => uint256[])) public cumulativeRewardPerLpTokenPerUser;
 
     /// @notice Timestamp of the most recent update to the reward accumulator
     /// @dev Market index is ClearingHouse.perpetuals index
     uint256[] public timeOfLastCumRewardUpdate;
 
-    /// @notice Reward accumulator value per reward token when user rewards were last updated
-    /// @dev First address is user, second is reward token, array index is ClearingHouse.perpetuals index
-    mapping(address => mapping(address => uint256[])) public cumulativeRewardPerLpTokenPerUser;
+    /// @notice Total LP tokens registered for rewards per market per day
+    /// @dev Market index is ClearingHouse.perpetuals index
+    uint256[] public totalLiquidityPerMarket;
 
     error InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error NoRewardsToClaim(address user);
     error PositionAlreadyRegistered(address lp, uint256 marketIndex, uint256 position);
     error EarlyRewardAccrual(address user, uint256 marketIndex, uint256 claimAllowedTimestamp);
     error LpPositionMismatch(address lp, uint256 marketIndex, uint256 prevPosition, uint256 newPosition);
+
+    modifier onlyClearingHouse {
+        if(msg.sender != address(clearingHouse)) revert CallerIsNotClearingHouse(msg.sender);
+        _;
+    }
 
     constructor(
         uint256 _initialInflationRate,
@@ -69,25 +78,50 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         address _clearingHouse,
         uint256 _earlyWithdrawalThreshold
     ) GaugeController(
-        _rewardToken,
         _maxRewardTokens,
         _initialInflationRate, 
         _maxInflationRate,
         _initialReductionFactor, 
-        _minReductionFactor,
-        _clearingHouse
+        _minReductionFactor
     ) {
-        // rewardToken = IERC20Metadata(_rewardToken);
+        clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
+        // Add reward token info
+        uint256 gaugesLength = getNumGauges();
+        rewardTokens.push(_rewardToken);
+        rewardInfoByToken[_rewardToken] = RewardInfo({
+            token: IERC20Metadata(_rewardToken),
+            initialTimestamp: block.timestamp,
+            inflationRate: _initialInflationRate,
+            reductionFactor: _initialReductionFactor,
+            gaugeWeights: new uint16[](gaugesLength)
+        });
+        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
 
     /* ****************** */
     /*   Reward Accrual   */
     /* ****************** */
 
-    /// Updates the reward accumulator for a given market
-    /// @dev Executes when any of the following variables are changed: inflationRate, gaugeWeights
-    /// @param idx Index of the perpetual market in the ClearingHouse
+    /// @inheritdoc GaugeController
+    function getNumGauges() public view virtual override returns (uint256) {
+        return clearingHouse.getNumMarkets();
+    }
+
+    /// @inheritdoc GaugeController
+    function getGaugeAddress(uint256 index) public view virtual override returns (address) {
+        return address(clearingHouse.perpetuals(index));
+    }
+
+    /// Returns the current position of the user in the gauge (i.e., perpetual market)
+    /// @param lp Address of the user
+    /// @param gauge Address of the gauge
+    /// @return Current position of the user in the gauge
+    function getCurrentPosition(address lp, address gauge) public view virtual returns (uint256) {
+        return IPerpetual(gauge).getLpLiquidity(lp);
+    }
+
+    /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override nonReentrant {
         uint256 liquidity = totalLiquidityPerMarket[idx];
         for(uint256 i; i < rewardTokens.length; ++i) {
@@ -111,11 +145,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param idx Index of the perpetual market in the ClearingHouse
     /// @param user Address of the liquidity provier
     function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
-        if(idx >= clearingHouse.getNumMarkets()) revert InvalidMarketIndex(idx, clearingHouse.getNumMarkets());
+        if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
-        IPerpetual perp = clearingHouse.perpetuals(idx);
+        address gauge = getGaugeAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
-        uint256 newLpPosition = perp.getLpLiquidity(user);
+        uint256 newLpPosition = getCurrentPosition(user, gauge);
         for(uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
@@ -144,7 +178,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
-            emit RewardAccrued(user, token, address(perp), newRewards);
+            emit RewardAccrued(user, token, address(gauge), newRewards);
         }
         lpPositionsPerUser[user][idx] = newLpPosition;
     }
@@ -165,7 +199,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint16[] calldata _gaugeWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if(rewardTokens.length >= maxRewardTokens) revert AboveMaxRewardTokens(maxRewardTokens);
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
+        uint256 perpetualsLength = getNumGauges();
         if(_gaugeWeights.length != perpetualsLength) revert IncorrectWeightsCount(_gaugeWeights.length, perpetualsLength);
         // Validate weights
         uint16 totalWeight;
@@ -173,7 +207,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             updateMarketRewards(i);
             uint16 weight = _gaugeWeights[i];
             if(weight > 10000) revert WeightExceedsMax(weight, 10000);
-            address gauge = address(clearingHouse.perpetuals(i));
+            address gauge = getGaugeAddress(i);
             totalWeight += weight;
             emit NewWeight(gauge, _rewardToken, weight);
         }
@@ -194,9 +228,9 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param _token Address of the reward token to remove
     function removeRewardToken(address _token) external nonReentrant onlyRole(GOVERNANCE) {
         if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
+        uint256 gaugesLength = getNumGauges();
         // Update rewards for all markets before removal
-        for (uint i; i < perpetualsLength; ++i) {
+        for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
         }
         // The `delete` keyword applied to arrays does not reduce array length
@@ -226,11 +260,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// Fetches and stores the caller's LP positions and updates the total liquidity in each market
     /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
     function registerPositions() external nonReentrant {
-        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256 numMarkets = getNumGauges();
         for(uint i; i < numMarkets; ++i) {
             if(lpPositionsPerUser[msg.sender][i] != 0) revert PositionAlreadyRegistered(msg.sender, i, lpPositionsPerUser[msg.sender][i]);
-            IPerpetual perp = clearingHouse.perpetuals(i);
-            uint256 lpPosition = perp.getLpLiquidity(msg.sender);
+            address gauge = getGaugeAddress(i);
+            uint256 lpPosition = getCurrentPosition(msg.sender, gauge);
             lpPositionsPerUser[msg.sender][i] = lpPosition;
             totalLiquidityPerMarket[i] += lpPosition;
         }
@@ -242,10 +276,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function registerPositions(uint256[] calldata _marketIndexes) external nonReentrant {
         for(uint i; i < _marketIndexes.length; ++i) {
             uint256 idx = _marketIndexes[i];
-            if(idx >= clearingHouse.getNumMarkets()) revert InvalidMarketIndex(idx, clearingHouse.getNumMarkets());
+            if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
             if(lpPositionsPerUser[msg.sender][idx] != 0) revert PositionAlreadyRegistered(msg.sender, idx, lpPositionsPerUser[msg.sender][idx]);
-            IPerpetual perp = clearingHouse.perpetuals(idx);
-            uint256 lpPosition = perp.getLpLiquidity(msg.sender);
+            address gauge = getGaugeAddress(idx);
+            uint256 lpPosition = getCurrentPosition(msg.sender, gauge);
             lpPositionsPerUser[msg.sender][idx] = lpPosition;
             totalLiquidityPerMarket[idx] += lpPosition;
         }
@@ -265,7 +299,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// Accrues and then distributes rewards for all markets to the given user
     /// @param _user Address of the user to claim rewards for
     function claimRewardsFor(address _user, address[] memory _rewardTokens) public override nonReentrant whenNotPaused {
-        for (uint i; i < clearingHouse.getNumMarkets(); ++i) {
+        for (uint i; i < getNumGauges(); ++i) {
             _accrueRewards(i, _user);
         }
         for (uint i; i < _rewardTokens.length; ++i) {
@@ -290,13 +324,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function _accrueRewards(uint256 idx, address user) internal {
         // Used to update rewards before claiming them, assuming LP position hasn't changed
         // Updating rewards due to changes in LP position is handled by updateStakingPosition
-        if(idx >= clearingHouse.getNumMarkets()) revert InvalidMarketIndex(idx, clearingHouse.getNumMarkets());
+        if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
         if(
             block.timestamp < lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold
         ) revert EarlyRewardAccrual(user, idx, lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold);
-        IPerpetual perp = clearingHouse.perpetuals(idx);
+        address gauge = getGaugeAddress(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
-        if(lpPosition != perp.getLpLiquidity(user)) revert LpPositionMismatch(user, idx, lpPosition, perp.getLpLiquidity(user));
+        if(lpPosition != getCurrentPosition(user, gauge)) revert LpPositionMismatch(user, idx, lpPosition, getCurrentPosition(user, gauge));
         for(uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             uint256 newRewards = lpPosition * (
@@ -305,7 +339,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
-            emit RewardAccrued(user, token, address(perp), newRewards);
+            emit RewardAccrued(user, token, gauge, newRewards);
         }
     }
 
