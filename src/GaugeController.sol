@@ -95,6 +95,9 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
         if(_weights.length != gaugesLength) revert IncorrectWeightsCount(_weights.length, gaugesLength);
+        if(rewardInfoByToken[_token].gaugeWeights.length != gaugesLength) {
+            rewardInfoByToken[_token].gaugeWeights = new uint16[](gaugesLength);
+        }
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
