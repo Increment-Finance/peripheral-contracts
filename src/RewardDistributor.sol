@@ -148,7 +148,7 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Executes whenever a user's liquidity is updated for any reason
     /// @param idx Index of the perpetual market in the ClearingHouse
     /// @param user Address of the liquidity provier
-    function updateStakingPosition(uint256 idx, address user) external override nonReentrant onlyClearingHouse {
+    function updateStakingPosition(uint256 idx, address user) external virtual override nonReentrant onlyClearingHouse {
         if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
@@ -203,11 +203,11 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint16[] calldata _gaugeWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if(rewardTokens.length >= maxRewardTokens) revert AboveMaxRewardTokens(maxRewardTokens);
-        uint256 perpetualsLength = getNumGauges();
-        if(_gaugeWeights.length != perpetualsLength) revert IncorrectWeightsCount(_gaugeWeights.length, perpetualsLength);
+        uint256 gaugesLength = getNumGauges();
+        if(_gaugeWeights.length != gaugesLength) revert IncorrectWeightsCount(_gaugeWeights.length, gaugesLength);
         // Validate weights
         uint16 totalWeight;
-        for (uint i; i < perpetualsLength; ++i) {
+        for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _gaugeWeights[i];
             if(weight > 10000) revert WeightExceedsMax(weight, 10000);
