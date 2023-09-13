@@ -14,6 +14,7 @@ interface IRewardDistributor {
     /// @param reward Amount of reward accrued
     event RewardAccrued(
         address indexed lp, 
+        address rewardToken,
         address perpetual, 
         uint256 reward
     );
@@ -22,7 +23,8 @@ interface IRewardDistributor {
     /// @param lp Address of the liquidity provier
     /// @param reward Amount of reward claimed
     event RewardClaimed(
-        address indexed lp, 
+        address indexed lp,
+        address rewardToken,
         uint256 reward
     );
 
@@ -38,12 +40,11 @@ interface IRewardDistributor {
         uint256 newPosition
     );
 
-    function rewardsAccruedByUser(address) external view returns (uint256);
-    function rewardToken() external view returns (IERC20Metadata);
     function earlyWithdrawalThreshold() external view returns (uint256);
 
     function registerPositions() external;
     function registerPositions(uint256[] calldata) external;
     function claimRewards() external;
     function claimRewardsFor(address) external;
+    function claimRewardsFor(address, address[] memory) external;
 }

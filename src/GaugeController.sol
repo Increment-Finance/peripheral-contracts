@@ -2,75 +2,62 @@
 pragma solidity 0.8.15;
 
 // contracts
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.sol";
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
-import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
-import {IInsurance} from "increment-protocol/interfaces/IInsurance.sol";
-import {IVault} from "increment-protocol/interfaces/IVault.sol";
-import {ICryptoSwap} from "increment-protocol/interfaces/ICryptoSwap.sol";
-import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
-import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 import {IGaugeController} from "./interfaces/IGaugeController.sol";
-
-// libraries
-import {LibMath} from "increment-protocol/lib/LibMath.sol";
-import {LibPerpetual} from "increment-protocol/lib/LibPerpetual.sol";
-import {LibReserve} from "increment-protocol/lib/LibReserve.sol";
 
 abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausable, ReentrancyGuard {
 
-    uint256 public immutable initialTimestamp = block.timestamp;
+    /// @notice Data structure containing essential info for each reward token
+    struct RewardInfo {
+        IERC20Metadata token;       // Address of the reward token
+        uint256 initialTimestamp;   // Time when the reward token was added
+        uint256 inflationRate;      // Amount of reward token emitted per year
+        uint256 reductionFactor;    // Factor by which the inflation rate is reduced each year
+        uint16[] gaugeWeights;      // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
+    }
 
+    /// @notice Maximum inflation rate, applies to all reward tokens
     uint256 public immutable maxInflationRate;
 
+    /// @notice Minimum reduction factor, applies to all reward tokens
     uint256 public immutable minReductionFactor;
 
-    /// @notice The amount of INCR emitted per year
-    /// @dev initial inflation rate = 1,463,752.93 x 10^18 INCR/year
-    uint256 public inflationRate;
+    /// @notice Maximum number of reward tokens supported
+    uint256 public immutable maxRewardTokens;
 
-    /// @notice The factor by which the inflation rate is reduced each year
-    /// @dev initial reduction factor = 2^0.25 = 1.189207115 x 10^18
-    uint256 public reductionFactor;
+    /// @notice List of reward token addresses
+    /// @dev Length must be <= maxRewardTokens
+    address[] public rewardTokens;
 
-    /// @notice Mapping of gauge address to weight
-    /// @dev Weights are basis points, i.e., 100 = 1%, 10000 = 100%
-    mapping(address => uint16) public gaugeWeights;
-
-    /// @notice Clearing House contract
-    IClearingHouse public clearingHouse;
+    /// @notice Info for each registered reward token
+    mapping(address => RewardInfo) public rewardInfoByToken;
 
     error CallerIsNotClearingHouse(address caller);
+    error AboveMaxRewardTokens(uint256 max);
     error AboveMaxInflationRate(uint256 rate, uint256 max);
     error BelowMinReductionFactor(uint256 factor, uint256 min);
+    error InvalidRewardTokenAddress(address token);
     error IncorrectWeightsCount(uint256 actual, uint256 expected);
     error IncorrectWeightsSum(uint16 actual, uint16 expected);
     error WeightExceedsMax(uint16 weight, uint16 max);
 
-    modifier onlyClearingHouse {
-        if(msg.sender != address(clearingHouse)) revert CallerIsNotClearingHouse(msg.sender);
-        _;
-    }
-
     constructor(
+        uint256 _maxRewardTokens,
         uint256 _initialInflationRate,
         uint256 _maxInflationRate,
         uint256 _initialReductionFactor,
-        uint256 _minReductionFactor,
-        address _clearingHouse 
+        uint256 _minReductionFactor
     ) {
-        clearingHouse = IClearingHouse(_clearingHouse);
+        maxRewardTokens = _maxRewardTokens;
+        if(_maxRewardTokens < 1) revert AboveMaxRewardTokens(_maxRewardTokens);
         if(_initialInflationRate > _maxInflationRate) revert AboveMaxInflationRate(_initialInflationRate, _maxInflationRate);
-        inflationRate = _initialInflationRate;
-        maxInflationRate = _maxInflationRate;
         if(_minReductionFactor > _initialReductionFactor) revert BelowMinReductionFactor(_initialReductionFactor, _minReductionFactor);
-        reductionFactor = _initialReductionFactor;
+        maxInflationRate = _maxInflationRate;
         minReductionFactor = _minReductionFactor;
     }
 
@@ -83,6 +70,17 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// @param idx Index of the perpetual market in the ClearingHouse
     function updateMarketRewards(uint256 idx) public virtual;
 
+    /// Gets the number of gauges to be used for reward distribution
+    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @return Number of gauges
+    function getNumGauges() public view virtual returns (uint256);
+
+    /// Gets the address of a gauge
+    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param idx Index of the gauge
+    /// @return Address of the gauge
+    function getGaugeAddress(uint256 idx) public view virtual returns (address);
+
     /* ****************** */
     /*     Governance     */
     /* ****************** */
@@ -91,40 +89,53 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     /// @param _weights List of weights for each gauge, in the order of perpetual markets
     /// @dev Weights are basis points, i.e., 100 = 1%, 10000 = 100%
     function updateGaugeWeights(
+        address _token,
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        if(_weights.length != perpetualsLength) revert IncorrectWeightsCount(_weights.length, perpetualsLength);
+        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
+        uint256 gaugesLength = getNumGauges();
+        if(_weights.length != gaugesLength) revert IncorrectWeightsCount(_weights.length, gaugesLength);
+        if(rewardInfoByToken[_token].gaugeWeights.length != gaugesLength) {
+            rewardInfoByToken[_token].gaugeWeights = new uint16[](gaugesLength);
+        }
         uint16 totalWeight;
-        for (uint i; i < perpetualsLength; ++i) {
+        for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _weights[i];
             if(weight > 10000) revert WeightExceedsMax(weight, 10000);
-            address gauge = address(clearingHouse.perpetuals(i));
-            gaugeWeights[gauge] = weight;
+            address gauge = getGaugeAddress(i);
+            rewardInfoByToken[_token].gaugeWeights[i] = weight;
             totalWeight += weight;
-            emit NewWeight(gauge, weight);
+            emit NewWeight(gauge, _token, weight);
         }
         if(totalWeight != 10000) revert IncorrectWeightsSum(totalWeight, 10000);
     }
 
     /// Sets the inflation rate used to calculate emissions over time
     /// @param _newInflationRate The new inflation rate in INCR/year, scaled by 1e18
-    function updateInflationRate(uint256 _newInflationRate) external onlyRole(GOVERNANCE) {
+    function updateInflationRate(
+        address _token,
+        uint256 _newInflationRate
+    ) external onlyRole(GOVERNANCE) {
+        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
         if(_newInflationRate > maxInflationRate) revert AboveMaxInflationRate(_newInflationRate, maxInflationRate);
-        uint256 perpetualsLength = clearingHouse.getNumMarkets();
-        for (uint i; i < perpetualsLength; ++i) {
+        uint256 gaugesLength = getNumGauges();
+        for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
         }
-        inflationRate = _newInflationRate;
-        emit NewInflationRate(_newInflationRate);
+        rewardInfoByToken[_token].inflationRate = _newInflationRate;
+        emit NewInflationRate(_token, _newInflationRate);
     }
 
     /// Sets the reduction factor used to reduce emissions over time
     /// @param _newReductionFactor The new reduction factor, scaled by 1e18
-    function updateReductionFactor(uint256 _newReductionFactor) external onlyRole(GOVERNANCE) {
+    function updateReductionFactor(
+        address _token,
+        uint256 _newReductionFactor
+    ) external onlyRole(GOVERNANCE) {
+        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
         if(minReductionFactor > _newReductionFactor) revert BelowMinReductionFactor(_newReductionFactor, minReductionFactor);
-        reductionFactor = _newReductionFactor;
-        emit NewReductionFactor(_newReductionFactor);
+        rewardInfoByToken[_token].reductionFactor = _newReductionFactor;
+        emit NewReductionFactor(_token, _newReductionFactor);
     }
 }
