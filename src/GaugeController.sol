@@ -10,25 +10,29 @@ import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.so
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IGaugeController} from "./interfaces/IGaugeController.sol";
 
-abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausable, ReentrancyGuard {
-
+abstract contract GaugeController is
+    IGaugeController,
+    IncreAccessControl,
+    Pausable,
+    ReentrancyGuard
+{
     /// @notice Data structure containing essential info for each reward token
     struct RewardInfo {
-        IERC20Metadata token;       // Address of the reward token
-        uint256 initialTimestamp;   // Time when the reward token was added
-        uint256 inflationRate;      // Amount of reward token emitted per year
-        uint256 reductionFactor;    // Factor by which the inflation rate is reduced each year
-        uint16[] gaugeWeights;      // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
+        IERC20Metadata token; // Address of the reward token
+        uint256 initialTimestamp; // Time when the reward token was added
+        uint256 inflationRate; // Amount of reward token emitted per year
+        uint256 reductionFactor; // Factor by which the inflation rate is reduced each year
+        uint16[] gaugeWeights; // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
     }
 
     /// @notice Maximum inflation rate, applies to all reward tokens
-    uint256 public immutable maxInflationRate;
+    uint256 public constant MAX_INFLATION_RATE = 5e24;
 
     /// @notice Minimum reduction factor, applies to all reward tokens
-    uint256 public immutable minReductionFactor;
+    uint256 public constant MIN_REDUCTION_FACTOR = 0.5e18;
 
     /// @notice Maximum number of reward tokens supported
-    uint256 public immutable maxRewardTokens;
+    uint256 public constant MAX_REWARD_TOKENS = 10;
 
     /// @notice List of reward token addresses
     /// @dev Length must be <= maxRewardTokens
@@ -47,18 +51,19 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
     error WeightExceedsMax(uint16 weight, uint16 max);
 
     constructor(
-        uint256 _maxRewardTokens,
         uint256 _initialInflationRate,
-        uint256 _maxInflationRate,
-        uint256 _initialReductionFactor,
-        uint256 _minReductionFactor
+        uint256 _initialReductionFactor
     ) {
-        maxRewardTokens = _maxRewardTokens;
-        if(_maxRewardTokens < 1) revert AboveMaxRewardTokens(_maxRewardTokens);
-        if(_initialInflationRate > _maxInflationRate) revert AboveMaxInflationRate(_initialInflationRate, _maxInflationRate);
-        if(_minReductionFactor > _initialReductionFactor) revert BelowMinReductionFactor(_initialReductionFactor, _minReductionFactor);
-        maxInflationRate = _maxInflationRate;
-        minReductionFactor = _minReductionFactor;
+        if (_initialInflationRate > MAX_INFLATION_RATE)
+            revert AboveMaxInflationRate(
+                _initialInflationRate,
+                MAX_INFLATION_RATE
+            );
+        if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
+            revert BelowMinReductionFactor(
+                _initialReductionFactor,
+                MIN_REDUCTION_FACTOR
+            );
     }
 
     /* ****************** */
@@ -92,23 +97,26 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         address _token,
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
+        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
+            revert InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
-        if(_weights.length != gaugesLength) revert IncorrectWeightsCount(_weights.length, gaugesLength);
-        if(rewardInfoByToken[_token].gaugeWeights.length != gaugesLength) {
+        if (_weights.length != gaugesLength)
+            revert IncorrectWeightsCount(_weights.length, gaugesLength);
+        if (rewardInfoByToken[_token].gaugeWeights.length != gaugesLength) {
             rewardInfoByToken[_token].gaugeWeights = new uint16[](gaugesLength);
         }
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _weights[i];
-            if(weight > 10000) revert WeightExceedsMax(weight, 10000);
+            if (weight > 10000) revert WeightExceedsMax(weight, 10000);
             address gauge = getGaugeAddress(i);
             rewardInfoByToken[_token].gaugeWeights[i] = weight;
             totalWeight += weight;
             emit NewWeight(gauge, _token, weight);
         }
-        if(totalWeight != 10000) revert IncorrectWeightsSum(totalWeight, 10000);
+        if (totalWeight != 10000)
+            revert IncorrectWeightsSum(totalWeight, 10000);
     }
 
     /// Sets the inflation rate used to calculate emissions over time
@@ -117,8 +125,10 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         address _token,
         uint256 _newInflationRate
     ) external onlyRole(GOVERNANCE) {
-        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
-        if(_newInflationRate > maxInflationRate) revert AboveMaxInflationRate(_newInflationRate, maxInflationRate);
+        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
+            revert InvalidRewardTokenAddress(_token);
+        if (_newInflationRate > MAX_INFLATION_RATE)
+            revert AboveMaxInflationRate(_newInflationRate, MAX_INFLATION_RATE);
         uint256 gaugesLength = getNumGauges();
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
@@ -133,8 +143,13 @@ abstract contract GaugeController is IGaugeController, IncreAccessControl, Pausa
         address _token,
         uint256 _newReductionFactor
     ) external onlyRole(GOVERNANCE) {
-        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
-        if(minReductionFactor > _newReductionFactor) revert BelowMinReductionFactor(_newReductionFactor, minReductionFactor);
+        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
+            revert InvalidRewardTokenAddress(_token);
+        if (MIN_REDUCTION_FACTOR > _newReductionFactor)
+            revert BelowMinReductionFactor(
+                _newReductionFactor,
+                MIN_REDUCTION_FACTOR
+            );
         rewardInfoByToken[_token].reductionFactor = _newReductionFactor;
         emit NewReductionFactor(_token, _newReductionFactor);
     }

@@ -16,7 +16,11 @@ import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 // libraries
 import {LibMath} from "increment-protocol/lib/LibMath.sol";
 
-contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeController {
+contract RewardDistributor is
+    IRewardDistributor,
+    IStakingContract,
+    GaugeController
+{
     using SafeERC20 for IERC20Metadata;
     using LibMath for uint256;
 
@@ -47,7 +51,8 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
     /// @dev First address is user, second is reward token, array index is ClearingHouse.perpetuals index
-    mapping(address => mapping(address => uint256[])) public cumulativeRewardPerLpTokenPerUser;
+    mapping(address => mapping(address => uint256[]))
+        public cumulativeRewardPerLpTokenPerUser;
 
     /// @notice Timestamp of the most recent update to the reward accumulator
     /// @dev Market index is ClearingHouse.perpetuals index
@@ -59,32 +64,37 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     error InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error NoRewardsToClaim(address user);
-    error PositionAlreadyRegistered(address lp, uint256 marketIndex, uint256 position);
-    error EarlyRewardAccrual(address user, uint256 marketIndex, uint256 claimAllowedTimestamp);
-    error LpPositionMismatch(address lp, uint256 marketIndex, uint256 prevPosition, uint256 newPosition);
+    error PositionAlreadyRegistered(
+        address lp,
+        uint256 marketIndex,
+        uint256 position
+    );
+    error EarlyRewardAccrual(
+        address user,
+        uint256 marketIndex,
+        uint256 claimAllowedTimestamp
+    );
+    error LpPositionMismatch(
+        address lp,
+        uint256 marketIndex,
+        uint256 prevPosition,
+        uint256 newPosition
+    );
 
-    modifier onlyClearingHouse {
-        if(msg.sender != address(clearingHouse)) revert CallerIsNotClearingHouse(msg.sender);
+    modifier onlyClearingHouse() {
+        if (msg.sender != address(clearingHouse))
+            revert CallerIsNotClearingHouse(msg.sender);
         _;
     }
 
     constructor(
         uint256 _initialInflationRate,
-        uint256 _maxRewardTokens,
-        uint256 _maxInflationRate,
         uint256 _initialReductionFactor,
-        uint256 _minReductionFactor,
-        address _rewardToken, 
+        address _rewardToken,
         address _clearingHouse,
         uint256 _earlyWithdrawalThreshold,
         uint16[] memory _initialGaugeWeights
-    ) GaugeController(
-        _maxRewardTokens,
-        _initialInflationRate, 
-        _maxInflationRate,
-        _initialReductionFactor, 
-        _minReductionFactor
-    ) {
+    ) GaugeController(_initialInflationRate, _initialReductionFactor) {
         clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
@@ -96,7 +106,12 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             reductionFactor: _initialReductionFactor,
             gaugeWeights: _initialGaugeWeights
         });
-        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
+        emit RewardTokenAdded(
+            _rewardToken,
+            block.timestamp,
+            _initialInflationRate,
+            _initialReductionFactor
+        );
     }
 
     /* ****************** */
@@ -109,7 +124,9 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     }
 
     /// @inheritdoc GaugeController
-    function getGaugeAddress(uint256 index) public view virtual override returns (address) {
+    function getGaugeAddress(
+        uint256 index
+    ) public view virtual override returns (address) {
         return address(clearingHouse.perpetuals(index));
     }
 
@@ -117,7 +134,10 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @param lp Address of the user
     /// @param gauge Address of the gauge
     /// @return Current position of the user in the gauge
-    function getCurrentPosition(address lp, address gauge) public view virtual returns (uint256) {
+    function getCurrentPosition(
+        address lp,
+        address gauge
+    ) public view virtual returns (uint256) {
         return IPerpetual(gauge).getLpLiquidity(lp);
     }
 
@@ -128,17 +148,23 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override nonReentrant {
         uint256 liquidity = totalLiquidityPerMarket[idx];
-        for(uint256 i; i < rewardTokens.length; ++i) {
+        for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
-            uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[idx];
-            uint256 totalTimeElapsed = block.timestamp - rewardInfo.initialTimestamp;
+            uint256 deltaTime = block.timestamp -
+                timeOfLastCumRewardUpdate[idx];
+            uint256 totalTimeElapsed = block.timestamp -
+                rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-            uint256 inflationRatePerSecond = rewardInfo.inflationRate / 365 days 
-                                           / (rewardInfo.reductionFactor ^ (totalTimeElapsed / 365 days));
-            cumulativeRewardPerLpToken[token][idx] += (
-                inflationRatePerSecond * rewardInfo.gaugeWeights[idx] / 10000 * deltaTime * 1e18
-            ) / liquidity;
+            uint256 inflationRatePerSecond = rewardInfo.inflationRate /
+                365 days /
+                (rewardInfo.reductionFactor ^ (totalTimeElapsed / 365 days));
+            cumulativeRewardPerLpToken[token][idx] +=
+                (((inflationRatePerSecond * rewardInfo.gaugeWeights[idx]) /
+                    10000) *
+                    deltaTime *
+                    1e18) /
+                liquidity;
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[idx] = block.timestamp;
@@ -148,18 +174,22 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Executes whenever a user's liquidity is updated for any reason
     /// @param idx Index of the perpetual market in the ClearingHouse
     /// @param user Address of the liquidity provier
-    function updateStakingPosition(uint256 idx, address user) external virtual override nonReentrant onlyClearingHouse {
-        if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
+    function updateStakingPosition(
+        uint256 idx,
+        address user
+    ) external virtual override nonReentrant onlyClearingHouse {
+        if (idx >= getNumGauges())
+            revert InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = getCurrentPosition(user, gauge);
-        for(uint256 i; i < rewardTokens.length; ++i) {
+        for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-            uint256 newRewards = prevLpPosition * (
-                cumulativeRewardPerLpToken[token][idx] - cumulativeRewardPerLpTokenPerUser[user][token][idx]
-            );
+            uint256 newRewards = prevLpPosition *
+                (cumulativeRewardPerLpToken[token][idx] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][idx]);
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
                 if (lastDepositTimeByUserByMarket[user][idx] == 0) {
@@ -167,10 +197,15 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
                 }
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
-                if (block.timestamp - lastDepositTimeByUserByMarket[user][idx] < earlyWithdrawalThreshold) {
+                if (
+                    block.timestamp - lastDepositTimeByUserByMarket[user][idx] <
+                    earlyWithdrawalThreshold
+                ) {
                     // Early withdrawal - apply penalty
-                    newRewards -= newRewards * (prevLpPosition - newLpPosition) / prevLpPosition;
-                } 
+                    newRewards -=
+                        (newRewards * (prevLpPosition - newLpPosition)) /
+                        prevLpPosition;
+                }
                 if (newLpPosition > 0) {
                     // Reset timer
                     lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
@@ -181,7 +216,9 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             }
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
-            cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
+            cumulativeRewardPerLpTokenPerUser[user][token][
+                idx
+            ] = cumulativeRewardPerLpToken[token][idx];
             emit RewardAccrued(user, token, address(gauge), newRewards);
         }
         lpPositionsPerUser[user][idx] = newLpPosition;
@@ -202,20 +239,23 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         uint256 _initialReductionFactor,
         uint16[] calldata _gaugeWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        if(rewardTokens.length >= maxRewardTokens) revert AboveMaxRewardTokens(maxRewardTokens);
+        if (rewardTokens.length >= MAX_REWARD_TOKENS)
+            revert AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         uint256 gaugesLength = getNumGauges();
-        if(_gaugeWeights.length != gaugesLength) revert IncorrectWeightsCount(_gaugeWeights.length, gaugesLength);
+        if (_gaugeWeights.length != gaugesLength)
+            revert IncorrectWeightsCount(_gaugeWeights.length, gaugesLength);
         // Validate weights
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _gaugeWeights[i];
-            if(weight > 10000) revert WeightExceedsMax(weight, 10000);
+            if (weight > 10000) revert WeightExceedsMax(weight, 10000);
             address gauge = getGaugeAddress(i);
             totalWeight += weight;
             emit NewWeight(gauge, _rewardToken, weight);
         }
-        if(totalWeight != 10000) revert IncorrectWeightsSum(totalWeight, 10000);
+        if (totalWeight != 10000)
+            revert IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
         rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
@@ -225,21 +265,29 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
             reductionFactor: _initialReductionFactor,
             gaugeWeights: _gaugeWeights
         });
-        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
+        emit RewardTokenAdded(
+            _rewardToken,
+            block.timestamp,
+            _initialInflationRate,
+            _initialReductionFactor
+        );
     }
 
     /// Removes a reward token
     /// @param _token Address of the reward token to remove
-    function removeRewardToken(address _token) external nonReentrant onlyRole(GOVERNANCE) {
-        if(rewardInfoByToken[_token].token != IERC20Metadata(_token)) revert InvalidRewardTokenAddress(_token);
+    function removeRewardToken(
+        address _token
+    ) external nonReentrant onlyRole(GOVERNANCE) {
+        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
+            revert InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
         // Update rewards for all markets before removal
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
         }
         // The `delete` keyword applied to arrays does not reduce array length
-        for(uint i = 0; i < rewardTokens.length; ++i){
-            if(rewardTokens[i] == _token){
+        for (uint i = 0; i < rewardTokens.length; ++i) {
+            if (rewardTokens[i] == _token) {
                 // Find the token in the array and swap it with the last element
                 rewardTokens[i] = rewardTokens[rewardTokens.length - 1];
                 // Delete the last element
@@ -265,8 +313,13 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumGauges();
-        for(uint i; i < numMarkets; ++i) {
-            if(lpPositionsPerUser[msg.sender][i] != 0) revert PositionAlreadyRegistered(msg.sender, i, lpPositionsPerUser[msg.sender][i]);
+        for (uint i; i < numMarkets; ++i) {
+            if (lpPositionsPerUser[msg.sender][i] != 0)
+                revert PositionAlreadyRegistered(
+                    msg.sender,
+                    i,
+                    lpPositionsPerUser[msg.sender][i]
+                );
             address gauge = getGaugeAddress(i);
             uint256 lpPosition = getCurrentPosition(msg.sender, gauge);
             lpPositionsPerUser[msg.sender][i] = lpPosition;
@@ -277,11 +330,19 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     /// Fetches and stores the caller's LP positions and updates the total liquidity in each market
     /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
     /// @param _marketIndexes Indexes of the perpetual markets in the ClearingHouse to sync with
-    function registerPositions(uint256[] calldata _marketIndexes) external nonReentrant {
-        for(uint i; i < _marketIndexes.length; ++i) {
+    function registerPositions(
+        uint256[] calldata _marketIndexes
+    ) external nonReentrant {
+        for (uint i; i < _marketIndexes.length; ++i) {
             uint256 idx = _marketIndexes[i];
-            if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
-            if(lpPositionsPerUser[msg.sender][idx] != 0) revert PositionAlreadyRegistered(msg.sender, idx, lpPositionsPerUser[msg.sender][idx]);
+            if (idx >= getNumGauges())
+                revert InvalidMarketIndex(idx, getNumGauges());
+            if (lpPositionsPerUser[msg.sender][idx] != 0)
+                revert PositionAlreadyRegistered(
+                    msg.sender,
+                    idx,
+                    lpPositionsPerUser[msg.sender][idx]
+                );
             address gauge = getGaugeAddress(idx);
             uint256 lpPosition = getCurrentPosition(msg.sender, gauge);
             lpPositionsPerUser[msg.sender][idx] = lpPosition;
@@ -302,15 +363,22 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
 
     /// Accrues and then distributes rewards for all markets to the given user
     /// @param _user Address of the user to claim rewards for
-    function claimRewardsFor(address _user, address[] memory _rewardTokens) public override nonReentrant whenNotPaused {
+    function claimRewardsFor(
+        address _user,
+        address[] memory _rewardTokens
+    ) public override nonReentrant whenNotPaused {
         for (uint i; i < getNumGauges(); ++i) {
             _accrueRewards(i, _user);
         }
         for (uint i; i < _rewardTokens.length; ++i) {
             address token = _rewardTokens[i];
             uint256 rewards = rewardsAccruedByUser[_user][token];
-            if(rewards > 0){
-                rewardsAccruedByUser[_user][token] = _distributeReward(token, _user, rewards);
+            if (rewards > 0) {
+                rewardsAccruedByUser[_user][token] = _distributeReward(
+                    token,
+                    _user,
+                    rewards
+                );
                 emit RewardClaimed(_user, token, rewards);
             }
         }
@@ -320,7 +388,6 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         return super.paused() || Pausable(address(clearingHouse)).paused();
     }
 
-
     /* ****************** */
     /*      Internal      */
     /* ****************** */
@@ -328,26 +395,46 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
     function _accrueRewards(uint256 idx, address user) internal {
         // Used to update rewards before claiming them, assuming LP position hasn't changed
         // Updating rewards due to changes in LP position is handled by updateStakingPosition
-        if(idx >= getNumGauges()) revert InvalidMarketIndex(idx, getNumGauges());
-        if(
-            block.timestamp < lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold
-        ) revert EarlyRewardAccrual(user, idx, lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold);
+        if (idx >= getNumGauges())
+            revert InvalidMarketIndex(idx, getNumGauges());
+        if (
+            block.timestamp <
+            lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold
+        )
+            revert EarlyRewardAccrual(
+                user,
+                idx,
+                lastDepositTimeByUserByMarket[user][idx] +
+                    earlyWithdrawalThreshold
+            );
         address gauge = getGaugeAddress(idx);
         uint256 lpPosition = lpPositionsPerUser[user][idx];
-        if(lpPosition != getCurrentPosition(user, gauge)) revert LpPositionMismatch(user, idx, lpPosition, getCurrentPosition(user, gauge));
-        for(uint i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
-            uint256 newRewards = lpPosition * (
-                cumulativeRewardPerLpToken[token][idx] - cumulativeRewardPerLpTokenPerUser[user][token][idx]
+        if (lpPosition != getCurrentPosition(user, gauge))
+            revert LpPositionMismatch(
+                user,
+                idx,
+                lpPosition,
+                getCurrentPosition(user, gauge)
             );
+        for (uint i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            uint256 newRewards = lpPosition *
+                (cumulativeRewardPerLpToken[token][idx] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][idx]);
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
-            cumulativeRewardPerLpTokenPerUser[user][token][idx] = cumulativeRewardPerLpToken[token][idx];
+            cumulativeRewardPerLpTokenPerUser[user][token][
+                idx
+            ] = cumulativeRewardPerLpToken[token][idx];
             emit RewardAccrued(user, token, gauge, newRewards);
         }
     }
 
-    function _distributeReward(address _token, address _to, uint256 _amount) internal returns (uint256) {
+    function _distributeReward(
+        address _token,
+        address _to,
+        uint256 _amount
+    ) internal returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         if (_amount > 0 && _amount <= rewardsRemaining) {
             IERC20Metadata rewardToken = IERC20Metadata(_token);
@@ -358,7 +445,9 @@ contract RewardDistributor is IRewardDistributor, IStakingContract, GaugeControl
         return _amount;
     }
 
-    function _rewardTokenBalance(address _token) internal view returns (uint256) {
+    function _rewardTokenBalance(
+        address _token
+    ) internal view returns (uint256) {
         IERC20Metadata rewardToken = IERC20Metadata(_token);
         return rewardToken.balanceOf(address(this));
     }
