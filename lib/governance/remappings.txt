@@ -1,0 +1,5 @@
+forge-std/=lib/forge-std/src/
+@openzeppelin/=lib/openzeppelin-contracts/
+@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
+murky/=lib/murky/
+solidity-stringutils/=lib/solidity-stringutils/
