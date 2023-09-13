@@ -13,3 +13,6 @@
 [submodule "lib/prb-math"]
 	path = lib/prb-math
 	url = https://github.com/PaulRBerg/prb-math
+[submodule "lib/governance"]
+	path = lib/governance
+	url = https://github.com/Increment-Finance/governance.git
