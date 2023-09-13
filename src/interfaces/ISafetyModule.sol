@@ -9,7 +9,6 @@ interface ISafetyModule {
     function stakingTokens(uint256 i) external view returns (IStakedToken);
     function maxRewardMultiplier() external view returns (uint256);
     function smoothingValue() external view returns (uint256);
-    function lastWithdrawalTimeByUser(address) external view returns (uint256);
 
     function setMaxRewardMultiplier(uint256) external;
     function setSmoothingValue(uint256) external;
