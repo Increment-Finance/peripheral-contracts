@@ -1,4 +1,8 @@
 [profile.default]
+ffi = true
+fuzz_runs = 256
+optimizer = true
+optimizer_runs = 999999
 src = 'src'
 out = 'out'
 libs = ['lib']
