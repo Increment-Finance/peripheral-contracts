@@ -149,7 +149,7 @@ contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc GaugeController
-    function updateMarketRewards(uint256 idx) public override nonReentrant {
+    function updateMarketRewards(uint256 idx) public override {
         uint256 liquidity = totalLiquidityPerMarket[idx];
         if (liquidity == 0) return;
         for (uint256 i; i < rewardTokens.length; ++i) {
