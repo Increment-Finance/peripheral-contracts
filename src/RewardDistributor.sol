@@ -39,28 +39,30 @@ contract RewardDistributor is
     mapping(address => uint256) public totalUnclaimedRewards;
 
     /// @notice Last timestamp when user withdrew liquidity from a market
-    mapping(address => uint256[]) public lastDepositTimeByUserByMarket;
+    mapping(address => mapping(uint256 => uint256))
+        public lastDepositTimeByUserByMarket;
 
     /// @notice Latest LP positions per user and market index
-    /// @dev Market index is ClearingHouse.perpetuals index
-    mapping(address => uint256[]) public lpPositionsPerUser;
+    /// @dev Address is user, market index is ClearingHouse.perpetuals index
+    mapping(address => mapping(uint256 => uint256)) public lpPositionsPerUser;
 
     /// @notice Reward accumulator for total market rewards per reward token
     /// @dev Address is reward token, array index is ClearingHouse.perpetuals index
-    mapping(address => uint256[]) public cumulativeRewardPerLpToken;
+    mapping(address => mapping(uint256 => uint256))
+        public cumulativeRewardPerLpToken;
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
     /// @dev First address is user, second is reward token, array index is ClearingHouse.perpetuals index
-    mapping(address => mapping(address => uint256[]))
+    mapping(address => mapping(address => mapping(uint256 => uint256)))
         public cumulativeRewardPerLpTokenPerUser;
 
     /// @notice Timestamp of the most recent update to the reward accumulator
     /// @dev Market index is ClearingHouse.perpetuals index
-    uint256[] public timeOfLastCumRewardUpdate;
+    mapping(uint256 => uint256) public timeOfLastCumRewardUpdate;
 
     /// @notice Total LP tokens registered for rewards per market per day
     /// @dev Market index is ClearingHouse.perpetuals index
-    uint256[] public totalLiquidityPerMarket;
+    mapping(uint256 => uint256) public totalLiquidityPerMarket;
 
     error InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error NoRewardsToClaim(address user);
