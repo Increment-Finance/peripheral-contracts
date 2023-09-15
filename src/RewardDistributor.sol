@@ -151,6 +151,7 @@ contract RewardDistributor is
     /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override nonReentrant {
         uint256 liquidity = totalLiquidityPerMarket[idx];
+        if (liquidity == 0) return;
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
@@ -187,6 +188,10 @@ contract RewardDistributor is
         address gauge = getGaugeAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = getCurrentPosition(user, gauge);
+        totalLiquidityPerMarket[idx] =
+            totalLiquidityPerMarket[idx] +
+            newLpPosition -
+            prevLpPosition;
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
