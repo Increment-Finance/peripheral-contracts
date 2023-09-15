@@ -373,9 +373,9 @@ contract RewardDistributor is
     function claimRewardsFor(
         address _user,
         address[] memory _rewardTokens
-    ) public override nonReentrant whenNotPaused {
+    ) public override whenNotPaused {
         for (uint i; i < getNumGauges(); ++i) {
-            _accrueRewards(i, _user);
+            accrueRewards(i, _user);
         }
         for (uint i; i < _rewardTokens.length; ++i) {
             address token = _rewardTokens[i];
@@ -395,11 +395,7 @@ contract RewardDistributor is
         return super.paused() || Pausable(address(clearingHouse)).paused();
     }
 
-    /* ****************** */
-    /*      Internal      */
-    /* ****************** */
-
-    function _accrueRewards(uint256 idx, address user) internal {
+    function accrueRewards(uint256 idx, address user) public nonReentrant {
         // Used to update rewards before claiming them, assuming LP position hasn't changed
         // Updating rewards due to changes in LP position is handled by updateStakingPosition
         if (idx >= getNumGauges())
@@ -423,6 +419,7 @@ contract RewardDistributor is
                 lpPosition,
                 getCurrentPosition(user, gauge)
             );
+        updateMarketRewards(idx);
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             uint256 newRewards = lpPosition *
@@ -436,6 +433,10 @@ contract RewardDistributor is
             emit RewardAccruedToUser(user, token, gauge, newRewards);
         }
     }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
 
     function _distributeReward(
         address _token,
