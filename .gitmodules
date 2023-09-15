@@ -16,3 +16,6 @@
 [submodule "lib/governance"]
 	path = lib/governance
 	url = https://github.com/Increment-Finance/governance.git
+[submodule "increment-governance"]
+	path = lib/increment-governance
+	url = https://github.com/Increment-Finance/governance.git
