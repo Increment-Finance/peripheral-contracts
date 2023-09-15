@@ -160,15 +160,13 @@ contract RewardDistributor is
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-            uint256 inflationRatePerSecond = rewardInfo.inflationRate /
-                365 days /
-                (rewardInfo.reductionFactor ^ (totalTimeElapsed / 365 days));
-            cumulativeRewardPerLpToken[token][idx] +=
-                (((inflationRatePerSecond * rewardInfo.gaugeWeights[idx]) /
-                    10000) *
-                    deltaTime *
-                    1e18) /
-                liquidity;
+            uint256 inflationRatePerSecond = ((rewardInfo.inflationRate /
+                (rewardInfo.reductionFactor ^ (totalTimeElapsed / 365 days))) *
+                1e18) / 365 days;
+            uint256 newRewards = ((inflationRatePerSecond *
+                rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime;
+            cumulativeRewardPerLpToken[token][idx] += newRewards / liquidity;
+            emit RewardAccruedToMarket(getGaugeAddress(idx), token, newRewards);
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[idx] = block.timestamp;
