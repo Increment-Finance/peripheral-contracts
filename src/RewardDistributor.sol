@@ -225,7 +225,7 @@ contract RewardDistributor is
             cumulativeRewardPerLpTokenPerUser[user][token][
                 idx
             ] = cumulativeRewardPerLpToken[token][idx];
-            emit RewardAccrued(user, token, address(gauge), newRewards);
+            emit RewardAccruedToUser(user, token, address(gauge), newRewards);
         }
         lpPositionsPerUser[user][idx] = newLpPosition;
     }
@@ -433,7 +433,7 @@ contract RewardDistributor is
             cumulativeRewardPerLpTokenPerUser[user][token][
                 idx
             ] = cumulativeRewardPerLpToken[token][idx];
-            emit RewardAccrued(user, token, gauge, newRewards);
+            emit RewardAccruedToUser(user, token, gauge, newRewards);
         }
     }
 
