@@ -12,10 +12,20 @@ interface IRewardDistributor {
     /// @param rewardToken Address of the reward token
     /// @param perpetual Address of the perpetual market
     /// @param reward Amount of reward accrued
-    event RewardAccrued(
-        address indexed lp, 
+    event RewardAccruedToUser(
+        address indexed lp,
         address rewardToken,
-        address perpetual, 
+        address perpetual,
+        uint256 reward
+    );
+
+    /// Emitted when rewards are accrued to a market
+    /// @param perpetual Address of the perpetual market
+    /// @param rewardToken Address of the reward token
+    /// @param reward Amount of reward accrued
+    event RewardAccruedToMarket(
+        address indexed perpetual,
+        address rewardToken,
         uint256 reward
     );
 
@@ -43,6 +53,20 @@ interface IRewardDistributor {
 
     function earlyWithdrawalThreshold() external view returns (uint256);
 
+    function getCurrentPosition(
+        address,
+        address
+    ) external view returns (uint256);
+
+    function addRewardToken(
+        address,
+        uint256,
+        uint256,
+        uint16[] calldata
+    ) external;
+
+    function removeRewardToken(address) external;
+
     function registerPositions() external;
 
     function registerPositions(uint256[] calldata) external;
@@ -52,4 +76,6 @@ interface IRewardDistributor {
     function claimRewardsFor(address) external;
 
     function claimRewardsFor(address, address[] memory) external;
+
+    function accrueRewards(uint256, address) external;
 }
