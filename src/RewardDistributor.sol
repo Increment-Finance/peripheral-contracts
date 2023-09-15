@@ -108,6 +108,7 @@ contract RewardDistributor is
             reductionFactor: _initialReductionFactor,
             gaugeWeights: _initialGaugeWeights
         });
+        timeOfLastCumRewardUpdate[0] = block.timestamp;
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -259,6 +260,7 @@ contract RewardDistributor is
         if (totalWeight != 10000)
             revert IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
+        timeOfLastCumRewardUpdate[rewardTokens.length] = block.timestamp;
         rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
