@@ -113,6 +113,10 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address gauge = getGaugeAddress(idx);
         uint256 prevPosition = lpPositionsPerUser[user][idx];
         uint256 newPosition = getCurrentPosition(user, gauge);
+        totalLiquidityPerMarket[idx] =
+            totalLiquidityPerMarket[idx] +
+            newPosition -
+            prevPosition;
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
@@ -130,7 +134,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             cumulativeRewardPerLpTokenPerUser[user][token][
                 idx
             ] = cumulativeRewardPerLpToken[token][idx];
-            emit RewardAccrued(user, token, address(gauge), newRewards);
+            emit RewardAccruedToUser(user, token, address(gauge), newRewards);
         }
         // TODO: What if a staking token is removed? Can we still use a mapping(address => uint256[])?
         lpPositionsPerUser[user][idx] = newPosition;
