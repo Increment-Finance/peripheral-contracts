@@ -141,6 +141,8 @@ contract RewardsTest is PerpetualUtils {
         });
         vm.startPrank(address(this));
         clearingHouse.setParameters(clearingHouse_params);
+        vBase.setHeartBeat(30 days);
+        vBase2.setHeartBeat(30 days);
     }
 
     function testDeployment() public {
@@ -170,60 +172,97 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
-    function testBasicScenario(uint256 providedLiquidity) public {
+    function testBasicScenario(
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2
+    ) public {
         /* bounds */
-        providedLiquidity = bound(providedLiquidity, 100e18, 10_000e18);
-        require(providedLiquidity >= 100e18 && providedLiquidity <= 10_000e18);
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+        require(
+            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
+        );
 
         // initial liquidity
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        _provideLiquidity(10_000e18, liquidityProviderOne);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
         console.log("Initial liquidity: %s", 10_000e18);
 
         // provide some more liquidity
         fundAndPrepareAccount(
             liquidityProviderTwo,
-            providedLiquidity,
+            providedLiquidity1 + providedLiquidity2,
             vault,
             ua
         );
-        _provideLiquidity(providedLiquidity, liquidityProviderTwo);
-        console.log("Provided liquidity: %s", providedLiquidity);
-        uint256 percentOfLiquidity = (providedLiquidity * 1e18) /
-            (10_000e18 + providedLiquidity);
-        console.log("Percent of liquidity: %s / 1e18", percentOfLiquidity);
+        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
+        console.log("Provided liquidity 1: %s", providedLiquidity1);
+        console.log("Provided liquidity 2: %s", providedLiquidity2);
+        uint256 percentOfLiquidity = (providedLiquidity1 * 1e18) /
+            (10_000e18 + providedLiquidity1);
+        uint256 percentOfLiquidity2 = (providedLiquidity2 * 1e18) /
+            (10_000e18 + providedLiquidity2);
+        console.log("Percent of liquidity1: %s / 1e18", percentOfLiquidity);
+        console.log("Percent of liquidity2: %s / 1e18", percentOfLiquidity2);
 
         // skip some time
         skip(10 days);
 
         // check rewards
         rewardsDistributor.accrueRewards(0, liquidityProviderTwo);
+        rewardsDistributor.accrueRewards(1, liquidityProviderTwo);
         uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
         );
         assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards = rewardsDistributor
-            .cumulativeRewardPerLpToken(address(rewardsToken), 0);
-        console.log("Cumulative rewards: %s", cumulativeRewards);
+        uint256 cumulativeRewards1 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual)
+            );
+        uint256 cumulativeRewards2 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual2)
+            );
+        console.log("Cumulative rewards 1: %s", cumulativeRewards1);
+        console.log("Cumulative rewards 2: %s", cumulativeRewards2);
         (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
-        uint256 expectedCumulativeRewards = ((((inflationRate * 3) / 4) * 10) /
+        uint256 expectedCumulativeRewards1 = ((((inflationRate * 3) / 4) * 10) /
             365);
+        uint256 expectedCumulativeRewards2 = (((inflationRate / 4) * 10) / 365);
         console.log(
-            "Expected cumulative rewards: %s",
-            expectedCumulativeRewards
+            "Expected cumulative rewards 1: %s",
+            expectedCumulativeRewards1
+        );
+        console.log(
+            "Expected cumulative rewards 2: %s",
+            expectedCumulativeRewards2
         );
         assertApproxEqRel(
-            cumulativeRewards,
-            expectedCumulativeRewards,
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            1e16, // 1%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
             1e16, // 1%, accounts for reduction factor
             "Incorrect cumulative rewards"
         );
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards.wadMul(percentOfLiquidity),
+            cumulativeRewards1.wadMul(percentOfLiquidity) +
+                cumulativeRewards2.wadMul(percentOfLiquidity2),
             1e15, // 0.1%
             "Incorrect user rewards"
         );
@@ -259,9 +298,6 @@ contract RewardsTest is PerpetualUtils {
 
         // skip some time
         skip(5 days);
-        vm.startPrank(address(this));
-        vBase.setHeartBeat(10 days);
-        vBase2.setHeartBeat(10 days);
 
         // remove some liquidity
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
@@ -273,8 +309,44 @@ contract RewardsTest is PerpetualUtils {
         );
         assertGt(accruedRewards, 0, "Rewards not accrued");
         uint256 cumulativeRewards = rewardsDistributor
-            .cumulativeRewardPerLpToken(address(rewardsToken), 0);
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual)
+            );
         console.log("Cumulative rewards: %s", cumulativeRewards);
+        assertApproxEqRel(
+            accruedRewards,
+            cumulativeRewards.wadMul(percentOfLiquidity).wadMul(
+                1e18 - reductionRatio
+            ),
+            1e16,
+            "Incorrect rewards"
+        );
+
+        // skip some time again
+        skip(5 days);
+
+        // remove some liquidity again
+        percentOfLiquidity = rewardsDistributor
+            .lpPositionsPerUser(liquidityProviderTwo, address(perpetual))
+            .wadDiv(
+                rewardsDistributor.totalLiquidityPerMarket(address(perpetual))
+            );
+        _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
+
+        // check that penalty was applied again
+        accruedRewards =
+            rewardsDistributor.rewardsAccruedByUser(
+                liquidityProviderTwo,
+                address(rewardsToken)
+            ) -
+            accruedRewards;
+        cumulativeRewards =
+            rewardsDistributor.cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual)
+            ) -
+            cumulativeRewards;
         assertApproxEqRel(
             accruedRewards,
             cumulativeRewards.wadMul(percentOfLiquidity).wadMul(
@@ -286,15 +358,20 @@ contract RewardsTest is PerpetualUtils {
     }
 
     function _provideLiquidity(
-        uint256 quoteAmount,
+        uint256 depositAmount,
         address user,
         TestPerpetual perp
     ) internal {
         vm.startPrank(user);
 
-        clearingHouse.deposit(quoteAmount, ua);
+        clearingHouse.deposit(depositAmount, ua);
+        uint256 quoteAmount = depositAmount / 2;
         uint256 baseAmount = quoteAmount.wadDiv(perp.indexPrice().toUint256());
-        clearingHouse.provideLiquidity(0, [quoteAmount, baseAmount], 0);
+        clearingHouse.provideLiquidity(
+            perp == perpetual ? 0 : 1,
+            [quoteAmount, baseAmount],
+            0
+        );
     }
 
     function _removeAllLiquidity(address user, TestPerpetual perp) internal {
@@ -332,7 +409,6 @@ contract RewardsTest is PerpetualUtils {
             reductionRatio
         );
         console.log("Proposed amount: %s", proposedAmount);
-        // vm.assume(proposedAmount > 1e17);
         clearingHouse.removeLiquidity(
             perp == perpetual ? 0 : 1,
             amount,
