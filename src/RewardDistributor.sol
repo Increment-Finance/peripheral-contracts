@@ -14,7 +14,9 @@ import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.s
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // libraries
-import {LibMath} from "increment-protocol/lib/LibMath.sol";
+import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+
+// import {console2 as console} from "forge/console2.sol";
 
 contract RewardDistributor is
     IRewardDistributor,
@@ -22,7 +24,7 @@ contract RewardDistributor is
     GaugeController
 {
     using SafeERC20 for IERC20Metadata;
-    using LibMath for uint256;
+    using PRBMathUD60x18 for uint256;
 
     /// @notice Clearing House contract
     IClearingHouse public clearingHouse;
@@ -159,13 +161,17 @@ contract RewardDistributor is
                 timeOfLastCumRewardUpdate[idx];
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-            uint256 inflationRatePerSecond = ((rewardInfo.inflationRate /
-                (rewardInfo.reductionFactor ^ (totalTimeElapsed / 365 days))) *
-                1e18) / 365 days;
+            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+            uint256 inflationRatePerSecond = (
+                rewardInfo.inflationRate.div(
+                    rewardInfo.reductionFactor.pow(
+                        totalTimeElapsed.div(365 days)
+                    )
+                )
+            ) / 365 days;
             uint256 newRewards = ((inflationRatePerSecond *
                 rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime;
-            cumulativeRewardPerLpToken[token][idx] += newRewards / liquidity;
+            cumulativeRewardPerLpToken[token][idx] += newRewards;
             emit RewardAccruedToMarket(getGaugeAddress(idx), token, newRewards);
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
@@ -186,16 +192,16 @@ contract RewardDistributor is
         address gauge = getGaugeAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][idx];
         uint256 newLpPosition = getCurrentPosition(user, gauge);
-        totalLiquidityPerMarket[idx] =
-            totalLiquidityPerMarket[idx] +
-            newLpPosition -
-            prevLpPosition;
+        uint256 prevTotalLiquidity = totalLiquidityPerMarket[idx];
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
-            /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-            uint256 newRewards = prevLpPosition *
-                (cumulativeRewardPerLpToken[token][idx] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][idx]);
+            /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            uint256 newRewards = prevTotalLiquidity > 0
+                ? (prevLpPosition *
+                    (cumulativeRewardPerLpToken[token][idx] -
+                        cumulativeRewardPerLpTokenPerUser[user][token][idx])) /
+                    prevTotalLiquidity
+                : 0;
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
                 if (lastDepositTimeByUserByMarket[user][idx] == 0) {
@@ -227,6 +233,10 @@ contract RewardDistributor is
             ] = cumulativeRewardPerLpToken[token][idx];
             emit RewardAccruedToUser(user, token, address(gauge), newRewards);
         }
+        totalLiquidityPerMarket[idx] =
+            totalLiquidityPerMarket[idx] +
+            newLpPosition -
+            prevLpPosition;
         lpPositionsPerUser[user][idx] = newLpPosition;
     }
 
@@ -422,9 +432,10 @@ contract RewardDistributor is
         updateMarketRewards(idx);
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
-            uint256 newRewards = lpPosition *
+            uint256 newRewards = (lpPosition *
                 (cumulativeRewardPerLpToken[token][idx] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][idx]);
+                    cumulativeRewardPerLpTokenPerUser[user][token][idx])) /
+                totalLiquidityPerMarket[idx];
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
