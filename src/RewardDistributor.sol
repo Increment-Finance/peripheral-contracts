@@ -69,6 +69,7 @@ contract RewardDistributor is
 
     error InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error UninitializedStartTime(address gauge);
+    error AlreadyInitializedStartTime(address gauge);
     error NoRewardsToClaim(address user);
     error PositionAlreadyRegistered(
         address lp,
@@ -258,6 +259,8 @@ contract RewardDistributor is
     /// Sets the start time for accruing rewards to a gauge
     /// @param _gauge Address of the gauge (i.e., perpetual market)
     function initGaugeStartTime(address _gauge) external onlyRole(GOVERNANCE) {
+        if (timeOfLastCumRewardUpdate[_gauge] != 0)
+            revert AlreadyInitializedStartTime(gauge);
         timeOfLastCumRewardUpdate[_gauge] = block.timestamp;
     }
 
