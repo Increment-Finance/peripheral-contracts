@@ -10,12 +10,17 @@ import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.so
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IGaugeController} from "./interfaces/IGaugeController.sol";
 
+// libraries
+import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+
 abstract contract GaugeController is
     IGaugeController,
     IncreAccessControl,
     Pausable,
     ReentrancyGuard
 {
+    using PRBMathUD60x18 for uint256;
+
     /// @notice Data structure containing essential info for each reward token
     struct RewardInfo {
         IERC20Metadata token; // Address of the reward token
