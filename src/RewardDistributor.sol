@@ -401,13 +401,12 @@ contract RewardDistributor is
         }
     }
 
-    function paused() public view override returns (bool) {
-        return super.paused() || Pausable(address(clearingHouse)).paused();
-    }
-
+    /// Accrues rewards to a user for a given market
+    /// @notice Assumes LP position hasn't changed since last accrual
+    /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
+    /// @param idx Index of the market in ClearingHouse.perpetuals
+    /// @param user Address of the user
     function accrueRewards(uint256 idx, address user) public nonReentrant {
-        // Used to update rewards before claiming them, assuming LP position hasn't changed
-        // Updating rewards due to changes in LP position is handled by updateStakingPosition
         if (idx >= getNumGauges())
             revert InvalidMarketIndex(idx, getNumGauges());
         if (
@@ -443,6 +442,10 @@ contract RewardDistributor is
             ] = cumulativeRewardPerLpToken[token][idx];
             emit RewardAccruedToUser(user, token, gauge, newRewards);
         }
+    }
+
+    function paused() public view override returns (bool) {
+        return super.paused() || Pausable(address(clearingHouse)).paused();
     }
 
     /* ****************** */
