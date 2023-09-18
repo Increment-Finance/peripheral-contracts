@@ -86,6 +86,55 @@ abstract contract GaugeController is
     /// @return Address of the gauge
     function getGaugeAddress(uint256 idx) public view virtual returns (address);
 
+    /* ******************* */
+    /*  Reward Info Views  */
+    /* ******************* */
+
+    /// Gets the number of reward tokens
+    function getRewardTokenCount() external view returns (uint256) {
+        return rewardTokens.length;
+    }
+
+    /// Gets the timestamp when a reward token was registered
+    /// @param rewardToken Address of the reward token
+    function getInitialTimestamp(
+        address rewardToken
+    ) external view returns (uint256) {
+        return rewardInfoByToken[rewardToken].initialTimestamp;
+    }
+
+    /// Gets the inflation rate of a reward token (w/o factoring in reduction factor)
+    /// @param rewardToken Address of the reward token
+    function getBaseInflationRate(
+        address rewardToken
+    ) external view returns (uint256) {
+        return rewardInfoByToken[rewardToken].inflationRate;
+    }
+
+    function getInflationRate(
+        address rewardToken
+    ) external view returns (uint256) {
+        RewardInfo memory rewardInfo = rewardInfoByToken[rewardToken];
+        uint256 totalTimeElapsed = block.timestamp -
+            rewardInfo.initialTimestamp;
+        return ((rewardInfo.inflationRate * 1e18) /
+            rewardInfo.reductionFactor.pow(
+                (totalTimeElapsed * 1e18) / 365 days
+            ));
+    }
+
+    function getReductionFactor(
+        address rewardToken
+    ) external view returns (uint256) {
+        return rewardInfoByToken[rewardToken].reductionFactor;
+    }
+
+    function getGaugeWeights(
+        address rewardToken
+    ) external view returns (uint16[] memory) {
+        return rewardInfoByToken[rewardToken].gaugeWeights;
+    }
+
     /* ****************** */
     /*     Governance     */
     /* ****************** */

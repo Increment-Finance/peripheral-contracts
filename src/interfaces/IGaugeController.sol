@@ -52,6 +52,18 @@ interface IGaugeController {
 
     function getGaugeAddress(uint256) external view returns (address);
 
+    function getRewardTokenCount() external view returns (uint256);
+
+    function getInitialTimestamp(address) external view returns (uint256);
+
+    function getBaseInflationRate(address) external view returns (uint256);
+
+    function getInflationRate(address) external view returns (uint256);
+
+    function getReductionFactor(address) external view returns (uint256);
+
+    function getGaugeWeights(address) external view returns (uint16[] memory);
+
     function updateMarketRewards(uint256) external;
 
     function updateGaugeWeights(address, uint16[] calldata) external;
