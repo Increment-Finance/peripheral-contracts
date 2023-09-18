@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.15;
+pragma solidity 0.8.16;
 
 // contracts
 import {PerpetualUtils} from "../lib/increment-protocol/test/foundry/helpers/PerpetualUtils.sol";
@@ -55,6 +55,7 @@ contract RewardsTest is PerpetualUtils {
         deal(liquidityProviderTwo, 100 ether);
         deal(traderOne, 100 ether);
 
+        // increment-protocol/test/foundry/helpers/Deployment.sol:setUp()
         super.setUp();
 
         // Deploy second perpetual contract
@@ -94,6 +95,7 @@ contract RewardsTest is PerpetualUtils {
             cryptoSwap2,
             clearingHouse,
             curveCryptoViews,
+            true,
             perp_params
         );
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity 0.8.15;
+pragma solidity 0.8.16;
 
 import "increment-protocol/interfaces/IVault.sol";
 import "increment-protocol/interfaces/IUA.sol";
@@ -13,5 +13,4 @@ contract Helper {
         ua = _ua;
         vault = _vault;
     }
-
 }
