@@ -204,14 +204,28 @@ contract RewardsTest is PerpetualUtils {
         );
         assertGt(accruedRewards, 0, "Rewards not accrued");
         uint256 cumulativeRewards = rewardsDistributor
-            .cumulativeRewardPerLpToken(address(rewardsToken), 0) *
-            rewardsDistributor.totalLiquidityPerMarket(0);
+            .cumulativeRewardPerLpToken(address(rewardsToken), 0);
         console.log("Cumulative rewards: %s", cumulativeRewards);
+        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        uint256 expectedCumulativeRewards = ((((inflationRate * 3) / 4) * 10) /
+            365);
+        console.log(
+            "Expected cumulative rewards: %s",
+            expectedCumulativeRewards
+        );
+        assertApproxEqRel(
+            cumulativeRewards,
+            expectedCumulativeRewards,
+            1e16, // 1%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
         assertApproxEqRel(
             accruedRewards,
-            (cumulativeRewards * percentOfLiquidity) / 1e18,
-            1e15,
-            "Incorrect rewards"
+            cumulativeRewards.wadMul(percentOfLiquidity),
+            1e15, // 0.1%
+            "Incorrect user rewards"
         );
     }
 
