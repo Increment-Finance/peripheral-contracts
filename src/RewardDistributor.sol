@@ -49,12 +49,12 @@ contract RewardDistributor is
     mapping(address => mapping(uint256 => uint256)) public lpPositionsPerUser;
 
     /// @notice Reward accumulator for total market rewards per reward token
-    /// @dev Address is reward token, array index is ClearingHouse.perpetuals index
+    /// @dev Address is reward token, market index is ClearingHouse.perpetuals index
     mapping(address => mapping(uint256 => uint256))
         public cumulativeRewardPerLpToken;
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
-    /// @dev First address is user, second is reward token, array index is ClearingHouse.perpetuals index
+    /// @dev First address is user, second is reward token, market index is ClearingHouse.perpetuals index
     mapping(address => mapping(address => mapping(uint256 => uint256)))
         public cumulativeRewardPerLpTokenPerUser;
 
