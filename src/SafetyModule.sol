@@ -111,10 +111,10 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             revert InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
-        uint256 prevPosition = lpPositionsPerUser[user][idx];
+        uint256 prevPosition = lpPositionsPerUser[user][gauge];
         uint256 newPosition = getCurrentPosition(user, gauge);
-        totalLiquidityPerMarket[idx] =
-            totalLiquidityPerMarket[idx] +
+        totalLiquidityPerMarket[gauge] =
+            totalLiquidityPerMarket[gauge] +
             newPosition -
             prevPosition;
         for (uint256 i; i < rewardTokens.length; ++i) {
@@ -122,8 +122,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             /// newRewards does not include multiplier yet
             uint256 newRewards = prevPosition *
-                (cumulativeRewardPerLpToken[token][idx] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][idx]);
+                (cumulativeRewardPerLpToken[token][gauge] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][gauge]);
             uint256 rewardMultiplier = computeRewardMultiplier(user, gauge);
             if (newPosition < prevPosition || prevPosition == 0) {
                 // Removed stake or staked for the first time - need to reset multiplier
@@ -132,12 +132,12 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             rewardsAccruedByUser[user][token] += newRewards * rewardMultiplier;
             totalUnclaimedRewards[token] += newRewards * rewardMultiplier;
             cumulativeRewardPerLpTokenPerUser[user][token][
-                idx
-            ] = cumulativeRewardPerLpToken[token][idx];
+                gauge
+            ] = cumulativeRewardPerLpToken[token][gauge];
             emit RewardAccruedToUser(user, token, address(gauge), newRewards);
         }
         // TODO: What if a staking token is removed? Can we still use a mapping(address => uint256[])?
-        lpPositionsPerUser[user][idx] = newPosition;
+        lpPositionsPerUser[user][gauge] = newPosition;
     }
 
     /* ******************* */

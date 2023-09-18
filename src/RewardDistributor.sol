@@ -41,32 +41,34 @@ contract RewardDistributor is
     mapping(address => uint256) public totalUnclaimedRewards;
 
     /// @notice Last timestamp when user withdrew liquidity from a market
-    mapping(address => mapping(uint256 => uint256))
+    /// @dev First address is user, second is from ClearingHouse.perpetuals
+    mapping(address => mapping(address => uint256))
         public lastDepositTimeByUserByMarket;
 
     /// @notice Latest LP positions per user and market index
-    /// @dev Address is user, market index is ClearingHouse.perpetuals index
-    mapping(address => mapping(uint256 => uint256)) public lpPositionsPerUser;
+    /// @dev First address is user, second is from ClearingHouse.perpetuals
+    mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
 
     /// @notice Reward accumulator for total market rewards per reward token
-    /// @dev Address is reward token, market index is ClearingHouse.perpetuals index
-    mapping(address => mapping(uint256 => uint256))
+    /// @dev First address is reward token, second is from ClearingHouse.perpetuals
+    mapping(address => mapping(address => uint256))
         public cumulativeRewardPerLpToken;
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
-    /// @dev First address is user, second is reward token, market index is ClearingHouse.perpetuals index
-    mapping(address => mapping(address => mapping(uint256 => uint256)))
+    /// @dev First address is user, second is reward token, third is from ClearingHouse.perpetuals
+    mapping(address => mapping(address => mapping(address => uint256)))
         public cumulativeRewardPerLpTokenPerUser;
 
     /// @notice Timestamp of the most recent update to the reward accumulator
-    /// @dev Market index is ClearingHouse.perpetuals index
-    mapping(uint256 => uint256) public timeOfLastCumRewardUpdate;
+    /// @dev Address is from ClearingHouse.perpetuals array
+    mapping(address => uint256) public timeOfLastCumRewardUpdate;
 
     /// @notice Total LP tokens registered for rewards per market per day
-    /// @dev Market index is ClearingHouse.perpetuals index
-    mapping(uint256 => uint256) public totalLiquidityPerMarket;
+    /// @dev Address is from ClearingHouse.perpetuals array
+    mapping(address => uint256) public totalLiquidityPerMarket;
 
     error InvalidMarketIndex(uint256 index, uint256 maxIndex);
+    error UninitializedStartTime(address gauge);
     error NoRewardsToClaim(address user);
     error PositionAlreadyRegistered(
         address lp,
@@ -110,7 +112,10 @@ contract RewardDistributor is
             reductionFactor: _initialReductionFactor,
             gaugeWeights: _initialGaugeWeights
         });
-        timeOfLastCumRewardUpdate[0] = block.timestamp;
+        for (uint256 i; i < clearingHouse.getNumMarkets(); ++i) {
+            address gauge = getGaugeAddress(i);
+            timeOfLastCumRewardUpdate[gauge] = block.timestamp;
+        }
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -152,13 +157,15 @@ contract RewardDistributor is
 
     /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override {
-        uint256 liquidity = totalLiquidityPerMarket[idx];
+        address gauge = getGaugeAddress(idx);
+        uint256 liquidity = totalLiquidityPerMarket[gauge];
+        if (timeOfLastCumRewardUpdate[gauge] == 0)
+            revert UninitializedStartTime(gauge);
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[gauge];
         if (liquidity == 0) return;
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
-            uint256 deltaTime = block.timestamp -
-                timeOfLastCumRewardUpdate[idx];
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
@@ -171,11 +178,11 @@ contract RewardDistributor is
             ) / 365 days;
             uint256 newRewards = ((inflationRatePerSecond *
                 rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime;
-            cumulativeRewardPerLpToken[token][idx] += newRewards;
-            emit RewardAccruedToMarket(getGaugeAddress(idx), token, newRewards);
+            cumulativeRewardPerLpToken[token][gauge] += newRewards;
+            emit RewardAccruedToMarket(gauge, token, newRewards);
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
-        timeOfLastCumRewardUpdate[idx] = block.timestamp;
+        timeOfLastCumRewardUpdate[gauge] = block.timestamp;
     }
 
     /// Accrues rewards and updates the stored LP position of a user and the total LP of a market
@@ -190,27 +197,30 @@ contract RewardDistributor is
             revert InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
-        uint256 prevLpPosition = lpPositionsPerUser[user][idx];
+        uint256 prevLpPosition = lpPositionsPerUser[user][gauge];
         uint256 newLpPosition = getCurrentPosition(user, gauge);
-        uint256 prevTotalLiquidity = totalLiquidityPerMarket[idx];
+        uint256 prevTotalLiquidity = totalLiquidityPerMarket[gauge];
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevTotalLiquidity > 0
                 ? (prevLpPosition *
-                    (cumulativeRewardPerLpToken[token][idx] -
-                        cumulativeRewardPerLpTokenPerUser[user][token][idx])) /
-                    prevTotalLiquidity
+                    (cumulativeRewardPerLpToken[token][gauge] -
+                        cumulativeRewardPerLpTokenPerUser[user][token][
+                            gauge
+                        ])) / prevTotalLiquidity
                 : 0;
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
-                if (lastDepositTimeByUserByMarket[user][idx] == 0) {
-                    lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+                if (lastDepositTimeByUserByMarket[user][gauge] == 0) {
+                    lastDepositTimeByUserByMarket[user][gauge] = block
+                        .timestamp;
                 }
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
                 if (
-                    block.timestamp - lastDepositTimeByUserByMarket[user][idx] <
+                    block.timestamp -
+                        lastDepositTimeByUserByMarket[user][gauge] <
                     earlyWithdrawalThreshold
                 ) {
                     // Early withdrawal - apply penalty
@@ -220,29 +230,36 @@ contract RewardDistributor is
                 }
                 if (newLpPosition > 0) {
                     // Reset timer
-                    lastDepositTimeByUserByMarket[user][idx] = block.timestamp;
+                    lastDepositTimeByUserByMarket[user][gauge] = block
+                        .timestamp;
                 } else {
                     // Full withdrawal, so next deposit is an initial deposit
-                    lastDepositTimeByUserByMarket[user][idx] = 0;
+                    lastDepositTimeByUserByMarket[user][gauge] = 0;
                 }
             }
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
-                idx
-            ] = cumulativeRewardPerLpToken[token][idx];
+                gauge
+            ] = cumulativeRewardPerLpToken[token][gauge];
             emit RewardAccruedToUser(user, token, address(gauge), newRewards);
         }
-        totalLiquidityPerMarket[idx] =
-            totalLiquidityPerMarket[idx] +
+        totalLiquidityPerMarket[gauge] =
+            totalLiquidityPerMarket[gauge] +
             newLpPosition -
             prevLpPosition;
-        lpPositionsPerUser[user][idx] = newLpPosition;
+        lpPositionsPerUser[user][gauge] = newLpPosition;
     }
 
     /* ****************** */
     /*     Governance     */
     /* ****************** */
+
+    /// Sets the start time for accruing rewards to a gauge
+    /// @param _gauge Address of the gauge (i.e., perpetual market)
+    function initGaugeStartTime(address _gauge) external onlyRole(GOVERNANCE) {
+        timeOfLastCumRewardUpdate[_gauge] = block.timestamp;
+    }
 
     /// Adds a new reward token
     /// @param _rewardToken Address of the reward token
@@ -273,7 +290,6 @@ contract RewardDistributor is
         if (totalWeight != 10000)
             revert IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
-        timeOfLastCumRewardUpdate[rewardTokens.length] = block.timestamp;
         rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
@@ -331,16 +347,16 @@ contract RewardDistributor is
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumGauges();
         for (uint i; i < numMarkets; ++i) {
-            if (lpPositionsPerUser[msg.sender][i] != 0)
+            address gauge = getGaugeAddress(i);
+            if (lpPositionsPerUser[msg.sender][gauge] != 0)
                 revert PositionAlreadyRegistered(
                     msg.sender,
                     i,
-                    lpPositionsPerUser[msg.sender][i]
+                    lpPositionsPerUser[msg.sender][gauge]
                 );
-            address gauge = getGaugeAddress(i);
             uint256 lpPosition = getCurrentPosition(msg.sender, gauge);
-            lpPositionsPerUser[msg.sender][i] = lpPosition;
-            totalLiquidityPerMarket[i] += lpPosition;
+            lpPositionsPerUser[msg.sender][gauge] = lpPosition;
+            totalLiquidityPerMarket[gauge] += lpPosition;
         }
     }
 
@@ -354,16 +370,16 @@ contract RewardDistributor is
             uint256 idx = _marketIndexes[i];
             if (idx >= getNumGauges())
                 revert InvalidMarketIndex(idx, getNumGauges());
-            if (lpPositionsPerUser[msg.sender][idx] != 0)
+            address gauge = getGaugeAddress(idx);
+            if (lpPositionsPerUser[msg.sender][gauge] != 0)
                 revert PositionAlreadyRegistered(
                     msg.sender,
                     idx,
-                    lpPositionsPerUser[msg.sender][idx]
+                    lpPositionsPerUser[msg.sender][gauge]
                 );
-            address gauge = getGaugeAddress(idx);
             uint256 lpPosition = getCurrentPosition(msg.sender, gauge);
-            lpPositionsPerUser[msg.sender][idx] = lpPosition;
-            totalLiquidityPerMarket[idx] += lpPosition;
+            lpPositionsPerUser[msg.sender][gauge] = lpPosition;
+            totalLiquidityPerMarket[gauge] += lpPosition;
         }
     }
 
@@ -409,18 +425,19 @@ contract RewardDistributor is
     function accrueRewards(uint256 idx, address user) public nonReentrant {
         if (idx >= getNumGauges())
             revert InvalidMarketIndex(idx, getNumGauges());
+        address gauge = getGaugeAddress(idx);
         if (
             block.timestamp <
-            lastDepositTimeByUserByMarket[user][idx] + earlyWithdrawalThreshold
+            lastDepositTimeByUserByMarket[user][gauge] +
+                earlyWithdrawalThreshold
         )
             revert EarlyRewardAccrual(
                 user,
                 idx,
-                lastDepositTimeByUserByMarket[user][idx] +
+                lastDepositTimeByUserByMarket[user][gauge] +
                     earlyWithdrawalThreshold
             );
-        address gauge = getGaugeAddress(idx);
-        uint256 lpPosition = lpPositionsPerUser[user][idx];
+        uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
             revert LpPositionMismatch(
                 user,
@@ -432,14 +449,14 @@ contract RewardDistributor is
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             uint256 newRewards = (lpPosition *
-                (cumulativeRewardPerLpToken[token][idx] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][idx])) /
-                totalLiquidityPerMarket[idx];
+                (cumulativeRewardPerLpToken[token][gauge] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][gauge])) /
+                totalLiquidityPerMarket[gauge];
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
-                idx
-            ] = cumulativeRewardPerLpToken[token][idx];
+                gauge
+            ] = cumulativeRewardPerLpToken[token][gauge];
             emit RewardAccruedToUser(user, token, gauge, newRewards);
         }
     }
