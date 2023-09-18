@@ -231,13 +231,13 @@ contract RewardsTest is PerpetualUtils {
 
     function testEarlyWithdrawScenario(
         uint256 providedLiquidity,
-        uint256 tradeAmount
+        uint256 reductionRatio
     ) public {
         /* bounds */
         providedLiquidity = bound(providedLiquidity, 100e18, 10_000e18);
-        tradeAmount = bound(tradeAmount, 100e18, 1_000e18);
+        reductionRatio = bound(reductionRatio, 1e16, 1e18);
+        console.log("Reduction Ratio: %s", reductionRatio);
         require(providedLiquidity >= 100e18 && providedLiquidity <= 10_000e18);
-        require(tradeAmount >= 100e18 && tradeAmount <= 1_000e18);
 
         // initial liquidity
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
@@ -263,16 +263,8 @@ contract RewardsTest is PerpetualUtils {
         vBase.setHeartBeat(10 days);
         vBase2.setHeartBeat(10 days);
 
-        // open a position
-        fundAndPrepareAccount(traderOne, tradeAmount, vault, ua);
-        _openPosition(tradeAmount, traderOne);
-
-        // remove 50% of liquidity
-        _removeSomeLiquidity(
-            liquidityProviderTwo,
-            perpetual,
-            perpetual.getLpPosition(liquidityProviderTwo).liquidityBalance / 2
-        );
+        // remove some liquidity
+        _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // check rewards
         uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
@@ -281,13 +273,14 @@ contract RewardsTest is PerpetualUtils {
         );
         assertGt(accruedRewards, 0, "Rewards not accrued");
         uint256 cumulativeRewards = rewardsDistributor
-            .cumulativeRewardPerLpToken(address(rewardsToken), 0) *
-            rewardsDistributor.totalLiquidityPerMarket(0);
+            .cumulativeRewardPerLpToken(address(rewardsToken), 0);
         console.log("Cumulative rewards: %s", cumulativeRewards);
         assertApproxEqRel(
             accruedRewards,
-            (cumulativeRewards * percentOfLiquidity) / 2 / 1e18,
-            1e15,
+            cumulativeRewards.wadMul(percentOfLiquidity).wadMul(
+                1e18 - reductionRatio
+            ),
+            1e16,
             "Incorrect rewards"
         );
     }
@@ -328,14 +321,16 @@ contract RewardsTest is PerpetualUtils {
     function _removeSomeLiquidity(
         address user,
         TestPerpetual perp,
-        uint256 amount
+        uint256 reductionRatio
     ) internal {
-        uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
-        require(amount <= lpBalance, "Amount exceeds LP balance");
-        require(lpBalance > 0, "Zero LP balance");
+        uint256 amount = (perp.getLpPosition(user).liquidityBalance *
+            reductionRatio) / 1e18;
         vm.startPrank(user);
-        uint256 proposedAmount = (_getLiquidityProviderProposedAmount(user) *
-            amount) / lpBalance;
+        uint256 proposedAmount = _getLiquidityProviderProposedAmount(
+            user,
+            perp,
+            reductionRatio
+        );
         console.log("Proposed amount: %s", proposedAmount);
         // vm.assume(proposedAmount > 1e17);
         clearingHouse.removeLiquidity(
@@ -346,6 +341,26 @@ contract RewardsTest is PerpetualUtils {
             0
         );
 
-        clearingHouse.withdrawAll(ua);
+        // clearingHouse.withdrawAll(ua);
+    }
+
+    function _getLiquidityProviderProposedAmount(
+        address user,
+        IPerpetual perp,
+        uint256 reductionRatio
+    ) internal returns (uint256 proposedAmount) {
+        LibPerpetual.LiquidityProviderPosition memory lp = perpetual
+            .getLpPosition(user);
+        if (lp.liquidityBalance == 0) revert("No liquidity provided");
+        uint256 idx = perp == perpetual ? 0 : 1;
+        return
+            viewer.getLpProposedAmount(
+                idx,
+                user,
+                reductionRatio,
+                40,
+                [uint256(0), uint256(0)],
+                0
+            );
     }
 }
