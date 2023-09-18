@@ -126,6 +126,21 @@ contract RewardsTest is PerpetualUtils {
 
         // Connect ClearingHouse to RewardsDistributor
         clearingHouse.addStakingContract(rewardsDistributor);
+
+        // Update ClearingHouse params to remove min open notional
+        clearingHouse_params = IClearingHouse.ClearingHouseParams({
+            minMargin: 0.025 ether,
+            minMarginAtCreation: 0.055 ether,
+            minPositiveOpenNotional: 0 ether,
+            liquidationReward: 0.015 ether,
+            insuranceRatio: 0.1 ether,
+            liquidationRewardInsuranceShare: 0.5 ether,
+            liquidationDiscount: 0.95 ether,
+            nonUACollSeizureDiscount: 0.75 ether,
+            uaDebtSeizureThreshold: 10000 ether
+        });
+        vm.startPrank(address(this));
+        clearingHouse.setParameters(clearingHouse_params);
     }
 
     function testDeployment() public {
