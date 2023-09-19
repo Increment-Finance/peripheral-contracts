@@ -260,7 +260,7 @@ contract RewardDistributor is
     /// @param _gauge Address of the gauge (i.e., perpetual market)
     function initGaugeStartTime(address _gauge) external onlyRole(GOVERNANCE) {
         if (timeOfLastCumRewardUpdate[_gauge] != 0)
-            revert AlreadyInitializedStartTime(gauge);
+            revert AlreadyInitializedStartTime(_gauge);
         timeOfLastCumRewardUpdate[_gauge] = block.timestamp;
     }
 
