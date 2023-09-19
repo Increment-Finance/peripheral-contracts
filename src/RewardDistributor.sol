@@ -420,6 +420,16 @@ contract RewardDistributor is
         }
     }
 
+    /// Accrues rewards to a user for all markets
+    /// @notice Assumes LP position hasn't changed since last accrual
+    /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
+    /// @param user Address of the user to accrue rewards for
+    function accrueRewards(address user) external override {
+        for (uint i; i < getNumGauges(); ++i) {
+            accrueRewards(i, user);
+        }
+    }
+
     /// Accrues rewards to a user for a given market
     /// @notice Assumes LP position hasn't changed since last accrual
     /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
@@ -462,6 +472,94 @@ contract RewardDistributor is
             ] = cumulativeRewardPerLpToken[token][gauge];
             emit RewardAccruedToUser(user, token, gauge, newRewards);
         }
+    }
+
+    /// Returns the amount of rewards that would be accrued to a user if they called accrueRewards(address user)
+    /// @notice Serves as a static version of accrueRewards(address user)
+    /// @param user Address of the user
+    /// @return Amount of new rewards that would be accrued to the user for each reward token
+    function viewNewRewardAccrual(address user) external view returns (uint256[] memory) {
+        uint256[] memory newRewards = new uint256[](rewardTokens.length);
+        for (uint i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            for (uint j; j < getNumGauges(); ++j) {
+                newRewards[i] += viewNewRewardAccrual(j, user, token);
+            }
+        }
+        return newRewards;
+
+    /// Returns the amount of rewards that would be accrued to a user for a given market
+    /// @notice Serves as a static version of accrueRewards(uint256 idx, address user)
+    /// @param idx Index of the market in ClearingHouse.perpetuals
+    /// @param user Address of the user
+    /// @return Amount of new rewards that would be accrued to the user for each reward token
+    function viewNewRewardAccrual(uint256 idx, address user) public view returns (uint256[] memory) {
+        uint256[] memory newRewards = new uint256[](rewardTokens.length);
+        for (uint i; i < rewardTokens.length; ++i) {
+            address token = rewardTokens[i];
+            newRewards[i] = viewNewRewardAccrual(idx, user, token);
+        }
+        return newRewards;
+    }
+
+    /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
+    /// @param idx Index of the market in ClearingHouse.perpetuals
+    /// @param user Address of the user
+    /// @param token Address of the reward token
+    /// @return Amount of new rewards that would be accrued to the user
+    function viewNewRewardAccrual(
+        uint256 idx,
+        address user,
+        address token
+    ) public view returns (uint256) {
+        if (idx >= getNumGauges())
+            revert InvalidMarketIndex(idx, getNumGauges());
+        address gauge = getGaugeAddress(idx);
+        if (
+            block.timestamp <
+            lastDepositTimeByUserByMarket[user][gauge] +
+                earlyWithdrawalThreshold
+        )
+            revert EarlyRewardAccrual(
+                user,
+                idx,
+                lastDepositTimeByUserByMarket[user][gauge] +
+                    earlyWithdrawalThreshold
+            );
+        uint256 lpPosition = lpPositionsPerUser[user][gauge];
+        if (lpPosition != getCurrentPosition(user, gauge))
+            revert LpPositionMismatch(
+                user,
+                idx,
+                lpPosition,
+                getCurrentPosition(user, gauge)
+            );
+        uint256 liquidity = totalLiquidityPerMarket[gauge];
+        if (timeOfLastCumRewardUpdate[gauge] == 0)
+            revert UninitializedStartTime(gauge);
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[gauge];
+        if (liquidity == 0) return 0;
+        RewardInfo memory rewardInfo = rewardInfoByToken[token];
+        uint256 totalTimeElapsed = block.timestamp -
+            rewardInfo.initialTimestamp;
+        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+        uint256 inflationRatePerSecond = (
+            rewardInfo.inflationRate.div(
+                rewardInfo.reductionFactor.pow(
+                    totalTimeElapsed.div(365 days)
+                )
+            )
+        ) / 365 days;
+        uint256 newMarketRewards = ((inflationRatePerSecond *
+            rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime;
+        uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
+            gauge
+        ] + newMarketRewards;
+        uint256 newUserRewards = (lpPosition *
+            (newCumRewardPerLpToken -
+                cumulativeRewardPerLpTokenPerUser[user][token][gauge])) /
+            totalLiquidityPerMarket[gauge];
+        return newUserRewards;
     }
 
     function paused() public view override returns (bool) {

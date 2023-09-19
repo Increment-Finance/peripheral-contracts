@@ -77,5 +77,22 @@ interface IRewardDistributor {
 
     function claimRewardsFor(address, address[] memory) external;
 
+    function accrueRewards(address) external;
+
     function accrueRewards(uint256, address) external;
+
+    function viewNewRewardAccrual(
+        address
+    ) external view returns (uint256[] memory);
+
+    function viewNewRewardAccrual(
+        uint256,
+        address
+    ) external view returns (uint256[] memory);
+
+    function viewNewRewardAccrual(
+        uint256,
+        address,
+        address
+    ) external view returns (uint256);
 }
