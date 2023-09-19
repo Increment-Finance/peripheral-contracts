@@ -410,12 +410,19 @@ contract RewardDistributor is
             address token = _rewardTokens[i];
             uint256 rewards = rewardsAccruedByUser[_user][token];
             if (rewards > 0) {
-                rewardsAccruedByUser[_user][token] = _distributeReward(
+                uint256 remainingRewards = _distributeReward(
                     token,
                     _user,
                     rewards
                 );
-                emit RewardClaimed(_user, token, rewards);
+                rewardsAccruedByUser[_user][token] = remainingRewards;
+                emit RewardClaimed(_user, token, rewards - remainingRewards);
+                if (remainingRewards > 0) {
+                    emit RewardTokenShortfall(
+                        token,
+                        totalUnclaimedRewards[token]
+                    );
+                }
             }
         }
     }

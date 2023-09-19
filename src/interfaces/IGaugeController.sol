@@ -26,6 +26,14 @@ interface IGaugeController {
         uint256 remainingBalance
     );
 
+    /// Emitted when the contract runs out of a reward token
+    /// @param rewardToken the reward token address
+    /// @param unclaimedRewards the amount of reward tokens still claimable
+    event RewardTokenShortfall(
+        address indexed rewardToken,
+        uint256 unclaimedRewards
+    );
+
     /// Emitted when a gauge weight is updated
     /// @param gauge the address of the perp market or safety module (i.e., gauge)
     /// @param rewardToken the reward token address
