@@ -34,7 +34,7 @@ abstract contract GaugeController is
     uint256 public constant MAX_INFLATION_RATE = 5e24;
 
     /// @notice Minimum reduction factor, applies to all reward tokens
-    uint256 public constant MIN_REDUCTION_FACTOR = 0.5e18;
+    uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
 
     /// @notice Maximum number of reward tokens supported
     uint256 public constant MAX_REWARD_TOKENS = 10;
