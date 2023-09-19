@@ -269,37 +269,45 @@ contract RewardsTest is PerpetualUtils {
     }
 
     function testEarlyWithdrawScenario(
-        uint256 providedLiquidity,
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2,
         uint256 reductionRatio
     ) public {
         /* bounds */
-        providedLiquidity = bound(providedLiquidity, 100e18, 10_000e18);
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         reductionRatio = bound(reductionRatio, 1e16, 1e18);
         console.log("Reduction Ratio: %s", reductionRatio);
-        require(providedLiquidity >= 100e18 && providedLiquidity <= 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
 
         // initial liquidity
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        _provideLiquidity(10_000e18, liquidityProviderOne);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
         console.log("Initial liquidity: %s", 10_000e18);
 
         // provide some more liquidity
         fundAndPrepareAccount(
             liquidityProviderTwo,
-            providedLiquidity,
+            providedLiquidity1 + providedLiquidity2,
             vault,
             ua
         );
-        _provideLiquidity(providedLiquidity, liquidityProviderTwo);
-        console.log("Provided liquidity: %s", providedLiquidity);
-        uint256 percentOfLiquidity = (providedLiquidity * 1e18) /
-            (10_000e18 + providedLiquidity);
-        console.log("Percent of liquidity: %s / 1e18", percentOfLiquidity);
+        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
+        console.log("Provided liquidity: %s", providedLiquidity1);
+        uint256 percentOfLiquidity1 = (providedLiquidity1 * 1e18) /
+            (10_000e18 + providedLiquidity1);
+        uint256 percentOfLiquidity2 = (providedLiquidity2 * 1e18) /
+            (10_000e18 + providedLiquidity2);
+        console.log("Percent of liquidity: %s / 1e18", percentOfLiquidity1);
 
         // skip some time
         skip(5 days);
 
-        // remove some liquidity
+        // remove some liquidity from first perpetual
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // check rewards
@@ -308,15 +316,15 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken)
         );
         assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards = rewardsDistributor
+        uint256 cumulativeRewards1 = rewardsDistributor
             .cumulativeRewardPerLpToken(
                 address(rewardsToken),
                 address(perpetual)
             );
-        console.log("Cumulative rewards: %s", cumulativeRewards);
+        console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards.wadMul(percentOfLiquidity).wadMul(
+            cumulativeRewards1.wadMul(percentOfLiquidity1).wadMul(
                 1e18 - reductionRatio
             ),
             1e16,
@@ -326,32 +334,40 @@ contract RewardsTest is PerpetualUtils {
         // skip some time again
         skip(5 days);
 
-        // remove some liquidity again
-        percentOfLiquidity = rewardsDistributor
+        // remove some liquidity again from first perpetual
+        percentOfLiquidity1 = rewardsDistributor
             .lpPositionsPerUser(liquidityProviderTwo, address(perpetual))
             .wadDiv(
                 rewardsDistributor.totalLiquidityPerMarket(address(perpetual))
             );
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
-        // check that penalty was applied again
+        // remove all liquidity from second perpetual
+        _removeAllLiquidity(liquidityProviderTwo, perpetual2);
+
+        // check that penalty was applied again, but only for the first perpetual
         accruedRewards =
             rewardsDistributor.rewardsAccruedByUser(
                 liquidityProviderTwo,
                 address(rewardsToken)
             ) -
             accruedRewards;
-        cumulativeRewards =
+        cumulativeRewards1 =
             rewardsDistributor.cumulativeRewardPerLpToken(
                 address(rewardsToken),
                 address(perpetual)
             ) -
-            cumulativeRewards;
+            cumulativeRewards1;
+        uint256 cumulativeRewards2 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual2)
+            );
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards.wadMul(percentOfLiquidity).wadMul(
+            cumulativeRewards1.wadMul(percentOfLiquidity1).wadMul(
                 1e18 - reductionRatio
-            ),
+            ) + cumulativeRewards2.wadMul(percentOfLiquidity2),
             1e16,
             "Incorrect rewards"
         );
@@ -377,7 +393,11 @@ contract RewardsTest is PerpetualUtils {
     function _removeAllLiquidity(address user, TestPerpetual perp) internal {
         vm.startPrank(user);
 
-        uint256 proposedAmount = _getLiquidityProviderProposedAmount(user);
+        uint256 proposedAmount = _getLiquidityProviderProposedAmount(
+            user,
+            perp,
+            1e18
+        );
         /*
         according to curve v2 whitepaper:
         discard values that do not converge
@@ -392,7 +412,7 @@ contract RewardsTest is PerpetualUtils {
             0
         );
 
-        clearingHouse.withdrawAll(ua);
+        // clearingHouse.withdrawAll(ua);
     }
 
     function _removeSomeLiquidity(
