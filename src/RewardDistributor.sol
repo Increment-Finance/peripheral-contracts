@@ -478,7 +478,9 @@ contract RewardDistributor is
     /// @notice Serves as a static version of accrueRewards(address user)
     /// @param user Address of the user
     /// @return Amount of new rewards that would be accrued to the user for each reward token
-    function viewNewRewardAccrual(address user) external view returns (uint256[] memory) {
+    function viewNewRewardAccrual(
+        address user
+    ) external view returns (uint256[] memory) {
         uint256[] memory newRewards = new uint256[](rewardTokens.length);
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
@@ -487,13 +489,17 @@ contract RewardDistributor is
             }
         }
         return newRewards;
+    }
 
     /// Returns the amount of rewards that would be accrued to a user for a given market
     /// @notice Serves as a static version of accrueRewards(uint256 idx, address user)
     /// @param idx Index of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
     /// @return Amount of new rewards that would be accrued to the user for each reward token
-    function viewNewRewardAccrual(uint256 idx, address user) public view returns (uint256[] memory) {
+    function viewNewRewardAccrual(
+        uint256 idx,
+        address user
+    ) public view returns (uint256[] memory) {
         uint256[] memory newRewards = new uint256[](rewardTokens.length);
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
@@ -545,9 +551,7 @@ contract RewardDistributor is
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
         uint256 inflationRatePerSecond = (
             rewardInfo.inflationRate.div(
-                rewardInfo.reductionFactor.pow(
-                    totalTimeElapsed.div(365 days)
-                )
+                rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
             )
         ) / 365 days;
         uint256 newMarketRewards = ((inflationRatePerSecond *
