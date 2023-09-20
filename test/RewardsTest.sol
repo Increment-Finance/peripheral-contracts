@@ -407,6 +407,183 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
+    function testAddNewGauge(
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2,
+        uint256 providedLiquidity3
+    ) public {
+        /* bounds */
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
+        providedLiquidity3 = bound(providedLiquidity3, 100e18, 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+        require(
+            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
+        );
+        require(
+            providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18
+        );
+
+        // add liquidity to first two perpetuals
+        _provideLiquidityBothUsersAndPerps(
+            providedLiquidity1,
+            providedLiquidity2
+        );
+
+        // deploy new gauge contracts
+        vm.startPrank(address(this));
+        VBase vBase3 = new VBase(
+            "vDAI base token",
+            "vDAI",
+            AggregatorV3Interface(
+                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
+            ),
+            30 days,
+            sequencerUptimeFeed,
+            gracePeriod
+        );
+        VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
+        TestPerpetual perpetual3 = new TestPerpetual(
+            vBase3,
+            vQuote3,
+            ICryptoSwap(
+                factory.deploy_pool(
+                    "DAI_USD",
+                    "DAI_USD",
+                    [address(vQuote3), address(vBase3)],
+                    A,
+                    gamma,
+                    mid_fee,
+                    out_fee,
+                    allowed_extra_profit,
+                    fee_gamma,
+                    adjustment_step,
+                    admin_fee,
+                    ma_half_time,
+                    initial_price
+                )
+            ),
+            clearingHouse,
+            curveCryptoViews,
+            true,
+            perp_params
+        );
+
+        vBase3.transferPerpOwner(address(perpetual3));
+        vQuote3.transferPerpOwner(address(perpetual3));
+        clearingHouse.allowListPerpetual(perpetual3);
+
+        // skip some time
+        skip(10 days);
+
+        // set new gauge weights
+        uint16[] memory gaugeWeights = new uint16[](3);
+        gaugeWeights[0] = 5000;
+        gaugeWeights[1] = 3000;
+        gaugeWeights[2] = 2000;
+        rewardsDistributor.updateGaugeWeights(
+            address(rewardsToken),
+            gaugeWeights
+        );
+
+        // check that rewards were accrued to first two perpetuals at previous weights
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 cumulativeRewards1 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual)
+            );
+        uint256 cumulativeRewards2 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual2)
+            );
+        uint256 cumulativeRewards3 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual3)
+            );
+        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        uint256 expectedCumulativeRewards1 = ((((inflationRate * 7500) /
+            10000) * 10) / 365);
+        uint256 expectedCumulativeRewards2 = ((((inflationRate * 2500) /
+            10000) * 10) / 365);
+        uint256 expectedCumulativeRewards3 = 0;
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertEq(
+            cumulativeRewards3,
+            expectedCumulativeRewards3,
+            "Incorrect cumulative rewards"
+        );
+
+        // provide liquidity to new perpetual
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual3);
+        fundAndPrepareAccount(
+            liquidityProviderTwo,
+            providedLiquidity3,
+            vault,
+            ua
+        );
+        _provideLiquidity(providedLiquidity3, liquidityProviderTwo, perpetual3);
+
+        // skip some more time
+        skip(10 days);
+
+        // check that rewards were accrued to all three perpetuals at new weights
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        cumulativeRewards1 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual)
+        );
+        cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual2)
+        );
+        cumulativeRewards3 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual3)
+        );
+        expectedCumulativeRewards1 += ((((inflationRate * 5000) / 10000) * 10) /
+            365);
+        expectedCumulativeRewards2 += ((((inflationRate * 3000) / 10000) * 10) /
+            365);
+        expectedCumulativeRewards3 += ((((inflationRate * 2000) / 10000) * 10) /
+            365);
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards3,
+            expectedCumulativeRewards3,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+    }
+
     function _checkRewards(
         address token,
         uint256 percentOfLiquidity1,
@@ -498,7 +675,7 @@ contract RewardsTest is PerpetualUtils {
         uint256 quoteAmount = depositAmount / 2;
         uint256 baseAmount = quoteAmount.wadDiv(perp.indexPrice().toUint256());
         clearingHouse.provideLiquidity(
-            perp == perpetual ? 0 : 1,
+            perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2,
             [quoteAmount, baseAmount],
             0
         );
@@ -519,7 +696,7 @@ contract RewardsTest is PerpetualUtils {
         vm.assume(proposedAmount > 1e17);
 
         clearingHouse.removeLiquidity(
-            perp == perpetual ? 0 : 1,
+            perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2,
             perp.getLpPosition(user).liquidityBalance,
             [uint256(0), uint256(0)],
             proposedAmount,
@@ -544,7 +721,7 @@ contract RewardsTest is PerpetualUtils {
         );
         console.log("Proposed amount: %s", proposedAmount);
         clearingHouse.removeLiquidity(
-            perp == perpetual ? 0 : 1,
+            perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2,
             amount,
             [uint256(0), uint256(0)],
             proposedAmount,
@@ -562,7 +739,7 @@ contract RewardsTest is PerpetualUtils {
         LibPerpetual.LiquidityProviderPosition memory lp = perpetual
             .getLpPosition(user);
         if (lp.liquidityBalance == 0) revert("No liquidity provided");
-        uint256 idx = perp == perpetual ? 0 : 1;
+        uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
         return
             viewer.getLpProposedAmount(
                 idx,
