@@ -131,7 +131,14 @@ contract RewardsTest is PerpetualUtils {
             rewardsToken2.totalSupply()
         );
 
+        // initial liquidity
+        fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
+        rewardsDistributor.registerPositions();
+
         // Connect ClearingHouse to RewardsDistributor
+        vm.startPrank(address(this));
         clearingHouse.addStakingContract(rewardsDistributor);
 
         // Update ClearingHouse params to remove min open notional
@@ -146,7 +153,6 @@ contract RewardsTest is PerpetualUtils {
             nonUACollSeizureDiscount: 0.75 ether,
             uaDebtSeizureThreshold: 10000 ether
         });
-        vm.startPrank(address(this));
         clearingHouse.setParameters(clearingHouse_params);
         vBase.setHeartBeat(30 days);
         vBase2.setHeartBeat(30 days);
@@ -196,10 +202,7 @@ contract RewardsTest is PerpetualUtils {
         (
             uint256 percentOfLiquidity1,
             uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothUsersAndPerps(
-                providedLiquidity1,
-                providedLiquidity2
-            );
+        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some time
         skip(10 days);
@@ -248,10 +251,7 @@ contract RewardsTest is PerpetualUtils {
         (
             uint256 percentOfLiquidity1,
             uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothUsersAndPerps(
-                providedLiquidity1,
-                providedLiquidity2
-            );
+        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some time
         skip(10 days);
@@ -363,10 +363,7 @@ contract RewardsTest is PerpetualUtils {
         (
             uint256 percentOfLiquidity1,
             uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothUsersAndPerps(
-                providedLiquidity1,
-                providedLiquidity2
-            );
+        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some time
         skip(5 days);
@@ -457,10 +454,7 @@ contract RewardsTest is PerpetualUtils {
         );
 
         // add liquidity to first two perpetuals
-        _provideLiquidityBothUsersAndPerps(
-            providedLiquidity1,
-            providedLiquidity2
-        );
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // deploy new gauge contracts
         vm.startPrank(address(this));
@@ -661,20 +655,14 @@ contract RewardsTest is PerpetualUtils {
         return accruedRewards;
     }
 
-    function _provideLiquidityBothUsersAndPerps(
+    function _provideLiquidityBothPerps(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2
     )
         internal
         returns (uint256 percentOfLiquidity1, uint256 percentOfLiquidity2)
     {
-        // initial liquidity
-        fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
-        console.log("Initial liquidity: %s", 10_000e18);
-
-        // provide some more liquidity
+        // provide some liquidity
         fundAndPrepareAccount(
             liquidityProviderTwo,
             providedLiquidity1 + providedLiquidity2,
