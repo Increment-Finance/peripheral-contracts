@@ -343,6 +343,103 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
+    function testMultipleRewardShortfallScenario(
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2,
+        uint256 inflationRate2,
+        uint256 reductionFactor2,
+        uint16 gaugeWeight1
+    ) public {
+        /* bounds */
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
+        inflationRate2 = bound(inflationRate2, 1e24, 5e24);
+        reductionFactor2 = bound(reductionFactor2, 1e18, 5e18);
+        gaugeWeight1 = gaugeWeight1 % 10000;
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+        require(
+            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
+        );
+
+        (
+            uint256 percentOfLiquidity1,
+            uint256 percentOfLiquidity2
+        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+
+        // add a new reward token
+        vm.startPrank(address(this));
+        uint16[] memory gaugeWeights = new uint16[](2);
+        gaugeWeights[0] = gaugeWeight1;
+        gaugeWeights[1] = 10000 - gaugeWeight1;
+        console.log("Inflation Rate: %s", inflationRate2);
+        console.log("Reduction Factor: %s", reductionFactor2);
+        console.log(
+            "Gauge Weights: [%s, %s]",
+            gaugeWeights[0],
+            gaugeWeights[1]
+        );
+        rewardsToken2 = new IncrementToken(10e18, address(this));
+        rewardsToken2.unpause();
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken2),
+            inflationRate2,
+            reductionFactor2,
+            gaugeWeights
+        );
+        rewardsToken2.transfer(
+            address(rewardsDistributor),
+            rewardsToken2.totalSupply()
+        );
+
+        // skip some time
+        skip(10 days);
+
+        // check rewards for token 1
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            percentOfLiquidity1,
+            percentOfLiquidity2,
+            7500,
+            2500,
+            10
+        );
+
+        // check rewards for token 2
+        uint256 accruedRewards2 = _checkRewards(
+            address(rewardsToken2),
+            liquidityProviderTwo,
+            percentOfLiquidity1,
+            percentOfLiquidity2,
+            gaugeWeights[0],
+            gaugeWeights[1],
+            10
+        );
+        // vm.assume(accruedRewards2 > 10e18);
+
+        // claim rewards
+        vm.startPrank(liquidityProviderTwo);
+        rewardsDistributor.claimRewards();
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            accruedRewards,
+            "Incorrect claimed balance"
+        );
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderTwo),
+            10e18,
+            "Incorrect claimed balance"
+        );
+        assertEq(
+            rewardsDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            accruedRewards2 - 10e18,
+            "Incorrect unclaimed rewards"
+        );
+    }
+
     function testEarlyWithdrawScenario(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
