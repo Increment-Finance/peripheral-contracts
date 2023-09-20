@@ -193,84 +193,26 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
 
-        // initial liquidity
-        fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
-        console.log("Initial liquidity: %s", 10_000e18);
-
-        // provide some more liquidity
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity1 + providedLiquidity2,
-            vault,
-            ua
-        );
-        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
-        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
-        console.log("Provided liquidity 1: %s", providedLiquidity1);
-        console.log("Provided liquidity 2: %s", providedLiquidity2);
-        uint256 percentOfLiquidity = (providedLiquidity1 * 1e18) /
-            (10_000e18 + providedLiquidity1);
-        uint256 percentOfLiquidity2 = (providedLiquidity2 * 1e18) /
-            (10_000e18 + providedLiquidity2);
-        console.log("Percent of liquidity1: %s / 1e18", percentOfLiquidity);
-        console.log("Percent of liquidity2: %s / 1e18", percentOfLiquidity2);
+        (
+            uint256 percentOfLiquidity1,
+            uint256 percentOfLiquidity2
+        ) = _provideLiquidityBothUsersAndPerps(
+                providedLiquidity1,
+                providedLiquidity2
+            );
 
         // skip some time
         skip(10 days);
 
         // check rewards
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-        assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards1 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
-        uint256 cumulativeRewards2 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
-        console.log("Cumulative rewards 1: %s", cumulativeRewards1);
-        console.log("Cumulative rewards 2: %s", cumulativeRewards2);
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * 3) / 4) * 10) /
-            365);
-        uint256 expectedCumulativeRewards2 = (((inflationRate / 4) * 10) / 365);
-        console.log(
-            "Expected cumulative rewards 1: %s",
-            expectedCumulativeRewards1
-        );
-        console.log(
-            "Expected cumulative rewards 2: %s",
-            expectedCumulativeRewards2
-        );
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            1e16, // 1%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            1e16, // 1%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            accruedRewards,
-            cumulativeRewards1.wadMul(percentOfLiquidity) +
-                cumulativeRewards2.wadMul(percentOfLiquidity2),
-            1e15, // 0.1%
-            "Incorrect user rewards"
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken),
+            percentOfLiquidity1,
+            percentOfLiquidity2,
+            7500,
+            2500,
+            10
         );
 
         // claim rewards
@@ -302,29 +244,13 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
 
-        // initial liquidity
-        fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
-        console.log("Initial liquidity: %s", 10_000e18);
-
-        // provide some more liquidity
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity1 + providedLiquidity2,
-            vault,
-            ua
-        );
-        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
-        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
-        console.log("Provided liquidity 1: %s", providedLiquidity1);
-        console.log("Provided liquidity 2: %s", providedLiquidity2);
-        uint256 percentOfLiquidity1 = (providedLiquidity1 * 1e18) /
-            (10_000e18 + providedLiquidity1);
-        uint256 percentOfLiquidity2 = (providedLiquidity2 * 1e18) /
-            (10_000e18 + providedLiquidity2);
-        console.log("Percent of liquidity 1: %s / 1e18", percentOfLiquidity1);
-        console.log("Percent of liquidity 2: %s / 1e18", percentOfLiquidity2);
+        (
+            uint256 percentOfLiquidity1,
+            uint256 percentOfLiquidity2
+        ) = _provideLiquidityBothUsersAndPerps(
+                providedLiquidity1,
+                providedLiquidity2
+            );
 
         // skip some time
         skip(10 days);
@@ -353,99 +279,36 @@ contract RewardsTest is PerpetualUtils {
 
         // check rewards for token 1
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-        assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards1 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
-        uint256 cumulativeRewards2 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
-        console.log("Cumulative rewards 1: %s", cumulativeRewards1);
-        console.log("Cumulative rewards 2: %s", cumulativeRewards2);
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * 3) / 4) * 20) /
-            365);
-        uint256 expectedCumulativeRewards2 = (((inflationRate / 4) * 20) / 365);
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            1e16, // 1%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            1e16, // 1%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            accruedRewards,
-            cumulativeRewards1.wadMul(percentOfLiquidity1) +
-                cumulativeRewards2.wadMul(percentOfLiquidity2),
-            1e15, // 0.1%
-            "Incorrect user rewards"
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken),
+            percentOfLiquidity1,
+            percentOfLiquidity2,
+            7500,
+            2500,
+            20
         );
 
         // check rewards for token 2
-        rewardsDistributor.accrueRewards(liquidityProviderTwo);
-        accruedRewards = rewardsDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken2)
-        );
-        assertGt(accruedRewards, 0, "Rewards not accrued");
-        cumulativeRewards1 = rewardsDistributor.cumulativeRewardPerLpToken(
+        uint256 accruedRewards2 = _checkRewards(
             address(rewardsToken2),
-            address(perpetual)
-        );
-        cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken2),
-            address(perpetual2)
-        );
-        console.log("Cumulative rewards 1: %s", cumulativeRewards1);
-        console.log("Cumulative rewards 2: %s", cumulativeRewards2);
-        (, , inflationRate, ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken2)
-        );
-        expectedCumulativeRewards1 = ((((inflationRate2 * gaugeWeights[0]) /
-            10000) * 10) / 365);
-        expectedCumulativeRewards2 = ((((inflationRate2 * gaugeWeights[1]) /
-            10000) * 10) / 365);
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            5e16, // 5%, accounts for variable reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            5e16, // 5%, accounts for variable reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            accruedRewards,
-            cumulativeRewards1.wadMul(percentOfLiquidity1) +
-                cumulativeRewards2.wadMul(percentOfLiquidity2),
-            1e15, // 0.1%
-            "Incorrect user rewards"
+            percentOfLiquidity1,
+            percentOfLiquidity2,
+            gaugeWeights[0],
+            gaugeWeights[1],
+            10
         );
 
         // claim rewards
         vm.startPrank(liquidityProviderTwo);
         rewardsDistributor.claimRewards();
         assertEq(
-            rewardsToken2.balanceOf(liquidityProviderTwo),
+            rewardsToken.balanceOf(liquidityProviderTwo),
             accruedRewards,
+            "Incorrect claimed balance"
+        );
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderTwo),
+            accruedRewards2,
             "Incorrect claimed balance"
         );
     }
@@ -467,29 +330,13 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
 
-        // initial liquidity
-        fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
-        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
-        console.log("Initial liquidity: %s", 10_000e18);
-
-        // provide some more liquidity
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity1 + providedLiquidity2,
-            vault,
-            ua
-        );
-        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
-        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
-        console.log("Provided liquidity 1: %s", providedLiquidity1);
-        console.log("Provided liquidity 2: %s", providedLiquidity2);
-        uint256 percentOfLiquidity1 = (providedLiquidity1 * 1e18) /
-            (10_000e18 + providedLiquidity1);
-        uint256 percentOfLiquidity2 = (providedLiquidity2 * 1e18) /
-            (10_000e18 + providedLiquidity2);
-        console.log("Percent of liquidity 1: %s / 1e18", percentOfLiquidity1);
-        console.log("Percent of liquidity 2: %s / 1e18", percentOfLiquidity2);
+        (
+            uint256 percentOfLiquidity1,
+            uint256 percentOfLiquidity2
+        ) = _provideLiquidityBothUsersAndPerps(
+                providedLiquidity1,
+                providedLiquidity2
+            );
 
         // skip some time
         skip(5 days);
@@ -558,6 +405,86 @@ contract RewardsTest is PerpetualUtils {
             1e16,
             "Incorrect rewards"
         );
+    }
+
+    function _checkRewards(
+        address token,
+        uint256 percentOfLiquidity1,
+        uint256 percentOfLiquidity2,
+        uint16 gaugeWeight1,
+        uint16 gaugeWeight2,
+        uint256 numDays
+    ) internal returns (uint256) {
+        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            token
+        );
+        assertGt(accruedRewards, 0, "Rewards not accrued");
+        uint256 cumulativeRewards1 = rewardsDistributor
+            .cumulativeRewardPerLpToken(token, address(perpetual));
+        uint256 cumulativeRewards2 = rewardsDistributor
+            .cumulativeRewardPerLpToken(token, address(perpetual2));
+        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+            token
+        );
+        uint256 expectedCumulativeRewards1 = ((((inflationRate * gaugeWeight1) /
+            10000) * numDays) / 365);
+        uint256 expectedCumulativeRewards2 = ((((inflationRate * gaugeWeight2) /
+            10000) * numDays) / 365);
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            accruedRewards,
+            cumulativeRewards1.wadMul(percentOfLiquidity1) +
+                cumulativeRewards2.wadMul(percentOfLiquidity2),
+            1e15, // 0.1%
+            "Incorrect user rewards"
+        );
+        return accruedRewards;
+    }
+
+    function _provideLiquidityBothUsersAndPerps(
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2
+    )
+        internal
+        returns (uint256 percentOfLiquidity1, uint256 percentOfLiquidity2)
+    {
+        // initial liquidity
+        fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
+        console.log("Initial liquidity: %s", 10_000e18);
+
+        // provide some more liquidity
+        fundAndPrepareAccount(
+            liquidityProviderTwo,
+            providedLiquidity1 + providedLiquidity2,
+            vault,
+            ua
+        );
+        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
+        console.log("Provided liquidity 1: %s", providedLiquidity1);
+        console.log("Provided liquidity 2: %s", providedLiquidity2);
+        percentOfLiquidity1 =
+            (providedLiquidity1 * 1e18) /
+            (10_000e18 + providedLiquidity1);
+        percentOfLiquidity2 =
+            (providedLiquidity2 * 1e18) /
+            (10_000e18 + providedLiquidity2);
+        console.log("Percent of liquidity 1: %s / 1e18", percentOfLiquidity1);
+        console.log("Percent of liquidity 2: %s / 1e18", percentOfLiquidity2);
     }
 
     function _provideLiquidity(
