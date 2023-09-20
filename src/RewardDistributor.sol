@@ -160,13 +160,21 @@ contract RewardDistributor is
     function updateMarketRewards(uint256 idx) public override {
         address gauge = getGaugeAddress(idx);
         uint256 liquidity = totalLiquidityPerMarket[gauge];
-        if (timeOfLastCumRewardUpdate[gauge] == 0)
-            revert UninitializedStartTime(gauge);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[gauge];
-        if (liquidity == 0) return;
+        if (liquidity == 0) {
+            timeOfLastCumRewardUpdate[gauge] = block.timestamp;
+            return;
+        }
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
+            if (
+                idx >= rewardInfo.gaugeWeights.length ||
+                rewardInfo.gaugeWeights[idx] == 0
+            ) continue;
+            uint16 gaugeWeight = rewardInfo.gaugeWeights[idx];
+            if (timeOfLastCumRewardUpdate[gauge] == 0 && gaugeWeight != 0)
+                revert RewardDistributor_UninitializedStartTime(gauge);
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
@@ -472,6 +480,7 @@ contract RewardDistributor is
                 lpPosition,
                 getCurrentPosition(user, gauge)
             );
+        if (totalLiquidityPerMarket[gauge] == 0) return;
         updateMarketRewards(idx);
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
