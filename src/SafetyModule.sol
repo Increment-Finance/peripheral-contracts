@@ -108,7 +108,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address user
     ) external virtual override nonReentrant onlyStakingToken {
         if (idx >= getNumGauges())
-            revert InvalidMarketIndex(idx, getNumGauges());
+            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
         uint256 prevPosition = lpPositionsPerUser[user][gauge];

@@ -46,26 +46,29 @@ abstract contract GaugeController is
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
 
-    error CallerIsNotClearingHouse(address caller);
-    error AboveMaxRewardTokens(uint256 max);
-    error AboveMaxInflationRate(uint256 rate, uint256 max);
-    error BelowMinReductionFactor(uint256 factor, uint256 min);
-    error InvalidRewardTokenAddress(address token);
-    error IncorrectWeightsCount(uint256 actual, uint256 expected);
-    error IncorrectWeightsSum(uint16 actual, uint16 expected);
-    error WeightExceedsMax(uint16 weight, uint16 max);
+    error GaugeController_CallerIsNotClearingHouse(address caller);
+    error GaugeController_AboveMaxRewardTokens(uint256 max);
+    error GaugeController_AboveMaxInflationRate(uint256 rate, uint256 max);
+    error GaugeController_BelowMinReductionFactor(uint256 factor, uint256 min);
+    error GaugeController_InvalidRewardTokenAddress(address token);
+    error GaugeController_IncorrectWeightsCount(
+        uint256 actual,
+        uint256 expected
+    );
+    error GaugeController_IncorrectWeightsSum(uint16 actual, uint16 expected);
+    error GaugeController_WeightExceedsMax(uint16 weight, uint16 max);
 
     constructor(
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor
     ) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
-            revert AboveMaxInflationRate(
+            revert GaugeController_AboveMaxInflationRate(
                 _initialInflationRate,
                 MAX_INFLATION_RATE
             );
         if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
-            revert BelowMinReductionFactor(
+            revert GaugeController_BelowMinReductionFactor(
                 _initialReductionFactor,
                 MIN_REDUCTION_FACTOR
             );
@@ -152,25 +155,26 @@ abstract contract GaugeController is
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert InvalidRewardTokenAddress(_token);
+            revert GaugeController_InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
         if (_weights.length != gaugesLength)
-            revert IncorrectWeightsCount(_weights.length, gaugesLength);
-        if (rewardInfoByToken[_token].gaugeWeights.length != gaugesLength) {
-            rewardInfoByToken[_token].gaugeWeights = new uint16[](gaugesLength);
-        }
+            revert GaugeController_IncorrectWeightsCount(
+                _weights.length,
+                gaugesLength
+            );
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _weights[i];
-            if (weight > 10000) revert WeightExceedsMax(weight, 10000);
+            if (weight > 10000)
+                revert GaugeController_WeightExceedsMax(weight, 10000);
             address gauge = getGaugeAddress(i);
             rewardInfoByToken[_token].gaugeWeights[i] = weight;
             totalWeight += weight;
             emit NewWeight(gauge, _token, weight);
         }
         if (totalWeight != 10000)
-            revert IncorrectWeightsSum(totalWeight, 10000);
+            revert GaugeController_IncorrectWeightsSum(totalWeight, 10000);
     }
 
     /// Sets the inflation rate used to calculate emissions over time
@@ -180,9 +184,12 @@ abstract contract GaugeController is
         uint256 _newInflationRate
     ) external onlyRole(GOVERNANCE) {
         if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert InvalidRewardTokenAddress(_token);
+            revert GaugeController_InvalidRewardTokenAddress(_token);
         if (_newInflationRate > MAX_INFLATION_RATE)
-            revert AboveMaxInflationRate(_newInflationRate, MAX_INFLATION_RATE);
+            revert GaugeController_AboveMaxInflationRate(
+                _newInflationRate,
+                MAX_INFLATION_RATE
+            );
         uint256 gaugesLength = getNumGauges();
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
@@ -198,9 +205,9 @@ abstract contract GaugeController is
         uint256 _newReductionFactor
     ) external onlyRole(GOVERNANCE) {
         if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert InvalidRewardTokenAddress(_token);
+            revert GaugeController_InvalidRewardTokenAddress(_token);
         if (MIN_REDUCTION_FACTOR > _newReductionFactor)
-            revert BelowMinReductionFactor(
+            revert GaugeController_BelowMinReductionFactor(
                 _newReductionFactor,
                 MIN_REDUCTION_FACTOR
             );

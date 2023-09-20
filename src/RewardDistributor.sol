@@ -67,21 +67,21 @@ contract RewardDistributor is
     /// @dev Address is from ClearingHouse.perpetuals array
     mapping(address => uint256) public totalLiquidityPerMarket;
 
-    error InvalidMarketIndex(uint256 index, uint256 maxIndex);
-    error UninitializedStartTime(address gauge);
-    error AlreadyInitializedStartTime(address gauge);
-    error NoRewardsToClaim(address user);
-    error PositionAlreadyRegistered(
+    error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
+    error RewardDistributor_UninitializedStartTime(address gauge);
+    error RewardDistributor_AlreadyInitializedStartTime(address gauge);
+    error RewardDistributor_NoRewardsToClaim(address user);
+    error RewardDistributor_PositionAlreadyRegistered(
         address lp,
         uint256 marketIndex,
         uint256 position
     );
-    error EarlyRewardAccrual(
+    error RewardDistributor_EarlyRewardAccrual(
         address user,
         uint256 marketIndex,
         uint256 claimAllowedTimestamp
     );
-    error LpPositionMismatch(
+    error RewardDistributor_LpPositionMismatch(
         address lp,
         uint256 marketIndex,
         uint256 prevPosition,
@@ -90,7 +90,7 @@ contract RewardDistributor is
 
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse))
-            revert CallerIsNotClearingHouse(msg.sender);
+            revert GaugeController_CallerIsNotClearingHouse(msg.sender);
         _;
     }
 
@@ -195,7 +195,7 @@ contract RewardDistributor is
         address user
     ) external virtual override nonReentrant onlyClearingHouse {
         if (idx >= getNumGauges())
-            revert InvalidMarketIndex(idx, getNumGauges());
+            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][gauge];
@@ -260,7 +260,7 @@ contract RewardDistributor is
     /// @param _gauge Address of the gauge (i.e., perpetual market)
     function initGaugeStartTime(address _gauge) external onlyRole(GOVERNANCE) {
         if (timeOfLastCumRewardUpdate[_gauge] != 0)
-            revert AlreadyInitializedStartTime(_gauge);
+            revert RewardDistributor_AlreadyInitializedStartTime(_gauge);
         timeOfLastCumRewardUpdate[_gauge] = block.timestamp;
     }
 
@@ -276,22 +276,26 @@ contract RewardDistributor is
         uint16[] calldata _gaugeWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if (rewardTokens.length >= MAX_REWARD_TOKENS)
-            revert AboveMaxRewardTokens(MAX_REWARD_TOKENS);
+            revert GaugeController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         uint256 gaugesLength = getNumGauges();
         if (_gaugeWeights.length != gaugesLength)
-            revert IncorrectWeightsCount(_gaugeWeights.length, gaugesLength);
+            revert GaugeController_IncorrectWeightsCount(
+                _gaugeWeights.length,
+                gaugesLength
+            );
         // Validate weights
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
             updateMarketRewards(i);
             uint16 weight = _gaugeWeights[i];
-            if (weight > 10000) revert WeightExceedsMax(weight, 10000);
+            if (weight > 10000)
+                revert GaugeController_WeightExceedsMax(weight, 10000);
             address gauge = getGaugeAddress(i);
             totalWeight += weight;
             emit NewWeight(gauge, _rewardToken, weight);
         }
         if (totalWeight != 10000)
-            revert IncorrectWeightsSum(totalWeight, 10000);
+            revert GaugeController_IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
         rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
@@ -315,7 +319,7 @@ contract RewardDistributor is
         address _token
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert InvalidRewardTokenAddress(_token);
+            revert GaugeController_InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
         // Update rewards for all markets before removal
         for (uint i; i < gaugesLength; ++i) {
@@ -352,7 +356,7 @@ contract RewardDistributor is
         for (uint i; i < numMarkets; ++i) {
             address gauge = getGaugeAddress(i);
             if (lpPositionsPerUser[msg.sender][gauge] != 0)
-                revert PositionAlreadyRegistered(
+                revert RewardDistributor_PositionAlreadyRegistered(
                     msg.sender,
                     i,
                     lpPositionsPerUser[msg.sender][gauge]
@@ -372,10 +376,13 @@ contract RewardDistributor is
         for (uint i; i < _marketIndexes.length; ++i) {
             uint256 idx = _marketIndexes[i];
             if (idx >= getNumGauges())
-                revert InvalidMarketIndex(idx, getNumGauges());
+                revert RewardDistributor_InvalidMarketIndex(
+                    idx,
+                    getNumGauges()
+                );
             address gauge = getGaugeAddress(idx);
             if (lpPositionsPerUser[msg.sender][gauge] != 0)
-                revert PositionAlreadyRegistered(
+                revert RewardDistributor_PositionAlreadyRegistered(
                     msg.sender,
                     idx,
                     lpPositionsPerUser[msg.sender][gauge]
@@ -444,14 +451,14 @@ contract RewardDistributor is
     /// @param user Address of the user
     function accrueRewards(uint256 idx, address user) public nonReentrant {
         if (idx >= getNumGauges())
-            revert InvalidMarketIndex(idx, getNumGauges());
+            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         address gauge = getGaugeAddress(idx);
         if (
             block.timestamp <
             lastDepositTimeByUserByMarket[user][gauge] +
                 earlyWithdrawalThreshold
         )
-            revert EarlyRewardAccrual(
+            revert RewardDistributor_EarlyRewardAccrual(
                 user,
                 idx,
                 lastDepositTimeByUserByMarket[user][gauge] +
@@ -459,7 +466,7 @@ contract RewardDistributor is
             );
         uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
-            revert LpPositionMismatch(
+            revert RewardDistributor_LpPositionMismatch(
                 user,
                 idx,
                 lpPosition,
@@ -526,14 +533,14 @@ contract RewardDistributor is
         address token
     ) public view returns (uint256) {
         if (idx >= getNumGauges())
-            revert InvalidMarketIndex(idx, getNumGauges());
+            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         address gauge = getGaugeAddress(idx);
         if (
             block.timestamp <
             lastDepositTimeByUserByMarket[user][gauge] +
                 earlyWithdrawalThreshold
         )
-            revert EarlyRewardAccrual(
+            revert RewardDistributor_EarlyRewardAccrual(
                 user,
                 idx,
                 lastDepositTimeByUserByMarket[user][gauge] +
@@ -541,7 +548,7 @@ contract RewardDistributor is
             );
         uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
-            revert LpPositionMismatch(
+            revert RewardDistributor_LpPositionMismatch(
                 user,
                 idx,
                 lpPosition,
@@ -549,7 +556,7 @@ contract RewardDistributor is
             );
         uint256 liquidity = totalLiquidityPerMarket[gauge];
         if (timeOfLastCumRewardUpdate[gauge] == 0)
-            revert UninitializedStartTime(gauge);
+            revert RewardDistributor_UninitializedStartTime(gauge);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[gauge];
         if (liquidity == 0) return 0;
         RewardInfo memory rewardInfo = rewardInfoByToken[token];
