@@ -264,7 +264,7 @@ contract RewardDistributor is
     /*     Governance     */
     /* ****************** */
 
-    /// Sets the start time for accruing rewards to a gauge
+    /// Sets the start time for accruing rewards to a gauge which has not been initialized yet
     /// @param _gauge Address of the gauge (i.e., perpetual market)
     function initGaugeStartTime(address _gauge) external onlyRole(GOVERNANCE) {
         if (timeOfLastCumRewardUpdate[_gauge] != 0)
@@ -347,7 +347,9 @@ contract RewardDistributor is
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = IERC20Metadata(_token).balanceOf(address(this));
         uint256 unclaimedAccruals = totalUnclaimedRewards[_token];
-        uint256 unaccruedBalance = balance - unclaimedAccruals;
+        uint256 unaccruedBalance = balance >= unclaimedAccruals
+            ? balance - unclaimedAccruals
+            : 0;
         // Transfer remaining tokens to governance (which is the sender)
         IERC20Metadata(_token).safeTransfer(msg.sender, unaccruedBalance);
         emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
@@ -603,11 +605,15 @@ contract RewardDistributor is
         uint256 _amount
     ) internal returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
+        IERC20Metadata rewardToken = IERC20Metadata(_token);
         if (_amount > 0 && _amount <= rewardsRemaining) {
-            IERC20Metadata rewardToken = IERC20Metadata(_token);
             rewardToken.safeTransfer(_to, _amount);
             totalUnclaimedRewards[_token] -= _amount;
             return 0;
+        } else if (_amount > rewardsRemaining) {
+            rewardToken.safeTransfer(_to, rewardsRemaining);
+            totalUnclaimedRewards[_token] -= rewardsRemaining;
+            return _amount - rewardsRemaining;
         }
         return _amount;
     }
