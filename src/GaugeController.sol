@@ -169,7 +169,12 @@ abstract contract GaugeController is
             if (weight > 10000)
                 revert GaugeController_WeightExceedsMax(weight, 10000);
             address gauge = getGaugeAddress(i);
-            rewardInfoByToken[_token].gaugeWeights[i] = weight;
+            if (i == rewardInfoByToken[_token].gaugeWeights.length) {
+                // Gauge added since last update
+                rewardInfoByToken[_token].gaugeWeights.push(weight);
+            } else {
+                rewardInfoByToken[_token].gaugeWeights[i] = weight;
+            }
             totalWeight += weight;
             emit NewWeight(gauge, _token, weight);
         }
