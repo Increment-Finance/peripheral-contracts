@@ -208,6 +208,7 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         uint256 accruedRewards = _checkRewards(
             address(rewardsToken),
+            liquidityProviderTwo,
             percentOfLiquidity1,
             percentOfLiquidity2,
             7500,
@@ -278,9 +279,11 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // check rewards for token 1
+        rewardsDistributor.accrueRewards(liquidityProviderOne);
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         uint256 accruedRewards = _checkRewards(
             address(rewardsToken),
+            liquidityProviderTwo,
             percentOfLiquidity1,
             percentOfLiquidity2,
             7500,
@@ -291,16 +294,33 @@ contract RewardsTest is PerpetualUtils {
         // check rewards for token 2
         uint256 accruedRewards2 = _checkRewards(
             address(rewardsToken2),
+            liquidityProviderTwo,
             percentOfLiquidity1,
             percentOfLiquidity2,
             gaugeWeights[0],
             gaugeWeights[1],
             10
         );
+        uint256 accruedRewards21 = _checkRewards(
+            address(rewardsToken2),
+            liquidityProviderOne,
+            1e18 - percentOfLiquidity1,
+            1e18 - percentOfLiquidity2,
+            gaugeWeights[0],
+            gaugeWeights[1],
+            10
+        );
+
+        // remove reward token 2
+        vm.startPrank(address(this));
+        rewardsDistributor.removeRewardToken(address(rewardsToken2));
 
         // claim rewards
         vm.startPrank(liquidityProviderTwo);
-        rewardsDistributor.claimRewards();
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(rewardsToken);
+        tokens[1] = address(rewardsToken2);
+        rewardsDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             accruedRewards,
@@ -310,6 +330,16 @@ contract RewardsTest is PerpetualUtils {
             rewardsToken2.balanceOf(liquidityProviderTwo),
             accruedRewards2,
             "Incorrect claimed balance"
+        );
+        assertEq(
+            rewardsToken2.balanceOf(address(rewardsDistributor)),
+            accruedRewards21,
+            "Incorrect remaining accrued balance"
+        );
+        assertEq(
+            rewardsToken2.balanceOf(address(this)),
+            20000000e18 - accruedRewards2 - accruedRewards21,
+            "Incorrect returned balance"
         );
     }
 
@@ -586,6 +616,7 @@ contract RewardsTest is PerpetualUtils {
 
     function _checkRewards(
         address token,
+        address user,
         uint256 percentOfLiquidity1,
         uint256 percentOfLiquidity2,
         uint16 gaugeWeight1,
@@ -593,7 +624,7 @@ contract RewardsTest is PerpetualUtils {
         uint256 numDays
     ) internal returns (uint256) {
         uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
+            user,
             token
         );
         assertGt(accruedRewards, 0, "Rewards not accrued");
