@@ -46,7 +46,6 @@ abstract contract GaugeController is
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
 
-    error GaugeController_CallerIsNotClearingHouse(address caller);
     error GaugeController_AboveMaxRewardTokens(uint256 max);
     error GaugeController_AboveMaxInflationRate(uint256 rate, uint256 max);
     error GaugeController_BelowMinReductionFactor(uint256 factor, uint256 min);
@@ -125,10 +124,10 @@ abstract contract GaugeController is
         RewardInfo memory rewardInfo = rewardInfoByToken[rewardToken];
         uint256 totalTimeElapsed = block.timestamp -
             rewardInfo.initialTimestamp;
-        return ((rewardInfo.inflationRate * 1e18) /
-            rewardInfo.reductionFactor.pow(
-                (totalTimeElapsed * 1e18) / 365 days
-            ));
+        return
+            rewardInfo.inflationRate.div(
+                rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
+            );
     }
 
     function getReductionFactor(

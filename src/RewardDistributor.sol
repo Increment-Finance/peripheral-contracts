@@ -67,6 +67,7 @@ contract RewardDistributor is
     /// @dev Address is from ClearingHouse.perpetuals array
     mapping(address => uint256) public totalLiquidityPerMarket;
 
+    error RewardDistributor_CallerIsNotClearingHouse(address caller);
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error RewardDistributor_UninitializedStartTime(address gauge);
     error RewardDistributor_AlreadyInitializedStartTime(address gauge);
@@ -90,7 +91,7 @@ contract RewardDistributor is
 
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse))
-            revert GaugeController_CallerIsNotClearingHouse(msg.sender);
+            revert RewardDistributor_CallerIsNotClearingHouse(msg.sender);
         _;
     }
 
