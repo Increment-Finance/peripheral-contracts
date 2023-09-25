@@ -35,6 +35,9 @@ contract RewardsTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
 
+    uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
     address traderOne = address(789);
@@ -115,8 +118,8 @@ contract RewardsTest is PerpetualUtils {
         weights[1] = 2500;
 
         rewardsDistributor = new RewardDistributor(
-            1463753e18,
-            1.189207115e18,
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
             10 days,
@@ -158,6 +161,10 @@ contract RewardsTest is PerpetualUtils {
         vBase2.setHeartBeat(30 days);
     }
 
+    /* ******************* */
+    /*   GaugeController   */
+    /* ******************* */
+
     function testDeployment() public {
         assertEq(rewardsDistributor.getNumGauges(), 2, "Gauge count mismatch");
         assertEq(
@@ -165,19 +172,36 @@ contract RewardsTest is PerpetualUtils {
             address(perpetual),
             "Gauge address mismatch"
         );
-        (
-            IERC20Metadata token,
-            ,
-            uint256 inflationRate,
-            uint256 reductionFactor
-        ) = rewardsDistributor.rewardInfoByToken(address(rewardsToken));
         assertEq(
-            address(token),
-            address(rewardsToken),
-            "Reward token mismatch"
+            rewardsDistributor.getRewardTokenCount(),
+            1,
+            "Token count mismatch"
         );
-        assertEq(inflationRate, 1463753e18, "Inflation rate mismatch");
-        assertEq(reductionFactor, 1.189207115e18, "Reduction factor mismatch");
+        address token = rewardsDistributor.rewardTokens(0);
+        assertEq(token, address(rewardsToken), "Reward token mismatch");
+        assertEq(
+            rewardsDistributor.getInitialTimestamp(token),
+            block.timestamp,
+            "Initial timestamp mismatch"
+        );
+        assertEq(
+            rewardsDistributor.getBaseInflationRate(token),
+            INITIAL_INFLATION_RATE,
+            "Base inflation rate mismatch"
+        );
+        assertEq(
+            rewardsDistributor.getInflationRate(token),
+            INITIAL_INFLATION_RATE,
+            "Inflation rate mismatch"
+        );
+        assertEq(
+            rewardsDistributor.getReductionFactor(token),
+            INITIAL_REDUCTION_FACTOR,
+            "Reduction factor mismatch"
+        );
+        uint16[] memory weights = rewardsDistributor.getGaugeWeights(token);
+        assertEq(weights[0], 7500, "Gauge weight mismatch");
+        assertEq(weights[1], 2500, "Gauge weight mismatch");
         assertEq(
             rewardsDistributor.earlyWithdrawalThreshold(),
             10 days,
