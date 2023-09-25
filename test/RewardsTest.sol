@@ -209,46 +209,62 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
-    function testBasicScenario(
-        uint256 providedLiquidity1,
-        uint256 providedLiquidity2
+    function testInflationAndReduction(
+        uint256 timeIncrement,
+        uint256 initialInflationRate,
+        uint256 initialReductionFactor
     ) public {
         /* bounds */
-        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
-        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
+        initialInflationRate = bound(initialInflationRate, 1e22, 5e24);
+        initialReductionFactor = bound(initialReductionFactor, 1e18, 2e18);
 
-        (
-            uint256 percentOfLiquidity1,
-            uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
-
-        // skip some time
-        skip(10 days);
-
-        // check rewards
-        rewardsDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = _checkRewards(
+        // Update inflation rate and reduction factor
+        rewardsDistributor.updateInflationRate(
             address(rewardsToken),
-            liquidityProviderTwo,
-            percentOfLiquidity1,
-            percentOfLiquidity2,
-            7500,
-            2500,
-            10
+            initialInflationRate
+        );
+        rewardsDistributor.updateReductionFactor(
+            address(rewardsToken),
+            initialReductionFactor
         );
 
-        // claim rewards
-        rewardsDistributor.claimRewards();
-        assertEq(
-            rewardsToken.balanceOf(liquidityProviderTwo),
+        // Set heartbeats to 1 year
+        vBase.setHeartBeat(365 days);
+        vBase2.setHeartBeat(365 days);
+
+        // Keeper bot will ensure that market rewards are updated every month at least
+        timeIncrement = bound(timeIncrement, 7 days, 30 days);
+        console.log("Time increment: %s days", timeIncrement / 1 days);
+        uint256 endYear = block.timestamp + 365 days;
+        uint256 updatesPerYear = 365 days / timeIncrement;
+
+        // Accrue rewards throughout the year
+        for (uint256 i = 0; i < updatesPerYear; i++) {
+            skip(timeIncrement);
+            rewardsDistributor.accrueRewards(liquidityProviderOne);
+        }
+
+        // Skip to the end of the year
+        vm.warp(endYear);
+        rewardsDistributor.accrueRewards(liquidityProviderOne);
+
+        // Check accrued rewards
+        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderOne,
+            address(rewardsToken)
+        );
+
+        // Accrued rewards should be within 5% of the average inflation rate
+        uint256 currentInflationRate = rewardsDistributor.getInflationRate(
+            address(rewardsToken)
+        );
+        uint256 approxRewards = (currentInflationRate + initialInflationRate) /
+            2;
+        assertApproxEqRel(
             accruedRewards,
-            "Incorrect claimed balance"
+            approxRewards,
+            5e16,
+            "Incorrect annual rewards"
         );
     }
 
