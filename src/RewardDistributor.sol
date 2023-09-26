@@ -16,7 +16,7 @@ import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
-import {console2 as console} from "forge/console2.sol";
+// import {console2 as console} from "forge/console2.sol";
 
 contract RewardDistributor is
     IRewardDistributor,
@@ -186,17 +186,9 @@ contract RewardDistributor is
 
     /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override {
-        console.log("updateMarketRewards(%s)", idx);
         address gauge = getGaugeAddress(idx);
-        console.log("gauge: %s", gauge);
         uint256 liquidity = totalLiquidityPerMarket[gauge];
-        console.log("liquidity: %s", liquidity);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[gauge];
-        console.log(
-            "timeOfLastCumRewardUpdate[%s]: %s",
-            gauge,
-            timeOfLastCumRewardUpdate[gauge]
-        );
         if (liquidity == 0) {
             timeOfLastCumRewardUpdate[gauge] = block.timestamp;
             return;
@@ -210,21 +202,21 @@ contract RewardDistributor is
                 rewardInfo.gaugeWeights[allowlistIdx] == 0
             ) continue;
             uint16 gaugeWeight = rewardInfo.gaugeWeights[allowlistIdx];
-            console.log("gaugeWeight: %s", gaugeWeight);
             if (timeOfLastCumRewardUpdate[gauge] == 0 && gaugeWeight != 0)
+                // shouldn't be possible
                 revert RewardDistributor_UninitializedStartTime(gauge);
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-            uint256 inflationRatePerSecond = (
+            uint256 inflationRate = (
                 rewardInfo.inflationRate.div(
                     rewardInfo.reductionFactor.pow(
                         totalTimeElapsed.div(365 days)
                     )
                 )
-            ) / 365 days;
-            uint256 newRewards = ((inflationRatePerSecond * gaugeWeight) /
-                10000) * deltaTime;
+            );
+            uint256 newRewards = (((inflationRate * gaugeWeight) / 10000) *
+                deltaTime) / 365 days;
             cumulativeRewardPerLpToken[token][gauge] += newRewards;
             emit RewardAccruedToMarket(gauge, token, newRewards);
         }
@@ -363,8 +355,10 @@ contract RewardDistributor is
     function removeRewardToken(
         address _token
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert GaugeController_InvalidRewardTokenAddress(_token);
+        if (
+            _token == address(0) ||
+            rewardInfoByToken[_token].token != IERC20Metadata(_token)
+        ) revert GaugeController_InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
         // Update rewards for all markets before removal
         for (uint i; i < gaugesLength; ++i) {
@@ -510,6 +504,7 @@ contract RewardDistributor is
             );
         uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
+            // should be impossible, since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
                 idx,
