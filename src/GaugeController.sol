@@ -153,8 +153,10 @@ abstract contract GaugeController is
         address _token,
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert GaugeController_InvalidRewardTokenAddress(_token);
+        if (
+            _token == address(0) ||
+            rewardInfoByToken[_token].token != IERC20Metadata(_token)
+        ) revert GaugeController_InvalidRewardTokenAddress(_token);
         uint256 gaugesLength = getNumGauges();
         if (_weights.length != gaugesLength)
             revert GaugeController_IncorrectWeightsCount(
@@ -187,8 +189,10 @@ abstract contract GaugeController is
         address _token,
         uint256 _newInflationRate
     ) external onlyRole(GOVERNANCE) {
-        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert GaugeController_InvalidRewardTokenAddress(_token);
+        if (
+            _token == address(0) ||
+            rewardInfoByToken[_token].token != IERC20Metadata(_token)
+        ) revert GaugeController_InvalidRewardTokenAddress(_token);
         if (_newInflationRate > MAX_INFLATION_RATE)
             revert GaugeController_AboveMaxInflationRate(
                 _newInflationRate,
@@ -208,8 +212,10 @@ abstract contract GaugeController is
         address _token,
         uint256 _newReductionFactor
     ) external onlyRole(GOVERNANCE) {
-        if (rewardInfoByToken[_token].token != IERC20Metadata(_token))
-            revert GaugeController_InvalidRewardTokenAddress(_token);
+        if (
+            _token == address(0) ||
+            rewardInfoByToken[_token].token != IERC20Metadata(_token)
+        ) revert GaugeController_InvalidRewardTokenAddress(_token);
         if (MIN_REDUCTION_FACTOR > _newReductionFactor)
             revert GaugeController_BelowMinReductionFactor(
                 _newReductionFactor,
