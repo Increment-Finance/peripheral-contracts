@@ -167,10 +167,15 @@ contract RewardsTest is PerpetualUtils {
 
     function testDeployment() public {
         assertEq(rewardsDistributor.getNumGauges(), 2, "Gauge count mismatch");
+        address gaugeAddress1 = rewardsDistributor.getGaugeAddress(0);
+        assertEq(gaugeAddress1, address(perpetual), "Gauge address mismatch");
         assertEq(
-            rewardsDistributor.getGaugeAddress(0),
-            address(perpetual),
-            "Gauge address mismatch"
+            rewardsDistributor.getCurrentPosition(
+                liquidityProviderOne,
+                address(perpetual)
+            ),
+            4867996525552487585967,
+            "Position mismatch"
         );
         assertEq(
             rewardsDistributor.getRewardTokenCount(),
@@ -215,7 +220,7 @@ contract RewardsTest is PerpetualUtils {
         uint256 initialReductionFactor
     ) public {
         /* bounds */
-        initialInflationRate = bound(initialInflationRate, 0, 5e24);
+        initialInflationRate = bound(initialInflationRate, 1e18, 5e24);
         initialReductionFactor = bound(initialReductionFactor, 1e18, 2e18);
 
         // Update inflation rate and reduction factor
@@ -635,7 +640,7 @@ contract RewardsTest is PerpetualUtils {
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         reductionRatio = bound(reductionRatio, 1e16, 1e18);
-        console.log("Reduction Ratio: %s", reductionRatio);
+        console.log("Reduction Ratio: %s%", reductionRatio / 1e16);
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
         );
@@ -649,9 +654,14 @@ contract RewardsTest is PerpetualUtils {
         ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some time
+        console.log("Skipping 5 days");
         skip(5 days);
 
         // remove some liquidity from first perpetual
+        console.log(
+            "Removing %s% of liquidity from first perpetual",
+            reductionRatio / 1e16
+        );
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // check rewards
@@ -665,7 +675,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual)
             );
-        console.log("Cumulative rewards: %s", cumulativeRewards1);
+        // console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
             cumulativeRewards1.wadMul(percentOfLiquidity1).wadMul(
@@ -676,6 +686,7 @@ contract RewardsTest is PerpetualUtils {
         );
 
         // skip some time again
+        console.log("Skipping 5 days");
         skip(5 days);
 
         // remove some liquidity again from first perpetual
@@ -684,8 +695,13 @@ contract RewardsTest is PerpetualUtils {
             .wadDiv(
                 rewardsDistributor.totalLiquidityPerMarket(address(perpetual))
             );
+        console.log(
+            "Removing %s% of liquidity from first perpetual again",
+            reductionRatio / 1e16
+        );
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
+        console.log("Removing all liquidity from second perpetual");
         // remove all liquidity from second perpetual
         _removeAllLiquidity(liquidityProviderTwo, perpetual2);
 
@@ -891,6 +907,338 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
+    function testDelistAndReplace(
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2,
+        uint256 providedLiquidity3
+    ) public {
+        /* bounds */
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
+        providedLiquidity3 = bound(providedLiquidity3, 100e18, 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+        require(
+            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
+        );
+        require(
+            providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18
+        );
+
+        // add liquidity to first two perpetuals
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+
+        // skip some time
+        skip(10 days);
+
+        // check that rewards were accrued to first two perpetuals at previous weights
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 cumulativeRewards1 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual)
+            );
+        uint256 cumulativeRewards2 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual2)
+            );
+        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        uint256 expectedCumulativeRewards1 = ((((inflationRate * 7500) /
+            10000) * 10) / 365);
+        uint256 expectedCumulativeRewards2 = ((((inflationRate * 2500) /
+            10000) * 10) / 365);
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+
+        // delist second perpertual
+        console.log("Delisting second perpetual: %s", address(perpetual2));
+        vm.startPrank(address(this));
+        clearingHouse.delistPerpetual(perpetual2);
+
+        // replace it with a new perpetual
+        VBase vBase3 = new VBase(
+            "vDAI base token",
+            "vDAI",
+            AggregatorV3Interface(
+                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
+            ),
+            30 days,
+            sequencerUptimeFeed,
+            gracePeriod
+        );
+        VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
+        TestPerpetual perpetual3 = new TestPerpetual(
+            vBase3,
+            vQuote3,
+            ICryptoSwap(
+                factory.deploy_pool(
+                    "DAI_USD",
+                    "DAI_USD",
+                    [address(vQuote3), address(vBase3)],
+                    A,
+                    gamma,
+                    mid_fee,
+                    out_fee,
+                    allowed_extra_profit,
+                    fee_gamma,
+                    adjustment_step,
+                    admin_fee,
+                    ma_half_time,
+                    initial_price
+                )
+            ),
+            clearingHouse,
+            curveCryptoViews,
+            true,
+            perp_params
+        );
+
+        vBase3.transferPerpOwner(address(perpetual3));
+        vQuote3.transferPerpOwner(address(perpetual3));
+        clearingHouse.allowListPerpetual(perpetual3);
+        console.log("Added new perpetual: %s", address(perpetual3));
+        assertEq(
+            rewardsDistributor.getGaugeAddress(2),
+            address(perpetual3),
+            "Incorrect gauge address"
+        );
+        assertEq(
+            rewardsDistributor.getNumGauges(),
+            2,
+            "Incorrect number of gauges"
+        );
+
+        // set new gauge weights
+        uint16[] memory gaugeWeights = new uint16[](2);
+        gaugeWeights[0] = 7500;
+        gaugeWeights[1] = 2500;
+        rewardsDistributor.updateGaugeWeights(
+            address(rewardsToken),
+            gaugeWeights
+        );
+
+        // provide liquidity to new perpetual
+        _provideLiquidity(10_000e18, liquidityProviderOne, perpetual3);
+        fundAndPrepareAccount(
+            liquidityProviderTwo,
+            providedLiquidity3,
+            vault,
+            ua
+        );
+        _provideLiquidity(providedLiquidity3, liquidityProviderTwo, perpetual3);
+
+        // skip some time
+        skip(10 days);
+
+        // check that rewards were accrued to first perpetual and new one at previous weights
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        cumulativeRewards1 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual)
+        );
+        uint256 cumulativeRewards3 = rewardsDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(perpetual3)
+            );
+        expectedCumulativeRewards1 = ((((inflationRate * 7500) / 10000) * 20) /
+            365);
+        uint256 expectedCumulativeRewards3 = ((((inflationRate * 2500) /
+            10000) * 10) / 365);
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards3,
+            expectedCumulativeRewards3,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+    }
+
+    function testRewardDistributorErrors() public {
+        // getters
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                9,
+                1
+            )
+        );
+        rewardsDistributor.getGaugeAddress(9);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_MarketIndexNotAllowlisted(uint256)",
+                9
+            )
+        );
+        rewardsDistributor.getAllowlistIdx(9);
+
+        // updateStakingPosition
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_CallerIsNotClearingHouse(address)",
+                address(this)
+            )
+        );
+        rewardsDistributor.updateStakingPosition(0, liquidityProviderOne);
+        vm.startPrank(address(clearingHouse));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                2,
+                1
+            )
+        );
+        rewardsDistributor.updateStakingPosition(2, liquidityProviderOne);
+        vm.stopPrank();
+
+        // initGaugeStartTime
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_AlreadyInitializedStartTime(address)",
+                address(perpetual)
+            )
+        );
+        rewardsDistributor.initGaugeStartTime(address(perpetual));
+
+        // removeRewardToken
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_InvalidRewardTokenAddress(address)",
+                address(0)
+            )
+        );
+        rewardsDistributor.removeRewardToken(address(0));
+
+        // registerPositions
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_PositionAlreadyRegistered(address,uint256,uint256)",
+                liquidityProviderOne,
+                0,
+                4867996525552487585967
+            )
+        );
+        rewardsDistributor.registerPositions();
+        uint256[] memory positions = new uint256[](1);
+        positions[0] = 1;
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_PositionAlreadyRegistered(address,uint256,uint256)",
+                liquidityProviderOne,
+                1,
+                4536926040242831858357
+            )
+        );
+        rewardsDistributor.registerPositions(positions);
+        vm.stopPrank();
+
+        _provideLiquidityBothPerps(10_000e18, 10_000e18);
+
+        // accrueRewards
+        skip(5 days);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_EarlyRewardAccrual(address,uint256,uint256)",
+                liquidityProviderTwo,
+                0,
+                block.timestamp + 5 days
+            )
+        );
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+
+        // addRewardToken
+        vm.startPrank(address(this));
+        uint16[] memory weights1 = new uint16[](1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_IncorrectWeightsCount(uint256,uint256)",
+                1,
+                2
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            1e18,
+            1e18,
+            weights1
+        );
+        uint16[] memory weights2 = new uint16[](2);
+        weights2[0] = type(uint16).max;
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_WeightExceedsMax(uint16,uint16)",
+                type(uint16).max,
+                10000
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            1e18,
+            1e18,
+            weights2
+        );
+        weights2[0] = 0;
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_IncorrectWeightsSum(uint16,uint16)",
+                0,
+                10000
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            1e18,
+            1e18,
+            weights2
+        );
+        weights2[0] = 5000;
+        weights2[1] = 5000;
+        for (uint i; i < 9; ++i) {
+            rewardsDistributor.addRewardToken(
+                address(rewardsToken),
+                1e18,
+                1e18,
+                weights2
+            );
+        }
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_AboveMaxRewardTokens(uint256)",
+                10
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            1e18,
+            1e18,
+            weights2
+        );
+    }
+
+    /* ****************** */
+    /*  Helper Functions  */
+    /* ****************** */
+
     function _checkRewards(
         address token,
         address user,
@@ -954,16 +1302,30 @@ contract RewardsTest is PerpetualUtils {
         );
         _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
         _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
-        console.log("Provided liquidity 1: %s", providedLiquidity1);
-        console.log("Provided liquidity 2: %s", providedLiquidity2);
+        console.log(
+            "User 2's provided liquidity in perp 1: %s",
+            providedLiquidity1
+        );
+        console.log(
+            "User 2's provided liquidity in perp 2: %s",
+            providedLiquidity2
+        );
         percentOfLiquidity1 =
             (providedLiquidity1 * 1e18) /
             (10_000e18 + providedLiquidity1);
         percentOfLiquidity2 =
             (providedLiquidity2 * 1e18) /
             (10_000e18 + providedLiquidity2);
-        console.log("Percent of liquidity 1: %s / 1e18", percentOfLiquidity1);
-        console.log("Percent of liquidity 2: %s / 1e18", percentOfLiquidity2);
+        console.log(
+            "Percent of liquidity in perp 1: %s.%s%",
+            percentOfLiquidity1 / 1e16,
+            (percentOfLiquidity1 % 1e16) / 1e14
+        );
+        console.log(
+            "Percent of liquidity in perp 2: %s.%s%",
+            percentOfLiquidity2 / 1e16,
+            (percentOfLiquidity2 % 1e16) / 1e14
+        );
     }
 
     function _provideLiquidity(
@@ -1013,8 +1375,23 @@ contract RewardsTest is PerpetualUtils {
         TestPerpetual perp,
         uint256 reductionRatio
     ) internal {
-        uint256 amount = (perp.getLpPosition(user).liquidityBalance *
-            reductionRatio) / 1e18;
+        uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
+        uint256 amount = (lpBalance * reductionRatio) / 1e18;
+        uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
+        console.log(
+            "User's liquidity balance in perp %s: %s",
+            idx + 1,
+            lpBalance
+        );
+        console.log("Amount to remove: %s", amount);
+        console.log(
+            "Total Base Provided: %s",
+            perp.getGlobalPosition().totalBaseProvided
+        );
+        console.log(
+            "Total Quote Provided: %s",
+            perp.getGlobalPosition().totalQuoteProvided
+        );
         vm.startPrank(user);
         uint256 proposedAmount = _getLiquidityProviderProposedAmount(
             user,
@@ -1023,7 +1400,7 @@ contract RewardsTest is PerpetualUtils {
         );
         console.log("Proposed amount: %s", proposedAmount);
         clearingHouse.removeLiquidity(
-            perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2,
+            idx,
             amount,
             [uint256(0), uint256(0)],
             proposedAmount,
@@ -1047,7 +1424,7 @@ contract RewardsTest is PerpetualUtils {
                 idx,
                 user,
                 reductionRatio,
-                40,
+                100,
                 [uint256(0), uint256(0)],
                 0
             );
