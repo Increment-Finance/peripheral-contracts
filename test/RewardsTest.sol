@@ -215,7 +215,7 @@ contract RewardsTest is PerpetualUtils {
         uint256 initialReductionFactor
     ) public {
         /* bounds */
-        initialInflationRate = bound(initialInflationRate, 1e22, 5e24);
+        initialInflationRate = bound(initialInflationRate, 0, 5e24);
         initialReductionFactor = bound(initialReductionFactor, 1e18, 2e18);
 
         // Update inflation rate and reduction factor
@@ -233,7 +233,7 @@ contract RewardsTest is PerpetualUtils {
         vBase2.setHeartBeat(365 days);
 
         // Keeper bot will ensure that market rewards are updated every month at least
-        timeIncrement = bound(timeIncrement, 7 days, 30 days);
+        timeIncrement = bound(timeIncrement, 1 days, 7 days);
         console.log("Time increment: %s days", timeIncrement / 1 days);
         uint256 endYear = block.timestamp + 365 days;
         uint256 updatesPerYear = 365 days / timeIncrement;
