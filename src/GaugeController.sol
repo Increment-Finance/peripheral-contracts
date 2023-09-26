@@ -87,11 +87,21 @@ abstract contract GaugeController is
     /// @return Number of gauges
     function getNumGauges() public view virtual returns (uint256);
 
+    /// Gets the highest valid market index
+    /// @return Highest valid market index
+    function getMaxGaugeIdx() public view virtual returns (uint256);
+
     /// Gets the address of a gauge
     /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the gauge
     /// @return Address of the gauge
     function getGaugeAddress(uint256 idx) public view virtual returns (address);
+
+    /// Gets the index of an allowlisted gauge
+    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param i Index of the gauge in the allowlist ids
+    /// @return Index of the gauge in the gauge list
+    function getGaugeIdx(uint256 i) public view virtual returns (uint256);
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -165,11 +175,12 @@ abstract contract GaugeController is
             );
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
-            updateMarketRewards(i);
+            uint256 idx = getGaugeIdx(i);
+            updateMarketRewards(idx);
             uint16 weight = _weights[i];
             if (weight > 10000)
                 revert GaugeController_WeightExceedsMax(weight, 10000);
-            address gauge = getGaugeAddress(i);
+            address gauge = getGaugeAddress(idx);
             if (i == rewardInfoByToken[_token].gaugeWeights.length) {
                 // Gauge added since last update
                 rewardInfoByToken[_token].gaugeWeights.push(weight);
@@ -200,7 +211,8 @@ abstract contract GaugeController is
             );
         uint256 gaugesLength = getNumGauges();
         for (uint i; i < gaugesLength; ++i) {
-            updateMarketRewards(i);
+            uint256 idx = getGaugeIdx(i);
+            updateMarketRewards(idx);
         }
         rewardInfoByToken[_token].inflationRate = _newInflationRate;
         emit NewInflationRate(_token, _newInflationRate);

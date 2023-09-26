@@ -58,7 +58,11 @@ interface IGaugeController {
 
     function getNumGauges() external view returns (uint256);
 
+    function getMaxGaugeIdx() external view returns (uint256);
+
     function getGaugeAddress(uint256) external view returns (address);
+
+    function getGaugeIdx(uint256) external view returns (uint256);
 
     function getRewardTokenCount() external view returns (uint256);
 

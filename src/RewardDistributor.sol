@@ -16,7 +16,7 @@ import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
-// import {console2 as console} from "forge/console2.sol";
+import {console2 as console} from "forge/console2.sol";
 
 contract RewardDistributor is
     IRewardDistributor,
@@ -115,7 +115,8 @@ contract RewardDistributor is
             gaugeWeights: _initialGaugeWeights
         });
         for (uint256 i; i < clearingHouse.getNumMarkets(); ++i) {
-            address gauge = getGaugeAddress(i);
+            uint256 idx = clearingHouse.id(i);
+            address gauge = getGaugeAddress(idx);
             timeOfLastCumRewardUpdate[gauge] = block.timestamp;
         }
         emit RewardTokenAdded(
@@ -136,10 +137,26 @@ contract RewardDistributor is
     }
 
     /// @inheritdoc GaugeController
+    function getMaxGaugeIdx() public view virtual override returns (uint256) {
+        return clearingHouse.marketIds() - 1;
+    }
+
+    /// @inheritdoc GaugeController
     function getGaugeAddress(
         uint256 index
     ) public view virtual override returns (address) {
+        if (index > getMaxGaugeIdx())
+            revert RewardDistributor_InvalidMarketIndex(
+                index,
+                getMaxGaugeIdx()
+            );
         return address(clearingHouse.perpetuals(index));
+    }
+
+    function getGaugeIdx(
+        uint256 i
+    ) public view virtual override returns (uint256) {
+        return clearingHouse.id(i);
     }
 
     /// Returns the current position of the user in the gauge (i.e., perpetual market)
@@ -159,9 +176,17 @@ contract RewardDistributor is
 
     /// @inheritdoc GaugeController
     function updateMarketRewards(uint256 idx) public override {
+        console.log("updateMarketRewards(%s)", idx);
         address gauge = getGaugeAddress(idx);
+        console.log("gauge: %s", gauge);
         uint256 liquidity = totalLiquidityPerMarket[gauge];
+        console.log("liquidity: %s", liquidity);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[gauge];
+        console.log(
+            "timeOfLastCumRewardUpdate[%s]: %s",
+            gauge,
+            timeOfLastCumRewardUpdate[gauge]
+        );
         if (liquidity == 0) {
             timeOfLastCumRewardUpdate[gauge] = block.timestamp;
             return;
@@ -174,6 +199,7 @@ contract RewardDistributor is
                 rewardInfo.gaugeWeights[idx] == 0
             ) continue;
             uint16 gaugeWeight = rewardInfo.gaugeWeights[idx];
+            console.log("gaugeWeight: %s", gaugeWeight);
             if (timeOfLastCumRewardUpdate[gauge] == 0 && gaugeWeight != 0)
                 revert RewardDistributor_UninitializedStartTime(gauge);
             uint256 totalTimeElapsed = block.timestamp -
@@ -203,8 +229,6 @@ contract RewardDistributor is
         uint256 idx,
         address user
     ) external virtual override nonReentrant onlyClearingHouse {
-        if (idx >= getNumGauges())
-            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         updateMarketRewards(idx);
         address gauge = getGaugeAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][gauge];
@@ -295,11 +319,12 @@ contract RewardDistributor is
         // Validate weights
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
-            updateMarketRewards(i);
+            uint256 idx = clearingHouse.id(i);
+            updateMarketRewards(idx);
             uint16 weight = _gaugeWeights[i];
             if (weight > 10000)
                 revert GaugeController_WeightExceedsMax(weight, 10000);
-            address gauge = getGaugeAddress(i);
+            address gauge = getGaugeAddress(idx);
             totalWeight += weight;
             emit NewWeight(gauge, _rewardToken, weight);
         }
@@ -332,7 +357,8 @@ contract RewardDistributor is
         uint256 gaugesLength = getNumGauges();
         // Update rewards for all markets before removal
         for (uint i; i < gaugesLength; ++i) {
-            updateMarketRewards(i);
+            uint256 idx = clearingHouse.id(i);
+            updateMarketRewards(idx);
         }
         // The `delete` keyword applied to arrays does not reduce array length
         for (uint i = 0; i < rewardTokens.length; ++i) {
@@ -365,7 +391,8 @@ contract RewardDistributor is
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumGauges();
         for (uint i; i < numMarkets; ++i) {
-            address gauge = getGaugeAddress(i);
+            uint idx = clearingHouse.id(i);
+            address gauge = getGaugeAddress(idx);
             if (lpPositionsPerUser[msg.sender][gauge] != 0)
                 revert RewardDistributor_PositionAlreadyRegistered(
                     msg.sender,
@@ -386,11 +413,6 @@ contract RewardDistributor is
     ) external nonReentrant {
         for (uint i; i < _marketIndexes.length; ++i) {
             uint256 idx = _marketIndexes[i];
-            if (idx >= getNumGauges())
-                revert RewardDistributor_InvalidMarketIndex(
-                    idx,
-                    getNumGauges()
-                );
             address gauge = getGaugeAddress(idx);
             if (lpPositionsPerUser[msg.sender][gauge] != 0)
                 revert RewardDistributor_PositionAlreadyRegistered(
@@ -422,7 +444,8 @@ contract RewardDistributor is
         address[] memory _rewardTokens
     ) public override whenNotPaused {
         for (uint i; i < getNumGauges(); ++i) {
-            accrueRewards(i, _user);
+            uint256 idx = clearingHouse.id(i);
+            accrueRewards(idx, _user);
         }
         for (uint i; i < _rewardTokens.length; ++i) {
             address token = _rewardTokens[i];
@@ -451,7 +474,8 @@ contract RewardDistributor is
     /// @param user Address of the user to accrue rewards for
     function accrueRewards(address user) external override {
         for (uint i; i < getNumGauges(); ++i) {
-            accrueRewards(i, user);
+            uint256 idx = clearingHouse.id(i);
+            accrueRewards(idx, user);
         }
     }
 
@@ -461,8 +485,6 @@ contract RewardDistributor is
     /// @param idx Index of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
     function accrueRewards(uint256 idx, address user) public nonReentrant {
-        if (idx >= getNumGauges())
-            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         address gauge = getGaugeAddress(idx);
         if (
             block.timestamp <
@@ -511,7 +533,8 @@ contract RewardDistributor is
         for (uint i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             for (uint j; j < getNumGauges(); ++j) {
-                newRewards[i] += viewNewRewardAccrual(j, user, token);
+                uint256 idx = clearingHouse.id(j);
+                newRewards[i] += viewNewRewardAccrual(idx, user, token);
             }
         }
         return newRewards;
@@ -544,8 +567,6 @@ contract RewardDistributor is
         address user,
         address token
     ) public view returns (uint256) {
-        if (idx >= getNumGauges())
-            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
         address gauge = getGaugeAddress(idx);
         if (
             block.timestamp <
