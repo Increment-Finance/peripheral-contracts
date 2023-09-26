@@ -69,6 +69,7 @@ contract RewardDistributor is
 
     error RewardDistributor_CallerIsNotClearingHouse(address caller);
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
+    error RewardDistributor_MarketIndexNotAllowlisted(uint256 index);
     error RewardDistributor_UninitializedStartTime(address gauge);
     error RewardDistributor_AlreadyInitializedStartTime(address gauge);
     error RewardDistributor_NoRewardsToClaim(address user);
@@ -159,6 +160,15 @@ contract RewardDistributor is
         return clearingHouse.id(i);
     }
 
+    function getAllowlistIdx(
+        uint256 idx
+    ) public view virtual returns (uint256) {
+        for (uint i; i < getNumGauges(); ++i) {
+            if (getGaugeIdx(i) == idx) return i;
+        }
+        revert RewardDistributor_MarketIndexNotAllowlisted(idx);
+    }
+
     /// Returns the current position of the user in the gauge (i.e., perpetual market)
     /// @param lp Address of the user
     /// @param gauge Address of the gauge
@@ -191,14 +201,15 @@ contract RewardDistributor is
             timeOfLastCumRewardUpdate[gauge] = block.timestamp;
             return;
         }
+        uint256 allowlistIdx = getAllowlistIdx(idx);
         for (uint256 i; i < rewardTokens.length; ++i) {
             address token = rewardTokens[i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
             if (
-                idx >= rewardInfo.gaugeWeights.length ||
-                rewardInfo.gaugeWeights[idx] == 0
+                allowlistIdx >= rewardInfo.gaugeWeights.length ||
+                rewardInfo.gaugeWeights[allowlistIdx] == 0
             ) continue;
-            uint16 gaugeWeight = rewardInfo.gaugeWeights[idx];
+            uint16 gaugeWeight = rewardInfo.gaugeWeights[allowlistIdx];
             console.log("gaugeWeight: %s", gaugeWeight);
             if (timeOfLastCumRewardUpdate[gauge] == 0 && gaugeWeight != 0)
                 revert RewardDistributor_UninitializedStartTime(gauge);
@@ -212,8 +223,8 @@ contract RewardDistributor is
                     )
                 )
             ) / 365 days;
-            uint256 newRewards = ((inflationRatePerSecond *
-                rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime;
+            uint256 newRewards = ((inflationRatePerSecond * gaugeWeight) /
+                10000) * deltaTime;
             cumulativeRewardPerLpToken[token][gauge] += newRewards;
             emit RewardAccruedToMarket(gauge, token, newRewards);
         }
