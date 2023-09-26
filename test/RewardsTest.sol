@@ -11,7 +11,7 @@ import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
-import {RewardDistributor} from "../src/RewardDistributor.sol";
+import "../src/RewardDistributor.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -267,6 +267,152 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect annual rewards"
         );
     }
+
+    function testGaugeControllerErrors(
+        uint256 inflationRate,
+        uint256 reductionFactor,
+        uint16[] memory gaugeWeights,
+        address token
+    ) public {
+        vm.assume(
+            token != address(rewardsToken) &&
+                token != address(rewardsToken2) &&
+                token != address(0)
+        );
+        vm.assume(gaugeWeights.length > 2);
+        vm.assume(
+            uint256(gaugeWeights[0]) + gaugeWeights[1] <= type(uint16).max
+        );
+        vm.assume(gaugeWeights[0] + gaugeWeights[1] != 10000);
+        inflationRate = bound(inflationRate, 5e24 + 1, 1e36);
+        reductionFactor = bound(reductionFactor, 0, 1e18 - 1);
+
+        vm.startPrank(address(this));
+
+        // test wrong token address
+        console.log(
+            "updateGaugeWeights: GaugeController_InvalidRewardTokenAddress"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_InvalidRewardTokenAddress(address)",
+                token
+            )
+        );
+        rewardsDistributor.updateGaugeWeights(token, gaugeWeights);
+        console.log(
+            "updateInflationRate: GaugeController_InvalidRewardTokenAddress"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_InvalidRewardTokenAddress(address)",
+                token
+            )
+        );
+        rewardsDistributor.updateInflationRate(token, inflationRate);
+        console.log(
+            "updateReductionFactor: GaugeController_InvalidRewardTokenAddress"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_InvalidRewardTokenAddress(address)",
+                token
+            )
+        );
+        rewardsDistributor.updateReductionFactor(token, reductionFactor);
+
+        // test max inflation rate & min reduction factor
+        console.log(
+            "updateInflationRate: GaugeController_AboveMaxInflationRate"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_AboveMaxInflationRate(uint256,uint256)",
+                inflationRate,
+                5e24
+            )
+        );
+        rewardsDistributor.updateInflationRate(
+            address(rewardsToken),
+            inflationRate
+        );
+        console.log(
+            "updateReductionFactor: GaugeController_BelowMinReductionFactor"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_BelowMinReductionFactor(uint256,uint256)",
+                reductionFactor,
+                1e18
+            )
+        );
+        rewardsDistributor.updateReductionFactor(
+            address(rewardsToken),
+            reductionFactor
+        );
+
+        // test incorrect gauge weights
+        console.log(
+            "updateGaugeWeights: GaugeController_IncorrectWeightsCount"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "GaugeController_IncorrectWeightsCount(uint256,uint256)",
+                gaugeWeights.length,
+                2
+            )
+        );
+        rewardsDistributor.updateGaugeWeights(
+            address(rewardsToken),
+            gaugeWeights
+        );
+        uint16[] memory gaugeWeights2 = new uint16[](2);
+        gaugeWeights2[0] = gaugeWeights[0];
+        gaugeWeights2[1] = gaugeWeights[1];
+        console.log(
+            "gauge weights: [%s, %s]",
+            gaugeWeights2[0],
+            gaugeWeights2[1]
+        );
+        if (gaugeWeights2[0] > 10000) {
+            console.log("updateGaugeWeights: GaugeController_WeightExceedsMax");
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "GaugeController_WeightExceedsMax(uint16,uint16)",
+                    gaugeWeights2[0],
+                    10000
+                )
+            );
+        } else if (gaugeWeights[1] > 10000) {
+            console.log("updateGaugeWeights: GaugeController_WeightExceedsMax");
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "GaugeController_WeightExceedsMax(uint16,uint16)",
+                    gaugeWeights2[1],
+                    10000
+                )
+            );
+        } else {
+            console.log(
+                "updateGaugeWeights: GaugeController_IncorrectWeightsSum"
+            );
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "GaugeController_IncorrectWeightsSum(uint16,uint16)",
+                    gaugeWeights2[0] + gaugeWeights2[1],
+                    10000
+                )
+            );
+        }
+        rewardsDistributor.updateGaugeWeights(
+            address(rewardsToken),
+            gaugeWeights2
+        );
+    }
+
+    /* ******************* */
+    /*  RewardDistributor  */
+    /* ******************* */
 
     function testMultipleRewardScenario(
         uint256 providedLiquidity1,
