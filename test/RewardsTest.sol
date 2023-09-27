@@ -1242,6 +1242,17 @@ contract RewardsTest is PerpetualUtils {
             1e18,
             weights2
         );
+
+        // paused
+        vm.startPrank(address(this));
+        clearingHouse.pause();
+        assertTrue(
+            rewardsDistributor.paused(),
+            "Reward distributor not paused when clearing house is paused"
+        );
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(bytes("Pausable: paused"));
+        rewardsDistributor.claimRewards();
     }
 
     /* ****************** */
