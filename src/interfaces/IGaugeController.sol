@@ -52,6 +52,17 @@ interface IGaugeController {
     /// @param newFactor the new reduction factor
     event NewReductionFactor(address indexed rewardToken, uint256 newFactor);
 
+    error GaugeController_AboveMaxRewardTokens(uint256 max);
+    error GaugeController_AboveMaxInflationRate(uint256 rate, uint256 max);
+    error GaugeController_BelowMinReductionFactor(uint256 factor, uint256 min);
+    error GaugeController_InvalidRewardTokenAddress(address token);
+    error GaugeController_IncorrectWeightsCount(
+        uint256 actual,
+        uint256 expected
+    );
+    error GaugeController_IncorrectWeightsSum(uint16 actual, uint16 expected);
+    error GaugeController_WeightExceedsMax(uint16 weight, uint16 max);
+
     function clearingHouse() external view returns (IClearingHouse);
 
     function rewardTokens(uint256) external view returns (address);
