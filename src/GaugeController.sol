@@ -92,6 +92,12 @@ abstract contract GaugeController is
     /// @return Index of the gauge in the gauge list
     function getGaugeIdx(uint256 i) public view virtual returns (uint256);
 
+    /// Gets the index of the gauge in the allowlist
+    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param idx Index of the gauge in the gauge list
+    /// @return Index of the gauge in the allowlist ids
+    function getAllowlistIdx(uint256 idx) public view virtual returns (uint256);
+
     /* ******************* */
     /*  Reward Info Views  */
     /* ******************* */

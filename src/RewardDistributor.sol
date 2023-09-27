@@ -131,15 +131,17 @@ contract RewardDistributor is
         return address(clearingHouse.perpetuals(index));
     }
 
+    /// @inheritdoc GaugeController
     function getGaugeIdx(
         uint256 i
     ) public view virtual override returns (uint256) {
         return clearingHouse.id(i);
     }
 
+    /// @inheritdoc GaugeController
     function getAllowlistIdx(
         uint256 idx
-    ) public view virtual returns (uint256) {
+    ) public view virtual override returns (uint256) {
         for (uint i; i < getNumGauges(); ++i) {
             if (getGaugeIdx(i) == idx) return i;
         }
