@@ -92,8 +92,8 @@ contract RewardDistributor is
             reductionFactor: _initialReductionFactor,
             gaugeWeights: _initialGaugeWeights
         });
-        for (uint256 i; i < clearingHouse.getNumMarkets(); ++i) {
-            uint256 idx = clearingHouse.id(i);
+        for (uint256 i; i < getNumGauges(); ++i) {
+            uint256 idx = getGaugeIdx(i);
             address gauge = getGaugeAddress(idx);
             timeOfLastCumRewardUpdate[gauge] = block.timestamp;
         }
@@ -181,9 +181,9 @@ contract RewardDistributor is
                 rewardInfo.gaugeWeights[allowlistIdx] == 0
             ) continue;
             uint16 gaugeWeight = rewardInfo.gaugeWeights[allowlistIdx];
-            if (timeOfLastCumRewardUpdate[gauge] == 0 && gaugeWeight != 0)
-                // shouldn't be possible
-                revert RewardDistributor_UninitializedStartTime(gauge);
+            // if (timeOfLastCumRewardUpdate[gauge] == 0 && gaugeWeight != 0)
+            //     // shouldn't be possible
+            //     revert RewardDistributor_UninitializedStartTime(gauge);
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
@@ -346,13 +346,12 @@ contract RewardDistributor is
         }
         // The `delete` keyword applied to arrays does not reduce array length
         for (uint i = 0; i < rewardTokens.length; ++i) {
-            if (rewardTokens[i] == _token) {
-                // Find the token in the array and swap it with the last element
-                rewardTokens[i] = rewardTokens[rewardTokens.length - 1];
-                // Delete the last element
-                rewardTokens.pop();
-                break;
-            }
+            if (rewardTokens[i] != _token) continue;
+            // Find the token in the array and swap it with the last element
+            rewardTokens[i] = rewardTokens[rewardTokens.length - 1];
+            // Delete the last element
+            rewardTokens.pop();
+            break;
         }
         delete rewardInfoByToken[_token];
         // Determine how much of the removed token should be sent back to governance
@@ -483,7 +482,8 @@ contract RewardDistributor is
             );
         uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
-            // should be impossible, since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
+            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
+            // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
                 idx,
@@ -566,7 +566,8 @@ contract RewardDistributor is
             );
         uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
-            // should be impossible, since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
+            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
+            // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
                 idx,
@@ -612,16 +613,15 @@ contract RewardDistributor is
     ) internal returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         IERC20Metadata rewardToken = IERC20Metadata(_token);
-        if (_amount > 0 && _amount <= rewardsRemaining) {
+        if (_amount <= rewardsRemaining) {
             rewardToken.safeTransfer(_to, _amount);
             totalUnclaimedRewards[_token] -= _amount;
             return 0;
-        } else if (_amount > rewardsRemaining) {
+        } else {
             rewardToken.safeTransfer(_to, rewardsRemaining);
             totalUnclaimedRewards[_token] -= rewardsRemaining;
             return _amount - rewardsRemaining;
         }
-        return _amount;
     }
 
     function _rewardTokenBalance(
