@@ -1130,26 +1130,35 @@ contract RewardsTest is PerpetualUtils {
 
         // registerPositions
         vm.startPrank(liquidityProviderOne);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_PositionAlreadyRegistered(address,uint256,uint256)",
-                liquidityProviderOne,
-                0,
-                4867996525552487585967
-            )
-        );
-        rewardsDistributor.registerPositions();
+        // use try-catch to avoid comparing error parameters, which depend on rpc fork block
+        try rewardsDistributor.registerPositions() {
+            assertTrue(false, "Register positions should have reverted");
+        } catch (bytes memory reason) {
+            bytes4 expectedSelector = IRewardDistributor
+                .RewardDistributor_PositionAlreadyRegistered
+                .selector;
+            bytes4 receivedSelector = bytes4(reason);
+            assertEq(
+                receivedSelector,
+                expectedSelector,
+                "Incorrect revert error selector"
+            );
+        }
         uint256[] memory positions = new uint256[](1);
         positions[0] = 1;
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_PositionAlreadyRegistered(address,uint256,uint256)",
-                liquidityProviderOne,
-                1,
-                4536926040242831858357
-            )
-        );
-        rewardsDistributor.registerPositions(positions);
+        try rewardsDistributor.registerPositions(positions) {
+            assertTrue(false, "Register positions should have reverted");
+        } catch (bytes memory reason) {
+            bytes4 expectedSelector = IRewardDistributor
+                .RewardDistributor_PositionAlreadyRegistered
+                .selector;
+            bytes4 receivedSelector = bytes4(reason);
+            assertEq(
+                receivedSelector,
+                expectedSelector,
+                "Incorrect revert error selector"
+            );
+        }
         vm.stopPrank();
 
         _provideLiquidityBothPerps(10_000e18, 10_000e18);
