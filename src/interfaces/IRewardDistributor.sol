@@ -51,6 +51,29 @@ interface IRewardDistributor {
         uint256 newPosition
     );
 
+    error RewardDistributor_CallerIsNotClearingHouse(address caller);
+    error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
+    error RewardDistributor_MarketIndexNotAllowlisted(uint256 index);
+    error RewardDistributor_UninitializedStartTime(address gauge);
+    error RewardDistributor_AlreadyInitializedStartTime(address gauge);
+    error RewardDistributor_NoRewardsToClaim(address user);
+    error RewardDistributor_PositionAlreadyRegistered(
+        address lp,
+        uint256 marketIndex,
+        uint256 position
+    );
+    error RewardDistributor_EarlyRewardAccrual(
+        address user,
+        uint256 marketIndex,
+        uint256 claimAllowedTimestamp
+    );
+    error RewardDistributor_LpPositionMismatch(
+        address lp,
+        uint256 marketIndex,
+        uint256 prevPosition,
+        uint256 newPosition
+    );
+
     function earlyWithdrawalThreshold() external view returns (uint256);
 
     function getCurrentPosition(

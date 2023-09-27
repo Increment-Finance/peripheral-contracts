@@ -67,29 +67,6 @@ contract RewardDistributor is
     /// @dev Address is from ClearingHouse.perpetuals array
     mapping(address => uint256) public totalLiquidityPerMarket;
 
-    error RewardDistributor_CallerIsNotClearingHouse(address caller);
-    error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
-    error RewardDistributor_MarketIndexNotAllowlisted(uint256 index);
-    error RewardDistributor_UninitializedStartTime(address gauge);
-    error RewardDistributor_AlreadyInitializedStartTime(address gauge);
-    error RewardDistributor_NoRewardsToClaim(address user);
-    error RewardDistributor_PositionAlreadyRegistered(
-        address lp,
-        uint256 marketIndex,
-        uint256 position
-    );
-    error RewardDistributor_EarlyRewardAccrual(
-        address user,
-        uint256 marketIndex,
-        uint256 claimAllowedTimestamp
-    );
-    error RewardDistributor_LpPositionMismatch(
-        address lp,
-        uint256 marketIndex,
-        uint256 prevPosition,
-        uint256 newPosition
-    );
-
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse))
             revert RewardDistributor_CallerIsNotClearingHouse(msg.sender);
@@ -587,6 +564,7 @@ contract RewardDistributor is
             );
         uint256 lpPosition = lpPositionsPerUser[user][gauge];
         if (lpPosition != getCurrentPosition(user, gauge))
+            // should be impossible, since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
                 idx,
@@ -602,13 +580,11 @@ contract RewardDistributor is
         uint256 totalTimeElapsed = block.timestamp -
             rewardInfo.initialTimestamp;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        uint256 inflationRatePerSecond = (
-            rewardInfo.inflationRate.div(
-                rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
-            )
-        ) / 365 days;
-        uint256 newMarketRewards = ((inflationRatePerSecond *
-            rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime;
+        uint256 inflationRate = rewardInfo.inflationRate.div(
+            rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
+        );
+        uint256 newMarketRewards = (((inflationRate *
+            rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
             gauge
         ] + newMarketRewards;
