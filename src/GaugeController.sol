@@ -46,17 +46,6 @@ abstract contract GaugeController is
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
 
-    error GaugeController_AboveMaxRewardTokens(uint256 max);
-    error GaugeController_AboveMaxInflationRate(uint256 rate, uint256 max);
-    error GaugeController_BelowMinReductionFactor(uint256 factor, uint256 min);
-    error GaugeController_InvalidRewardTokenAddress(address token);
-    error GaugeController_IncorrectWeightsCount(
-        uint256 actual,
-        uint256 expected
-    );
-    error GaugeController_IncorrectWeightsSum(uint16 actual, uint16 expected);
-    error GaugeController_WeightExceedsMax(uint16 weight, uint16 max);
-
     constructor(
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor
@@ -128,6 +117,9 @@ abstract contract GaugeController is
         return rewardInfoByToken[rewardToken].inflationRate;
     }
 
+    /// Gets the current inflation rate of a reward token (factoring in reduction factor)
+    /// @notice inflationRate = initialInflationRate / reductionFactor^((block.timestamp - initialTimestamp) / secondsPerYear)
+    /// @param rewardToken Address of the reward token
     function getInflationRate(
         address rewardToken
     ) external view returns (uint256) {
@@ -140,12 +132,16 @@ abstract contract GaugeController is
             );
     }
 
+    /// Gets the reduction factor of a reward token
+    /// @param rewardToken Address of the reward token
     function getReductionFactor(
         address rewardToken
     ) external view returns (uint256) {
         return rewardInfoByToken[rewardToken].reductionFactor;
     }
 
+    /// Gets the weights of all gauges for a reward token
+    /// @param rewardToken Address of the reward token
     function getGaugeWeights(
         address rewardToken
     ) external view returns (uint16[] memory) {
