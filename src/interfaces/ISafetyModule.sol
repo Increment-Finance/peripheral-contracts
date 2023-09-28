@@ -4,6 +4,9 @@ pragma solidity 0.8.16;
 import {IStakedToken} from "./IStakedToken.sol";
 
 interface ISafetyModule {
+    error CallerIsNotStakingToken(address caller);
+    error StakingTokenAlreadyRegistered(address stakingToken);
+
     function vault() external view returns (address);
 
     function auctionModule() external view returns (address);

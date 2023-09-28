@@ -25,8 +25,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     mapping(address => mapping(address => uint256))
         public multiplierStartTimeByUser;
 
-    error CallerIsNotStakingToken(address caller);
-
     modifier onlyStakingToken() {
         bool isStakingToken = false;
         for (uint i; i < stakingTokens.length; ++i) {
@@ -84,6 +82,22 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return address(stakingTokens[index]);
     }
 
+    /// @inheritdoc RewardDistributor
+    function getGaugeIdx(
+        uint256 i
+    ) public view virtual override returns (uint256) {
+        if (i >= getNumGauges())
+            revert RewardDistributor_InvalidMarketIndex(i, getNumGauges());
+        return i;
+    }
+
+    /// @inheritdoc RewardDistributor
+    function getAllowlistIdx(
+        uint256 idx
+    ) public view virtual override returns (uint256) {
+        return getGaugeIdx(idx);
+    }
+
     /// Returns the current position of the user in the gauge (i.e., perpetual market)
     /// @param lp Address of the user
     /// @param gauge Address of the gauge
@@ -136,7 +150,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             ] = cumulativeRewardPerLpToken[token][gauge];
             emit RewardAccruedToUser(user, token, address(gauge), newRewards);
         }
-        // TODO: What if a staking token is removed? Can we still use a mapping(address => uint256[])?
+        // TODO: What if a staking token is removed?
         lpPositionsPerUser[user][gauge] = newPosition;
     }
 
@@ -155,6 +169,12 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 startTime = multiplierStartTimeByUser[_user][_stakingToken];
         uint256 timeDelta = block.timestamp - startTime;
         uint256 deltaDays = timeDelta.wadDiv(1 days);
+        /**
+         * Multiplier formula:
+         *   maxRewardMultiplier - 1 / ((1 / smoothingValue) * deltaDays + (1 / (maxRewardMultiplier - 1)))
+         * = maxRewardMultiplier - smoothingValue / (deltaDays + (smoothingValue / (maxRewardMultiplier - 1)))
+         * = maxRewardMultiplier - (smoothingValue * (maxRewardMultiplier - 1)) / ((deltaDays * (maxRewardMultiplier - 1)) + smoothingValue)
+         */
         return
             maxRewardMultiplier -
             (smoothingValue * (maxRewardMultiplier - 1e18)) /
@@ -177,5 +197,15 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _smoothingValue
     ) external onlyRole(GOVERNANCE) {
         smoothingValue = _smoothingValue;
+    }
+
+    function addStakingToken(
+        IStakedToken _stakingToken
+    ) external onlyRole(GOVERNANCE) {
+        for (uint i; i < stakingTokens.length; ++i) {
+            if (address(stakingTokens[i]) == address(_stakingToken))
+                revert StakingTokenAlreadyRegistered(address(_stakingToken));
+        }
+        stakingTokens.push(_stakingToken);
     }
 }
