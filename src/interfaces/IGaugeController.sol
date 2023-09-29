@@ -65,7 +65,10 @@ interface IGaugeController {
 
     function clearingHouse() external view returns (IClearingHouse);
 
-    function rewardTokens(uint256) external view returns (address);
+    function rewardTokensPerGauge(
+        address,
+        uint256
+    ) external view returns (address);
 
     function getNumGauges() external view returns (uint256);
 
@@ -75,7 +78,7 @@ interface IGaugeController {
 
     function getGaugeIdx(uint256) external view returns (uint256);
 
-    function getRewardTokenCount() external view returns (uint256);
+    function getRewardTokenCount(address) external view returns (uint256);
 
     function getInitialTimestamp(address) external view returns (uint256);
 

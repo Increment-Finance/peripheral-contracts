@@ -41,7 +41,7 @@ abstract contract GaugeController is
 
     /// @notice List of reward token addresses
     /// @dev Length must be <= maxRewardTokens
-    address[] public rewardTokens;
+    mapping(address => address[]) public rewardTokensPerGauge;
 
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
@@ -103,8 +103,10 @@ abstract contract GaugeController is
     /* ******************* */
 
     /// Gets the number of reward tokens
-    function getRewardTokenCount() external view returns (uint256) {
-        return rewardTokens.length;
+    function getRewardTokenCount(
+        address gauge
+    ) external view returns (uint256) {
+        return rewardTokensPerGauge[gauge].length;
     }
 
     /// Gets the timestamp when a reward token was registered
@@ -190,6 +192,18 @@ abstract contract GaugeController is
                 rewardInfoByToken[_token].gaugeWeights[i] = weight;
             }
             totalWeight += weight;
+            if (weight > 0) {
+                // Check if token is already registered for this gauge
+                bool found = false;
+                for (uint j; j < rewardTokensPerGauge[gauge].length; ++j) {
+                    if (rewardTokensPerGauge[gauge][j] == _token) {
+                        found = true;
+                        break;
+                    }
+                }
+                // If the token was not previously registered for this gauge, add it
+                if (!found) rewardTokensPerGauge[gauge].push(_token);
+            }
             emit NewWeight(gauge, _token, weight);
         }
         if (totalWeight != 10000)

@@ -84,7 +84,6 @@ contract RewardDistributor is
         clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
-        rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             initialTimestamp: block.timestamp,
@@ -95,6 +94,7 @@ contract RewardDistributor is
         for (uint256 i; i < getNumGauges(); ++i) {
             uint256 idx = getGaugeIdx(i);
             address gauge = getGaugeAddress(idx);
+            rewardTokensPerGauge[gauge].push(_rewardToken);
             timeOfLastCumRewardUpdate[gauge] = block.timestamp;
         }
         emit RewardTokenAdded(
@@ -173,8 +173,8 @@ contract RewardDistributor is
             return;
         }
         uint256 allowlistIdx = getAllowlistIdx(idx);
-        for (uint256 i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
+        for (uint256 i; i < rewardTokensPerGauge[gauge].length; ++i) {
+            address token = rewardTokensPerGauge[gauge][i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
             if (
                 allowlistIdx >= rewardInfo.gaugeWeights.length ||
@@ -216,8 +216,8 @@ contract RewardDistributor is
         uint256 prevLpPosition = lpPositionsPerUser[user][gauge];
         uint256 newLpPosition = getCurrentPosition(user, gauge);
         uint256 prevTotalLiquidity = totalLiquidityPerMarket[gauge];
-        for (uint256 i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
+        for (uint256 i; i < rewardTokensPerGauge[gauge].length; ++i) {
+            address token = rewardTokensPerGauge[gauge][i];
             /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevTotalLiquidity > 0
                 ? (prevLpPosition *
@@ -290,8 +290,6 @@ contract RewardDistributor is
         uint256 _initialReductionFactor,
         uint16[] calldata _gaugeWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        if (rewardTokens.length >= MAX_REWARD_TOKENS)
-            revert GaugeController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         uint256 gaugesLength = getNumGauges();
         if (_gaugeWeights.length != gaugesLength)
             revert GaugeController_IncorrectWeightsCount(
@@ -301,19 +299,22 @@ contract RewardDistributor is
         // Validate weights
         uint16 totalWeight;
         for (uint i; i < gaugesLength; ++i) {
-            uint256 idx = clearingHouse.id(i);
+            uint256 idx = getGaugeIdx(i);
             updateMarketRewards(idx);
             uint16 weight = _gaugeWeights[i];
+            if (weight == 0) continue;
             if (weight > 10000)
                 revert GaugeController_WeightExceedsMax(weight, 10000);
             address gauge = getGaugeAddress(idx);
+            if (rewardTokensPerGauge[gauge].length >= MAX_REWARD_TOKENS)
+                revert GaugeController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
             totalWeight += weight;
+            rewardTokensPerGauge[gauge].push(_rewardToken);
             emit NewWeight(gauge, _rewardToken, weight);
         }
         if (totalWeight != 10000)
             revert GaugeController_IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
-        rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             initialTimestamp: block.timestamp,
@@ -342,16 +343,20 @@ contract RewardDistributor is
         // Update rewards for all markets before removal
         for (uint i; i < gaugesLength; ++i) {
             uint256 idx = clearingHouse.id(i);
+            address gauge = getGaugeAddress(idx);
             updateMarketRewards(idx);
-        }
-        // The `delete` keyword applied to arrays does not reduce array length
-        for (uint i = 0; i < rewardTokens.length; ++i) {
-            if (rewardTokens[i] != _token) continue;
-            // Find the token in the array and swap it with the last element
-            rewardTokens[i] = rewardTokens[rewardTokens.length - 1];
-            // Delete the last element
-            rewardTokens.pop();
-            break;
+            // The `delete` keyword applied to arrays does not reduce array length
+            uint256 numRewards = rewardTokensPerGauge[gauge].length;
+            for (uint j = 0; j < numRewards; ++j) {
+                if (rewardTokensPerGauge[gauge][j] != _token) continue;
+                // Find the token in the array and swap it with the last element
+                rewardTokensPerGauge[gauge][j] = rewardTokensPerGauge[gauge][
+                    numRewards - 1
+                ];
+                // Delete the last element
+                rewardTokensPerGauge[gauge].pop();
+                break;
+            }
         }
         delete rewardInfoByToken[_token];
         // Determine how much of the removed token should be sent back to governance
@@ -417,7 +422,15 @@ contract RewardDistributor is
     /// Accrues and then distributes rewards for all markets to the given user
     /// @param _user Address of the user to claim rewards for
     function claimRewardsFor(address _user) public override {
-        claimRewardsFor(_user, rewardTokens);
+        for (uint i; i < getNumGauges(); ++i) {
+            uint256 idx = getGaugeIdx(i);
+            address gauge = getGaugeAddress(idx);
+            claimRewardsFor(_user, gauge);
+        }
+    }
+
+    function claimRewardsFor(address _user, address _gauge) public override {
+        claimRewardsFor(_user, rewardTokensPerGauge[_gauge]);
     }
 
     /// Accrues and then distributes rewards for all markets to the given user
@@ -427,7 +440,7 @@ contract RewardDistributor is
         address[] memory _rewardTokens
     ) public override whenNotPaused {
         for (uint i; i < getNumGauges(); ++i) {
-            uint256 idx = clearingHouse.id(i);
+            uint256 idx = getGaugeIdx(i);
             accrueRewards(idx, _user);
         }
         for (uint i; i < _rewardTokens.length; ++i) {
@@ -492,8 +505,8 @@ contract RewardDistributor is
             );
         if (totalLiquidityPerMarket[gauge] == 0) return;
         updateMarketRewards(idx);
-        for (uint i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
+        for (uint i; i < rewardTokensPerGauge[gauge].length; ++i) {
+            address token = rewardTokensPerGauge[gauge][i];
             uint256 newRewards = (lpPosition *
                 (cumulativeRewardPerLpToken[token][gauge] -
                     cumulativeRewardPerLpTokenPerUser[user][token][gauge])) /
@@ -507,24 +520,6 @@ contract RewardDistributor is
         }
     }
 
-    /// Returns the amount of rewards that would be accrued to a user if they called accrueRewards(address user)
-    /// @notice Serves as a static version of accrueRewards(address user)
-    /// @param user Address of the user
-    /// @return Amount of new rewards that would be accrued to the user for each reward token
-    function viewNewRewardAccrual(
-        address user
-    ) external view returns (uint256[] memory) {
-        uint256[] memory newRewards = new uint256[](rewardTokens.length);
-        for (uint i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
-            for (uint j; j < getNumGauges(); ++j) {
-                uint256 idx = clearingHouse.id(j);
-                newRewards[i] += viewNewRewardAccrual(idx, user, token);
-            }
-        }
-        return newRewards;
-    }
-
     /// Returns the amount of rewards that would be accrued to a user for a given market
     /// @notice Serves as a static version of accrueRewards(uint256 idx, address user)
     /// @param idx Index of the market in ClearingHouse.perpetuals
@@ -534,9 +529,12 @@ contract RewardDistributor is
         uint256 idx,
         address user
     ) public view returns (uint256[] memory) {
-        uint256[] memory newRewards = new uint256[](rewardTokens.length);
-        for (uint i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
+        address gauge = getGaugeAddress(idx);
+        uint256[] memory newRewards = new uint256[](
+            rewardTokensPerGauge[gauge].length
+        );
+        for (uint i; i < rewardTokensPerGauge[gauge].length; ++i) {
+            address token = rewardTokensPerGauge[gauge][i];
             newRewards[i] = viewNewRewardAccrual(idx, user, token);
         }
         return newRewards;
