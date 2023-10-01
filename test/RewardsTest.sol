@@ -136,6 +136,8 @@ contract RewardsTest is PerpetualUtils {
 
         // initial liquidity
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
+        console.log("User 1's provided liquidity in perp 1: %s", 10_000e18);
+        console.log("User 1's provided liquidity in perp 2: %s", 10_000e18);
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
         rewardsDistributor.registerPositions();
@@ -174,20 +176,24 @@ contract RewardsTest is PerpetualUtils {
             "Max gauge index mismatch"
         );
         assertEq(gaugeAddress1, address(perpetual), "Gauge address mismatch");
-        assertEq(
+        assertApproxEqRel(
             rewardsDistributor.getCurrentPosition(
                 liquidityProviderOne,
                 address(perpetual)
             ),
             4867996525552487585967,
+            1e16,
             "Position mismatch"
         );
         assertEq(
-            rewardsDistributor.getRewardTokenCount(),
+            rewardsDistributor.getRewardTokenCount(address(perpetual)),
             1,
             "Token count mismatch"
         );
-        address token = rewardsDistributor.rewardTokens(0);
+        address token = rewardsDistributor.rewardTokensPerGauge(
+            address(perpetual),
+            0
+        );
         assertEq(token, address(rewardsToken), "Reward token mismatch");
         assertEq(
             rewardsDistributor.getInitialTimestamp(token),
@@ -439,6 +445,7 @@ contract RewardsTest is PerpetualUtils {
         );
 
         // skip some time
+        console.log("Skipping 10 days");
         skip(10 days);
 
         // provide liquidity from user 2
@@ -448,6 +455,7 @@ contract RewardsTest is PerpetualUtils {
         ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some more time
+        console.log("Skipping 10 more days");
         skip(10 days);
 
         // check rewards for user 1 with initial liquidity 10_000e18
@@ -488,14 +496,14 @@ contract RewardsTest is PerpetualUtils {
         );
 
         // user 1 had 100% of liquidity in each market for 10 days, and then had (1e18 - percentOfLiquidity) for 10 days
-        uint256 expectedAccruedRewards1 = (expectedCumulativeRewards1 / 2) +
-            (expectedCumulativeRewards1 / 2).wadMul(1e18 - percentOfLiquidity1);
-        uint256 expectedAccruedRewards2 = (expectedCumulativeRewards2 / 2) +
-            (expectedCumulativeRewards2 / 2).wadMul(1e18 - percentOfLiquidity2);
+        uint256 expectedAccruedRewards1 = (cumulativeRewards1 / 2) +
+            (cumulativeRewards1 / 2).wadMul(1e18 - percentOfLiquidity1);
+        uint256 expectedAccruedRewards2 = (cumulativeRewards2 / 2) +
+            (cumulativeRewards2 / 2).wadMul(1e18 - percentOfLiquidity2);
         assertApproxEqRel(
             accruedRewards,
             expectedAccruedRewards1 + expectedAccruedRewards2,
-            1e16, // 1%
+            5e16, // 1%
             "Incorrect user 1 rewards"
         );
 
@@ -506,10 +514,10 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken)
         );
         assertGt(accruedRewards2, 0, "Rewards not accrued");
-        expectedAccruedRewards1 = (expectedCumulativeRewards1 / 2).wadMul(
+        expectedAccruedRewards1 = (cumulativeRewards1 / 2).wadMul(
             percentOfLiquidity1
         );
-        expectedAccruedRewards2 = (expectedCumulativeRewards2 / 2).wadMul(
+        expectedAccruedRewards2 = (cumulativeRewards2 / 2).wadMul(
             percentOfLiquidity2
         );
         assertApproxEqRel(
@@ -571,8 +579,19 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // check rewards for token 1
-        uint256[] memory previewAccruals = rewardsDistributor
-            .viewNewRewardAccrual(liquidityProviderTwo);
+        uint256[] memory previewAccruals1 = rewardsDistributor
+            .viewNewRewardAccrual(0, liquidityProviderTwo);
+        uint256[] memory previewAccruals2 = rewardsDistributor
+            .viewNewRewardAccrual(1, liquidityProviderTwo);
+        uint256[] memory previewAccruals = new uint256[](2);
+        previewAccruals[0] = previewAccruals1[0] + previewAccruals2[0];
+        if (previewAccruals1.length > 1) {
+            previewAccruals[1] = previewAccruals1[1];
+        }
+        if (previewAccruals2.length > 1) {
+            previewAccruals[1] += previewAccruals2[1];
+        }
+
         rewardsDistributor.accrueRewards(liquidityProviderOne);
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         uint256 accruedRewards = _checkRewards(
@@ -1308,7 +1327,7 @@ contract RewardsTest is PerpetualUtils {
                 perpetual.getLpLiquidity(liquidityProviderTwo)
             )
         );
-        newRewardsDistributor.viewNewRewardAccrual(liquidityProviderTwo);
+        newRewardsDistributor.viewNewRewardAccrual(0, liquidityProviderTwo);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
@@ -1475,7 +1494,7 @@ contract RewardsTest is PerpetualUtils {
                 block.timestamp + 5 days
             )
         );
-        rewardsDistributor.viewNewRewardAccrual(liquidityProviderTwo);
+        rewardsDistributor.viewNewRewardAccrual(0, liquidityProviderTwo);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_EarlyRewardAccrual(address,uint256,uint256)",

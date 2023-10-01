@@ -131,8 +131,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             totalLiquidityPerMarket[gauge] +
             newPosition -
             prevPosition;
-        for (uint256 i; i < rewardTokens.length; ++i) {
-            address token = rewardTokens[i];
+        for (uint256 i; i < rewardTokensPerGauge[gauge].length; ++i) {
+            address token = rewardTokensPerGauge[gauge][i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             /// newRewards does not include multiplier yet
             uint256 newRewards = prevPosition *
