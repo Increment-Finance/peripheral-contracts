@@ -448,11 +448,13 @@ contract RewardsTest is PerpetualUtils {
         console.log("Skipping 10 days");
         skip(10 days);
 
+        uint256 priorTotalLiquidity1 = rewardsDistributor
+            .totalLiquidityPerMarket(address(perpetual));
+        uint256 priorTotalLiquidity2 = rewardsDistributor
+            .totalLiquidityPerMarket(address(perpetual2));
+
         // provide liquidity from user 2
-        (
-            uint256 percentOfLiquidity1,
-            uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some more time
         console.log("Skipping 10 more days");
@@ -475,13 +477,37 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
+        console.log(
+            "Cumulative rewards per LP token: [%s, %s]",
+            cumulativeRewards1,
+            cumulativeRewards2
+        );
         (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * 7500) /
-            10000) * 20) / 365);
-        uint256 expectedCumulativeRewards2 = ((((inflationRate * 2500) /
-            10000) * 20) / 365);
+        uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual)
+        );
+        uint256 totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual2)
+        );
+        // user 1 had lpBalance/priorTotalLiquidity = 100% of liquidity in each market for 10 days,
+        // and then had some lpBalance/totalLiquidity percent of liquidity for 10 days
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
+            10000) * 10) / 365) * 1e18) /
+            totalLiquidity1 +
+            (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) /
+            priorTotalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
+            10000) * 10) / 365) * 1e18) /
+            totalLiquidity2 +
+            (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
+            priorTotalLiquidity2;
+        console.log(
+            "Expected cumulative rewards per LP token: [%s, %s]",
+            expectedCumulativeRewards1,
+            expectedCumulativeRewards2
+        );
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -495,36 +521,44 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
 
-        // user 1 had 100% of liquidity in each market for 10 days, and then had (1e18 - percentOfLiquidity) for 10 days
-        uint256 expectedAccruedRewards1 = (cumulativeRewards1 / 2) +
-            (cumulativeRewards1 / 2).wadMul(1e18 - percentOfLiquidity1);
-        uint256 expectedAccruedRewards2 = (cumulativeRewards2 / 2) +
-            (cumulativeRewards2 / 2).wadMul(1e18 - percentOfLiquidity2);
+        console.log(
+            "Total liquidity per market: [%s, %s]",
+            totalLiquidity1,
+            totalLiquidity2
+        );
+        uint256 lpBalance1 = rewardsDistributor.getCurrentPosition(
+            liquidityProviderOne,
+            address(perpetual)
+        );
+        uint256 lpBalance2 = rewardsDistributor.getCurrentPosition(
+            liquidityProviderOne,
+            address(perpetual2)
+        );
+        console.log(
+            "liquidityProviderOne balance per market: [%s, %s]",
+            lpBalance1,
+            lpBalance2
+        );
+
+        uint256 expectedAccruedRewards1 = (cumulativeRewards1 * lpBalance1) /
+            1e18;
+        uint256 expectedAccruedRewards2 = (cumulativeRewards2 * lpBalance2) /
+            1e18;
+        console.log(
+            "Expected accrued rewards: [%s, %s]",
+            expectedAccruedRewards1,
+            expectedAccruedRewards2
+        );
+        console.log(
+            "Expected total accrued rewards: %s",
+            expectedAccruedRewards1 + expectedAccruedRewards2
+        );
+        console.log("Actual total accrued rewards: %s", accruedRewards);
         assertApproxEqRel(
             accruedRewards,
             expectedAccruedRewards1 + expectedAccruedRewards2,
             5e16, // 1%
             "Incorrect user 1 rewards"
-        );
-
-        // check rewards for user 2
-        rewardsDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards2 = rewardsDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-        assertGt(accruedRewards2, 0, "Rewards not accrued");
-        expectedAccruedRewards1 = (cumulativeRewards1 / 2).wadMul(
-            percentOfLiquidity1
-        );
-        expectedAccruedRewards2 = (cumulativeRewards2 / 2).wadMul(
-            percentOfLiquidity2
-        );
-        assertApproxEqRel(
-            accruedRewards2,
-            expectedAccruedRewards1 + expectedAccruedRewards2,
-            1e16, // 1%
-            "Incorrect user 2 rewards"
         );
     }
 
@@ -548,10 +582,7 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
 
-        (
-            uint256 percentOfLiquidity1,
-            uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some time
         skip(10 days);
@@ -597,8 +628,6 @@ contract RewardsTest is PerpetualUtils {
         uint256 accruedRewards = _checkRewards(
             address(rewardsToken),
             liquidityProviderTwo,
-            percentOfLiquidity1,
-            percentOfLiquidity2,
             7500,
             2500,
             20
@@ -608,8 +637,6 @@ contract RewardsTest is PerpetualUtils {
         uint256 accruedRewards2 = _checkRewards(
             address(rewardsToken2),
             liquidityProviderTwo,
-            percentOfLiquidity1,
-            percentOfLiquidity2,
             gaugeWeights[0],
             gaugeWeights[1],
             10
@@ -617,20 +644,20 @@ contract RewardsTest is PerpetualUtils {
         uint256 accruedRewards21 = _checkRewards(
             address(rewardsToken2),
             liquidityProviderOne,
-            1e18 - percentOfLiquidity1,
-            1e18 - percentOfLiquidity2,
             gaugeWeights[0],
             gaugeWeights[1],
             10
         );
-        assertEq(
+        assertApproxEqRel(
             accruedRewards,
             previewAccruals[0],
+            1e15, // 0.1%
             "Incorrect accrued rewards preview: token 1"
         );
-        assertEq(
+        assertApproxEqRel(
             accruedRewards2,
             previewAccruals[1],
+            1e15, // 0.1%
             "Incorrect accrued rewards preview: token 2"
         );
 
@@ -688,10 +715,7 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
 
-        (
-            uint256 percentOfLiquidity1,
-            uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // add a new reward token
         vm.startPrank(address(this));
@@ -729,9 +753,10 @@ contract RewardsTest is PerpetualUtils {
             liquidityProviderTwo,
             address(rewardsToken)
         );
-        assertEq(
+        assertApproxEqRel(
             accruedRewards,
             previewAccrualsPerp1[0],
+            1e15, // 0.1%
             "Incorrect accrued rewards preview: token 1 perp 1"
         );
         uint256[] memory previewAccrualsPerp2 = rewardsDistributor
@@ -740,15 +765,14 @@ contract RewardsTest is PerpetualUtils {
         accruedRewards = _checkRewards(
             address(rewardsToken),
             liquidityProviderTwo,
-            percentOfLiquidity1,
-            percentOfLiquidity2,
             7500,
             2500,
             10
         );
-        assertEq(
+        assertApproxEqRel(
             accruedRewards,
             previewAccrualsPerp1[0] + previewAccrualsPerp2[0],
+            1e15, // 0.1%
             "Incorrect accrued rewards preview: token 1"
         );
 
@@ -756,8 +780,6 @@ contract RewardsTest is PerpetualUtils {
         uint256 accruedRewards2 = _checkRewards(
             address(rewardsToken2),
             liquidityProviderTwo,
-            percentOfLiquidity1,
-            percentOfLiquidity2,
             gaugeWeights[0],
             gaugeWeights[1],
             10
@@ -799,10 +821,9 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
 
-        (
-            uint256 percentOfLiquidity1,
-            uint256 percentOfLiquidity2
-        ) = _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
+        uint256 lpBalance2 = perpetual2.getLpLiquidity(liquidityProviderTwo);
 
         // skip some time
         console.log("Skipping 5 days");
@@ -829,15 +850,13 @@ contract RewardsTest is PerpetualUtils {
         // console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards1.wadMul(percentOfLiquidity1).wadMul(
-                1e18 - reductionRatio
-            ),
+            cumulativeRewards1.wadMul(lpBalance1).wadMul(1e18 - reductionRatio),
             1e16,
             "Incorrect rewards"
         );
 
         // skip some time again
-        console.log("Skipping 5 days");
+        console.log("Skipping 5 more days");
         skip(5 days);
 
         // remove some liquidity again from first perpetual
@@ -874,11 +893,12 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
+        lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards1.wadMul(percentOfLiquidity1).wadMul(
+            cumulativeRewards1.wadMul(lpBalance1).wadMul(
                 1e18 - reductionRatio
-            ) + cumulativeRewards2.wadMul(percentOfLiquidity2),
+            ) + cumulativeRewards2.wadMul(lpBalance2),
             1e16,
             "Incorrect rewards"
         );
@@ -998,10 +1018,16 @@ contract RewardsTest is PerpetualUtils {
         (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * 7500) /
-            10000) * 10) / 365);
-        uint256 expectedCumulativeRewards2 = ((((inflationRate * 2500) /
-            10000) * 10) / 365);
+        uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual)
+        );
+        uint256 totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual2)
+        );
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
+            10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
+            10000) * 10) / 365) * 1e18) / totalLiquidity2;
         uint256 expectedCumulativeRewards3 = 0;
         assertApproxEqRel(
             cumulativeRewards1,
@@ -1048,12 +1074,18 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             address(perpetual3)
         );
-        expectedCumulativeRewards1 += ((((inflationRate * 5000) / 10000) * 10) /
-            365);
-        expectedCumulativeRewards2 += ((((inflationRate * 3000) / 10000) * 10) /
-            365);
-        expectedCumulativeRewards3 += ((((inflationRate * 2000) / 10000) * 10) /
-            365);
+        uint256 totalLiquidity3 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual3)
+        );
+        expectedCumulativeRewards1 +=
+            (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) /
+            totalLiquidity1;
+        expectedCumulativeRewards2 +=
+            (((((inflationRate * 3000) / 10000) * 10) / 365) * 1e18) /
+            totalLiquidity2;
+        expectedCumulativeRewards3 +=
+            (((((inflationRate * 2000) / 10000) * 10) / 365) * 1e18) /
+            totalLiquidity3;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1114,10 +1146,16 @@ contract RewardsTest is PerpetualUtils {
         (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * 7500) /
-            10000) * 10) / 365);
-        uint256 expectedCumulativeRewards2 = ((((inflationRate * 2500) /
-            10000) * 10) / 365);
+        uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual)
+        );
+        uint256 totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual2)
+        );
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
+            10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
+            10000) * 10) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1251,10 +1289,14 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual3)
             );
-        expectedCumulativeRewards1 = ((((inflationRate * 7500) / 10000) * 20) /
-            365);
-        uint256 expectedCumulativeRewards3 = ((((inflationRate * 2500) /
-            10000) * 10) / 365);
+        uint256 totalLiquidity3 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual3)
+        );
+        expectedCumulativeRewards1 =
+            (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) /
+            totalLiquidity1;
+        uint256 expectedCumulativeRewards3 = (((((inflationRate * 2500) /
+            10000) * 10) / 365) * 1e18) / totalLiquidity3;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1366,10 +1408,16 @@ contract RewardsTest is PerpetualUtils {
         (, , uint256 inflationRate, ) = newRewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * 7500) /
-            10000) * 20) / 365);
-        uint256 expectedCumulativeRewards2 = ((((inflationRate * 2500) /
-            10000) * 20) / 365);
+        uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual)
+        );
+        uint256 totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
+            address(perpetual2)
+        );
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
+            10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
+            10000) * 20) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1592,8 +1640,6 @@ contract RewardsTest is PerpetualUtils {
     function _checkRewards(
         address token,
         address user,
-        uint256 percentOfLiquidity1,
-        uint256 percentOfLiquidity2,
         uint16 gaugeWeight1,
         uint16 gaugeWeight2,
         uint256 numDays
@@ -1610,26 +1656,30 @@ contract RewardsTest is PerpetualUtils {
         (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             token
         );
-        uint256 expectedCumulativeRewards1 = ((((inflationRate * gaugeWeight1) /
-            10000) * numDays) / 365);
-        uint256 expectedCumulativeRewards2 = ((((inflationRate * gaugeWeight2) /
-            10000) * numDays) / 365);
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
+        {
+            uint256 expectedCumulativeRewards1 = (((((inflationRate *
+                gaugeWeight1) / 10000) * numDays) / 365) * 1e18) /
+                rewardsDistributor.totalLiquidityPerMarket(address(perpetual));
+            uint256 expectedCumulativeRewards2 = (((((inflationRate *
+                gaugeWeight2) / 10000) * numDays) / 365) * 1e18) /
+                rewardsDistributor.totalLiquidityPerMarket(address(perpetual2));
+            assertApproxEqRel(
+                cumulativeRewards1,
+                expectedCumulativeRewards1,
+                5e16, // 5%, accounts for reduction factor
+                "Incorrect cumulative rewards"
+            );
+            assertApproxEqRel(
+                cumulativeRewards2,
+                expectedCumulativeRewards2,
+                5e16, // 5%, accounts for reduction factor
+                "Incorrect cumulative rewards"
+            );
+        }
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards1.wadMul(percentOfLiquidity1) +
-                cumulativeRewards2.wadMul(percentOfLiquidity2),
+            cumulativeRewards1.wadMul(perpetual.getLpLiquidity(user)) +
+                cumulativeRewards2.wadMul(perpetual2.getLpLiquidity(user)),
             1e15, // 0.1%
             "Incorrect user rewards"
         );

@@ -194,8 +194,8 @@ contract RewardDistributor is
                     )
                 )
             );
-            uint256 newRewards = (((inflationRate * gaugeWeight) / 10000) *
-                deltaTime) / 365 days;
+            uint256 newRewards = (((((inflationRate * gaugeWeight) / 10000) *
+                deltaTime) / 365 days) * 1e18) / liquidity;
             cumulativeRewardPerLpToken[token][gauge] += newRewards;
             emit RewardAccruedToMarket(gauge, token, newRewards);
         }
@@ -224,7 +224,7 @@ contract RewardDistributor is
                     (cumulativeRewardPerLpToken[token][gauge] -
                         cumulativeRewardPerLpTokenPerUser[user][token][
                             gauge
-                        ])) / prevTotalLiquidity
+                        ])) / 1e18
                 : 0;
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
@@ -510,7 +510,7 @@ contract RewardDistributor is
             uint256 newRewards = (lpPosition *
                 (cumulativeRewardPerLpToken[token][gauge] -
                     cumulativeRewardPerLpTokenPerUser[user][token][gauge])) /
-                totalLiquidityPerMarket[gauge];
+                1e18;
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
@@ -588,11 +588,11 @@ contract RewardDistributor is
             rewardInfo.gaugeWeights[idx]) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
             gauge
-        ] + newMarketRewards;
-        uint256 newUserRewards = (lpPosition *
+        ] + (newMarketRewards * 1e18) / liquidity;
+        uint256 newUserRewards = lpPosition.mul(
             (newCumRewardPerLpToken -
-                cumulativeRewardPerLpTokenPerUser[user][token][gauge])) /
-            totalLiquidityPerMarket[gauge];
+                cumulativeRewardPerLpTokenPerUser[user][token][gauge])
+        );
         return newUserRewards;
     }
 
