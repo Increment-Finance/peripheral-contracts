@@ -8,13 +8,13 @@ import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.so
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IGaugeController} from "./interfaces/IGaugeController.sol";
+import {IRewardController} from "./interfaces/IRewardController.sol";
 
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
-abstract contract GaugeController is
-    IGaugeController,
+abstract contract RewardController is
+    IRewardController,
     IncreAccessControl,
     Pausable,
     ReentrancyGuard
@@ -27,7 +27,7 @@ abstract contract GaugeController is
         uint256 initialTimestamp; // Time when the reward token was added
         uint256 inflationRate; // Amount of reward token emitted per year
         uint256 reductionFactor; // Factor by which the inflation rate is reduced each year
-        uint16[] gaugeWeights; // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
+        uint16[] marketWeights; // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
     }
 
     /// @notice Maximum inflation rate, applies to all reward tokens
@@ -41,7 +41,7 @@ abstract contract GaugeController is
 
     /// @notice List of reward token addresses
     /// @dev Length must be <= maxRewardTokens
-    mapping(address => address[]) public rewardTokensPerGauge;
+    mapping(address => address[]) public rewardTokensPerMarket;
 
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
@@ -51,12 +51,12 @@ abstract contract GaugeController is
         uint256 _initialReductionFactor
     ) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
-            revert GaugeController_AboveMaxInflationRate(
+            revert RewardController_AboveMaxInflationRate(
                 _initialInflationRate,
                 MAX_INFLATION_RATE
             );
         if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
-            revert GaugeController_BelowMinReductionFactor(
+            revert RewardController_BelowMinReductionFactor(
                 _initialReductionFactor,
                 MIN_REDUCTION_FACTOR
             );
@@ -67,35 +67,37 @@ abstract contract GaugeController is
     /* ****************** */
 
     /// Updates the reward accumulator for a given market
-    /// @dev Executes when any of the following variables are changed: inflationRate, gaugeWeights, liquidity
+    /// @dev Executes when any of the following variables are changed: inflationRate, marketWeights, liquidity
     /// @param idx Index of the perpetual market in the ClearingHouse
     function updateMarketRewards(uint256 idx) public virtual;
 
-    /// Gets the number of gauges to be used for reward distribution
-    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @return Number of gauges
-    function getNumGauges() public view virtual returns (uint256);
+    /// Gets the number of markets to be used for reward distribution
+    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @return Number of markets
+    function getNumMarkets() public view virtual returns (uint256);
 
     /// Gets the highest valid market index
     /// @return Highest valid market index
-    function getMaxGaugeIdx() public view virtual returns (uint256);
+    function getMaxMarketIdx() public view virtual returns (uint256);
 
-    /// Gets the address of a gauge
-    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param idx Index of the gauge
-    /// @return Address of the gauge
-    function getGaugeAddress(uint256 idx) public view virtual returns (address);
+    /// Gets the address of a market
+    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param idx Index of the market
+    /// @return Address of the market
+    function getMarketAddress(
+        uint256 idx
+    ) public view virtual returns (address);
 
-    /// Gets the index of an allowlisted gauge
-    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param i Index of the gauge in the allowlist ids
-    /// @return Index of the gauge in the gauge list
-    function getGaugeIdx(uint256 i) public view virtual returns (uint256);
+    /// Gets the index of an allowlisted market
+    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param i Index of the market in the allowlist ids
+    /// @return Index of the market in the market list
+    function getMarketIdx(uint256 i) public view virtual returns (uint256);
 
-    /// Gets the index of the gauge in the allowlist
-    /// @dev Gauges are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param idx Index of the gauge in the gauge list
-    /// @return Index of the gauge in the allowlist ids
+    /// Gets the index of the market in the allowlist
+    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param idx Index of the market in the market list
+    /// @return Index of the market in the allowlist ids
     function getAllowlistIdx(uint256 idx) public view virtual returns (uint256);
 
     /* ******************* */
@@ -104,9 +106,9 @@ abstract contract GaugeController is
 
     /// Gets the number of reward tokens
     function getRewardTokenCount(
-        address gauge
+        address market
     ) external view returns (uint256) {
-        return rewardTokensPerGauge[gauge].length;
+        return rewardTokensPerMarket[market].length;
     }
 
     /// Gets the timestamp when a reward token was registered
@@ -148,12 +150,12 @@ abstract contract GaugeController is
         return rewardInfoByToken[rewardToken].reductionFactor;
     }
 
-    /// Gets the weights of all gauges for a reward token
+    /// Gets the weights of all markets for a reward token
     /// @param rewardToken Address of the reward token
-    function getGaugeWeights(
+    function getRewardWeights(
         address rewardToken
     ) external view returns (uint16[] memory) {
-        return rewardInfoByToken[rewardToken].gaugeWeights;
+        return rewardInfoByToken[rewardToken].marketWeights;
     }
 
     /* ****************** */
@@ -161,53 +163,53 @@ abstract contract GaugeController is
     /* ****************** */
 
     /// Sets the weights for all perpetual markets
-    /// @param _weights List of weights for each gauge, in the order of perpetual markets
+    /// @param _weights List of weights for each market, in the order of perpetual markets
     /// @dev Weights are basis points, i.e., 100 = 1%, 10000 = 100%
-    function updateGaugeWeights(
+    function updateRewardWeights(
         address _token,
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if (
             _token == address(0) ||
             rewardInfoByToken[_token].token != IERC20Metadata(_token)
-        ) revert GaugeController_InvalidRewardTokenAddress(_token);
-        uint256 gaugesLength = getNumGauges();
-        if (_weights.length != gaugesLength)
-            revert GaugeController_IncorrectWeightsCount(
+        ) revert RewardController_InvalidRewardTokenAddress(_token);
+        uint256 marketsLength = getNumMarkets();
+        if (_weights.length != marketsLength)
+            revert RewardController_IncorrectWeightsCount(
                 _weights.length,
-                gaugesLength
+                marketsLength
             );
         uint16 totalWeight;
-        for (uint i; i < gaugesLength; ++i) {
-            uint256 idx = getGaugeIdx(i);
+        for (uint i; i < marketsLength; ++i) {
+            uint256 idx = getMarketIdx(i);
             updateMarketRewards(idx);
             uint16 weight = _weights[i];
             if (weight > 10000)
-                revert GaugeController_WeightExceedsMax(weight, 10000);
-            address gauge = getGaugeAddress(idx);
-            if (i == rewardInfoByToken[_token].gaugeWeights.length) {
-                // Gauge added since last update
-                rewardInfoByToken[_token].gaugeWeights.push(weight);
+                revert RewardController_WeightExceedsMax(weight, 10000);
+            address market = getMarketAddress(idx);
+            if (i == rewardInfoByToken[_token].marketWeights.length) {
+                // Market added since last update
+                rewardInfoByToken[_token].marketWeights.push(weight);
             } else {
-                rewardInfoByToken[_token].gaugeWeights[i] = weight;
+                rewardInfoByToken[_token].marketWeights[i] = weight;
             }
             totalWeight += weight;
             if (weight > 0) {
-                // Check if token is already registered for this gauge
+                // Check if token is already registered for this market
                 bool found = false;
-                for (uint j; j < rewardTokensPerGauge[gauge].length; ++j) {
-                    if (rewardTokensPerGauge[gauge][j] == _token) {
+                for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
+                    if (rewardTokensPerMarket[market][j] == _token) {
                         found = true;
                         break;
                     }
                 }
-                // If the token was not previously registered for this gauge, add it
-                if (!found) rewardTokensPerGauge[gauge].push(_token);
+                // If the token was not previously registered for this market, add it
+                if (!found) rewardTokensPerMarket[market].push(_token);
             }
-            emit NewWeight(gauge, _token, weight);
+            emit NewWeight(market, _token, weight);
         }
         if (totalWeight != 10000)
-            revert GaugeController_IncorrectWeightsSum(totalWeight, 10000);
+            revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
     }
 
     /// Sets the inflation rate used to calculate emissions over time
@@ -219,15 +221,15 @@ abstract contract GaugeController is
         if (
             _token == address(0) ||
             rewardInfoByToken[_token].token != IERC20Metadata(_token)
-        ) revert GaugeController_InvalidRewardTokenAddress(_token);
+        ) revert RewardController_InvalidRewardTokenAddress(_token);
         if (_newInflationRate > MAX_INFLATION_RATE)
-            revert GaugeController_AboveMaxInflationRate(
+            revert RewardController_AboveMaxInflationRate(
                 _newInflationRate,
                 MAX_INFLATION_RATE
             );
-        uint256 gaugesLength = getNumGauges();
-        for (uint i; i < gaugesLength; ++i) {
-            uint256 idx = getGaugeIdx(i);
+        uint256 marketsLength = getNumMarkets();
+        for (uint i; i < marketsLength; ++i) {
+            uint256 idx = getMarketIdx(i);
             updateMarketRewards(idx);
         }
         rewardInfoByToken[_token].inflationRate = _newInflationRate;
@@ -243,9 +245,9 @@ abstract contract GaugeController is
         if (
             _token == address(0) ||
             rewardInfoByToken[_token].token != IERC20Metadata(_token)
-        ) revert GaugeController_InvalidRewardTokenAddress(_token);
+        ) revert RewardController_InvalidRewardTokenAddress(_token);
         if (MIN_REDUCTION_FACTOR > _newReductionFactor)
-            revert GaugeController_BelowMinReductionFactor(
+            revert RewardController_BelowMinReductionFactor(
                 _newReductionFactor,
                 MIN_REDUCTION_FACTOR
             );

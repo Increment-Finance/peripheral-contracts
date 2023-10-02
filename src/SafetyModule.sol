@@ -48,7 +48,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address _rewardToken,
         address _clearingHouse,
         uint256 _earlyWithdrawalThreshold,
-        uint16[] memory _initialGaugeWeights
+        uint16[] memory _initialRewardWeights
     )
         RewardDistributor(
             _initialInflationRate,
@@ -56,7 +56,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             _rewardToken,
             _clearingHouse,
             _earlyWithdrawalThreshold,
-            _initialGaugeWeights
+            _initialRewardWeights
         )
     {
         vault = _vault;
@@ -67,27 +67,27 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     }
 
     /* ****************** */
-    /*       Gauges       */
+    /*      Markets       */
     /* ****************** */
 
     /// @inheritdoc RewardDistributor
-    function getNumGauges() public view virtual override returns (uint256) {
+    function getNumMarkets() public view virtual override returns (uint256) {
         return stakingTokens.length;
     }
 
     /// @inheritdoc RewardDistributor
-    function getGaugeAddress(
+    function getMarketAddress(
         uint256 index
     ) public view virtual override returns (address) {
         return address(stakingTokens[index]);
     }
 
     /// @inheritdoc RewardDistributor
-    function getGaugeIdx(
+    function getMarketIdx(
         uint256 i
     ) public view virtual override returns (uint256) {
-        if (i >= getNumGauges())
-            revert RewardDistributor_InvalidMarketIndex(i, getNumGauges());
+        if (i >= getNumMarkets())
+            revert RewardDistributor_InvalidMarketIndex(i, getNumMarkets());
         return i;
     }
 
@@ -95,18 +95,18 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function getAllowlistIdx(
         uint256 idx
     ) public view virtual override returns (uint256) {
-        return getGaugeIdx(idx);
+        return getMarketIdx(idx);
     }
 
-    /// Returns the current position of the user in the gauge (i.e., perpetual market)
+    /// Returns the current position of the user in the market (i.e., perpetual market)
     /// @param lp Address of the user
-    /// @param gauge Address of the gauge
-    /// @return Current position of the user in the gauge
+    /// @param market Address of the market
+    /// @return Current position of the user in the market
     function getCurrentPosition(
         address lp,
-        address gauge
+        address market
     ) public view virtual override returns (uint256) {
-        return IStakedToken(gauge).balanceOf(lp);
+        return IStakedToken(market).balanceOf(lp);
     }
 
     /* ****************** */
@@ -121,37 +121,37 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 idx,
         address user
     ) external virtual override nonReentrant onlyStakingToken {
-        if (idx >= getNumGauges())
-            revert RewardDistributor_InvalidMarketIndex(idx, getNumGauges());
+        if (idx >= getNumMarkets())
+            revert RewardDistributor_InvalidMarketIndex(idx, getNumMarkets());
         updateMarketRewards(idx);
-        address gauge = getGaugeAddress(idx);
-        uint256 prevPosition = lpPositionsPerUser[user][gauge];
-        uint256 newPosition = getCurrentPosition(user, gauge);
-        totalLiquidityPerMarket[gauge] =
-            totalLiquidityPerMarket[gauge] +
+        address market = getMarketAddress(idx);
+        uint256 prevPosition = lpPositionsPerUser[user][market];
+        uint256 newPosition = getCurrentPosition(user, market);
+        totalLiquidityPerMarket[market] =
+            totalLiquidityPerMarket[market] +
             newPosition -
             prevPosition;
-        for (uint256 i; i < rewardTokensPerGauge[gauge].length; ++i) {
-            address token = rewardTokensPerGauge[gauge][i];
+        for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
+            address token = rewardTokensPerMarket[market][i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             /// newRewards does not include multiplier yet
             uint256 newRewards = prevPosition *
-                (cumulativeRewardPerLpToken[token][gauge] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][gauge]);
-            uint256 rewardMultiplier = computeRewardMultiplier(user, gauge);
+                (cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market]);
+            uint256 rewardMultiplier = computeRewardMultiplier(user, market);
             if (newPosition < prevPosition || prevPosition == 0) {
                 // Removed stake or staked for the first time - need to reset multiplier
-                multiplierStartTimeByUser[user][gauge] = block.timestamp;
+                multiplierStartTimeByUser[user][market] = block.timestamp;
             }
             rewardsAccruedByUser[user][token] += newRewards * rewardMultiplier;
             totalUnclaimedRewards[token] += newRewards * rewardMultiplier;
             cumulativeRewardPerLpTokenPerUser[user][token][
-                gauge
-            ] = cumulativeRewardPerLpToken[token][gauge];
-            emit RewardAccruedToUser(user, token, address(gauge), newRewards);
+                market
+            ] = cumulativeRewardPerLpToken[token][market];
+            emit RewardAccruedToUser(user, token, address(market), newRewards);
         }
         // TODO: What if a staking token is removed?
-        lpPositionsPerUser[user][gauge] = newPosition;
+        lpPositionsPerUser[user][market] = newPosition;
     }
 
     /* ******************* */

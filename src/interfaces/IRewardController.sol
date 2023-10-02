@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 
-interface IGaugeController {
+interface IRewardController {
     /// Emitted when a new reward token is added
     /// @param rewardToken reward token address
     /// @param initialTimestamp timestamp when reward token was added
@@ -52,31 +52,31 @@ interface IGaugeController {
     /// @param newFactor the new reduction factor
     event NewReductionFactor(address indexed rewardToken, uint256 newFactor);
 
-    error GaugeController_AboveMaxRewardTokens(uint256 max);
-    error GaugeController_AboveMaxInflationRate(uint256 rate, uint256 max);
-    error GaugeController_BelowMinReductionFactor(uint256 factor, uint256 min);
-    error GaugeController_InvalidRewardTokenAddress(address token);
-    error GaugeController_IncorrectWeightsCount(
+    error RewardController_AboveMaxRewardTokens(uint256 max);
+    error RewardController_AboveMaxInflationRate(uint256 rate, uint256 max);
+    error RewardController_BelowMinReductionFactor(uint256 factor, uint256 min);
+    error RewardController_InvalidRewardTokenAddress(address token);
+    error RewardController_IncorrectWeightsCount(
         uint256 actual,
         uint256 expected
     );
-    error GaugeController_IncorrectWeightsSum(uint16 actual, uint16 expected);
-    error GaugeController_WeightExceedsMax(uint16 weight, uint16 max);
+    error RewardController_IncorrectWeightsSum(uint16 actual, uint16 expected);
+    error RewardController_WeightExceedsMax(uint16 weight, uint16 max);
 
     function clearingHouse() external view returns (IClearingHouse);
 
-    function rewardTokensPerGauge(
+    function rewardTokensPerMarket(
         address,
         uint256
     ) external view returns (address);
 
-    function getNumGauges() external view returns (uint256);
+    function getNumMarkets() external view returns (uint256);
 
-    function getMaxGaugeIdx() external view returns (uint256);
+    function getMaxMarketIdx() external view returns (uint256);
 
-    function getGaugeAddress(uint256) external view returns (address);
+    function getMarketAddress(uint256) external view returns (address);
 
-    function getGaugeIdx(uint256) external view returns (uint256);
+    function getMarketIdx(uint256) external view returns (uint256);
 
     function getRewardTokenCount(address) external view returns (uint256);
 
@@ -88,11 +88,11 @@ interface IGaugeController {
 
     function getReductionFactor(address) external view returns (uint256);
 
-    function getGaugeWeights(address) external view returns (uint16[] memory);
+    function getRewardWeights(address) external view returns (uint16[] memory);
 
     function updateMarketRewards(uint256) external;
 
-    function updateGaugeWeights(address, uint16[] calldata) external;
+    function updateRewardWeights(address, uint16[] calldata) external;
 
     function updateInflationRate(address, uint256) external;
 
