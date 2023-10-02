@@ -13,6 +13,7 @@ import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
 import "../src/SafetyModule.sol";
 import "../src/StakedToken.sol";
+import {EcosystemReserve, IERC20 as AaveIERC20} from "../src/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -49,6 +50,7 @@ contract SafetyModuleTest is PerpetualUtils {
     StakedToken public stakedToken1;
     StakedToken public stakedToken2;
 
+    EcosystemReserve public rewardVault;
     SafetyModule public safetyModule;
 
     function setUp() public virtual override {
@@ -63,23 +65,32 @@ contract SafetyModuleTest is PerpetualUtils {
         rewardsToken = new IncrementToken(20000000e18, address(this));
         rewardsToken.unpause();
 
+        // Deploy the Ecosystem Reserve vault
+        rewardVault = new EcosystemReserve(address(this));
+
         // Deploy safety module
         safetyModule = new SafetyModule(
             address(vault),
             address(0),
             new IStakedToken[](0),
-            INITIAL_MAX_MULTIPLIER,
-            INITIAL_SMOOTHING_VALUE,
+            // INITIAL_MAX_MULTIPLIER,
+            // INITIAL_SMOOTHING_VALUE,
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
+            address(rewardVault),
             10 days,
             new uint16[](0)
         );
         rewardsToken.transfer(
-            address(safetyModule),
+            address(rewardVault),
             rewardsToken.totalSupply() / 2
+        );
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken)),
+            address(safetyModule),
+            type(uint256).max
         );
 
         // Deploy staking tokens

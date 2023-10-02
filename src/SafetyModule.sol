@@ -41,12 +41,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address _vault,
         address _auctionModule,
         IStakedToken[] memory _stakingTokens,
-        uint256 _maxRewardMultiplier,
-        uint256 _smoothingValue,
+        // uint256 _maxRewardMultiplier,
+        // uint256 _smoothingValue,
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor,
         address _rewardToken,
         address _clearingHouse,
+        address _tokenVault,
         uint256 _earlyWithdrawalThreshold,
         uint16[] memory _initialRewardWeights
     )
@@ -55,6 +56,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             _initialReductionFactor,
             _rewardToken,
             _clearingHouse,
+            _tokenVault,
             _earlyWithdrawalThreshold,
             _initialRewardWeights
         )
@@ -62,8 +64,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         vault = _vault;
         auctionModule = _auctionModule;
         stakingTokens = _stakingTokens;
-        maxRewardMultiplier = _maxRewardMultiplier;
-        smoothingValue = _smoothingValue;
+        // maxRewardMultiplier = _maxRewardMultiplier;
+        // smoothingValue = _smoothingValue;
     }
 
     /* ****************** */
