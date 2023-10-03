@@ -29,6 +29,9 @@ contract RewardDistributor is
     /// @notice Clearing House contract
     IClearingHouse public clearingHouse;
 
+    /// @notice Address of the token vault
+    address public tokenVault;
+
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
 
@@ -78,10 +81,12 @@ contract RewardDistributor is
         uint256 _initialReductionFactor,
         address _rewardToken,
         address _clearingHouse,
+        address _tokenVault,
         uint256 _earlyWithdrawalThreshold,
         uint16[] memory _initialRewardWeights
     ) RewardController(_initialInflationRate, _initialReductionFactor) {
         clearingHouse = IClearingHouse(_clearingHouse);
+        tokenVault = _tokenVault;
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
         rewardInfoByToken[_rewardToken] = RewardInfo({
@@ -362,13 +367,17 @@ contract RewardDistributor is
         }
         delete rewardInfoByToken[_token];
         // Determine how much of the removed token should be sent back to governance
-        uint256 balance = IERC20Metadata(_token).balanceOf(address(this));
+        uint256 balance = _rewardTokenBalance(_token);
         uint256 unclaimedAccruals = totalUnclaimedRewards[_token];
         uint256 unaccruedBalance = balance >= unclaimedAccruals
             ? balance - unclaimedAccruals
             : 0;
         // Transfer remaining tokens to governance (which is the sender)
-        IERC20Metadata(_token).safeTransfer(msg.sender, unaccruedBalance);
+        IERC20Metadata(_token).safeTransferFrom(
+            tokenVault,
+            msg.sender,
+            unaccruedBalance
+        );
         emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
     }
 
@@ -381,7 +390,7 @@ contract RewardDistributor is
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            uint idx = clearingHouse.id(i);
+            uint idx = getMarketIdx(i);
             address market = getMarketAddress(idx);
             if (lpPositionsPerUser[msg.sender][market] != 0)
                 revert RewardDistributor_PositionAlreadyRegistered(
@@ -614,11 +623,11 @@ contract RewardDistributor is
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         IERC20Metadata rewardToken = IERC20Metadata(_token);
         if (_amount <= rewardsRemaining) {
-            rewardToken.safeTransfer(_to, _amount);
+            rewardToken.safeTransferFrom(tokenVault, _to, _amount);
             totalUnclaimedRewards[_token] -= _amount;
             return 0;
         } else {
-            rewardToken.safeTransfer(_to, rewardsRemaining);
+            rewardToken.safeTransferFrom(tokenVault, _to, rewardsRemaining);
             totalUnclaimedRewards[_token] -= rewardsRemaining;
             return _amount - rewardsRemaining;
         }
@@ -628,6 +637,6 @@ contract RewardDistributor is
         address _token
     ) internal view returns (uint256) {
         IERC20Metadata rewardToken = IERC20Metadata(_token);
-        return rewardToken.balanceOf(address(this));
+        return rewardToken.balanceOf(tokenVault);
     }
 }

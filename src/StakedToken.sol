@@ -46,17 +46,10 @@ contract StakedToken is
         require(amount != 0, "INVALID_ZERO_AMOUNT");
         uint256 balanceOfUser = balanceOf(onBehalfOf);
 
-        // uint256 accruedRewards = _updateUserAssetInternal(
-        //     onBehalfOf,
-        //     address(this),
-        //     balanceOfUser,
-        //     totalSupply()
-        // );
-        // if (accruedRewards != 0) {
-        //     emit RewardsAccrued(onBehalfOf, accruedRewards);
-        //     stakerRewardsToClaim[onBehalfOf] = stakerRewardsToClaim[onBehalfOf]
-        //         .add(accruedRewards);
-        // }
+        safetyModule.updateStakingPosition(
+            safetyModule.getStakingTokenIdx(address(this)),
+            onBehalfOf
+        );
 
         stakersCooldowns[onBehalfOf] = getNextCooldownTimestamp(
             0,
@@ -99,11 +92,10 @@ contract StakedToken is
             ? balanceOfMessageSender
             : amount;
 
-        // _updateCurrentUnclaimedRewards(
-        //     msg.sender,
-        //     balanceOfMessageSender,
-        //     true
-        // );
+        safetyModule.updateStakingPosition(
+            safetyModule.getStakingTokenIdx(address(this)),
+            msg.sender
+        );
 
         _burn(msg.sender, amountToRedeem);
 

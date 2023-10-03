@@ -2,10 +2,12 @@
 pragma solidity 0.8.16;
 
 import {IStakedToken} from "./IStakedToken.sol";
+import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
 
-interface ISafetyModule {
-    error CallerIsNotStakingToken(address caller);
-    error StakingTokenAlreadyRegistered(address stakingToken);
+interface ISafetyModule is IStakingContract {
+    error SafetyModule_CallerIsNotStakingToken(address caller);
+    error SafetyModule_StakingTokenAlreadyRegistered(address stakingToken);
+    error SafetyModule_InvalidStakingToken(address stakingToken);
 
     function vault() external view returns (address);
 
@@ -16,6 +18,8 @@ interface ISafetyModule {
     function maxRewardMultiplier() external view returns (uint256);
 
     function smoothingValue() external view returns (uint256);
+
+    function getStakingTokenIdx(address) external view returns (uint256);
 
     function setMaxRewardMultiplier(uint256) external;
 

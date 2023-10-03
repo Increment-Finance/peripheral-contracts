@@ -4,3 +4,5 @@ prb-math/=lib/increment-protocol/node_modules/prb-math
 @increment/=lib/increment-protocol/contracts/
 @increment-governance/=lib/increment-governance/src/
 forge/=lib/forge-std/src/
+@aave-periphery/=lib/aave-v3-periphery/contracts/
+@aave/=lib/aave-v3-periphery/node_modules/@aave/

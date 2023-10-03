@@ -12,6 +12,7 @@ import "increment-protocol/tokens/VQuote.sol";
 import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
 import "../src/RewardDistributor.sol";
+import {EcosystemReserve, IERC20 as AaveIERC20} from "../src/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -52,6 +53,7 @@ contract RewardsTest is PerpetualUtils {
     IncrementToken public rewardsToken;
     IncrementToken public rewardsToken2;
 
+    EcosystemReserve public rewardVault;
     RewardDistributor public rewardsDistributor;
 
     function setUp() public virtual override {
@@ -107,6 +109,9 @@ contract RewardsTest is PerpetualUtils {
         vQuote2.transferPerpOwner(address(perpetual2));
         clearingHouse.allowListPerpetual(perpetual2);
 
+        // Deploy the Ecosystem Reserve vault
+        rewardVault = new EcosystemReserve(address(this));
+
         // Deploy rewards tokens and distributor
         rewardsToken = new IncrementToken(20000000e18, address(this));
         rewardsToken2 = new IncrementToken(20000000e18, address(this));
@@ -122,16 +127,26 @@ contract RewardsTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
+            address(rewardVault),
             10 days,
             weights
         );
-        rewardsToken.transfer(
-            address(rewardsDistributor),
-            rewardsToken.totalSupply()
-        );
+
+        // Transfer all rewards tokens to the vault and approve the distributor
+        rewardsToken.transfer(address(rewardVault), rewardsToken.totalSupply());
         rewardsToken2.transfer(
-            address(rewardsDistributor),
+            address(rewardVault),
             rewardsToken2.totalSupply()
+        );
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken)),
+            address(rewardsDistributor),
+            type(uint256).max
+        );
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken2)),
+            address(rewardsDistributor),
+            type(uint256).max
         );
 
         // initial liquidity
@@ -692,7 +707,7 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect claimed balance"
         );
         assertEq(
-            rewardsToken2.balanceOf(address(rewardsDistributor)),
+            rewardsToken2.balanceOf(address(rewardVault)),
             accruedRewards21,
             "Incorrect remaining accrued balance"
         );
@@ -746,8 +761,13 @@ contract RewardsTest is PerpetualUtils {
             marketWeights
         );
         rewardsToken2.transfer(
-            address(rewardsDistributor),
+            address(rewardVault),
             rewardsToken2.totalSupply()
+        );
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken2)),
+            address(rewardsDistributor),
+            type(uint256).max
         );
 
         // skip some time
@@ -1350,17 +1370,20 @@ contract RewardsTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
+            address(rewardVault),
             10 days,
             weights
         );
-        vm.startPrank(address(rewardsDistributor));
-        rewardsToken.transfer(
+        vm.startPrank(address(this));
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken)),
             address(newRewardsDistributor),
-            rewardsToken.balanceOf(address(rewardsDistributor))
+            type(uint256).max
         );
-        rewardsToken2.transfer(
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken2)),
             address(newRewardsDistributor),
-            rewardsToken2.balanceOf(address(rewardsDistributor))
+            type(uint256).max
         );
         vm.stopPrank();
 
