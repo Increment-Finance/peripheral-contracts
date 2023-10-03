@@ -231,3 +231,17 @@ interface IWeightedPoolProtocolFees is IBaseWeightedPool {
 interface IWeightedPool is IBaseWeightedPool {
     function getActualSupply() external view returns (uint256);
 }
+
+enum JoinKind {
+    INIT,
+    EXACT_TOKENS_IN_FOR_BPT_OUT,
+    TOKEN_IN_FOR_EXACT_BPT_OUT,
+    ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
+    ADD_TOKEN // for Managed Pool
+}
+enum ExitKind {
+    EXACT_BPT_IN_FOR_ONE_TOKEN_OUT,
+    EXACT_BPT_IN_FOR_TOKENS_OUT,
+    BPT_IN_FOR_EXACT_TOKENS_OUT,
+    REMOVE_TOKEN // for ManagedPool
+}
