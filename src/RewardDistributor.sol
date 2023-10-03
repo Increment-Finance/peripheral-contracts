@@ -390,7 +390,7 @@ contract RewardDistributor is
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            uint idx = clearingHouse.id(i);
+            uint idx = getMarketIdx(i);
             address market = getMarketAddress(idx);
             if (lpPositionsPerUser[msg.sender][market] != 0)
                 revert RewardDistributor_PositionAlreadyRegistered(
