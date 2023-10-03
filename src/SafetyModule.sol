@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
-import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
+import {ISafetyModule, IStakingContract} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
 import {RewardDistributor} from "./RewardDistributor.sol";
 import {LibMath} from "@increment/lib/LibMath.sol";
@@ -33,7 +33,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 break;
             }
         }
-        if (!isStakingToken) revert CallerIsNotStakingToken(msg.sender);
+        if (!isStakingToken)
+            revert SafetyModule_CallerIsNotStakingToken(msg.sender);
         _;
     }
 
@@ -93,6 +94,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return i;
     }
 
+    function getStakingTokenIdx(address token) public view returns (uint256) {
+        for (uint256 i; i < stakingTokens.length; ++i) {
+            if (address(stakingTokens[i]) == token) return i;
+        }
+        revert SafetyModule_InvalidStakingToken(token);
+    }
+
     /// @inheritdoc RewardDistributor
     function getAllowlistIdx(
         uint256 idx
@@ -122,7 +130,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function updateStakingPosition(
         uint256 idx,
         address user
-    ) external virtual override nonReentrant onlyStakingToken {
+    )
+        external
+        virtual
+        override(IStakingContract, RewardDistributor)
+        nonReentrant
+        onlyStakingToken
+    {
         if (idx >= getNumMarkets())
             revert RewardDistributor_InvalidMarketIndex(idx, getNumMarkets());
         updateMarketRewards(idx);
@@ -206,7 +220,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     ) external onlyRole(GOVERNANCE) {
         for (uint i; i < stakingTokens.length; ++i) {
             if (address(stakingTokens[i]) == address(_stakingToken))
-                revert StakingTokenAlreadyRegistered(address(_stakingToken));
+                revert SafetyModule_StakingTokenAlreadyRegistered(
+                    address(_stakingToken)
+                );
         }
         stakingTokens.push(_stakingToken);
     }
