@@ -76,16 +76,14 @@ contract SafetyModuleTest is PerpetualUtils {
         safetyModule = new SafetyModule(
             address(vault),
             address(0),
-            new IStakedToken[](0),
-            // INITIAL_MAX_MULTIPLIER,
-            // INITIAL_SMOOTHING_VALUE,
+            INITIAL_MAX_MULTIPLIER,
+            INITIAL_SMOOTHING_VALUE,
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
             address(rewardVault),
-            10 days,
-            new uint16[](0)
+            10 days
         );
         safetyModule.setMaxRewardMultiplier(INITIAL_MAX_MULTIPLIER);
         safetyModule.setSmoothingValue(INITIAL_SMOOTHING_VALUE);
