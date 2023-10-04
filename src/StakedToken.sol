@@ -46,11 +46,6 @@ contract StakedToken is
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         uint256 balanceOfUser = balanceOf(onBehalfOf);
 
-        safetyModule.updateStakingPosition(
-            safetyModule.getStakingTokenIdx(address(this)),
-            onBehalfOf
-        );
-
         stakersCooldowns[onBehalfOf] = getNextCooldownTimestamp(
             0,
             amount,
@@ -63,6 +58,11 @@ contract StakedToken is
             msg.sender,
             address(this),
             amount
+        );
+
+        safetyModule.updateStakingPosition(
+            safetyModule.getStakingTokenIdx(address(this)),
+            onBehalfOf
         );
 
         emit Staked(msg.sender, onBehalfOf, amount);
@@ -94,11 +94,6 @@ contract StakedToken is
             ? balanceOfMessageSender
             : amount;
 
-        safetyModule.updateStakingPosition(
-            safetyModule.getStakingTokenIdx(address(this)),
-            msg.sender
-        );
-
         _burn(msg.sender, amountToRedeem);
 
         if (balanceOfMessageSender - amountToRedeem == 0) {
@@ -106,6 +101,11 @@ contract StakedToken is
         }
 
         IERC20(STAKED_TOKEN).safeTransfer(to, amountToRedeem);
+
+        safetyModule.updateStakingPosition(
+            safetyModule.getStakingTokenIdx(address(this)),
+            msg.sender
+        );
 
         emit Redeem(msg.sender, to, amountToRedeem);
     }
@@ -182,5 +182,47 @@ contract StakedToken is
         address _safetyModule
     ) external onlyRole(GOVERNANCE) {
         safetyModule = ISafetyModule(_safetyModule);
+    }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    /**
+     * @dev Internal ERC20 _transfer of the tokenized staked tokens
+     * @param from Address to transfer from
+     * @param to Address to transfer to
+     * @param amount Amount to transfer
+     **/
+    function _transfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal override {
+        // Sender
+        uint256 balanceOfFrom = balanceOf(from);
+
+        // Recipient
+        if (from != to) {
+            uint256 balanceOfTo = balanceOf(to);
+            uint256 previousSenderCooldown = stakersCooldowns[from];
+            stakersCooldowns[to] = getNextCooldownTimestamp(
+                previousSenderCooldown,
+                amount,
+                to,
+                balanceOfTo
+            );
+            // if cooldown was set and whole balance of sender was transferred - clear cooldown
+            if (balanceOfFrom == amount && previousSenderCooldown != 0) {
+                stakersCooldowns[from] = 0;
+            }
+        }
+
+        super._transfer(from, to, amount);
+
+        // Update SafetyModule
+        uint256 idx = safetyModule.getStakingTokenIdx(address(this));
+        safetyModule.updateStakingPosition(idx, from);
+        safetyModule.updateStakingPosition(idx, to);
     }
 }
