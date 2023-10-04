@@ -43,7 +43,7 @@ contract StakedToken is
     }
 
     function stake(address onBehalfOf, uint256 amount) external override {
-        require(amount != 0, "INVALID_ZERO_AMOUNT");
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
         uint256 balanceOfUser = balanceOf(onBehalfOf);
 
         safetyModule.updateStakingPosition(
@@ -74,18 +74,20 @@ contract StakedToken is
      * @param amount Amount to redeem
      **/
     function redeem(address to, uint256 amount) external override {
-        require(amount != 0, "INVALID_ZERO_AMOUNT");
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
         //solium-disable-next-line
         uint256 cooldownStartTimestamp = stakersCooldowns[msg.sender];
-        require(
-            block.timestamp > cooldownStartTimestamp + COOLDOWN_SECONDS,
-            "INSUFFICIENT_COOLDOWN"
-        );
-        require(
-            block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS <=
-                UNSTAKE_WINDOW,
-            "UNSTAKE_WINDOW_FINISHED"
-        );
+        if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
+            revert StakedToken_InsufficientCooldown(
+                cooldownStartTimestamp + COOLDOWN_SECONDS
+            );
+        if (
+            block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
+            UNSTAKE_WINDOW
+        )
+            revert StakedToken_UnstakeWindowFinished(
+                cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
+            );
         uint256 balanceOfMessageSender = balanceOf(msg.sender);
 
         uint256 amountToRedeem = (amount > balanceOfMessageSender)
@@ -113,7 +115,8 @@ contract StakedToken is
      * - It can't be called if the user is not staking
      **/
     function cooldown() external override {
-        require(balanceOf(msg.sender) != 0, "INVALID_BALANCE_ON_COOLDOWN");
+        if (balanceOf(msg.sender) == 0)
+            revert StakedToken_ZeroBalanceAtCooldown();
         //solium-disable-next-line
         stakersCooldowns[msg.sender] = block.timestamp;
 

@@ -12,6 +12,11 @@ interface IStakedToken is IERC20Metadata {
     event Redeem(address indexed from, address indexed to, uint256 amount);
     event Cooldown(address indexed user);
 
+    error StakedToken_InvalidZeroAmount();
+    error StakedToken_ZeroBalanceAtCooldown();
+    error StakedToken_InsufficientCooldown(uint256 cooldownEndTimestamp);
+    error StakedToken_UnstakeWindowFinished(uint256 unstakeWindowEndTimestamp);
+
     function stake(address onBehalfOf, uint256 amount) external;
 
     function redeem(address to, uint256 amount) external;
