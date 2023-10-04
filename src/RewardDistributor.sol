@@ -191,7 +191,7 @@ contract RewardDistributor is
             //     revert RewardDistributor_UninitializedStartTime(market);
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
                 rewardInfo.inflationRate.div(
                     rewardInfo.reductionFactor.pow(
@@ -225,7 +225,7 @@ contract RewardDistributor is
         uint256 prevTotalLiquidity = totalLiquidityPerMarket[market];
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevTotalLiquidity > 0
                 ? (prevLpPosition *
                     (cumulativeRewardPerLpToken[token][market] -
