@@ -47,8 +47,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _initialReductionFactor,
         address _rewardToken,
         address _clearingHouse,
-        address _tokenVault,
-        uint256 _earlyWithdrawalThreshold
+        address _tokenVault
     )
         RewardDistributor(
             _initialInflationRate,
@@ -56,7 +55,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             _rewardToken,
             _clearingHouse,
             _tokenVault,
-            _earlyWithdrawalThreshold,
+            0,
             new uint16[](0)
         )
     {
