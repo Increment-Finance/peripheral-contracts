@@ -56,6 +56,8 @@ contract SafetyModuleTest is PerpetualUtils {
     SafetyModule public safetyModule;
     IWeightedPoolFactory public weightedPoolFactory;
     IWeightedPool public balancerPool;
+    IBalancerVault public balancerVault;
+    bytes32 public poolId;
 
     function setUp() public virtual override {
         deal(liquidityProviderOne, 100 ether);
@@ -82,13 +84,12 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
-            address(rewardVault),
-            10 days
+            address(rewardVault)
         );
         safetyModule.setMaxRewardMultiplier(INITIAL_MAX_MULTIPLIER);
         safetyModule.setSmoothingValue(INITIAL_SMOOTHING_VALUE);
 
-        // Transfer half of the rewards tokens to the vault
+        // Transfer half of the rewards tokens to the reward vault
         rewardsToken.transfer(
             address(rewardVault),
             rewardsToken.totalSupply() / 2
@@ -99,8 +100,11 @@ contract SafetyModuleTest is PerpetualUtils {
             type(uint256).max
         );
 
+        // Transfer some of the rewards tokens to the liquidity providers
+        rewardsToken.transfer(liquidityProviderOne, 1000 ether);
+        rewardsToken.transfer(liquidityProviderTwo, 1000 ether);
+
         // Deploy Balancer pool
-        console.log("Deploying Balancer pool");
         weightedPoolFactory = IWeightedPoolFactory(
             0x897888115Ada5773E02aA29F775430BFB5F34c51
         );
@@ -111,7 +115,6 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256[] memory poolWeights = new uint256[](2);
         poolWeights[0] = 0.5e18;
         poolWeights[1] = 0.5e18;
-        console.log("Calling weightedPoolFactory.create()");
         balancerPool = IWeightedPool(
             weightedPoolFactory.create(
                 "50INCR-50WETH",
@@ -124,11 +127,10 @@ contract SafetyModuleTest is PerpetualUtils {
                 bytes32(0)
             )
         );
-        console.log("Balancer pool deployed at %s", address(balancerPool));
 
         // Add liquidity to the Balancer pool
-        bytes32 poolId = balancerPool.getPoolId();
-        IBalancerVault balancerVault = balancerPool.getVault();
+        poolId = balancerPool.getPoolId();
+        balancerVault = balancerPool.getVault();
         (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(poolId);
         IAsset[] memory poolAssets = new IAsset[](2);
         poolAssets[0] = IAsset(address(poolERC20s[0]));
@@ -151,7 +153,6 @@ contract SafetyModuleTest is PerpetualUtils {
         rewardsToken.approve(address(balancerVault), type(uint256).max);
         weth.approve(address(balancerVault), type(uint256).max);
         weth.deposit{value: 10 ether}();
-        console.log("Calling balancerVault.joinPool()");
         balancerVault.joinPool(
             poolId,
             address(this),
@@ -184,7 +185,164 @@ contract SafetyModuleTest is PerpetualUtils {
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+
+        // Approve staking tokens for users
+        vm.startPrank(liquidityProviderOne);
+        rewardsToken.approve(address(stakedToken1), type(uint256).max);
+        balancerPool.approve(address(stakedToken2), type(uint256).max);
+        vm.startPrank(liquidityProviderTwo);
+        rewardsToken.approve(address(stakedToken1), type(uint256).max);
+        balancerPool.approve(address(stakedToken2), type(uint256).max);
+        vm.stopPrank();
     }
 
-    function testDeployment() public {}
+    function testDeployment() public {
+        assertEq(safetyModule.getNumMarkets(), 2, "Market count mismatch");
+        assertEq(
+            safetyModule.getMarketAddress(0),
+            address(stakedToken1),
+            "Market address mismatch"
+        );
+        assertEq(safetyModule.getMarketIdx(0), 0, "Market index mismatch");
+        assertEq(
+            safetyModule.getStakingTokenIdx(address(stakedToken2)),
+            1,
+            "Staking token index mismatch"
+        );
+        assertEq(
+            safetyModule.getAllowlistIdx(0),
+            0,
+            "Allowlist index mismatch"
+        );
+        assertEq(
+            safetyModule.getCurrentPosition(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Current position mismatch"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Reward multiplier mismatch"
+        );
+        _stake(stakedToken1, liquidityProviderOne, 100 ether);
+        assertEq(
+            safetyModule.getCurrentPosition(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            100 ether,
+            "Current position mismatch"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch"
+        );
+    }
+
+    function testRewardMultiplier() public {
+        // Test with smoothing value of 30 and max multiplier of 4
+        _stake(stakedToken1, liquidityProviderOne, 100 ether);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch after initial stake"
+        );
+        skip(2 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            1.5e18,
+            "Reward multiplier mismatch after 2 days"
+        );
+        // Partially redeeming resets the multiplier to 1
+        _redeem(stakedToken1, liquidityProviderOne, 50 ether, 1 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch after redeeming half"
+        );
+        skip(5 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch after 5 days"
+        );
+        // Staking again does not reset the multiplier
+        _stake(stakedToken1, liquidityProviderOne, 50 ether);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch after staking again"
+        );
+        skip(5 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            2.5e18,
+            "Reward multiplier mismatch after another 5 days"
+        );
+        // Redeeming completely resets the multiplier to 0
+        _redeem(stakedToken1, liquidityProviderOne, 100 ether, 1 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Reward multiplier mismatch after redeeming completely"
+        );
+    }
+
+    /* ****************** */
+    /*  Helper Functions  */
+    /* ****************** */
+
+    function _stake(
+        IStakedToken stakedToken,
+        address staker,
+        uint256 amount
+    ) internal {
+        vm.startPrank(staker);
+        stakedToken.stake(staker, amount);
+        vm.stopPrank();
+    }
+
+    function _redeem(
+        IStakedToken stakedToken,
+        address staker,
+        uint256 amount,
+        uint256 cooldown
+    ) internal {
+        vm.startPrank(staker);
+        stakedToken.cooldown();
+        skip(cooldown);
+        stakedToken.redeem(staker, amount);
+        vm.stopPrank();
+    }
 }
