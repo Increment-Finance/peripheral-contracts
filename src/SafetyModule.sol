@@ -143,6 +143,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             totalLiquidityPerMarket[market] +
             newPosition -
             prevPosition;
+        uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
@@ -150,13 +151,14 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             uint256 newRewards = prevPosition *
                 (cumulativeRewardPerLpToken[token][market] -
                     cumulativeRewardPerLpTokenPerUser[user][token][market]);
-            uint256 rewardMultiplier = computeRewardMultiplier(user, market);
             if (newPosition < prevPosition || prevPosition == 0) {
                 // Removed stake or staked for the first time - need to reset multiplier
-                multiplierStartTimeByUser[user][market] = block.timestamp;
+                if (newPosition > 0) {
+                    multiplierStartTimeByUser[user][market] = block.timestamp;
+                } else {
+                    multiplierStartTimeByUser[user][market] = 0;
+                }
             }
-            rewardsAccruedByUser[user][token] += newRewards * rewardMultiplier;
-            totalUnclaimedRewards[token] += newRewards * rewardMultiplier;
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
@@ -190,6 +192,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address _stakingToken
     ) public view returns (uint256) {
         uint256 startTime = multiplierStartTimeByUser[_user][_stakingToken];
+        // If the user has never staked, return zero
+        if (startTime == 0) return 0;
         uint256 timeDelta = block.timestamp - startTime;
         uint256 deltaDays = timeDelta.wadDiv(1 days);
         /**
