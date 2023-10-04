@@ -8,6 +8,10 @@ interface ISafetyModule is IStakingContract {
     error SafetyModule_CallerIsNotStakingToken(address caller);
     error SafetyModule_StakingTokenAlreadyRegistered(address stakingToken);
     error SafetyModule_InvalidStakingToken(address stakingToken);
+    error SafetyModule_InvalidMaxMultiplierTooLow(uint256 value, uint256 min);
+    error SafetyModule_InvalidMaxMultiplierTooHigh(uint256 value, uint256 max);
+    error SafetyModule_InvalidSmoothingValueTooLow(uint256 value, uint256 min);
+    error SafetyModule_InvalidSmoothingValueTooHigh(uint256 value, uint256 max);
 
     function vault() external view returns (address);
 

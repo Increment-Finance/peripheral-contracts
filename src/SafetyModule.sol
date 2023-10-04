@@ -213,12 +213,32 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function setMaxRewardMultiplier(
         uint256 _maxRewardMultiplier
     ) external onlyRole(GOVERNANCE) {
+        if (_maxRewardMultiplier < 1e18)
+            revert SafetyModule_InvalidMaxMultiplierTooLow(
+                _maxRewardMultiplier,
+                1e18
+            );
+        else if (_maxRewardMultiplier > 10e18)
+            revert SafetyModule_InvalidMaxMultiplierTooHigh(
+                _maxRewardMultiplier,
+                10e18
+            );
         maxRewardMultiplier = _maxRewardMultiplier;
     }
 
     function setSmoothingValue(
         uint256 _smoothingValue
     ) external onlyRole(GOVERNANCE) {
+        if (_smoothingValue < 10e18)
+            revert SafetyModule_InvalidSmoothingValueTooLow(
+                _smoothingValue,
+                10e18
+            );
+        else if (_smoothingValue > 100e18)
+            revert SafetyModule_InvalidSmoothingValueTooHigh(
+                _smoothingValue,
+                100e18
+            );
         smoothingValue = _smoothingValue;
     }
 
