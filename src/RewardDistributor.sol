@@ -201,8 +201,10 @@ contract RewardDistributor is
             );
             uint256 newRewards = (((((inflationRate * marketWeight) / 10000) *
                 deltaTime) / 365 days) * 1e18) / liquidity;
-            cumulativeRewardPerLpToken[token][market] += newRewards;
-            emit RewardAccruedToMarket(market, token, newRewards);
+            if (newRewards > 0) {
+                cumulativeRewardPerLpToken[token][market] += newRewards;
+                emit RewardAccruedToMarket(market, token, newRewards);
+            }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[market] = block.timestamp;
@@ -258,12 +260,19 @@ contract RewardDistributor is
                     lastDepositTimeByUserByMarket[user][market] = 0;
                 }
             }
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
-            emit RewardAccruedToUser(user, token, address(market), newRewards);
+            if (newRewards > 0) {
+                rewardsAccruedByUser[user][token] += newRewards;
+                totalUnclaimedRewards[token] += newRewards;
+                emit RewardAccruedToUser(
+                    user,
+                    token,
+                    address(market),
+                    newRewards
+                );
+            }
         }
         totalLiquidityPerMarket[market] =
             totalLiquidityPerMarket[market] +

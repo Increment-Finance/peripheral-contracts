@@ -160,7 +160,18 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
-            emit RewardAccruedToUser(user, token, address(market), newRewards);
+            if (newRewards > 0) {
+                rewardsAccruedByUser[user][token] +=
+                    newRewards *
+                    rewardMultiplier;
+                totalUnclaimedRewards[token] += newRewards * rewardMultiplier;
+                emit RewardAccruedToUser(
+                    user,
+                    token,
+                    address(market),
+                    newRewards
+                );
+            }
         }
         // TODO: What if a staking token is removed?
         lpPositionsPerUser[user][market] = newPosition;
