@@ -178,9 +178,11 @@ contract RewardsTest is PerpetualUtils {
         vBase2.setHeartBeat(30 days);
     }
 
-    /* ******************* */
+    /* ******************** */
     /*   RewardController   */
-    /* ******************* */
+    /* ******************** */
+
+    // run tests via source .env && forge test --match <TEST_NAME> --fork-url $ETH_NODE_URI_MAINNET -vv
 
     function testDeployment() public {
         assertEq(
