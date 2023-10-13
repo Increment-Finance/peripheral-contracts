@@ -168,6 +168,7 @@ contract RewardDistributor is
         address market = getMarketAddress(idx);
         uint256 liquidity = totalLiquidityPerMarket[market];
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
+        if (deltaTime == 0) return;
         if (liquidity == 0) {
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
