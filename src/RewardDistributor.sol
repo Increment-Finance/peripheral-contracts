@@ -186,12 +186,9 @@ contract RewardDistributor is
                 rewardInfo.marketWeights[allowlistIdx] == 0
             ) continue;
             uint16 marketWeight = rewardInfo.marketWeights[allowlistIdx];
-            // if (timeOfLastCumRewardUpdate[market] == 0 && marketWeight != 0)
-            //     // shouldn't be possible
-            //     revert RewardDistributor_UninitializedStartTime(market);
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
+            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
                 rewardInfo.inflationRate.div(
                     rewardInfo.reductionFactor.pow(
