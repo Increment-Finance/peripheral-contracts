@@ -215,17 +215,13 @@ contract RewardDistributor is
         address market = getMarketAddress(idx);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = getCurrentPosition(user, market);
-        uint256 prevTotalLiquidity = totalLiquidityPerMarket[market];
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
             /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-            uint256 newRewards = prevTotalLiquidity > 0
-                ? (prevLpPosition *
-                    (cumulativeRewardPerLpToken[token][market] -
-                        cumulativeRewardPerLpTokenPerUser[user][token][
-                            market
-                        ])) / 1e18
-                : 0;
+            uint256 newRewards = (prevLpPosition *
+                (cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
+                1e18;
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
                 if (lastDepositTimeByUserByMarket[user][market] == 0) {
@@ -234,15 +230,13 @@ contract RewardDistributor is
                 }
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
-                if (
-                    block.timestamp -
-                        lastDepositTimeByUserByMarket[user][market] <
-                    earlyWithdrawalThreshold
-                ) {
+                uint256 deltaTime = block.timestamp -
+                    lastDepositTimeByUserByMarket[user][market];
+                if (deltaTime < earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
                     newRewards -=
-                        (newRewards * (prevLpPosition - newLpPosition)) /
-                        prevLpPosition;
+                        (newRewards * (earlyWithdrawalThreshold - deltaTime)) /
+                        earlyWithdrawalThreshold;
                 }
                 if (newLpPosition > 0) {
                     // Reset timer
