@@ -14,15 +14,13 @@ To get started with this project, follow these steps:
    ```
    git submodule update --init
    ```
-3. Create a .env file with an RPC node provider URL (see example.env):
-   ```
-   ETH_NODE_URI_MAINNET="https://mainnet.infura.io/v3/<YOUR_INFURA_KEY>"
-   ```
 
 ## Testing
 
-To run the Foundry tests for this project, you will need a .env file with an RPC node provider API key as shown above. You will also need to have [Foundry](https://book.getfoundry.sh/getting-started/installation) installed. Once you are ready, run the following command from the repo's root directory:
+To run the Foundry tests for this project, you will need an RPC node provider API key and corresponding URL, as shown below. You will also need to have [Foundry](https://book.getfoundry.sh/getting-started/installation) installed. Once you are ready, run the following command from the repo's root directory:
 
 ```
-source .env && forge test --fork-url $ETH_NODE_URI_MAINNET
+source .env && forge test --fork-url https://mainnet.infura.io/v3/<YOUR_INFURA_KEY>
 ```
+
+_Note: if you use some RPC provider other than Infura, just replace the entire URL rather than just the key_
