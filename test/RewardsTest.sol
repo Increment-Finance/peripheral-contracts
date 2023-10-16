@@ -871,11 +871,6 @@ contract RewardsTest is PerpetualUtils {
 
         // remove some liquidity again from first perpetual
         lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
-        /**
-         * This second partial removal often causes a Perpetual_AttemptReversePosition error, though it is unclear why.
-         * The error is not triggered by the first partial removal, nor by the full removal from the second perp.
-         * If the following lines are commented out, see the comment in the first `assertEq` below re: the early withdrawal timer test.
-         */
         console.log(
             "Removing %s% of liquidity from first perpetual again",
             reductionRatio / 1e16
@@ -920,7 +915,7 @@ contract RewardsTest is PerpetualUtils {
                 liquidityProviderTwo,
                 address(perpetual)
             ),
-            block.timestamp - (10 days - 2 * skipTime), // if commenting out the second partial removal, change this to 10 - skipTime
+            block.timestamp - (10 days - 2 * skipTime),
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
