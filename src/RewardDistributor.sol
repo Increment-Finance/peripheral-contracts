@@ -492,7 +492,10 @@ contract RewardDistributor is
     /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
     /// @param idx Index of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
-    function accrueRewards(uint256 idx, address user) public nonReentrant {
+    function accrueRewards(
+        uint256 idx,
+        address user
+    ) public virtual nonReentrant {
         address market = getMarketAddress(idx);
         if (
             block.timestamp <

@@ -179,6 +179,42 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         lpPositionsPerUser[user][market] = newPosition;
     }
 
+    /* ****************** */
+    /*    External User   */
+    /* ****************** */
+
+    function accrueRewards(
+        uint256 idx,
+        address user
+    ) public virtual override nonReentrant {
+        address market = getMarketAddress(idx);
+        uint256 lpPosition = lpPositionsPerUser[user][market];
+        if (lpPosition != getCurrentPosition(user, market))
+            // only occurs if the user has a pre-existing balance and has not registered for rewards,
+            // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
+            revert RewardDistributor_LpPositionMismatch(
+                user,
+                idx,
+                lpPosition,
+                getCurrentPosition(user, market)
+            );
+        if (totalLiquidityPerMarket[market] == 0) return;
+        updateMarketRewards(idx);
+        for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
+            address token = rewardTokensPerMarket[market][i];
+            uint256 newRewards = (lpPosition *
+                (cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
+                1e18;
+            rewardsAccruedByUser[user][token] += newRewards;
+            totalUnclaimedRewards[token] += newRewards;
+            cumulativeRewardPerLpTokenPerUser[user][token][
+                market
+            ] = cumulativeRewardPerLpToken[token][market];
+            emit RewardAccruedToUser(user, token, market, newRewards);
+        }
+    }
+
     /* ******************* */
     /*  Reward Multiplier  */
     /* ******************* */
