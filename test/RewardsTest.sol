@@ -835,12 +835,14 @@ contract RewardsTest is PerpetualUtils {
     function testEarlyWithdrawScenario(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
-        uint256 reductionRatio
+        uint256 reductionRatio,
+        uint256 skipTime
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         reductionRatio = bound(reductionRatio, 1e16, 1e18);
+        skipTime = bound(skipTime, 1 days, 5 days);
         console.log("Reduction Ratio: %s%", reductionRatio / 1e16);
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
@@ -854,8 +856,8 @@ contract RewardsTest is PerpetualUtils {
         uint256 lpBalance2 = perpetual2.getLpLiquidity(liquidityProviderTwo);
 
         // skip some time
-        console.log("Skipping 5 days");
-        skip(5 days);
+        console.log("Skipping %s days", skipTime / 1 days);
+        skip(skipTime);
 
         // remove some liquidity from first perpetual
         console.log(
@@ -878,29 +880,29 @@ contract RewardsTest is PerpetualUtils {
         // console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards1.wadMul(lpBalance1).wadMul(1e18 - reductionRatio),
+            (cumulativeRewards1.wadMul(lpBalance1) * skipTime) / 10 days,
             1e16,
             "Incorrect rewards"
         );
 
         // skip some time again
-        console.log("Skipping 5 more days");
-        skip(5 days);
+        console.log("Skipping %s more days", skipTime / 1 days);
+        skip(skipTime);
 
         // remove some liquidity again from first perpetual
-        // percentOfLiquidity1 = rewardsDistributor
-        //     .lpPositionsPerUser(liquidityProviderTwo, address(perpetual))
-        //     .wadDiv(
-        //         rewardsDistributor.totalLiquidityPerMarket(address(perpetual))
-        //     );
-        // console.log(
-        //     "Removing %s% of liquidity from first perpetual again",
-        //     reductionRatio / 1e16
-        // );
-        // _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
+        lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
+        console.log(
+            "Removing %s% of liquidity from first perpetual again",
+            reductionRatio / 1e16
+        );
+        _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
-        console.log("Removing all liquidity from second perpetual");
+        // skip to the end of the early withdrawal window
+        console.log("Skipping to the end of the early withdrawal window");
+        skip(10 days - 2 * skipTime);
+
         // remove all liquidity from second perpetual
+        console.log("Removing all liquidity from second perpetual");
         _removeAllLiquidity(liquidityProviderTwo, perpetual2);
 
         // check that penalty was applied again, but only for the first perpetual
@@ -921,12 +923,10 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards1.wadMul(lpBalance1).wadMul(
-                1e18 - reductionRatio
-            ) + cumulativeRewards2.wadMul(lpBalance2),
+            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) / 10 days) +
+                cumulativeRewards2.wadMul(lpBalance2),
             1e16,
             "Incorrect rewards"
         );
@@ -935,7 +935,7 @@ contract RewardsTest is PerpetualUtils {
                 liquidityProviderTwo,
                 address(perpetual)
             ),
-            block.timestamp - 5 days, // minus five days because second withdrawal is commented out
+            block.timestamp - (10 days - 2 * skipTime),
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
