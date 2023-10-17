@@ -13,6 +13,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     address public auctionModule;
     IStakedToken[] public stakingTokens;
 
+    /// @notice The maximum percentage of user funds that can be sold at auction, normalized to 1e18
+    uint256 public maxPercentUserLoss;
+
     /// @notice The maximum reward multiplier, scaled by 1e18
     uint256 public maxRewardMultiplier;
 
@@ -41,6 +44,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     constructor(
         address _vault,
         address _auctionModule,
+        uint256 _maxPercentUserLoss,
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
         uint256 _initialInflationRate,
@@ -61,8 +65,12 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     {
         vault = _vault;
         auctionModule = _auctionModule;
+        maxPercentUserLoss = _maxPercentUserLoss;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
+        emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
+        emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
+        emit SmoothingValueUpdated(_smoothingValue);
     }
 
     /* ****************** */
@@ -250,6 +258,18 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*     Governance     */
     /* ****************** */
 
+    function setMaxPercentUserLoss(
+        uint256 _maxPercentUserLoss
+    ) external onlyRole(GOVERNANCE) {
+        if (_maxPercentUserLoss > 1e18)
+            revert SafetyModule_InvalidMaxUserLossTooHigh(
+                _maxPercentUserLoss,
+                1e18
+            );
+        maxPercentUserLoss = _maxPercentUserLoss;
+        emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
+    }
+
     function setMaxRewardMultiplier(
         uint256 _maxRewardMultiplier
     ) external onlyRole(GOVERNANCE) {
@@ -264,6 +284,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 10e18
             );
         maxRewardMultiplier = _maxRewardMultiplier;
+        emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
     }
 
     function setSmoothingValue(
@@ -280,6 +301,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 100e18
             );
         smoothingValue = _smoothingValue;
+        emit SmoothingValueUpdated(_smoothingValue);
     }
 
     function addStakingToken(
@@ -292,5 +314,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 );
         }
         stakingTokens.push(_stakingToken);
+        emit StakingTokenAdded(address(_stakingToken));
     }
 }

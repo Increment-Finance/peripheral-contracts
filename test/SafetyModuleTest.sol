@@ -41,6 +41,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
 
@@ -79,6 +80,7 @@ contract SafetyModuleTest is PerpetualUtils {
         safetyModule = new SafetyModule(
             address(vault),
             address(0),
+            INITIAL_MAX_USER_LOSS,
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
             INITIAL_INFLATION_RATE,

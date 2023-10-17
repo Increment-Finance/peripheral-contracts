@@ -5,9 +5,16 @@ import {IStakedToken} from "./IStakedToken.sol";
 import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
 
 interface ISafetyModule is IStakingContract {
+    event StakingTokenAdded(address indexed stakingToken);
+    event StakingTokenRemoved(address indexed stakingToken);
+    event MaxPercentUserLossUpdated(uint256 maxPercentUserLoss);
+    event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
+    event SmoothingValueUpdated(uint256 smoothingValue);
+
     error SafetyModule_CallerIsNotStakingToken(address caller);
     error SafetyModule_StakingTokenAlreadyRegistered(address stakingToken);
     error SafetyModule_InvalidStakingToken(address stakingToken);
+    error SafetyModule_InvalidMaxUserLossTooHigh(uint256 value, uint256 max);
     error SafetyModule_InvalidMaxMultiplierTooLow(uint256 value, uint256 min);
     error SafetyModule_InvalidMaxMultiplierTooHigh(uint256 value, uint256 max);
     error SafetyModule_InvalidSmoothingValueTooLow(uint256 value, uint256 min);
@@ -24,6 +31,8 @@ interface ISafetyModule is IStakingContract {
     function smoothingValue() external view returns (uint256);
 
     function getStakingTokenIdx(address) external view returns (uint256);
+
+    function setMaxPercentUserLoss(uint256) external;
 
     function setMaxRewardMultiplier(uint256) external;
 
