@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
+// contracts
+import {RewardDistributor} from "./RewardDistributor.sol";
+
+// interfaces
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISafetyModule, IStakingContract} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
-import {RewardDistributor} from "./RewardDistributor.sol";
+
+// libraries
 import {LibMath} from "@increment/lib/LibMath.sol";
+import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 contract SafetyModule is ISafetyModule, RewardDistributor {
     using LibMath for uint256;
+    using PRBMathUD60x18 for uint256;
 
     address public vault;
     address public auctionModule;
@@ -50,17 +58,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor,
         address _rewardToken,
-        address _clearingHouse,
-        address _tokenVault
+        address _tokenVault,
+        uint16[] memory _initialRewardWeights
     )
         RewardDistributor(
             _initialInflationRate,
             _initialReductionFactor,
-            _rewardToken,
-            _clearingHouse,
-            _tokenVault,
-            0,
-            new uint16[](0)
+            _tokenVault
         )
     {
         vault = _vault;
@@ -68,6 +72,26 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         maxPercentUserLoss = _maxPercentUserLoss;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
+        // Add reward token info
+        rewardInfoByToken[_rewardToken] = RewardInfo({
+            token: IERC20Metadata(_rewardToken),
+            initialTimestamp: block.timestamp,
+            inflationRate: _initialInflationRate,
+            reductionFactor: _initialReductionFactor,
+            marketWeights: _initialRewardWeights
+        });
+        for (uint256 i; i < getNumMarkets(); ++i) {
+            uint256 idx = getMarketIdx(i);
+            address market = getMarketAddress(idx);
+            rewardTokensPerMarket[market].push(_rewardToken);
+            timeOfLastCumRewardUpdate[market] = block.timestamp;
+        }
+        emit RewardTokenAdded(
+            _rewardToken,
+            block.timestamp,
+            _initialInflationRate,
+            _initialReductionFactor
+        );
         emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
         emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
         emit SmoothingValueUpdated(_smoothingValue);
@@ -80,6 +104,11 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /// @inheritdoc RewardDistributor
     function getNumMarkets() public view virtual override returns (uint256) {
         return stakingTokens.length;
+    }
+
+    /// @inheritdoc RewardDistributor
+    function getMaxMarketIdx() public view override returns (uint256) {
+        return stakingTokens.length - 1;
     }
 
     /// @inheritdoc RewardDistributor
@@ -221,6 +250,51 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             ] = cumulativeRewardPerLpToken[token][market];
             emit RewardAccruedToUser(user, token, market, newRewards);
         }
+    }
+
+    /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
+    /// @param idx Index of the staking token in stakingTokens
+    /// @param user Address of the user
+    /// @param token Address of the reward token
+    /// @return Amount of new rewards that would be accrued to the user
+    function viewNewRewardAccrual(
+        uint256 idx,
+        address user,
+        address token
+    ) public view override returns (uint256) {
+        address market = getMarketAddress(idx);
+        uint256 lpPosition = lpPositionsPerUser[user][market];
+        if (lpPosition != getCurrentPosition(user, market))
+            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
+            // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
+            revert RewardDistributor_LpPositionMismatch(
+                user,
+                idx,
+                lpPosition,
+                getCurrentPosition(user, market)
+            );
+        uint256 liquidity = totalLiquidityPerMarket[market];
+        if (timeOfLastCumRewardUpdate[market] == 0)
+            revert RewardDistributor_UninitializedStartTime(market);
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
+        if (liquidity == 0) return 0;
+        RewardInfo memory rewardInfo = rewardInfoByToken[token];
+        uint256 totalTimeElapsed = block.timestamp -
+            rewardInfo.initialTimestamp;
+        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+        uint256 inflationRate = rewardInfo.inflationRate.div(
+            rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
+        );
+        uint256 newMarketRewards = (((inflationRate *
+            rewardInfo.marketWeights[idx]) / 10000) * deltaTime) / 365 days;
+        uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
+            market
+        ] + (newMarketRewards * 1e18) / liquidity;
+        uint256 newUserRewards = lpPosition.mul(
+            (newCumRewardPerLpToken -
+                cumulativeRewardPerLpTokenPerUser[user][token][market])
+        );
+        return newUserRewards;
     }
 
     /* ******************* */

@@ -11,7 +11,7 @@ import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
-import "../src/RewardDistributor.sol";
+import "../src/PerpRewardDistributor.sol";
 import {EcosystemReserve, IERC20 as AaveIERC20} from "../src/EcosystemReserve.sol";
 
 // interfaces
@@ -54,7 +54,7 @@ contract RewardsTest is PerpetualUtils {
     IncrementToken public rewardsToken2;
 
     EcosystemReserve public rewardVault;
-    RewardDistributor public rewardsDistributor;
+    PerpRewardDistributor public rewardsDistributor;
 
     function setUp() public virtual override {
         deal(liquidityProviderOne, 100 ether);
@@ -122,7 +122,7 @@ contract RewardsTest is PerpetualUtils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        rewardsDistributor = new RewardDistributor(
+        rewardsDistributor = new PerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
@@ -1367,7 +1367,7 @@ contract RewardsTest is PerpetualUtils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        RewardDistributor newRewardsDistributor = new RewardDistributor(
+        PerpRewardDistributor newRewardsDistributor = new PerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
@@ -1500,7 +1500,7 @@ contract RewardsTest is PerpetualUtils {
         // updateStakingPosition
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_CallerIsNotClearingHouse(address)",
+                "PerpRewardDistributor_CallerIsNotClearingHouse(address)",
                 address(this)
             )
         );
