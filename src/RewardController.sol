@@ -25,7 +25,7 @@ abstract contract RewardController is
     struct RewardInfo {
         IERC20Metadata token; // Address of the reward token
         uint256 initialTimestamp; // Time when the reward token was added
-        uint256 inflationRate; // Amount of reward token emitted per year
+        uint256 initialInflationRate; // Amount of reward token emitted per year
         uint256 reductionFactor; // Factor by which the inflation rate is reduced each year
         uint16[] marketWeights; // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
     }
@@ -124,7 +124,7 @@ abstract contract RewardController is
     function getBaseInflationRate(
         address rewardToken
     ) external view returns (uint256) {
-        return rewardInfoByToken[rewardToken].inflationRate;
+        return rewardInfoByToken[rewardToken].initialInflationRate;
     }
 
     /// Gets the current inflation rate of a reward token (factoring in reduction factor)
@@ -137,7 +137,7 @@ abstract contract RewardController is
         uint256 totalTimeElapsed = block.timestamp -
             rewardInfo.initialTimestamp;
         return
-            rewardInfo.inflationRate.div(
+            rewardInfo.initialInflationRate.div(
                 rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
             );
     }
@@ -232,7 +232,7 @@ abstract contract RewardController is
             uint256 idx = getMarketIdx(i);
             updateMarketRewards(idx);
         }
-        rewardInfoByToken[_token].inflationRate = _newInflationRate;
+        rewardInfoByToken[_token].initialInflationRate = _newInflationRate;
         emit NewInflationRate(_token, _newInflationRate);
     }
 

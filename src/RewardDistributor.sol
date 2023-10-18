@@ -131,7 +131,7 @@ abstract contract RewardDistributor is
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
-                rewardInfo.inflationRate.div(
+                rewardInfo.initialInflationRate.div(
                     rewardInfo.reductionFactor.pow(
                         totalTimeElapsed.div(365 days)
                     )
@@ -207,7 +207,7 @@ abstract contract RewardDistributor is
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             initialTimestamp: block.timestamp,
-            inflationRate: _initialInflationRate,
+            initialInflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
             marketWeights: _marketWeights
         });

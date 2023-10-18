@@ -76,7 +76,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             initialTimestamp: block.timestamp,
-            inflationRate: _initialInflationRate,
+            initialInflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
             marketWeights: _initialRewardWeights
         });
@@ -282,7 +282,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 totalTimeElapsed = block.timestamp -
             rewardInfo.initialTimestamp;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        uint256 inflationRate = rewardInfo.inflationRate.div(
+        uint256 inflationRate = rewardInfo.initialInflationRate.div(
             rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
         );
         uint256 newMarketRewards = (((inflationRate *
