@@ -187,12 +187,9 @@ contract RewardDistributor is
                 rewardInfo.marketWeights[allowlistIdx] == 0
             ) continue;
             uint16 marketWeight = rewardInfo.marketWeights[allowlistIdx];
-            // if (timeOfLastCumRewardUpdate[market] == 0 && marketWeight != 0)
-            //     // shouldn't be possible
-            //     revert RewardDistributor_UninitializedStartTime(market);
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
                 rewardInfo.inflationRate.div(
                     rewardInfo.reductionFactor.pow(
@@ -202,8 +199,10 @@ contract RewardDistributor is
             );
             uint256 newRewards = (((((inflationRate * marketWeight) / 10000) *
                 deltaTime) / 365 days) * 1e18) / liquidity;
-            cumulativeRewardPerLpToken[token][market] += newRewards;
-            emit RewardAccruedToMarket(market, token, newRewards);
+            if (newRewards > 0) {
+                cumulativeRewardPerLpToken[token][market] += newRewards;
+                emit RewardAccruedToMarket(market, token, newRewards);
+            }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[market] = block.timestamp;
@@ -253,12 +252,19 @@ contract RewardDistributor is
                     lastDepositTimeByUserByMarket[user][market] = 0;
                 }
             }
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
-            emit RewardAccruedToUser(user, token, address(market), newRewards);
+            if (newRewards > 0) {
+                rewardsAccruedByUser[user][token] += newRewards;
+                totalUnclaimedRewards[token] += newRewards;
+                emit RewardAccruedToUser(
+                    user,
+                    token,
+                    address(market),
+                    newRewards
+                );
+            }
         }
         totalLiquidityPerMarket[market] =
             totalLiquidityPerMarket[market] +
@@ -486,7 +492,10 @@ contract RewardDistributor is
     /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
     /// @param idx Index of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
-    function accrueRewards(uint256 idx, address user) public nonReentrant {
+    function accrueRewards(
+        uint256 idx,
+        address user
+    ) public virtual nonReentrant {
         address market = getMarketAddress(idx);
         if (
             block.timestamp <
