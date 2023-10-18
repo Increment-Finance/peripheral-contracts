@@ -80,7 +80,7 @@ interface IRewardController {
 
     function getInitialTimestamp(address) external view returns (uint256);
 
-    function getBaseInflationRate(address) external view returns (uint256);
+    function getInitialInflationRate(address) external view returns (uint256);
 
     function getInflationRate(address) external view returns (uint256);
 

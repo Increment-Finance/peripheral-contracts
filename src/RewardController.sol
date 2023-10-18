@@ -121,7 +121,7 @@ abstract contract RewardController is
 
     /// Gets the inflation rate of a reward token (w/o factoring in reduction factor)
     /// @param rewardToken Address of the reward token
-    function getBaseInflationRate(
+    function getInitialInflationRate(
         address rewardToken
     ) external view returns (uint256) {
         return rewardInfoByToken[rewardToken].initialInflationRate;
