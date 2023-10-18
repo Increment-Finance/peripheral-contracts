@@ -68,11 +68,11 @@ abstract contract RewardController is
 
     /// Updates the reward accumulator for a given market
     /// @dev Executes when any of the following variables are changed: inflationRate, marketWeights, liquidity
-    /// @param idx Index of the perpetual market in the ClearingHouse
+    /// @param idx Index of the market
     function updateMarketRewards(uint256 idx) public virtual;
 
     /// Gets the number of markets to be used for reward distribution
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @return Number of markets
     function getNumMarkets() public view virtual returns (uint256);
 
@@ -81,7 +81,7 @@ abstract contract RewardController is
     function getMaxMarketIdx() public view virtual returns (uint256);
 
     /// Gets the address of a market
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the market
     /// @return Address of the market
     function getMarketAddress(
@@ -89,13 +89,13 @@ abstract contract RewardController is
     ) public view virtual returns (address);
 
     /// Gets the index of an allowlisted market
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param i Index of the market in the allowlist ids
     /// @return Index of the market in the market list
     function getMarketIdx(uint256 i) public view virtual returns (uint256);
 
     /// Gets the index of the market in the allowlist
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the market in the market list
     /// @return Index of the market in the allowlist ids
     function getAllowlistIdx(uint256 idx) public view virtual returns (uint256);

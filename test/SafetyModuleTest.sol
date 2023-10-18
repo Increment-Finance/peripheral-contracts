@@ -76,6 +76,10 @@ contract SafetyModuleTest is PerpetualUtils {
         // Deploy the Ecosystem Reserve vault
         rewardVault = new EcosystemReserve(address(this));
 
+        uint16[] memory weights = new uint16[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+
         // Deploy safety module
         safetyModule = new SafetyModule(
             address(vault),
@@ -86,8 +90,8 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
-            address(clearingHouse),
-            address(rewardVault)
+            address(rewardVault),
+            weights
         );
         safetyModule.setMaxRewardMultiplier(INITIAL_MAX_MULTIPLIER);
         safetyModule.setSmoothingValue(INITIAL_SMOOTHING_VALUE);
