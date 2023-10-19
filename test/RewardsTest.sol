@@ -839,6 +839,36 @@ contract RewardsTest is PerpetualUtils {
             accruedRewards2 - 10e18,
             "Incorrect unclaimed rewards"
         );
+
+        // skip some more time
+        skip(10 days);
+
+        // accrue more rewards by adding more liquidity
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+
+        // check that rewards are still accruing for token 2
+        uint256 accruedRewards2_2 = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken2)
+        );
+        assertGt(
+            accruedRewards2_2,
+            accruedRewards2,
+            "Rewards not accrued after adding more liquidity"
+        );
+
+        // fail to claim rewards again after token 2 is depleted
+        rewardsDistributor.claimRewardsFor(liquidityProviderTwo);
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderTwo),
+            10e18,
+            "Tokens claimed after token 2 depleted"
+        );
+        assertEq(
+            rewardsDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            accruedRewards2_2,
+            "Incorrect unclaimed rewards after second accrual"
+        );
     }
 
     function testEarlyWithdrawScenario(
