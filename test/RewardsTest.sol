@@ -507,7 +507,7 @@ contract RewardsTest is PerpetualUtils {
             cumulativeRewards1,
             cumulativeRewards2
         );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1045,7 +1045,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual3)
             );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1173,7 +1173,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1442,9 +1442,8 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , uint256 inflationRate, ) = newRewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
+        (, , , uint256 inflationRate, ) = newRewardsDistributor
+            .rewardInfoByToken(address(rewardsToken));
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual)
         );
@@ -1690,7 +1689,7 @@ contract RewardsTest is PerpetualUtils {
             .cumulativeRewardPerLpToken(token, address(perpetual));
         uint256 cumulativeRewards2 = rewardsDistributor
             .cumulativeRewardPerLpToken(token, address(perpetual2));
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             token
         );
         {

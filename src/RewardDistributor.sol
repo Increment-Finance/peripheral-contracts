@@ -123,6 +123,8 @@ abstract contract RewardDistributor is
             address token = rewardTokensPerMarket[market][i];
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
             if (
+                rewardInfo.paused ||
+                rewardInfo.initialInflationRate == 0 ||
                 allowlistIdx >= rewardInfo.marketWeights.length ||
                 rewardInfo.marketWeights[allowlistIdx] == 0
             ) continue;
@@ -206,6 +208,7 @@ abstract contract RewardDistributor is
         // Add reward token info
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
+            paused: false,
             initialTimestamp: block.timestamp,
             initialInflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
@@ -255,11 +258,12 @@ abstract contract RewardDistributor is
             ? balance - unclaimedAccruals
             : 0;
         // Transfer remaining tokens to governance (which is the sender)
-        IERC20Metadata(_token).safeTransferFrom(
-            tokenVault,
-            msg.sender,
-            unaccruedBalance
-        );
+        if (unaccruedBalance > 0)
+            IERC20Metadata(_token).safeTransferFrom(
+                tokenVault,
+                msg.sender,
+                unaccruedBalance
+            );
         emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
     }
 

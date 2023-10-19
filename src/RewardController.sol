@@ -24,6 +24,7 @@ abstract contract RewardController is
     /// @notice Data structure containing essential info for each reward token
     struct RewardInfo {
         IERC20Metadata token; // Address of the reward token
+        bool paused; // Whether the reward token accrual is paused
         uint256 initialTimestamp; // Time when the reward token was added
         uint256 initialInflationRate; // Amount of reward token emitted per year
         uint256 reductionFactor; // Factor by which the inflation rate is reduced each year
@@ -253,5 +254,23 @@ abstract contract RewardController is
             );
         rewardInfoByToken[_token].reductionFactor = _newReductionFactor;
         emit NewReductionFactor(_token, _newReductionFactor);
+    }
+
+    /* ****************** */
+    /*   Emergency Admin  */
+    /* ****************** */
+
+    /// Pauses/unpauses the reward accrual for a reward token
+    /// @param _token Address of the reward token
+    /// @param _paused Whether to pause or unpause the reward token
+    function setPaused(
+        address _token,
+        bool _paused
+    ) external onlyRole(EMERGENCY_ADMIN) {
+        if (
+            _token == address(0) ||
+            rewardInfoByToken[_token].token != IERC20Metadata(_token)
+        ) revert RewardController_InvalidRewardTokenAddress(_token);
+        rewardInfoByToken[_token].paused = _paused;
     }
 }

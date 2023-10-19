@@ -75,6 +75,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         // Add reward token info
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
+            paused: false,
             initialTimestamp: block.timestamp,
             initialInflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
