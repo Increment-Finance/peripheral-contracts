@@ -357,6 +357,13 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.updateReductionFactor(token, reductionFactor);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_InvalidRewardTokenAddress(address)",
+                token
+            )
+        );
+        rewardsDistributor.setPaused(token, true);
 
         // test max inflation rate & min reduction factor
         console.log(
@@ -988,11 +995,11 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // check that rewards were accrued
-        rewardsDistributor.accrueRewards(liquidityProviderTwo);
-        accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+        rewardsDistributor.claimRewardsFor(
             liquidityProviderTwo,
-            address(rewardsToken)
+            address(perpetual)
         );
+        accruedRewards = rewardsToken.balanceOf(liquidityProviderTwo);
         assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
     }
 
