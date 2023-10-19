@@ -950,6 +950,52 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
+    function testPausingAccrual(uint256 providedLiquidity1) public {
+        /* bounds */
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+
+        // add liquidity to first perpetual
+        fundAndPrepareAccount(
+            liquidityProviderTwo,
+            providedLiquidity1,
+            vault,
+            ua
+        );
+        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+
+        // pause accrual
+        vm.startPrank(address(this));
+        rewardsDistributor.setPaused(address(rewardsToken), true);
+
+        // skip some time
+        skip(10 days);
+
+        // check that no rewards were accrued
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        assertEq(accruedRewards, 0, "Rewards accrued while paused");
+
+        // unpause accrual
+        rewardsDistributor.setPaused(address(rewardsToken), false);
+
+        // skip some more time
+        skip(10 days);
+
+        // check that rewards were accrued
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
+    }
+
     function testAddNewMarket(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
