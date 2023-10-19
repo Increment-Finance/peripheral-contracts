@@ -222,7 +222,7 @@ contract RewardsTest is PerpetualUtils {
             "Initial timestamp mismatch"
         );
         assertEq(
-            rewardsDistributor.getBaseInflationRate(token),
+            rewardsDistributor.getInitialInflationRate(token),
             INITIAL_INFLATION_RATE,
             "Base inflation rate mismatch"
         );
