@@ -171,6 +171,13 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     address(market),
                     newRewards
                 );
+                uint256 rewardTokenBalance = _rewardTokenBalance(token);
+                if (totalUnclaimedRewards[token] > rewardTokenBalance) {
+                    emit RewardTokenShortfall(
+                        token,
+                        totalUnclaimedRewards[token] - rewardTokenBalance
+                    );
+                }
             }
         }
         totalLiquidityPerMarket[market] =

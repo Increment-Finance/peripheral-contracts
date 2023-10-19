@@ -26,10 +26,10 @@ interface IRewardController {
 
     /// Emitted when the contract runs out of a reward token
     /// @param rewardToken the reward token address
-    /// @param unclaimedRewards the amount of reward tokens still claimable
+    /// @param shortfallAmount the amount of reward tokens needed to fulfill all rewards
     event RewardTokenShortfall(
         address indexed rewardToken,
-        uint256 unclaimedRewards
+        uint256 shortfallAmount
     );
 
     /// Emitted when a gauge weight is updated

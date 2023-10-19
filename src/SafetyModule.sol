@@ -210,6 +210,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                     address(market),
                     newRewards
                 );
+                uint256 rewardTokenBalance = _rewardTokenBalance(token);
+                if (totalUnclaimedRewards[token] > rewardTokenBalance) {
+                    emit RewardTokenShortfall(
+                        token,
+                        totalUnclaimedRewards[token] - rewardTokenBalance
+                    );
+                }
             }
         }
         // TODO: What if a staking token is removed?
