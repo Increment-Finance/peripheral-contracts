@@ -222,7 +222,7 @@ contract RewardsTest is PerpetualUtils {
             "Initial timestamp mismatch"
         );
         assertEq(
-            rewardsDistributor.getBaseInflationRate(token),
+            rewardsDistributor.getInitialInflationRate(token),
             INITIAL_INFLATION_RATE,
             "Base inflation rate mismatch"
         );
@@ -357,6 +357,13 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.updateReductionFactor(token, reductionFactor);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_InvalidRewardTokenAddress(address)",
+                token
+            )
+        );
+        rewardsDistributor.setPaused(token, true);
 
         // test max inflation rate & min reduction factor
         console.log(
@@ -507,7 +514,7 @@ contract RewardsTest is PerpetualUtils {
             cumulativeRewards1,
             cumulativeRewards2
         );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -950,6 +957,52 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
+    function testPausingAccrual(uint256 providedLiquidity1) public {
+        /* bounds */
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+
+        // add liquidity to first perpetual
+        fundAndPrepareAccount(
+            liquidityProviderTwo,
+            providedLiquidity1,
+            vault,
+            ua
+        );
+        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+
+        // pause accrual
+        vm.startPrank(address(this));
+        rewardsDistributor.setPaused(address(rewardsToken), true);
+
+        // skip some time
+        skip(10 days);
+
+        // check that no rewards were accrued
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        assertEq(accruedRewards, 0, "Rewards accrued while paused");
+
+        // unpause accrual
+        rewardsDistributor.setPaused(address(rewardsToken), false);
+
+        // skip some more time
+        skip(10 days);
+
+        // check that rewards were accrued
+        rewardsDistributor.claimRewardsFor(
+            liquidityProviderTwo,
+            address(perpetual)
+        );
+        accruedRewards = rewardsToken.balanceOf(liquidityProviderTwo);
+        assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
+    }
+
     function testAddNewMarket(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
@@ -1045,7 +1098,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual3)
             );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1173,7 +1226,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1318,19 +1371,19 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             address(perpetual)
         );
-        uint256 cumulativeRewards3 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual3)
-            );
-        uint256 totalLiquidity3 = rewardsDistributor.totalLiquidityPerMarket(
+        cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual3)
+        );
+        totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual3)
         );
         expectedCumulativeRewards1 =
             (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) /
             totalLiquidity1;
-        uint256 expectedCumulativeRewards3 = (((((inflationRate * 2500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity3;
+        expectedCumulativeRewards2 =
+            (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
+            totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1338,8 +1391,8 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
         assertApproxEqRel(
-            cumulativeRewards3,
-            expectedCumulativeRewards3,
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
         );
@@ -1442,9 +1495,8 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , uint256 inflationRate, ) = newRewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
+        (, , , uint256 inflationRate, ) = newRewardsDistributor
+            .rewardInfoByToken(address(rewardsToken));
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual)
         );
@@ -1690,7 +1742,7 @@ contract RewardsTest is PerpetualUtils {
             .cumulativeRewardPerLpToken(token, address(perpetual));
         uint256 cumulativeRewards2 = rewardsDistributor
             .cumulativeRewardPerLpToken(token, address(perpetual2));
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             token
         );
         {

@@ -43,6 +43,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         // Add reward token info
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
+            paused: false,
             initialTimestamp: block.timestamp,
             initialInflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
@@ -171,6 +172,13 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     address(market),
                     newRewards
                 );
+                uint256 rewardTokenBalance = _rewardTokenBalance(token);
+                if (totalUnclaimedRewards[token] > rewardTokenBalance) {
+                    emit RewardTokenShortfall(
+                        token,
+                        totalUnclaimedRewards[token] - rewardTokenBalance
+                    );
+                }
             }
         }
         totalLiquidityPerMarket[market] =
