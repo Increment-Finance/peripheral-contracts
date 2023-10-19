@@ -271,6 +271,14 @@ abstract contract RewardController is
             _token == address(0) ||
             rewardInfoByToken[_token].token != IERC20Metadata(_token)
         ) revert RewardController_InvalidRewardTokenAddress(_token);
+        if (rewardInfoByToken[_token].paused == false) {
+            // If not currently paused, accrue rewards before pausing
+            uint256 marketsLength = getNumMarkets();
+            for (uint i; i < marketsLength; ++i) {
+                uint256 idx = getMarketIdx(i);
+                updateMarketRewards(idx);
+            }
+        }
         rewardInfoByToken[_token].paused = _paused;
     }
 }
