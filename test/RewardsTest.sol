@@ -1364,19 +1364,19 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             address(perpetual)
         );
-        uint256 cumulativeRewards3 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual3)
-            );
-        uint256 totalLiquidity3 = rewardsDistributor.totalLiquidityPerMarket(
+        cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual3)
+        );
+        totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual3)
         );
         expectedCumulativeRewards1 =
             (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) /
             totalLiquidity1;
-        uint256 expectedCumulativeRewards3 = (((((inflationRate * 2500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity3;
+        expectedCumulativeRewards2 =
+            (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
+            totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1384,8 +1384,8 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
         assertApproxEqRel(
-            cumulativeRewards3,
-            expectedCumulativeRewards3,
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
         );
