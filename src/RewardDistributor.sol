@@ -420,6 +420,7 @@ abstract contract RewardDistributor is
         uint256 _amount
     ) internal returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
+        if (rewardsRemaining == 0) return _amount;
         IERC20Metadata rewardToken = IERC20Metadata(_token);
         if (_amount <= rewardsRemaining) {
             rewardToken.safeTransferFrom(tokenVault, _to, _amount);
