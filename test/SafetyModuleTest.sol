@@ -93,8 +93,6 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardVault),
             weights
         );
-        safetyModule.setMaxRewardMultiplier(INITIAL_MAX_MULTIPLIER);
-        safetyModule.setSmoothingValue(INITIAL_SMOOTHING_VALUE);
 
         // Transfer half of the rewards tokens to the reward vault
         rewardsToken.transfer(
@@ -229,6 +227,11 @@ contract SafetyModuleTest is PerpetualUtils {
     function testDeployment() public {
         assertEq(safetyModule.getNumMarkets(), 2, "Market count mismatch");
         assertEq(
+            safetyModule.getMaxMarketIdx(),
+            1,
+            "Max market index mismatch"
+        );
+        assertEq(
             safetyModule.getMarketAddress(0),
             address(stakedToken1),
             "Market address mismatch"
@@ -348,6 +351,167 @@ contract SafetyModuleTest is PerpetualUtils {
             0,
             "Reward multiplier mismatch after redeeming completely"
         );
+
+        // Test with smoothing value of 60, doubling the time it takes to reach the same multiplier
+        safetyModule.setSmoothingValue(60e18);
+        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch after staking with new smoothing value"
+        );
+        skip(4 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            1.5e18,
+            "Reward multiplier mismatch after increasing smoothing value"
+        );
+
+        // Test with max multiplier of 6, increasing the multiplier by 50%
+        safetyModule.setMaxRewardMultiplier(6e18);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2.25e18,
+            "Reward multiplier mismatch after increasing max multiplier"
+        );
+    }
+
+    function testSafetyModuleErrors(
+        uint256 highMaxUserLoss,
+        uint256 lowMaxMultiplier,
+        uint256 highMaxMultiplier,
+        uint256 lowSmoothingValue,
+        uint256 highSmoothingValue,
+        uint256 invalidMarketIdx,
+        address invalidToken
+    ) public {
+        /* bounds */
+        highMaxUserLoss = bound(highMaxUserLoss, 1e18 + 1, type(uint256).max);
+        lowMaxMultiplier = bound(lowMaxMultiplier, 0, 1e18 - 1);
+        highMaxMultiplier = bound(
+            highMaxMultiplier,
+            10e18 + 1,
+            type(uint256).max
+        );
+        lowSmoothingValue = bound(lowSmoothingValue, 0, 10e18 - 1);
+        highSmoothingValue = bound(
+            highSmoothingValue,
+            100e18 + 1,
+            type(uint256).max
+        );
+        invalidMarketIdx = bound(invalidMarketIdx, 2, type(uint256).max);
+        vm.assume(
+            invalidToken != address(stakedToken1) &&
+                invalidToken != address(stakedToken2)
+        );
+
+        // test governor-controlled params out of bounds
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidMaxUserLossTooHigh(uint256,uint256)",
+                highMaxUserLoss,
+                1e18
+            )
+        );
+        safetyModule.setMaxPercentUserLoss(highMaxUserLoss);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidMaxMultiplierTooLow(uint256,uint256)",
+                lowMaxMultiplier,
+                1e18
+            )
+        );
+        safetyModule.setMaxRewardMultiplier(lowMaxMultiplier);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidMaxMultiplierTooHigh(uint256,uint256)",
+                highMaxMultiplier,
+                10e18
+            )
+        );
+        safetyModule.setMaxRewardMultiplier(highMaxMultiplier);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidSmoothingValueTooLow(uint256,uint256)",
+                lowSmoothingValue,
+                10e18
+            )
+        );
+        safetyModule.setSmoothingValue(lowSmoothingValue);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidSmoothingValueTooHigh(uint256,uint256)",
+                highSmoothingValue,
+                100e18
+            )
+        );
+        safetyModule.setSmoothingValue(highSmoothingValue);
+
+        // test staking token already registered
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_StakingTokenAlreadyRegistered(address)",
+                address(stakedToken1)
+            )
+        );
+        safetyModule.addStakingToken(stakedToken1);
+
+        // test invalid staking token
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidStakingToken(address)",
+                invalidToken
+            )
+        );
+        safetyModule.getStakingTokenIdx(invalidToken);
+
+        // test invalid market index
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.getMarketAddress(invalidMarketIdx);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.getMarketIdx(invalidMarketIdx);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.getAllowlistIdx(invalidMarketIdx);
+        vm.startPrank(address(stakedToken1));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.updateStakingPosition(
+            invalidMarketIdx,
+            liquidityProviderOne
+        );
+        vm.stopPrank();
     }
 
     /* ****************** */
