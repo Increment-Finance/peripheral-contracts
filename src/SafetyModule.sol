@@ -55,44 +55,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _maxPercentUserLoss,
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
-        address _rewardToken,
-        address _tokenVault,
-        uint16[] memory _initialRewardWeights
-    )
-        RewardDistributor(
-            _initialInflationRate,
-            _initialReductionFactor,
-            _tokenVault
-        )
-    {
+        address _tokenVault
+    ) RewardDistributor(_tokenVault) {
         vault = _vault;
         auctionModule = _auctionModule;
         maxPercentUserLoss = _maxPercentUserLoss;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
-        // Add reward token info
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            paused: false,
-            initialTimestamp: block.timestamp,
-            initialInflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            marketWeights: _initialRewardWeights
-        });
-        for (uint256 i; i < getNumMarkets(); ++i) {
-            uint256 idx = getMarketIdx(i);
-            address market = getMarketAddress(idx);
-            rewardTokensPerMarket[market].push(_rewardToken);
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
-        }
-        emit RewardTokenAdded(
-            _rewardToken,
-            block.timestamp,
-            _initialInflationRate,
-            _initialReductionFactor
-        );
         emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
         emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
         emit SmoothingValueUpdated(_smoothingValue);
