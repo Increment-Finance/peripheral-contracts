@@ -157,6 +157,17 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     ) public view virtual override returns (uint256) {
         return IStakedToken(token).balanceOf(staker);
     }
+
+    /// Returns the amount of the user's staking tokens that can be sold at auction
+    /// in the event of an insolvency in the vault that cannot be covered by the insurance fund
+    /// @param staker Address of the user
+    /// @param token Address of the staking token
+    /// @return Balance of the user multiplied by the maxPercentUserLoss
+    function getAuctionableBalance(
+        address staker,
+        address token
+    ) public view virtual returns (uint256) {
+        return getCurrentPosition(staker, token).mul(maxPercentUserLoss);
     }
 
     /* ****************** */
