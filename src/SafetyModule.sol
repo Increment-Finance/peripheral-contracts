@@ -155,7 +155,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address staker,
         address token
     ) public view virtual override returns (uint256) {
-        return IStakedToken(market).balanceOf(lp);
         return IStakedToken(token).balanceOf(staker);
     }
     }
