@@ -147,15 +147,17 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return getMarketIdx(idx);
     }
 
-    /// Returns the current position of the user in the market (i.e., perpetual market)
-    /// @param lp Address of the user
-    /// @param market Address of the market
-    /// @return Current position of the user in the market
+    /// Returns the user's staking token balance
+    /// @param staker Address of the user
+    /// @param token Address of the staking token
+    /// @return Current balance of the user in the staking token
     function getCurrentPosition(
-        address lp,
-        address market
+        address staker,
+        address token
     ) public view virtual override returns (uint256) {
         return IStakedToken(market).balanceOf(lp);
+        return IStakedToken(token).balanceOf(staker);
+    }
     }
 
     /* ****************** */
