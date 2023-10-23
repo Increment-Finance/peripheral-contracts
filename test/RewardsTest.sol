@@ -367,6 +367,19 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
+                "RewardController_AboveMaxInflationRate(uint256,uint256)",
+                inflationRate,
+                5e24
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            inflationRate,
+            reductionFactor,
+            marketWeights
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
                 "RewardController_BelowMinReductionFactor(uint256,uint256)",
                 reductionFactor,
                 1e18
@@ -375,6 +388,19 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.updateReductionFactor(
             address(rewardsToken),
             reductionFactor
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_BelowMinReductionFactor(uint256,uint256)",
+                reductionFactor,
+                1e18
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            INITIAL_INFLATION_RATE,
+            reductionFactor,
+            marketWeights
         );
 
         // test incorrect market weights
