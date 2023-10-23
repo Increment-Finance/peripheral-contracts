@@ -31,13 +31,17 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address _tokenVault,
         uint256 _earlyWithdrawalThreshold,
         uint16[] memory _initialRewardWeights
-    )
-        RewardDistributor(
-            _initialInflationRate,
-            _initialReductionFactor,
-            _tokenVault
-        )
-    {
+    ) RewardDistributor(_tokenVault) {
+        if (_initialInflationRate > MAX_INFLATION_RATE)
+            revert RewardController_AboveMaxInflationRate(
+                _initialInflationRate,
+                MAX_INFLATION_RATE
+            );
+        if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
+            revert RewardController_BelowMinReductionFactor(
+                _initialReductionFactor,
+                MIN_REDUCTION_FACTOR
+            );
         clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info

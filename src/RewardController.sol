@@ -47,22 +47,6 @@ abstract contract RewardController is
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
 
-    constructor(
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor
-    ) {
-        if (_initialInflationRate > MAX_INFLATION_RATE)
-            revert RewardController_AboveMaxInflationRate(
-                _initialInflationRate,
-                MAX_INFLATION_RATE
-            );
-        if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
-            revert RewardController_BelowMinReductionFactor(
-                _initialReductionFactor,
-                MIN_REDUCTION_FACTOR
-            );
-    }
-
     /* ****************** */
     /*      Abstract      */
     /* ****************** */

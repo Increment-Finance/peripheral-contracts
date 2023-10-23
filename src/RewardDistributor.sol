@@ -62,11 +62,7 @@ abstract contract RewardDistributor is
     /// @notice Total LP/staking tokens registered for rewards per market
     mapping(address => uint256) public totalLiquidityPerMarket;
 
-    constructor(
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
-        address _tokenVault
-    ) RewardController(_initialInflationRate, _initialReductionFactor) {
+    constructor(address _tokenVault) {
         tokenVault = _tokenVault;
     }
 
@@ -181,6 +177,16 @@ abstract contract RewardDistributor is
         uint256 _initialReductionFactor,
         uint16[] calldata _marketWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
+        if (_initialInflationRate > MAX_INFLATION_RATE)
+            revert RewardController_AboveMaxInflationRate(
+                _initialInflationRate,
+                MAX_INFLATION_RATE
+            );
+        if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
+            revert RewardController_BelowMinReductionFactor(
+                _initialReductionFactor,
+                MIN_REDUCTION_FACTOR
+            );
         uint256 marketsLength = getNumMarkets();
         if (_marketWeights.length != marketsLength)
             revert RewardController_IncorrectWeightsCount(
