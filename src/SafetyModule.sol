@@ -116,6 +116,11 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function getMarketAddress(
         uint256 index
     ) public view virtual override returns (address) {
+        if (index > getMaxMarketIdx())
+            revert RewardDistributor_InvalidMarketIndex(
+                index,
+                getMaxMarketIdx()
+            );
         return address(stakingTokens[index]);
     }
 
@@ -123,8 +128,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function getMarketIdx(
         uint256 i
     ) public view virtual override returns (uint256) {
-        if (i >= getNumMarkets())
-            revert RewardDistributor_InvalidMarketIndex(i, getNumMarkets());
+        if (i > getMaxMarketIdx())
+            revert RewardDistributor_InvalidMarketIndex(i, getMaxMarketIdx());
         return i;
     }
 
@@ -172,7 +177,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         onlyStakingToken
     {
         if (idx >= getNumMarkets())
-            revert RewardDistributor_InvalidMarketIndex(idx, getNumMarkets());
+            revert RewardDistributor_InvalidMarketIndex(idx, getMaxMarketIdx());
         updateMarketRewards(idx);
         address market = getMarketAddress(idx);
         uint256 prevPosition = lpPositionsPerUser[user][market];
