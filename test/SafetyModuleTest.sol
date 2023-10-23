@@ -87,11 +87,7 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_MAX_USER_LOSS,
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
-            INITIAL_INFLATION_RATE,
-            INITIAL_REDUCTION_FACTOR,
-            address(rewardsToken),
-            address(rewardVault),
-            weights
+            address(rewardVault)
         );
 
         // Transfer half of the rewards tokens to the reward vault
@@ -184,7 +180,12 @@ contract SafetyModuleTest is PerpetualUtils {
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
-        safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+        safetyModule.addRewardToken(
+            address(rewardsToken), 
+            INITIAL_INFLATION_RATE, 
+            INITIAL_REDUCTION_FACTOR, 
+            rewardWeights
+        );
 
         // Approve staking tokens and Balancer vault for users
         vm.startPrank(liquidityProviderOne);
@@ -411,6 +412,130 @@ contract SafetyModuleTest is PerpetualUtils {
             balance2.wadMul(maxPercentUserLoss),
             "Auctionable balance 2 mismatch"
         );
+    }
+
+    function testPreExistingBalance(uint256 maxTokenAmountIntoBalancer) public {
+        // liquidityProvider2 starts with 10,000 INCR and 10 WETH
+        maxTokenAmountIntoBalancer = bound(
+            maxTokenAmountIntoBalancer,
+            100e18,
+            9_000e18
+        );
+
+        // join balancer pool as liquidityProvider2
+        console.log("joining balancer pool");
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = maxTokenAmountIntoBalancer;
+        maxAmountsIn[1] = maxTokenAmountIntoBalancer / 1000;
+        console.log("maxAmountsIn: [%s, %s]", maxAmountsIn[0], maxAmountsIn[1]);
+        _joinBalancerPool(liquidityProviderTwo, maxAmountsIn);
+
+        console.log(
+            "rewards token balance: %s",
+            rewardsToken.balanceOf(liquidityProviderTwo)
+        );
+        console.log(
+            "balancer pool balance: %s",
+            balancerPool.balanceOf(liquidityProviderTwo)
+        );
+
+        // stake as liquidityProvider2
+        console.log("staking");
+        _stake(
+            stakedToken1,
+            liquidityProviderTwo,
+            rewardsToken.balanceOf(liquidityProviderTwo)
+        );
+        _stake(
+            stakedToken2,
+            liquidityProviderTwo,
+            balancerPool.balanceOf(liquidityProviderTwo)
+        );
+        console.log("original safety module lp positions:");
+        console.log(
+            safetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            )
+        );
+        console.log(
+            safetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken2)
+            )
+        );
+
+        // redeploy safety module
+        uint16[] memory weights = new uint16[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+
+        console.log("deploying new safety module");
+        SafetyModule newSafetyModule = new SafetyModule(
+            address(vault),
+            address(0),
+            INITIAL_MAX_USER_LOSS,
+            INITIAL_MAX_MULTIPLIER,
+            INITIAL_SMOOTHING_VALUE,
+            address(rewardVault)
+        );
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken)),
+            address(newSafetyModule),
+            type(uint256).max
+        );
+
+        // add staking tokens to new safety module
+        console.log("adding staking tokens to new safety module");
+        newSafetyModule.addStakingToken(stakedToken1);
+        newSafetyModule.addStakingToken(stakedToken2);
+
+        // connect staking tokens to new safety module
+        console.log("updating safety module in staked tokens");
+        stakedToken1.setSafetyModule(address(newSafetyModule));
+        stakedToken2.setSafetyModule(address(newSafetyModule));
+
+        console.log("new safety module lp positions:");
+        console.log(
+            newSafetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            )
+        );
+        console.log(
+            newSafetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken2)
+            )
+        );
+
+        // skip some time
+        console.log("skipping 10 days");
+        skip(10 days);
+
+        // before registering positions, expect accruing rewards to fail
+        console.log("expecting viewNewRewardAccrual to fail");
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                liquidityProviderTwo,
+                0,
+                0,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            )
+        );
+        newSafetyModule.viewNewRewardAccrual(0, liquidityProviderTwo);
+        console.log("expecting accrueRewards to fail");
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                liquidityProviderTwo,
+                0,
+                0,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            )
+        );
+        newSafetyModule.accrueRewards(liquidityProviderTwo);
     }
 
     function testSafetyModuleErrors(
