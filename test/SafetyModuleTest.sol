@@ -385,6 +385,34 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
+        /* bounds */
+        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
+
+        // Get initial balances
+        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
+        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
+
+        // Set new max percent user loss and check auctionable balances
+        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
+        assertEq(
+            safetyModule.getAuctionableBalance(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            balance1.wadMul(maxPercentUserLoss),
+            "Auctionable balance 1 mismatch"
+        );
+        assertEq(
+            safetyModule.getAuctionableBalance(
+                liquidityProviderOne,
+                address(stakedToken2)
+            ),
+            balance2.wadMul(maxPercentUserLoss),
+            "Auctionable balance 2 mismatch"
+        );
+    }
+
     function testSafetyModuleErrors(
         uint256 highMaxUserLoss,
         uint256 lowMaxMultiplier,
