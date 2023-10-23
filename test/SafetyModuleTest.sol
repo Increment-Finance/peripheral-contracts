@@ -181,9 +181,9 @@ contract SafetyModuleTest is PerpetualUtils {
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         safetyModule.addRewardToken(
-            address(rewardsToken), 
-            INITIAL_INFLATION_RATE, 
-            INITIAL_REDUCTION_FACTOR, 
+            address(rewardsToken),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
             rewardWeights
         );
 
@@ -489,6 +489,15 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("adding staking tokens to new safety module");
         newSafetyModule.addStakingToken(stakedToken1);
         newSafetyModule.addStakingToken(stakedToken2);
+        uint16[] memory rewardWeights = new uint16[](2);
+        rewardWeights[0] = 5000;
+        rewardWeights[1] = 5000;
+        newSafetyModule.addRewardToken(
+            address(rewardsToken),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
+            rewardWeights
+        );
 
         // connect staking tokens to new safety module
         console.log("updating safety module in staked tokens");
