@@ -39,6 +39,11 @@ contract SafetyModuleTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
 
+    event RewardTokenShortfall(
+        address indexed rewardToken,
+        uint256 shortfallAmount
+    );
+
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
@@ -668,6 +673,87 @@ contract SafetyModuleTest is PerpetualUtils {
             expectedCumulativeRewards2,
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
+        );
+    }
+
+    function testRewardTokenShortfall(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Stake only with stakedToken1 for this test
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+
+        // Remove all reward tokens from EcosystemReserve
+        uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
+        rewardVault.transfer(
+            AaveIERC20(address(rewardsToken)),
+            address(this),
+            rewardBalance
+        );
+
+        // Skip some time
+        skip(10 days);
+
+        // Get reward preview
+        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+            0,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Accrue rewards, expecting RewardTokenShortfall event
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
+        safetyModule.accrueRewards(0, liquidityProviderTwo);
+
+        // Skip some more time
+        skip(9 days);
+
+        // Start cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+
+        // Skip cooldown period
+        skip(1 days);
+
+        // Get second reward preview
+        uint256 rewardPreview2 = safetyModule.viewNewRewardAccrual(
+            0,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Redeem stakedToken1, expecting RewardTokenShortfall event
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(
+            address(rewardsToken),
+            rewardPreview + rewardPreview2
+        );
+        stakedToken1.redeem(liquidityProviderTwo, stakeAmount);
+
+        // Try to claim reward tokens, expecting RewardTokenShortfall event
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(
+            address(rewardsToken),
+            rewardPreview + rewardPreview2
+        );
+        safetyModule.claimRewards();
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            10_000e18,
+            "Claimed rewards after shortfall"
+        );
+
+        // Transfer reward tokens back to the EcosystemReserve
+        vm.stopPrank();
+        rewardsToken.transfer(address(rewardVault), rewardBalance);
+
+        // Claim tokens and check that the accrued rewards were distributed
+        safetyModule.claimRewardsFor(liquidityProviderTwo);
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            10_000e18 + rewardPreview + rewardPreview2,
+            "Incorrect rewards after resolving shortfall"
         );
     }
 
