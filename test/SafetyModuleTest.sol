@@ -386,6 +386,79 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    function testMultipliedRewardAccrual(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Stake only with stakedToken1 for this test
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+
+        // Skip some time
+        skip(9 days);
+
+        // Start cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+
+        // Skip cooldown period
+        skip(1 days);
+
+        // Get reward preview
+        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+            0,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Get current reward multiplier
+        uint256 rewardMultiplier = safetyModule.computeRewardMultiplier(
+            liquidityProviderTwo,
+            address(stakedToken1)
+        );
+
+        // Redeem stakedToken1
+        stakedToken1.redeem(liquidityProviderTwo, stakeAmount);
+
+        // Get accrued rewards
+        uint256 accruedRewards = safetyModule.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Check that accrued rewards are equal to reward preview
+        assertEq(
+            accruedRewards,
+            rewardPreview,
+            "Accrued rewards preview mismatch"
+        );
+
+        // Check that accrued rewards equal stake amount times cumulative reward per token times reward multiplier
+        uint256 cumulativeRewardsPerLpToken = safetyModule
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken1)
+            );
+        assertEq(
+            accruedRewards,
+            stakeAmount.wadMul(cumulativeRewardsPerLpToken).wadMul(
+                rewardMultiplier
+            ),
+            "Accrued rewards mismatch"
+        );
+
+        // Check that rewards are not accrued after full redeem
+        skip(10 days);
+        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        assertEq(
+            safetyModule.rewardsAccruedByUser(
+                liquidityProviderTwo,
+                address(rewardsToken)
+            ),
+            accruedRewards,
+            "Accrued more rewards after full redeem"
+        );
+    }
+
     function testAuctionableBalance(uint256 maxPercentUserLoss) public {
         /* bounds */
         maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
@@ -414,7 +487,9 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
-    function testPreExistingBalance(uint256 maxTokenAmountIntoBalancer) public {
+    function testPreExistingBalances(
+        uint256 maxTokenAmountIntoBalancer
+    ) public {
         // liquidityProvider2 starts with 10,000 INCR and 10 WETH
         maxTokenAmountIntoBalancer = bound(
             maxTokenAmountIntoBalancer,
