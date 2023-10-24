@@ -214,6 +214,11 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*    External User   */
     /* ****************** */
 
+    /// Accrues rewards to a user for a given staking token
+    /// @notice Assumes stake position hasn't changed since last accrual
+    /// @dev Updating rewards due to changes in stake position is handled by updateStakingPosition
+    /// @param idx Index of the token in stakingTokens
+    /// @param user Address of the user
     function accrueRewards(
         uint256 idx,
         address user
