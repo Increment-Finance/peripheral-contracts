@@ -191,12 +191,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             if (newRewards > 0) {
                 rewardsAccruedByUser[user][token] += newRewards;
                 totalUnclaimedRewards[token] += newRewards;
-                emit RewardAccruedToUser(
-                    user,
-                    token,
-                    address(market),
-                    newRewards
-                );
+                emit RewardAccruedToUser(user, token, market, newRewards);
                 uint256 rewardTokenBalance = _rewardTokenBalance(token);
                 if (totalUnclaimedRewards[token] > rewardTokenBalance) {
                     emit RewardTokenShortfall(
@@ -245,12 +240,20 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                         cumulativeRewardPerLpTokenPerUser[user][token][market]
                 )
                 .mul(rewardMultiplier);
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
+            if (newRewards == 0) continue;
+            rewardsAccruedByUser[user][token] += newRewards;
+            totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
+            uint256 rewardTokenBalance = _rewardTokenBalance(token);
+            if (totalUnclaimedRewards[token] > rewardTokenBalance) {
+                emit RewardTokenShortfall(
+                    token,
+                    totalUnclaimedRewards[token] - rewardTokenBalance
+                );
+            }
         }
     }
 
