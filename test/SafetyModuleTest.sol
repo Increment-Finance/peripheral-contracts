@@ -545,6 +545,55 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         newSafetyModule.accrueRewards(liquidityProviderTwo);
+
+        // register user positions
+        vm.startPrank(liquidityProviderOne);
+        newSafetyModule.registerPositions();
+        uint256[] memory marketIndexes = new uint256[](2);
+        marketIndexes[0] = 0;
+        marketIndexes[1] = 1;
+        vm.startPrank(liquidityProviderTwo);
+        newSafetyModule.registerPositions(marketIndexes);
+
+        // skip some time
+        skip(10 days);
+
+        // check that rewards were accrued correctly
+
+        newSafetyModule.accrueRewards(liquidityProviderTwo);
+        uint256 cumulativeRewards1 = newSafetyModule.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(stakedToken1)
+        );
+        uint256 cumulativeRewards2 = newSafetyModule.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(stakedToken2)
+        );
+        (, , , uint256 inflationRate, ) = newSafetyModule.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        uint256 totalLiquidity1 = newSafetyModule.totalLiquidityPerMarket(
+            address(stakedToken1)
+        );
+        uint256 totalLiquidity2 = newSafetyModule.totalLiquidityPerMarket(
+            address(stakedToken2)
+        );
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 5000) /
+            10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 5000) /
+            10000) * 20) / 365) * 1e18) / totalLiquidity2;
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
     }
 
     function testSafetyModuleErrors(
