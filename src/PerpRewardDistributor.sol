@@ -135,10 +135,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
             /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-            uint256 newRewards = (prevLpPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
-                1e18;
+            uint256 newRewards = prevLpPosition.mul(
+                cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market]
+            );
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
                 if (lastDepositTimeByUserByMarket[user][market] == 0) {
@@ -231,10 +231,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         updateMarketRewards(idx);
         for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            uint256 newRewards = (lpPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
-                1e18;
+            uint256 newRewards = lpPosition.mul(
+                cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market]
+            );
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
