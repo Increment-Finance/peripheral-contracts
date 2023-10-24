@@ -170,11 +170,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-            /// newRewards does not include multiplier yet
-            uint256 newRewards = prevPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market]);
+            /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
+            uint256 newRewards = prevPosition
+                .mul(
+                    cumulativeRewardPerLpToken[token][market] -
+                        cumulativeRewardPerLpTokenPerUser[user][token][market]
+                )
+                .mul(rewardMultiplier);
             if (newPosition < prevPosition || prevPosition == 0) {
                 // Removed stake or staked for the first time - need to reset multiplier
                 if (newPosition > 0) {
@@ -187,10 +189,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 market
             ] = cumulativeRewardPerLpToken[token][market];
             if (newRewards > 0) {
-                rewardsAccruedByUser[user][token] +=
-                    newRewards *
-                    rewardMultiplier;
-                totalUnclaimedRewards[token] += newRewards * rewardMultiplier;
+                rewardsAccruedByUser[user][token] += newRewards;
+                totalUnclaimedRewards[token] += newRewards;
                 emit RewardAccruedToUser(
                     user,
                     token,
@@ -231,12 +231,15 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             );
         if (totalLiquidityPerMarket[market] == 0) return;
         updateMarketRewards(idx);
+        uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            uint256 newRewards = (lpPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
-                1e18;
+            uint256 newRewards = lpPosition
+                .mul(
+                    cumulativeRewardPerLpToken[token][market] -
+                        cumulativeRewardPerLpTokenPerUser[user][token][market]
+                )
+                .mul(rewardMultiplier);
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             cumulativeRewardPerLpTokenPerUser[user][token][
@@ -267,11 +270,10 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 lpPosition,
                 getCurrentPosition(user, market)
             );
-        uint256 liquidity = totalLiquidityPerMarket[market];
         if (timeOfLastCumRewardUpdate[market] == 0)
             revert RewardDistributor_UninitializedStartTime(market);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
-        if (liquidity == 0) return 0;
+        if (totalLiquidityPerMarket[market] == 0) return 0;
         RewardInfo memory rewardInfo = rewardInfoByToken[token];
         uint256 totalTimeElapsed = block.timestamp -
             rewardInfo.initialTimestamp;
@@ -283,12 +285,14 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             rewardInfo.marketWeights[idx]) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
             market
-        ] + (newMarketRewards * 1e18) / liquidity;
-        uint256 newUserRewards = lpPosition.mul(
-            (newCumRewardPerLpToken -
-                cumulativeRewardPerLpTokenPerUser[user][token][market])
-        );
-        return newUserRewards;
+        ] + (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];
+        return
+            lpPosition
+                .mul(
+                    (newCumRewardPerLpToken -
+                        cumulativeRewardPerLpTokenPerUser[user][token][market])
+                )
+                .mul(computeRewardMultiplier(user, market));
     }
 
     /* ******************* */
