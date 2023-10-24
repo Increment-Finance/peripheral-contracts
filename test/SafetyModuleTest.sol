@@ -757,6 +757,57 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    function testStakedTokenZeroLiquidity() public {
+        // Deploy a third staked token
+        StakedToken stakedToken3 = new StakedToken(
+            rewardsToken,
+            safetyModule,
+            1 days,
+            10 days,
+            "Staked INCR 2",
+            "stINCR2"
+        );
+
+        // Add the third staked token to the safety module
+        safetyModule.addStakingToken(stakedToken3);
+
+        // Update the reward weights
+        uint16[] memory rewardWeights = new uint16[](3);
+        rewardWeights[0] = 3333;
+        rewardWeights[1] = 3334;
+        rewardWeights[2] = 3333;
+        safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+
+        // Check that rewardToken was added to the list of reward tokens for the new staked token
+        assertEq(
+            safetyModule.rewardTokensPerMarket(address(stakedToken3), 0),
+            address(rewardsToken),
+            "Reward token missing for new staked token"
+        );
+
+        // Skip some time
+        skip(10 days);
+
+        // Get reward preview, expecting it to be 0
+        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+            2,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        assertEq(rewardPreview, 0, "Reward preview should be 0");
+
+        // Accrue rewards, expecting it to accrue 0 rewards
+        safetyModule.accrueRewards(2, liquidityProviderTwo);
+        assertEq(
+            safetyModule.rewardsAccruedByUser(
+                liquidityProviderTwo,
+                address(rewardsToken)
+            ),
+            0,
+            "Rewards should be 0"
+        );
+    }
+
     function testSafetyModuleErrors(
         uint256 highMaxUserLoss,
         uint256 lowMaxMultiplier,
