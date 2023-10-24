@@ -278,8 +278,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 lpPosition,
                 getCurrentPosition(user, market)
             );
-        if (timeOfLastCumRewardUpdate[market] == 0)
-            revert RewardDistributor_UninitializedStartTime(market);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
         if (totalLiquidityPerMarket[market] == 0) return 0;
         RewardInfo memory rewardInfo = rewardInfoByToken[token];
@@ -388,12 +386,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         IStakedToken _stakingToken
     ) external onlyRole(GOVERNANCE) {
         for (uint i; i < stakingTokens.length; ++i) {
-            if (address(stakingTokens[i]) == address(_stakingToken))
+            if (stakingTokens[i] == _stakingToken)
                 revert SafetyModule_StakingTokenAlreadyRegistered(
                     address(_stakingToken)
                 );
         }
         stakingTokens.push(_stakingToken);
+        timeOfLastCumRewardUpdate[address(_stakingToken)] = block.timestamp;
         emit StakingTokenAdded(address(_stakingToken));
     }
 }
