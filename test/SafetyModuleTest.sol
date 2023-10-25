@@ -808,6 +808,143 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    function testStakedTokenTransfer(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Stake only with stakedToken1 for this test
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+
+        // Get initial stake balances
+        uint256 initialBalance1 = stakedToken1.balanceOf(liquidityProviderOne);
+        uint256 initialBalance2 = stakedToken1.balanceOf(liquidityProviderTwo);
+
+        // Skip some time
+        skip(5 days);
+
+        // After 5 days, both users should have 2x multiplier (given smoothing value of 30 and max multiplier of 4)
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch: user 1"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch: user 2"
+        );
+
+        // Transfer all of user 1's stakedToken1 to user 2
+        vm.startPrank(liquidityProviderOne);
+        // Start cooldown period for the sake of test coverage
+        stakedToken1.cooldown();
+        stakedToken1.transfer(liquidityProviderTwo, initialBalance1);
+        vm.stopPrank();
+
+        // Check that both users accrued rewards according to their initial balances and multipliers
+        uint256 accruedRewards1 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderOne,
+            address(rewardsToken)
+        );
+        uint256 accruedRewards2 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        uint256 cumRewardsPerLpToken = safetyModule.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(stakedToken1)
+        );
+        assertEq(
+            accruedRewards1,
+            initialBalance1.wadMul(cumRewardsPerLpToken).wadMul(2e18),
+            "Accrued rewards mismatch: user 1"
+        );
+        assertEq(
+            accruedRewards2,
+            initialBalance2.wadMul(cumRewardsPerLpToken).wadMul(2e18),
+            "Accrued rewards mismatch: user 2"
+        );
+
+        // Check that user 1's multiplier is now 0, while user 2's is still 2
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Reward multiplier mismatch after transfer: user 1"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch after transfer: user 2"
+        );
+
+        // Claim rewards for both users
+        safetyModule.claimRewardsFor(liquidityProviderOne);
+        safetyModule.claimRewardsFor(liquidityProviderTwo);
+
+        // Skip some more time
+        skip(5 days);
+
+        // After 10 days, user 2's multiplier should be 2.5, while user 1's is still 0
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Reward multiplier mismatch after 10 days: user 1"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2.5e18,
+            "Reward multiplier mismatch after 10 days: user 2"
+        );
+
+        // Check that user 2 accrues rewards according to their new balance and multiplier, while user 1 accrues no rewards
+        safetyModule.accrueRewards(0, liquidityProviderOne);
+        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        accruedRewards1 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderOne,
+            address(rewardsToken)
+        );
+        accruedRewards2 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        cumRewardsPerLpToken =
+            safetyModule.cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken1)
+            ) -
+            cumRewardsPerLpToken;
+        assertEq(
+            accruedRewards1,
+            0,
+            "Accrued rewards mismatch after 10 days: user 1"
+        );
+        assertEq(
+            accruedRewards2,
+            (initialBalance1 + initialBalance2)
+                .wadMul(cumRewardsPerLpToken)
+                .wadMul(2.5e18),
+            "Accrued rewards mismatch after 10 days: user 2"
+        );
+    }
+
     function testSafetyModuleErrors(
         uint256 highMaxUserLoss,
         uint256 lowMaxMultiplier,
