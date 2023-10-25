@@ -945,6 +945,124 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    function testNextCooldownTimestamp() public {
+        // When user first stakes, next cooldown timestamp should be 0
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                0,
+                100e18,
+                liquidityProviderOne,
+                stakedToken1.balanceOf(liquidityProviderOne)
+            ),
+            0,
+            "Next cooldown timestamp should be 0 after first staking"
+        );
+
+        // Activate cooldown period
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        uint256 fromCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderOne
+        );
+        assertEq(
+            fromCooldownTimestamp,
+            block.timestamp,
+            "Cooldown timestamp mismatch"
+        );
+
+        // Wait for cooldown period and unstake window to pass
+        skip(20 days);
+
+        // When user's cooldown timestamp is less than minimal valid timestamp, next cooldown timestamp should be 0
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderOne,
+                stakedToken1.balanceOf(liquidityProviderOne)
+            ),
+            0,
+            "Next cooldown timestamp should be 0 when cooldown timestamp is less than minimal valid timestamp"
+        );
+
+        // Test with different from and to addresses
+        _stake(stakedToken1, liquidityProviderTwo, 100e18);
+
+        // Reset user 1 cooldown timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderOne
+        );
+
+        // Skip user 1 cooldown period
+        skip(1 days);
+
+        // Activate user 2 cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        uint256 toCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderTwo
+        );
+
+        // If user 1's cooldown timestamp is less than user 2's, next cooldown timestamp should be user 2's
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderTwo,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            ),
+            toCooldownTimestamp,
+            "Next cooldown timestamp should be user 2's when user 1's cooldown timestamp is less than user 2's"
+        );
+
+        // Reset user 1 cooldown timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderOne
+        );
+
+        // If user 1's cooldown timestamp is greater than or equal to user 2's, next cooldown timestamp should be weighted average
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderTwo,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            ),
+            (100e18 * fromCooldownTimestamp + (100e18 * toCooldownTimestamp)) /
+                (100e18 + 100e18),
+            "Next cooldown timestamp should be weighted average when user 1's cooldown timestamp is greater than or equal to user 2's"
+        );
+        skip(20 days);
+
+        // Reset user 2 cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        toCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderTwo
+        );
+        skip(1 days);
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderTwo,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            ),
+            (100e18 * block.timestamp + (100e18 * toCooldownTimestamp)) /
+                (100e18 + 100e18),
+            "block.timestamp should be used for fromCooldownTimestamp when computing weighted average after cooldown period and unstake window have passed"
+        );
+    }
+
     function testSafetyModuleErrors(
         uint256 highMaxUserLoss,
         uint256 lowMaxMultiplier,
