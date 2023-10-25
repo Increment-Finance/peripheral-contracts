@@ -937,6 +937,60 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.stopPrank();
     }
 
+    function testStakedTokenErrors() public {
+        // test zero amount
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.stake(liquidityProviderOne, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.redeem(liquidityProviderOne, 0);
+
+        // test zero balance
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()")
+        );
+        stakedToken1.cooldown();
+
+        // test insufficient cooldown
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        uint256 cooldownStartTimestamp = block.timestamp;
+        uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_InsufficientCooldown(uint256)",
+                cooldownStartTimestamp + 1 days
+            )
+        );
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+
+        // test unstake window finished
+        skip(20 days);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_UnstakeWindowFinished(uint256)",
+                cooldownStartTimestamp + 11 days
+            )
+        );
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        // redeem correctly
+        stakedToken1.cooldown();
+        skip(1 days);
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        // restake, then try redeeming without cooldown
+        stakedToken1.stake(liquidityProviderOne, stakedBalance);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_UnstakeWindowFinished(uint256)",
+                11 days
+            )
+        );
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+    }
+
     /* ****************** */
     /*  Helper Functions  */
     /* ****************** */
