@@ -30,11 +30,18 @@ import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 // libraries
 import "increment-protocol/lib/LibMath.sol";
 import "increment-protocol/lib/LibPerpetual.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import {console2 as console} from "forge/console2.sol";
 
 contract RewardsTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
+
+    event NewFundsAdmin(address indexed fundsAdmin);
+    event EcosystemReserveUpdated(
+        address prevEcosystemReserve,
+        address newEcosystemReserve
+    );
 
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
@@ -53,7 +60,7 @@ contract RewardsTest is PerpetualUtils {
     IncrementToken public rewardsToken;
     IncrementToken public rewardsToken2;
 
-    EcosystemReserve public rewardVault;
+    EcosystemReserve public ecosystemReserve;
     PerpRewardDistributor public rewardsDistributor;
 
     function setUp() public virtual override {
@@ -110,7 +117,7 @@ contract RewardsTest is PerpetualUtils {
         clearingHouse.allowListPerpetual(perpetual2);
 
         // Deploy the Ecosystem Reserve vault
-        rewardVault = new EcosystemReserve(address(this));
+        ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy rewards tokens and distributor
         rewardsToken = new IncrementToken(20000000e18, address(this));
@@ -127,23 +134,26 @@ contract RewardsTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
-            address(rewardVault),
+            address(ecosystemReserve),
             10 days,
             weights
         );
 
         // Transfer all rewards tokens to the vault and approve the distributor
-        rewardsToken.transfer(address(rewardVault), rewardsToken.totalSupply());
+        rewardsToken.transfer(
+            address(ecosystemReserve),
+            rewardsToken.totalSupply()
+        );
         rewardsToken2.transfer(
-            address(rewardVault),
+            address(ecosystemReserve),
             rewardsToken2.totalSupply()
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken)),
             address(rewardsDistributor),
             type(uint256).max
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken2)),
             address(rewardsDistributor),
             type(uint256).max
@@ -668,7 +678,7 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect claimed balance"
         );
         assertEq(
-            rewardsToken2.balanceOf(address(rewardVault)),
+            rewardsToken2.balanceOf(address(ecosystemReserve)),
             accruedRewards21,
             "Incorrect remaining accrued balance"
         );
@@ -715,10 +725,10 @@ contract RewardsTest is PerpetualUtils {
             marketWeights
         );
         rewardsToken2.transfer(
-            address(rewardVault),
+            address(ecosystemReserve),
             rewardsToken2.totalSupply()
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken2)),
             address(rewardsDistributor),
             type(uint256).max
@@ -1391,17 +1401,17 @@ contract RewardsTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
-            address(rewardVault),
+            address(ecosystemReserve),
             10 days,
             weights
         );
         vm.startPrank(address(this));
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken)),
             address(newRewardsDistributor),
             type(uint256).max
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken2)),
             address(newRewardsDistributor),
             type(uint256).max
@@ -1686,6 +1696,55 @@ contract RewardsTest is PerpetualUtils {
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
         rewardsDistributor.claimRewards();
+    }
+
+    function testEcosystemReserve() public {
+        // access control errors
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(bytes("ONLY_BY_FUNDS_ADMIN"));
+        ecosystemReserve.transferAdmin(liquidityProviderOne);
+        vm.expectRevert(
+            bytes(
+                string(
+                    abi.encodePacked(
+                        "AccessControl: account ",
+                        Strings.toHexString(liquidityProviderOne),
+                        " is missing role ",
+                        Strings.toHexString(
+                            uint256(keccak256("GOVERNANCE")),
+                            32
+                        )
+                    )
+                )
+            )
+        );
+        rewardsDistributor.setEcosystemReserve(address(ecosystemReserve));
+        vm.stopPrank();
+
+        // invalid address errors
+        vm.expectRevert(abi.encodeWithSignature("InvalidAdmin()"));
+        ecosystemReserve.transferAdmin(address(0));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidEcosystemReserve(address)",
+                address(0)
+            )
+        );
+        rewardsDistributor.setEcosystemReserve(address(0));
+
+        // no errors
+        EcosystemReserve newEcosystemReserve = new EcosystemReserve(
+            address(this)
+        );
+        vm.expectEmit(false, false, false, true);
+        emit NewFundsAdmin(address(this));
+        ecosystemReserve.transferAdmin(address(this));
+        vm.expectEmit(false, false, false, true);
+        emit EcosystemReserveUpdated(
+            address(ecosystemReserve),
+            address(newEcosystemReserve)
+        );
+        rewardsDistributor.setEcosystemReserve(address(newEcosystemReserve));
     }
 
     /* ****************** */
