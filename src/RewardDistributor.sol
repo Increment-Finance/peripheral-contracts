@@ -276,7 +276,11 @@ abstract contract RewardDistributor is
     function setEcosystemReserve(
         address _ecosystemReserve
     ) external onlyRole(GOVERNANCE) {
+        if (_ecosystemReserve == address(0))
+            revert RewardDistributor_InvalidEcosystemReserve(_ecosystemReserve);
+        address prevEcosystemReserve = ecosystemReserve;
         ecosystemReserve = _ecosystemReserve;
+        emit EcosystemReserveUpdated(prevEcosystemReserve, _ecosystemReserve);
     }
 
     /* ****************** */

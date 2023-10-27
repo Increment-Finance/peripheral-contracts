@@ -49,6 +49,14 @@ interface IRewardDistributor {
         uint256 prevPosition,
         uint256 newPosition
     );
+
+    /// Emitted when the address of the ecosystem reserve for storing reward tokens is updated
+    /// @param newEcosystemReserve Address of the new ecosystem reserve
+    event EcosystemReserveUpdated(
+        address prevEcosystemReserve,
+        address newEcosystemReserve
+    );
+
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error RewardDistributor_MarketIndexNotAllowlisted(uint256 index);
     error RewardDistributor_UninitializedStartTime(address gauge);
@@ -70,6 +78,7 @@ interface IRewardDistributor {
         uint256 prevPosition,
         uint256 newPosition
     );
+    error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
 
     function getCurrentPosition(
         address,
@@ -84,6 +93,8 @@ interface IRewardDistributor {
     ) external;
 
     function removeRewardToken(address) external;
+
+    function setEcosystemReserve(address) external;
 
     function registerPositions() external;
 
