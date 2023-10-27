@@ -55,8 +55,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _maxPercentUserLoss,
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
-        address _tokenVault
-    ) RewardDistributor(_tokenVault) {
+        address _ecosystemReserve
+    ) RewardDistributor(_ecosystemReserve) {
         vault = _vault;
         auctionModule = _auctionModule;
         maxPercentUserLoss = _maxPercentUserLoss;

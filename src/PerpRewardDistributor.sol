@@ -28,10 +28,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 _initialReductionFactor,
         address _rewardToken,
         address _clearingHouse,
-        address _tokenVault,
+        address _ecosystemReserve,
         uint256 _earlyWithdrawalThreshold,
         uint16[] memory _initialRewardWeights
-    ) RewardDistributor(_tokenVault) {
+    ) RewardDistributor(_ecosystemReserve) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
                 _initialInflationRate,

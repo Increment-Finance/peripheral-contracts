@@ -26,8 +26,8 @@ abstract contract RewardDistributor is
     using SafeERC20 for IERC20Metadata;
     using PRBMathUD60x18 for uint256;
 
-    /// @notice Address of the token vault
-    address public tokenVault;
+    /// @notice Address of the reward token vault
+    address public ecosystemReserve;
 
     /// @notice Rewards accrued and not yet claimed by user
     /// @dev First address is user, second is reward token
@@ -62,8 +62,8 @@ abstract contract RewardDistributor is
     /// @notice Total LP/staking tokens registered for rewards per market
     mapping(address => uint256) public totalLiquidityPerMarket;
 
-    constructor(address _tokenVault) {
-        tokenVault = _tokenVault;
+    constructor(address _ecosystemReserve) {
+        ecosystemReserve = _ecosystemReserve;
     }
 
     /* ****************** */
@@ -266,11 +266,17 @@ abstract contract RewardDistributor is
         // Transfer remaining tokens to governance (which is the sender)
         if (unaccruedBalance > 0)
             IERC20Metadata(_token).safeTransferFrom(
-                tokenVault,
+                ecosystemReserve,
                 msg.sender,
                 unaccruedBalance
             );
         emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
+    }
+
+    function setEcosystemReserve(
+        address _ecosystemReserve
+    ) external onlyRole(GOVERNANCE) {
+        ecosystemReserve = _ecosystemReserve;
     }
 
     /* ****************** */
@@ -429,11 +435,15 @@ abstract contract RewardDistributor is
         if (rewardsRemaining == 0) return _amount;
         IERC20Metadata rewardToken = IERC20Metadata(_token);
         if (_amount <= rewardsRemaining) {
-            rewardToken.safeTransferFrom(tokenVault, _to, _amount);
+            rewardToken.safeTransferFrom(ecosystemReserve, _to, _amount);
             totalUnclaimedRewards[_token] -= _amount;
             return 0;
         } else {
-            rewardToken.safeTransferFrom(tokenVault, _to, rewardsRemaining);
+            rewardToken.safeTransferFrom(
+                ecosystemReserve,
+                _to,
+                rewardsRemaining
+            );
             totalUnclaimedRewards[_token] -= rewardsRemaining;
             return _amount - rewardsRemaining;
         }
@@ -443,6 +453,6 @@ abstract contract RewardDistributor is
         address _token
     ) internal view returns (uint256) {
         IERC20Metadata rewardToken = IERC20Metadata(_token);
-        return rewardToken.balanceOf(tokenVault);
+        return rewardToken.balanceOf(ecosystemReserve);
     }
 }
