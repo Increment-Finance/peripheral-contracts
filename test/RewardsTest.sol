@@ -1454,9 +1454,9 @@ contract RewardsTest is PerpetualUtils {
         // before registering positions, expect accruing rewards to fail
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 0,
                 perpetual.getLpLiquidity(liquidityProviderTwo)
             )
@@ -1467,9 +1467,9 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 0,
                 perpetual.getLpLiquidity(liquidityProviderTwo)
             )
@@ -1631,9 +1631,9 @@ contract RewardsTest is PerpetualUtils {
         skip(5 days);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,uint256,uint256)",
+                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 block.timestamp + 5 days
             )
         );
@@ -1643,7 +1643,7 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,uint256,uint256)",
+                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
                 liquidityProviderTwo,
                 address(perpetual),
                 block.timestamp + 5 days
