@@ -39,6 +39,11 @@ contract SafetyModuleTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
 
+    event RewardTokenShortfall(
+        address indexed rewardToken,
+        uint256 shortfallAmount
+    );
+
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
@@ -76,6 +81,10 @@ contract SafetyModuleTest is PerpetualUtils {
         // Deploy the Ecosystem Reserve vault
         rewardVault = new EcosystemReserve(address(this));
 
+        uint16[] memory weights = new uint16[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+
         // Deploy safety module
         safetyModule = new SafetyModule(
             address(vault),
@@ -83,14 +92,8 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_MAX_USER_LOSS,
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
-            INITIAL_INFLATION_RATE,
-            INITIAL_REDUCTION_FACTOR,
-            address(rewardsToken),
-            address(clearingHouse),
             address(rewardVault)
         );
-        safetyModule.setMaxRewardMultiplier(INITIAL_MAX_MULTIPLIER);
-        safetyModule.setSmoothingValue(INITIAL_SMOOTHING_VALUE);
 
         // Transfer half of the rewards tokens to the reward vault
         rewardsToken.transfer(
@@ -182,7 +185,12 @@ contract SafetyModuleTest is PerpetualUtils {
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
-        safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+        safetyModule.addRewardToken(
+            address(rewardsToken),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
+            rewardWeights
+        );
 
         // Approve staking tokens and Balancer vault for users
         vm.startPrank(liquidityProviderOne);
@@ -224,6 +232,11 @@ contract SafetyModuleTest is PerpetualUtils {
 
     function testDeployment() public {
         assertEq(safetyModule.getNumMarkets(), 2, "Market count mismatch");
+        assertEq(
+            safetyModule.getMaxMarketIdx(),
+            1,
+            "Max market index mismatch"
+        );
         assertEq(
             safetyModule.getMarketAddress(0),
             address(stakedToken1),
@@ -344,6 +357,893 @@ contract SafetyModuleTest is PerpetualUtils {
             0,
             "Reward multiplier mismatch after redeeming completely"
         );
+
+        // Test with smoothing value of 60, doubling the time it takes to reach the same multiplier
+        safetyModule.setSmoothingValue(60e18);
+        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch after staking with new smoothing value"
+        );
+        skip(4 days);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            1.5e18,
+            "Reward multiplier mismatch after increasing smoothing value"
+        );
+
+        // Test with max multiplier of 6, increasing the multiplier by 50%
+        safetyModule.setMaxRewardMultiplier(6e18);
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2.25e18,
+            "Reward multiplier mismatch after increasing max multiplier"
+        );
+    }
+
+    function testMultipliedRewardAccrual(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Stake only with stakedToken1 for this test
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+
+        // Skip some time
+        skip(9 days);
+
+        // Start cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+
+        // Skip cooldown period
+        skip(1 days);
+
+        // Get reward preview
+        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+            0,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Get current reward multiplier
+        uint256 rewardMultiplier = safetyModule.computeRewardMultiplier(
+            liquidityProviderTwo,
+            address(stakedToken1)
+        );
+
+        // Redeem stakedToken1
+        stakedToken1.redeem(liquidityProviderTwo, stakeAmount);
+
+        // Get accrued rewards
+        uint256 accruedRewards = safetyModule.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Check that accrued rewards are equal to reward preview
+        assertEq(
+            accruedRewards,
+            rewardPreview,
+            "Accrued rewards preview mismatch"
+        );
+
+        // Check that accrued rewards equal stake amount times cumulative reward per token times reward multiplier
+        uint256 cumulativeRewardsPerLpToken = safetyModule
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken1)
+            );
+        assertEq(
+            accruedRewards,
+            stakeAmount.wadMul(cumulativeRewardsPerLpToken).wadMul(
+                rewardMultiplier
+            ),
+            "Accrued rewards mismatch"
+        );
+
+        // Check that rewards are not accrued after full redeem
+        skip(10 days);
+        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        assertEq(
+            safetyModule.rewardsAccruedByUser(
+                liquidityProviderTwo,
+                address(rewardsToken)
+            ),
+            accruedRewards,
+            "Accrued more rewards after full redeem"
+        );
+    }
+
+    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
+        /* bounds */
+        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
+
+        // Get initial balances
+        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
+        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
+
+        // Set new max percent user loss and check auctionable balances
+        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
+        assertEq(
+            safetyModule.getAuctionableBalance(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            balance1.wadMul(maxPercentUserLoss),
+            "Auctionable balance 1 mismatch"
+        );
+        assertEq(
+            safetyModule.getAuctionableBalance(
+                liquidityProviderOne,
+                address(stakedToken2)
+            ),
+            balance2.wadMul(maxPercentUserLoss),
+            "Auctionable balance 2 mismatch"
+        );
+    }
+
+    function testPreExistingBalances(
+        uint256 maxTokenAmountIntoBalancer
+    ) public {
+        // liquidityProvider2 starts with 10,000 INCR and 10 WETH
+        maxTokenAmountIntoBalancer = bound(
+            maxTokenAmountIntoBalancer,
+            100e18,
+            9_000e18
+        );
+
+        // join balancer pool as liquidityProvider2
+        console.log("joining balancer pool");
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = maxTokenAmountIntoBalancer;
+        maxAmountsIn[1] = maxTokenAmountIntoBalancer / 1000;
+        console.log("maxAmountsIn: [%s, %s]", maxAmountsIn[0], maxAmountsIn[1]);
+        _joinBalancerPool(liquidityProviderTwo, maxAmountsIn);
+
+        console.log(
+            "rewards token balance: %s",
+            rewardsToken.balanceOf(liquidityProviderTwo)
+        );
+        console.log(
+            "balancer pool balance: %s",
+            balancerPool.balanceOf(liquidityProviderTwo)
+        );
+
+        // stake as liquidityProvider2
+        console.log("staking");
+        _stake(
+            stakedToken1,
+            liquidityProviderTwo,
+            rewardsToken.balanceOf(liquidityProviderTwo)
+        );
+        _stake(
+            stakedToken2,
+            liquidityProviderTwo,
+            balancerPool.balanceOf(liquidityProviderTwo)
+        );
+        console.log("original safety module lp positions:");
+        console.log(
+            safetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            )
+        );
+        console.log(
+            safetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken2)
+            )
+        );
+
+        // redeploy safety module
+        uint16[] memory weights = new uint16[](2);
+        weights[0] = 5000;
+        weights[1] = 5000;
+
+        console.log("deploying new safety module");
+        SafetyModule newSafetyModule = new SafetyModule(
+            address(vault),
+            address(0),
+            INITIAL_MAX_USER_LOSS,
+            INITIAL_MAX_MULTIPLIER,
+            INITIAL_SMOOTHING_VALUE,
+            address(rewardVault)
+        );
+        rewardVault.approve(
+            AaveIERC20(address(rewardsToken)),
+            address(newSafetyModule),
+            type(uint256).max
+        );
+
+        // add staking tokens to new safety module
+        console.log("adding staking tokens to new safety module");
+        newSafetyModule.addStakingToken(stakedToken1);
+        newSafetyModule.addStakingToken(stakedToken2);
+        uint16[] memory rewardWeights = new uint16[](2);
+        rewardWeights[0] = 5000;
+        rewardWeights[1] = 5000;
+        newSafetyModule.addRewardToken(
+            address(rewardsToken),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
+            rewardWeights
+        );
+
+        // connect staking tokens to new safety module
+        console.log("updating safety module in staked tokens");
+        stakedToken1.setSafetyModule(address(newSafetyModule));
+        stakedToken2.setSafetyModule(address(newSafetyModule));
+
+        console.log("new safety module lp positions:");
+        console.log(
+            newSafetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            )
+        );
+        console.log(
+            newSafetyModule.lpPositionsPerUser(
+                liquidityProviderTwo,
+                address(stakedToken2)
+            )
+        );
+
+        // skip some time
+        console.log("skipping 10 days");
+        skip(10 days);
+
+        // before registering positions, expect accruing rewards to fail
+        console.log("expecting viewNewRewardAccrual to fail");
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                liquidityProviderTwo,
+                0,
+                0,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            )
+        );
+        newSafetyModule.viewNewRewardAccrual(0, liquidityProviderTwo);
+        console.log("expecting accrueRewards to fail");
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                liquidityProviderTwo,
+                0,
+                0,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            )
+        );
+        newSafetyModule.accrueRewards(liquidityProviderTwo);
+
+        // register user positions
+        vm.startPrank(liquidityProviderOne);
+        newSafetyModule.registerPositions();
+        uint256[] memory marketIndexes = new uint256[](2);
+        marketIndexes[0] = 0;
+        marketIndexes[1] = 1;
+        vm.startPrank(liquidityProviderTwo);
+        newSafetyModule.registerPositions(marketIndexes);
+
+        // skip some time
+        skip(10 days);
+
+        // check that rewards were accrued correctly
+
+        newSafetyModule.accrueRewards(liquidityProviderTwo);
+        uint256 cumulativeRewards1 = newSafetyModule.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(stakedToken1)
+        );
+        uint256 cumulativeRewards2 = newSafetyModule.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(stakedToken2)
+        );
+        (, , , uint256 inflationRate, ) = newSafetyModule.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        uint256 totalLiquidity1 = newSafetyModule.totalLiquidityPerMarket(
+            address(stakedToken1)
+        );
+        uint256 totalLiquidity2 = newSafetyModule.totalLiquidityPerMarket(
+            address(stakedToken2)
+        );
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 5000) /
+            10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 5000) /
+            10000) * 20) / 365) * 1e18) / totalLiquidity2;
+        assertApproxEqRel(
+            cumulativeRewards1,
+            expectedCumulativeRewards1,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+        assertApproxEqRel(
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
+            5e16, // 5%, accounts for reduction factor
+            "Incorrect cumulative rewards"
+        );
+    }
+
+    function testRewardTokenShortfall(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Stake only with stakedToken1 for this test
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+
+        // Remove all reward tokens from EcosystemReserve
+        uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
+        rewardVault.transfer(
+            AaveIERC20(address(rewardsToken)),
+            address(this),
+            rewardBalance
+        );
+
+        // Skip some time
+        skip(10 days);
+
+        // Get reward preview
+        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+            0,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Accrue rewards, expecting RewardTokenShortfall event
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
+        safetyModule.accrueRewards(0, liquidityProviderTwo);
+
+        // Skip some more time
+        skip(9 days);
+
+        // Start cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+
+        // Skip cooldown period
+        skip(1 days);
+
+        // Get second reward preview
+        uint256 rewardPreview2 = safetyModule.viewNewRewardAccrual(
+            0,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Redeem stakedToken1, expecting RewardTokenShortfall event
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(
+            address(rewardsToken),
+            rewardPreview + rewardPreview2
+        );
+        stakedToken1.redeem(liquidityProviderTwo, stakeAmount);
+
+        // Try to claim reward tokens, expecting RewardTokenShortfall event
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(
+            address(rewardsToken),
+            rewardPreview + rewardPreview2
+        );
+        safetyModule.claimRewards();
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            10_000e18,
+            "Claimed rewards after shortfall"
+        );
+
+        // Transfer reward tokens back to the EcosystemReserve
+        vm.stopPrank();
+        rewardsToken.transfer(address(rewardVault), rewardBalance);
+
+        // Claim tokens and check that the accrued rewards were distributed
+        safetyModule.claimRewardsFor(liquidityProviderTwo);
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            10_000e18 + rewardPreview + rewardPreview2,
+            "Incorrect rewards after resolving shortfall"
+        );
+    }
+
+    function testStakedTokenZeroLiquidity() public {
+        // Deploy a third staked token
+        StakedToken stakedToken3 = new StakedToken(
+            rewardsToken,
+            safetyModule,
+            1 days,
+            10 days,
+            "Staked INCR 2",
+            "stINCR2"
+        );
+
+        // Add the third staked token to the safety module
+        safetyModule.addStakingToken(stakedToken3);
+
+        // Update the reward weights
+        uint16[] memory rewardWeights = new uint16[](3);
+        rewardWeights[0] = 3333;
+        rewardWeights[1] = 3334;
+        rewardWeights[2] = 3333;
+        safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+
+        // Check that rewardToken was added to the list of reward tokens for the new staked token
+        assertEq(
+            safetyModule.rewardTokensPerMarket(address(stakedToken3), 0),
+            address(rewardsToken),
+            "Reward token missing for new staked token"
+        );
+
+        // Skip some time
+        skip(10 days);
+
+        // Get reward preview, expecting it to be 0
+        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+            2,
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        assertEq(rewardPreview, 0, "Reward preview should be 0");
+
+        // Accrue rewards, expecting it to accrue 0 rewards
+        safetyModule.accrueRewards(2, liquidityProviderTwo);
+        assertEq(
+            safetyModule.rewardsAccruedByUser(
+                liquidityProviderTwo,
+                address(rewardsToken)
+            ),
+            0,
+            "Rewards should be 0"
+        );
+    }
+
+    function testStakedTokenTransfer(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Stake only with stakedToken1 for this test
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+
+        // Get initial stake balances
+        uint256 initialBalance1 = stakedToken1.balanceOf(liquidityProviderOne);
+        uint256 initialBalance2 = stakedToken1.balanceOf(liquidityProviderTwo);
+
+        // Skip some time
+        skip(5 days);
+
+        // After 5 days, both users should have 2x multiplier (given smoothing value of 30 and max multiplier of 4)
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch: user 1"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch: user 2"
+        );
+
+        // Transfer all of user 1's stakedToken1 to user 2
+        vm.startPrank(liquidityProviderOne);
+        // Start cooldown period for the sake of test coverage
+        stakedToken1.cooldown();
+        stakedToken1.transfer(liquidityProviderTwo, initialBalance1);
+        vm.stopPrank();
+
+        // Check that both users accrued rewards according to their initial balances and multipliers
+        uint256 accruedRewards1 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderOne,
+            address(rewardsToken)
+        );
+        uint256 accruedRewards2 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        uint256 cumRewardsPerLpToken = safetyModule.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(stakedToken1)
+        );
+        assertEq(
+            accruedRewards1,
+            initialBalance1.wadMul(cumRewardsPerLpToken).wadMul(2e18),
+            "Accrued rewards mismatch: user 1"
+        );
+        assertEq(
+            accruedRewards2,
+            initialBalance2.wadMul(cumRewardsPerLpToken).wadMul(2e18),
+            "Accrued rewards mismatch: user 2"
+        );
+
+        // Check that user 1's multiplier is now 0, while user 2's is still 2
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Reward multiplier mismatch after transfer: user 1"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2e18,
+            "Reward multiplier mismatch after transfer: user 2"
+        );
+
+        // Claim rewards for both users
+        safetyModule.claimRewardsFor(liquidityProviderOne);
+        safetyModule.claimRewardsFor(liquidityProviderTwo);
+
+        // Skip some more time
+        skip(5 days);
+
+        // After 10 days, user 2's multiplier should be 2.5, while user 1's is still 0
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderOne,
+                address(stakedToken1)
+            ),
+            0,
+            "Reward multiplier mismatch after 10 days: user 1"
+        );
+        assertEq(
+            safetyModule.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            2.5e18,
+            "Reward multiplier mismatch after 10 days: user 2"
+        );
+
+        // Check that user 2 accrues rewards according to their new balance and multiplier, while user 1 accrues no rewards
+        safetyModule.accrueRewards(0, liquidityProviderOne);
+        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        accruedRewards1 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderOne,
+            address(rewardsToken)
+        );
+        accruedRewards2 = safetyModule.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        cumRewardsPerLpToken =
+            safetyModule.cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken1)
+            ) -
+            cumRewardsPerLpToken;
+        assertEq(
+            accruedRewards1,
+            0,
+            "Accrued rewards mismatch after 10 days: user 1"
+        );
+        assertEq(
+            accruedRewards2,
+            (initialBalance1 + initialBalance2)
+                .wadMul(cumRewardsPerLpToken)
+                .wadMul(2.5e18),
+            "Accrued rewards mismatch after 10 days: user 2"
+        );
+    }
+
+    function testNextCooldownTimestamp() public {
+        // When user first stakes, next cooldown timestamp should be 0
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                0,
+                100e18,
+                liquidityProviderOne,
+                stakedToken1.balanceOf(liquidityProviderOne)
+            ),
+            0,
+            "Next cooldown timestamp should be 0 after first staking"
+        );
+
+        // Activate cooldown period
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        uint256 fromCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderOne
+        );
+        assertEq(
+            fromCooldownTimestamp,
+            block.timestamp,
+            "Cooldown timestamp mismatch"
+        );
+
+        // Wait for cooldown period and unstake window to pass
+        skip(20 days);
+
+        // When user's cooldown timestamp is less than minimal valid timestamp, next cooldown timestamp should be 0
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderOne,
+                stakedToken1.balanceOf(liquidityProviderOne)
+            ),
+            0,
+            "Next cooldown timestamp should be 0 when cooldown timestamp is less than minimal valid timestamp"
+        );
+
+        // Test with different from and to addresses
+        _stake(stakedToken1, liquidityProviderTwo, 100e18);
+
+        // Reset user 1 cooldown timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderOne
+        );
+
+        // Skip user 1 cooldown period
+        skip(1 days);
+
+        // Activate user 2 cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        uint256 toCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderTwo
+        );
+
+        // If user 1's cooldown timestamp is less than user 2's, next cooldown timestamp should be user 2's
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderTwo,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            ),
+            toCooldownTimestamp,
+            "Next cooldown timestamp should be user 2's when user 1's cooldown timestamp is less than user 2's"
+        );
+
+        // Reset user 1 cooldown timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderOne
+        );
+
+        // If user 1's cooldown timestamp is greater than or equal to user 2's, next cooldown timestamp should be weighted average
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderTwo,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            ),
+            (100e18 * fromCooldownTimestamp + (100e18 * toCooldownTimestamp)) /
+                (100e18 + 100e18),
+            "Next cooldown timestamp should be weighted average when user 1's cooldown timestamp is greater than or equal to user 2's"
+        );
+        skip(20 days);
+
+        // Reset user 2 cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        toCooldownTimestamp = stakedToken1.stakersCooldowns(
+            liquidityProviderTwo
+        );
+        skip(1 days);
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(
+                fromCooldownTimestamp,
+                100e18,
+                liquidityProviderTwo,
+                stakedToken1.balanceOf(liquidityProviderTwo)
+            ),
+            (100e18 * block.timestamp + (100e18 * toCooldownTimestamp)) /
+                (100e18 + 100e18),
+            "block.timestamp should be used for fromCooldownTimestamp when computing weighted average after cooldown period and unstake window have passed"
+        );
+    }
+
+    function testSafetyModuleErrors(
+        uint256 highMaxUserLoss,
+        uint256 lowMaxMultiplier,
+        uint256 highMaxMultiplier,
+        uint256 lowSmoothingValue,
+        uint256 highSmoothingValue,
+        uint256 invalidMarketIdx,
+        address invalidToken
+    ) public {
+        /* bounds */
+        highMaxUserLoss = bound(highMaxUserLoss, 1e18 + 1, type(uint256).max);
+        lowMaxMultiplier = bound(lowMaxMultiplier, 0, 1e18 - 1);
+        highMaxMultiplier = bound(
+            highMaxMultiplier,
+            10e18 + 1,
+            type(uint256).max
+        );
+        lowSmoothingValue = bound(lowSmoothingValue, 0, 10e18 - 1);
+        highSmoothingValue = bound(
+            highSmoothingValue,
+            100e18 + 1,
+            type(uint256).max
+        );
+        invalidMarketIdx = bound(invalidMarketIdx, 2, type(uint256).max);
+        vm.assume(
+            invalidToken != address(stakedToken1) &&
+                invalidToken != address(stakedToken2)
+        );
+
+        // test governor-controlled params out of bounds
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidMaxUserLossTooHigh(uint256,uint256)",
+                highMaxUserLoss,
+                1e18
+            )
+        );
+        safetyModule.setMaxPercentUserLoss(highMaxUserLoss);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidMaxMultiplierTooLow(uint256,uint256)",
+                lowMaxMultiplier,
+                1e18
+            )
+        );
+        safetyModule.setMaxRewardMultiplier(lowMaxMultiplier);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidMaxMultiplierTooHigh(uint256,uint256)",
+                highMaxMultiplier,
+                10e18
+            )
+        );
+        safetyModule.setMaxRewardMultiplier(highMaxMultiplier);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidSmoothingValueTooLow(uint256,uint256)",
+                lowSmoothingValue,
+                10e18
+            )
+        );
+        safetyModule.setSmoothingValue(lowSmoothingValue);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidSmoothingValueTooHigh(uint256,uint256)",
+                highSmoothingValue,
+                100e18
+            )
+        );
+        safetyModule.setSmoothingValue(highSmoothingValue);
+
+        // test staking token already registered
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_StakingTokenAlreadyRegistered(address)",
+                address(stakedToken1)
+            )
+        );
+        safetyModule.addStakingToken(stakedToken1);
+
+        // test invalid staking token
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidStakingToken(address)",
+                invalidToken
+            )
+        );
+        safetyModule.getStakingTokenIdx(invalidToken);
+
+        // test invalid market index
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.getMarketAddress(invalidMarketIdx);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.getMarketIdx(invalidMarketIdx);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.getAllowlistIdx(invalidMarketIdx);
+        vm.startPrank(address(stakedToken1));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+                invalidMarketIdx,
+                1
+            )
+        );
+        safetyModule.updateStakingPosition(
+            invalidMarketIdx,
+            liquidityProviderOne
+        );
+        vm.stopPrank();
+    }
+
+    function testStakedTokenErrors() public {
+        // test zero amount
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.stake(liquidityProviderOne, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.redeem(liquidityProviderOne, 0);
+
+        // test zero balance
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()")
+        );
+        stakedToken1.cooldown();
+
+        // test insufficient cooldown
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        uint256 cooldownStartTimestamp = block.timestamp;
+        uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_InsufficientCooldown(uint256)",
+                cooldownStartTimestamp + 1 days
+            )
+        );
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+
+        // test unstake window finished
+        skip(20 days);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_UnstakeWindowFinished(uint256)",
+                cooldownStartTimestamp + 11 days
+            )
+        );
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        // redeem correctly
+        stakedToken1.cooldown();
+        skip(1 days);
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        // restake, then try redeeming without cooldown
+        stakedToken1.stake(liquidityProviderOne, stakedBalance);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_UnstakeWindowFinished(uint256)",
+                11 days
+            )
+        );
+        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
     }
 
     /* ****************** */

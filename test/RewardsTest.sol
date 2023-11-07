@@ -11,7 +11,7 @@ import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
-import "../src/RewardDistributor.sol";
+import "../src/PerpRewardDistributor.sol";
 import {EcosystemReserve, IERC20 as AaveIERC20} from "../src/EcosystemReserve.sol";
 
 // interfaces
@@ -30,11 +30,18 @@ import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 // libraries
 import "increment-protocol/lib/LibMath.sol";
 import "increment-protocol/lib/LibPerpetual.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import {console2 as console} from "forge/console2.sol";
 
 contract RewardsTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
+
+    event NewFundsAdmin(address indexed fundsAdmin);
+    event EcosystemReserveUpdated(
+        address prevEcosystemReserve,
+        address newEcosystemReserve
+    );
 
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
@@ -53,8 +60,8 @@ contract RewardsTest is PerpetualUtils {
     IncrementToken public rewardsToken;
     IncrementToken public rewardsToken2;
 
-    EcosystemReserve public rewardVault;
-    RewardDistributor public rewardsDistributor;
+    EcosystemReserve public ecosystemReserve;
+    PerpRewardDistributor public rewardsDistributor;
 
     function setUp() public virtual override {
         deal(liquidityProviderOne, 100 ether);
@@ -110,7 +117,7 @@ contract RewardsTest is PerpetualUtils {
         clearingHouse.allowListPerpetual(perpetual2);
 
         // Deploy the Ecosystem Reserve vault
-        rewardVault = new EcosystemReserve(address(this));
+        ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy rewards tokens and distributor
         rewardsToken = new IncrementToken(20000000e18, address(this));
@@ -122,28 +129,31 @@ contract RewardsTest is PerpetualUtils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        rewardsDistributor = new RewardDistributor(
+        rewardsDistributor = new PerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
-            address(rewardVault),
+            address(ecosystemReserve),
             10 days,
             weights
         );
 
         // Transfer all rewards tokens to the vault and approve the distributor
-        rewardsToken.transfer(address(rewardVault), rewardsToken.totalSupply());
+        rewardsToken.transfer(
+            address(ecosystemReserve),
+            rewardsToken.totalSupply()
+        );
         rewardsToken2.transfer(
-            address(rewardVault),
+            address(ecosystemReserve),
             rewardsToken2.totalSupply()
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken)),
             address(rewardsDistributor),
             type(uint256).max
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken2)),
             address(rewardsDistributor),
             type(uint256).max
@@ -151,8 +161,6 @@ contract RewardsTest is PerpetualUtils {
 
         // initial liquidity
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
-        console.log("User 1's provided liquidity in perp 1: %s", 10_000e18);
-        console.log("User 1's provided liquidity in perp 2: %s", 10_000e18);
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
         rewardsDistributor.registerPositions();
@@ -222,7 +230,7 @@ contract RewardsTest is PerpetualUtils {
             "Initial timestamp mismatch"
         );
         assertEq(
-            rewardsDistributor.getBaseInflationRate(token),
+            rewardsDistributor.getInitialInflationRate(token),
             INITIAL_INFLATION_RATE,
             "Base inflation rate mismatch"
         );
@@ -271,7 +279,6 @@ contract RewardsTest is PerpetualUtils {
 
         // Keeper bot will ensure that market rewards are updated every month at least
         timeIncrement = bound(timeIncrement, 1 days, 7 days);
-        console.log("Time increment: %s days", timeIncrement / 1 days);
         uint256 endYear = block.timestamp + 365 days;
         uint256 updatesPerYear = 365 days / timeIncrement;
 
@@ -327,9 +334,6 @@ contract RewardsTest is PerpetualUtils {
         vm.startPrank(address(this));
 
         // test wrong token address
-        console.log(
-            "updateRewardWeights: RewardController_InvalidRewardTokenAddress"
-        );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_InvalidRewardTokenAddress(address)",
@@ -337,9 +341,6 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.updateRewardWeights(token, marketWeights);
-        console.log(
-            "updateInflationRate: RewardController_InvalidRewardTokenAddress"
-        );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_InvalidRewardTokenAddress(address)",
@@ -347,9 +348,6 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.updateInflationRate(token, inflationRate);
-        console.log(
-            "updateReductionFactor: RewardController_InvalidRewardTokenAddress"
-        );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_InvalidRewardTokenAddress(address)",
@@ -357,11 +355,15 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.updateReductionFactor(token, reductionFactor);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_InvalidRewardTokenAddress(address)",
+                token
+            )
+        );
+        rewardsDistributor.setPaused(token, true);
 
         // test max inflation rate & min reduction factor
-        console.log(
-            "updateInflationRate: RewardController_AboveMaxInflationRate"
-        );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_AboveMaxInflationRate(uint256,uint256)",
@@ -373,8 +375,18 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             inflationRate
         );
-        console.log(
-            "updateReductionFactor: RewardController_BelowMinReductionFactor"
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_AboveMaxInflationRate(uint256,uint256)",
+                inflationRate,
+                5e24
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            inflationRate,
+            reductionFactor,
+            marketWeights
         );
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -387,11 +399,21 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             reductionFactor
         );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_BelowMinReductionFactor(uint256,uint256)",
+                reductionFactor,
+                1e18
+            )
+        );
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken),
+            INITIAL_INFLATION_RATE,
+            reductionFactor,
+            marketWeights
+        );
 
         // test incorrect market weights
-        console.log(
-            "updateRewardWeights: RewardController_IncorrectWeightsCount"
-        );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_IncorrectWeightsCount(uint256,uint256)",
@@ -406,15 +428,7 @@ contract RewardsTest is PerpetualUtils {
         uint16[] memory marketWeights2 = new uint16[](2);
         marketWeights2[0] = marketWeights[0];
         marketWeights2[1] = marketWeights[1];
-        console.log(
-            "market weights: [%s, %s]",
-            marketWeights2[0],
-            marketWeights2[1]
-        );
         if (marketWeights2[0] > 10000) {
-            console.log(
-                "updateRewardWeights: RewardController_WeightExceedsMax"
-            );
             vm.expectRevert(
                 abi.encodeWithSignature(
                     "RewardController_WeightExceedsMax(uint16,uint16)",
@@ -423,9 +437,6 @@ contract RewardsTest is PerpetualUtils {
                 )
             );
         } else if (marketWeights[1] > 10000) {
-            console.log(
-                "updateRewardWeights: RewardController_WeightExceedsMax"
-            );
             vm.expectRevert(
                 abi.encodeWithSignature(
                     "RewardController_WeightExceedsMax(uint16,uint16)",
@@ -434,9 +445,6 @@ contract RewardsTest is PerpetualUtils {
                 )
             );
         } else {
-            console.log(
-                "updateRewardWeights: RewardController_IncorrectWeightsSum"
-            );
             vm.expectRevert(
                 abi.encodeWithSignature(
                     "RewardController_IncorrectWeightsSum(uint16,uint16)",
@@ -470,7 +478,6 @@ contract RewardsTest is PerpetualUtils {
         );
 
         // skip some time
-        console.log("Skipping 10 days");
         skip(10 days);
 
         uint256 priorTotalLiquidity1 = rewardsDistributor
@@ -482,7 +489,6 @@ contract RewardsTest is PerpetualUtils {
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // skip some more time
-        console.log("Skipping 10 more days");
         skip(10 days);
 
         // check rewards for user 1 with initial liquidity 10_000e18
@@ -502,12 +508,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        console.log(
-            "Cumulative rewards per LP token: [%s, %s]",
-            cumulativeRewards1,
-            cumulativeRewards2
-        );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -528,11 +529,6 @@ contract RewardsTest is PerpetualUtils {
             totalLiquidity2 +
             (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
             priorTotalLiquidity2;
-        console.log(
-            "Expected cumulative rewards per LP token: [%s, %s]",
-            expectedCumulativeRewards1,
-            expectedCumulativeRewards2
-        );
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -546,11 +542,6 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
 
-        console.log(
-            "Total liquidity per market: [%s, %s]",
-            totalLiquidity1,
-            totalLiquidity2
-        );
         uint256 lpBalance1 = rewardsDistributor.getCurrentPosition(
             liquidityProviderOne,
             address(perpetual)
@@ -559,26 +550,11 @@ contract RewardsTest is PerpetualUtils {
             liquidityProviderOne,
             address(perpetual2)
         );
-        console.log(
-            "liquidityProviderOne balance per market: [%s, %s]",
-            lpBalance1,
-            lpBalance2
-        );
 
         uint256 expectedAccruedRewards1 = (cumulativeRewards1 * lpBalance1) /
             1e18;
         uint256 expectedAccruedRewards2 = (cumulativeRewards2 * lpBalance2) /
             1e18;
-        console.log(
-            "Expected accrued rewards: [%s, %s]",
-            expectedAccruedRewards1,
-            expectedAccruedRewards2
-        );
-        console.log(
-            "Expected total accrued rewards: %s",
-            expectedAccruedRewards1 + expectedAccruedRewards2
-        );
-        console.log("Actual total accrued rewards: %s", accruedRewards);
         assertApproxEqRel(
             accruedRewards,
             expectedAccruedRewards1 + expectedAccruedRewards2,
@@ -617,13 +593,6 @@ contract RewardsTest is PerpetualUtils {
         uint16[] memory marketWeights = new uint16[](2);
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
-        console.log("Inflation Rate: %s", inflationRate2);
-        console.log("Reduction Factor: %s", reductionFactor2);
-        console.log(
-            "Market Weights: [%s, %s]",
-            marketWeights[0],
-            marketWeights[1]
-        );
         rewardsDistributor.addRewardToken(
             address(rewardsToken2),
             inflationRate2,
@@ -709,7 +678,7 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect claimed balance"
         );
         assertEq(
-            rewardsToken2.balanceOf(address(rewardVault)),
+            rewardsToken2.balanceOf(address(ecosystemReserve)),
             accruedRewards21,
             "Incorrect remaining accrued balance"
         );
@@ -747,13 +716,6 @@ contract RewardsTest is PerpetualUtils {
         uint16[] memory marketWeights = new uint16[](2);
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
-        console.log("Inflation Rate: %s", inflationRate2);
-        console.log("Reduction Factor: %s", reductionFactor2);
-        console.log(
-            "Market Weights: [%s, %s]",
-            marketWeights[0],
-            marketWeights[1]
-        );
         rewardsToken2 = new IncrementToken(10e18, address(this));
         rewardsToken2.unpause();
         rewardsDistributor.addRewardToken(
@@ -763,10 +725,10 @@ contract RewardsTest is PerpetualUtils {
             marketWeights
         );
         rewardsToken2.transfer(
-            address(rewardVault),
+            address(ecosystemReserve),
             rewardsToken2.totalSupply()
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken2)),
             address(rewardsDistributor),
             type(uint256).max
@@ -832,6 +794,36 @@ contract RewardsTest is PerpetualUtils {
             accruedRewards2 - 10e18,
             "Incorrect unclaimed rewards"
         );
+
+        // skip some more time
+        skip(10 days);
+
+        // accrue more rewards by adding more liquidity
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+
+        // check that rewards are still accruing for token 2
+        uint256 accruedRewards2_2 = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken2)
+        );
+        assertGt(
+            accruedRewards2_2,
+            accruedRewards2,
+            "Rewards not accrued after adding more liquidity"
+        );
+
+        // fail to claim rewards again after token 2 is depleted
+        rewardsDistributor.claimRewardsFor(liquidityProviderTwo);
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderTwo),
+            10e18,
+            "Tokens claimed after token 2 depleted"
+        );
+        assertEq(
+            rewardsDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            accruedRewards2_2,
+            "Incorrect unclaimed rewards after second accrual"
+        );
     }
 
     function testEarlyWithdrawScenario(
@@ -845,7 +837,6 @@ contract RewardsTest is PerpetualUtils {
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         reductionRatio = bound(reductionRatio, 1e16, 1e18);
         skipTime = bound(skipTime, 1 days, 5 days);
-        console.log("Reduction Ratio: %s%", reductionRatio / 1e16);
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
         );
@@ -858,7 +849,6 @@ contract RewardsTest is PerpetualUtils {
         uint256 lpBalance2 = perpetual2.getLpLiquidity(liquidityProviderTwo);
 
         // skip some time
-        console.log("Skipping %s days", skipTime / 1 days);
         skip(skipTime);
 
         // remove some liquidity from first perpetual
@@ -888,23 +878,16 @@ contract RewardsTest is PerpetualUtils {
         );
 
         // skip some time again
-        console.log("Skipping %s more days", skipTime / 1 days);
         skip(skipTime);
 
         // remove some liquidity again from first perpetual
         lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
-        console.log(
-            "Removing %s% of liquidity from first perpetual again",
-            reductionRatio / 1e16
-        );
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // skip to the end of the early withdrawal window
-        console.log("Skipping to the end of the early withdrawal window");
         skip(10 days - 2 * skipTime);
 
         // remove all liquidity from second perpetual
-        console.log("Removing all liquidity from second perpetual");
         _removeAllLiquidity(liquidityProviderTwo, perpetual2);
 
         // check that penalty was applied again, but only for the first perpetual
@@ -948,6 +931,52 @@ contract RewardsTest is PerpetualUtils {
             0,
             "Last deposit time not reset to zero after full withdrawal"
         );
+    }
+
+    function testPausingAccrual(uint256 providedLiquidity1) public {
+        /* bounds */
+        providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
+        require(
+            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
+        );
+
+        // add liquidity to first perpetual
+        fundAndPrepareAccount(
+            liquidityProviderTwo,
+            providedLiquidity1,
+            vault,
+            ua
+        );
+        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+
+        // pause accrual
+        vm.startPrank(address(this));
+        rewardsDistributor.setPaused(address(rewardsToken), true);
+
+        // skip some time
+        skip(10 days);
+
+        // check that no rewards were accrued
+        rewardsDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+        assertEq(accruedRewards, 0, "Rewards accrued while paused");
+
+        // unpause accrual
+        rewardsDistributor.setPaused(address(rewardsToken), false);
+
+        // skip some more time
+        skip(10 days);
+
+        // check that rewards were accrued
+        rewardsDistributor.claimRewardsFor(
+            liquidityProviderTwo,
+            address(perpetual)
+        );
+        accruedRewards = rewardsToken.balanceOf(liquidityProviderTwo);
+        assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
     }
 
     function testAddNewMarket(
@@ -1045,7 +1074,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual3)
             );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1173,7 +1202,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1318,19 +1347,19 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             address(perpetual)
         );
-        uint256 cumulativeRewards3 = rewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual3)
-            );
-        uint256 totalLiquidity3 = rewardsDistributor.totalLiquidityPerMarket(
+        cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
+            address(rewardsToken),
+            address(perpetual3)
+        );
+        totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual3)
         );
         expectedCumulativeRewards1 =
             (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) /
             totalLiquidity1;
-        uint256 expectedCumulativeRewards3 = (((((inflationRate * 2500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity3;
+        expectedCumulativeRewards2 =
+            (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
+            totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1338,8 +1367,8 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
         assertApproxEqRel(
-            cumulativeRewards3,
-            expectedCumulativeRewards3,
+            cumulativeRewards2,
+            expectedCumulativeRewards2,
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
         );
@@ -1367,22 +1396,22 @@ contract RewardsTest is PerpetualUtils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        RewardDistributor newRewardsDistributor = new RewardDistributor(
+        PerpRewardDistributor newRewardsDistributor = new PerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
             address(clearingHouse),
-            address(rewardVault),
+            address(ecosystemReserve),
             10 days,
             weights
         );
         vm.startPrank(address(this));
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken)),
             address(newRewardsDistributor),
             type(uint256).max
         );
-        rewardVault.approve(
+        ecosystemReserve.approve(
             AaveIERC20(address(rewardsToken2)),
             address(newRewardsDistributor),
             type(uint256).max
@@ -1442,9 +1471,8 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , uint256 inflationRate, ) = newRewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
+        (, , , uint256 inflationRate, ) = newRewardsDistributor
+            .rewardInfoByToken(address(rewardsToken));
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual)
         );
@@ -1500,7 +1528,7 @@ contract RewardsTest is PerpetualUtils {
         // updateStakingPosition
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_CallerIsNotClearingHouse(address)",
+                "PerpRewardDistributor_CallerIsNotClearingHouse(address)",
                 address(this)
             )
         );
@@ -1670,6 +1698,55 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.claimRewards();
     }
 
+    function testEcosystemReserve() public {
+        // access control errors
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(bytes("ONLY_BY_FUNDS_ADMIN"));
+        ecosystemReserve.transferAdmin(liquidityProviderOne);
+        vm.expectRevert(
+            bytes(
+                string(
+                    abi.encodePacked(
+                        "AccessControl: account ",
+                        Strings.toHexString(liquidityProviderOne),
+                        " is missing role ",
+                        Strings.toHexString(
+                            uint256(keccak256("GOVERNANCE")),
+                            32
+                        )
+                    )
+                )
+            )
+        );
+        rewardsDistributor.setEcosystemReserve(address(ecosystemReserve));
+        vm.stopPrank();
+
+        // invalid address errors
+        vm.expectRevert(abi.encodeWithSignature("InvalidAdmin()"));
+        ecosystemReserve.transferAdmin(address(0));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidEcosystemReserve(address)",
+                address(0)
+            )
+        );
+        rewardsDistributor.setEcosystemReserve(address(0));
+
+        // no errors
+        EcosystemReserve newEcosystemReserve = new EcosystemReserve(
+            address(this)
+        );
+        vm.expectEmit(false, false, false, true);
+        emit NewFundsAdmin(address(this));
+        ecosystemReserve.transferAdmin(address(this));
+        vm.expectEmit(false, false, false, true);
+        emit EcosystemReserveUpdated(
+            address(ecosystemReserve),
+            address(newEcosystemReserve)
+        );
+        rewardsDistributor.setEcosystemReserve(address(newEcosystemReserve));
+    }
+
     /* ****************** */
     /*  Helper Functions  */
     /* ****************** */
@@ -1690,7 +1767,7 @@ contract RewardsTest is PerpetualUtils {
             .cumulativeRewardPerLpToken(token, address(perpetual));
         uint256 cumulativeRewards2 = rewardsDistributor
             .cumulativeRewardPerLpToken(token, address(perpetual2));
-        (, , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
             token
         );
         {
@@ -1739,30 +1816,12 @@ contract RewardsTest is PerpetualUtils {
         );
         _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
         _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
-        console.log(
-            "User 2's provided liquidity in perp 1: %s",
-            providedLiquidity1
-        );
-        console.log(
-            "User 2's provided liquidity in perp 2: %s",
-            providedLiquidity2
-        );
         percentOfLiquidity1 =
             (providedLiquidity1 * 1e18) /
             (10_000e18 + providedLiquidity1);
         percentOfLiquidity2 =
             (providedLiquidity2 * 1e18) /
             (10_000e18 + providedLiquidity2);
-        console.log(
-            "Percent of liquidity in perp 1: %s.%s%",
-            percentOfLiquidity1 / 1e16,
-            (percentOfLiquidity1 % 1e16) / 1e14
-        );
-        console.log(
-            "Percent of liquidity in perp 2: %s.%s%",
-            percentOfLiquidity2 / 1e16,
-            (percentOfLiquidity2 % 1e16) / 1e14
-        );
     }
 
     function _provideLiquidity(
@@ -1815,27 +1874,12 @@ contract RewardsTest is PerpetualUtils {
         uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
         uint256 amount = (lpBalance * reductionRatio) / 1e18;
         uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
-        console.log(
-            "User's liquidity balance in perp %s: %s",
-            idx + 1,
-            lpBalance
-        );
-        console.log("Amount to remove: %s", amount);
-        console.log(
-            "Total Base Provided: %s",
-            perp.getGlobalPosition().totalBaseProvided
-        );
-        console.log(
-            "Total Quote Provided: %s",
-            perp.getGlobalPosition().totalQuoteProvided
-        );
         vm.startPrank(user);
         uint256 proposedAmount = _getLiquidityProviderProposedAmount(
             user,
             perp,
             reductionRatio
         );
-        console.log("Proposed amount: %s", proposedAmount);
         clearingHouse.removeLiquidity(
             idx,
             amount,

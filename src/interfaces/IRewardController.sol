@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
-
 interface IRewardController {
     /// Emitted when a new reward token is added
     /// @param rewardToken reward token address
@@ -28,10 +26,10 @@ interface IRewardController {
 
     /// Emitted when the contract runs out of a reward token
     /// @param rewardToken the reward token address
-    /// @param unclaimedRewards the amount of reward tokens still claimable
+    /// @param shortfallAmount the amount of reward tokens needed to fulfill all rewards
     event RewardTokenShortfall(
         address indexed rewardToken,
-        uint256 unclaimedRewards
+        uint256 shortfallAmount
     );
 
     /// Emitted when a gauge weight is updated
@@ -63,8 +61,6 @@ interface IRewardController {
     error RewardController_IncorrectWeightsSum(uint16 actual, uint16 expected);
     error RewardController_WeightExceedsMax(uint16 weight, uint16 max);
 
-    function clearingHouse() external view returns (IClearingHouse);
-
     function rewardTokensPerMarket(
         address,
         uint256
@@ -77,6 +73,8 @@ interface IRewardController {
     function getMarketAddress(uint256) external view returns (address);
 
     function getMarketIdx(uint256) external view returns (uint256);
+
+    function getAllowlistIdx(uint256 idx) external view returns (uint256);
 
     function getRewardTokenCount(address) external view returns (uint256);
 

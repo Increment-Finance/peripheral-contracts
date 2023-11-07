@@ -24,6 +24,7 @@ abstract contract RewardController is
     /// @notice Data structure containing essential info for each reward token
     struct RewardInfo {
         IERC20Metadata token; // Address of the reward token
+        bool paused; // Whether the reward token accrual is paused
         uint256 initialTimestamp; // Time when the reward token was added
         uint256 initialInflationRate; // Amount of reward token emitted per year
         uint256 reductionFactor; // Factor by which the inflation rate is reduced each year
@@ -46,33 +47,18 @@ abstract contract RewardController is
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
 
-    constructor(
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor
-    ) {
-        if (_initialInflationRate > MAX_INFLATION_RATE)
-            revert RewardController_AboveMaxInflationRate(
-                _initialInflationRate,
-                MAX_INFLATION_RATE
-            );
-        if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
-            revert RewardController_BelowMinReductionFactor(
-                _initialReductionFactor,
-                MIN_REDUCTION_FACTOR
-            );
-    }
-
     /* ****************** */
     /*      Abstract      */
     /* ****************** */
 
     /// Updates the reward accumulator for a given market
-    /// @dev Executes when any of the following variables are changed: initialInflationRate, marketWeights, liquidity
-    /// @param idx Index of the perpetual market in the ClearingHouse
+    /// @dev Executes when any of the following variables are changed: inflationRate, marketWeights, liquidity
+    /// @param idx Index of the market
+
     function updateMarketRewards(uint256 idx) public virtual;
 
     /// Gets the number of markets to be used for reward distribution
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @return Number of markets
     function getNumMarkets() public view virtual returns (uint256);
 
@@ -81,7 +67,7 @@ abstract contract RewardController is
     function getMaxMarketIdx() public view virtual returns (uint256);
 
     /// Gets the address of a market
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the market
     /// @return Address of the market
     function getMarketAddress(
@@ -89,13 +75,13 @@ abstract contract RewardController is
     ) public view virtual returns (address);
 
     /// Gets the index of an allowlisted market
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param i Index of the market in the allowlist ids
     /// @return Index of the market in the market list
     function getMarketIdx(uint256 i) public view virtual returns (uint256);
 
     /// Gets the index of the market in the allowlist
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the market in the market list
     /// @return Index of the market in the allowlist ids
     function getAllowlistIdx(uint256 idx) public view virtual returns (uint256);
@@ -253,5 +239,31 @@ abstract contract RewardController is
             );
         rewardInfoByToken[_token].reductionFactor = _newReductionFactor;
         emit NewReductionFactor(_token, _newReductionFactor);
+    }
+
+    /* ****************** */
+    /*   Emergency Admin  */
+    /* ****************** */
+
+    /// Pauses/unpauses the reward accrual for a reward token
+    /// @param _token Address of the reward token
+    /// @param _paused Whether to pause or unpause the reward token
+    function setPaused(
+        address _token,
+        bool _paused
+    ) external onlyRole(EMERGENCY_ADMIN) {
+        if (
+            _token == address(0) ||
+            rewardInfoByToken[_token].token != IERC20Metadata(_token)
+        ) revert RewardController_InvalidRewardTokenAddress(_token);
+        if (rewardInfoByToken[_token].paused == false) {
+            // If not currently paused, accrue rewards before pausing
+            uint256 marketsLength = getNumMarkets();
+            for (uint i; i < marketsLength; ++i) {
+                uint256 idx = getMarketIdx(i);
+                updateMarketRewards(idx);
+            }
+        }
+        rewardInfoByToken[_token].paused = _paused;
     }
 }
