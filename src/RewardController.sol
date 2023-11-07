@@ -54,6 +54,7 @@ abstract contract RewardController is
     /// Updates the reward accumulator for a given market
     /// @dev Executes when any of the following variables are changed: inflationRate, marketWeights, liquidity
     /// @param idx Index of the market
+
     function updateMarketRewards(uint256 idx) public virtual;
 
     /// Gets the number of markets to be used for reward distribution
@@ -218,7 +219,7 @@ abstract contract RewardController is
             updateMarketRewards(idx);
         }
         rewardInfoByToken[_token].initialInflationRate = _newInflationRate;
-        emit NewInflationRate(_token, _newInflationRate);
+        emit NewInitialInflationRate(_token, _newInflationRate);
     }
 
     /// Sets the reduction factor used to reduce emissions over time

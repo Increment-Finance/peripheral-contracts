@@ -44,7 +44,7 @@ interface IRewardController {
 
     /// Emitted when a new inflation rate is set by governance
     /// @param newRate the new inflation rate
-    event NewInflationRate(address indexed rewardToken, uint256 newRate);
+    event NewInitialInflationRate(address indexed rewardToken, uint256 newRate);
 
     /// Emitted when a new reduction factor is set by governance
     /// @param newFactor the new reduction factor
