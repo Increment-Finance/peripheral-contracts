@@ -169,8 +169,7 @@ contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc RewardController
-    function updateMarketRewards(uint256 idx) public override {
-        address market = getMarketAddress(idx);
+    function updateMarketRewards(address market) public override {
         uint256 liquidity = totalLiquidityPerMarket[market];
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0) return;
@@ -210,14 +209,13 @@ contract RewardDistributor is
 
     /// Accrues rewards and updates the stored LP position of a user and the total LP of a market
     /// @dev Executes whenever a user's liquidity is updated for any reason
-    /// @param idx Index of the perpetual market in the ClearingHouse
+    /// @param market Address of the perpetual market or staking contract
     /// @param user Address of the liquidity provier
     function updateStakingPosition(
-        uint256 idx,
+        address market,
         address user
     ) external virtual override nonReentrant onlyClearingHouse {
-        updateMarketRewards(idx);
-        address market = getMarketAddress(idx);
+        updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = getCurrentPosition(user, market);
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
