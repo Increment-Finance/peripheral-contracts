@@ -179,10 +179,17 @@ contract SafetyModuleTest is PerpetualUtils {
         // Register staking tokens with safety module
         safetyModule.addStakingToken(stakedToken1);
         safetyModule.addStakingToken(stakedToken2);
+        address[] memory stakingTokens = new address[](2);
+        stakingTokens[0] = address(stakedToken1);
+        stakingTokens[1] = address(stakedToken2);
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
-        safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+        safetyModule.updateRewardWeights(
+            address(rewardsToken),
+            stakingTokens,
+            rewardWeights
+        );
 
         // Approve staking tokens and Balancer vault for users
         vm.startPrank(liquidityProviderOne);
@@ -236,9 +243,12 @@ contract SafetyModuleTest is PerpetualUtils {
             "Staking token index mismatch"
         );
         assertEq(
-            safetyModule.getAllowlistIdx(0),
+            safetyModule.getMarketWeightIdx(
+                address(rewardsToken),
+                address(stakedToken1)
+            ),
             0,
-            "Allowlist index mismatch"
+            "Market reward weight index mismatch"
         );
         assertEq(
             safetyModule.getCurrentPosition(
