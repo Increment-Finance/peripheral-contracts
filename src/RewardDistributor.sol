@@ -175,6 +175,7 @@ contract RewardDistributor is
 
     /// @inheritdoc RewardController
     function updateMarketRewards(address market) public override {
+        if (rewardTokensPerMarket[market].length == 0) return;
         uint256 liquidity = totalLiquidityPerMarket[market];
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0) return;
