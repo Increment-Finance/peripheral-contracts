@@ -95,11 +95,15 @@ abstract contract RewardController is
     /// @return Index of the market in the market list
     function getMarketIdx(uint256 i) public view virtual returns (uint256);
 
-    /// Gets the index of the market in the allowlist
-    /// @dev Markets are the perpetual markets (for the MarketRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param idx Index of the market in the market list
-    /// @return Index of the market in the allowlist ids
-    function getAllowlistIdx(uint256 idx) public view virtual returns (uint256);
+    /// Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param token Address of the reward token
+    /// @param market Address of the market
+    /// @return Index of the market in the rewardInfo.marketWeights array
+    function getMarketWeightIdx(
+        address token,
+        address market
+    ) public view virtual returns (uint256);
 
     /* ******************* */
     /*  Reward Info Views  */
