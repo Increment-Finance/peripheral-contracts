@@ -26,6 +26,14 @@ interface IRewardController {
         uint256 remainingBalance
     );
 
+    /// Emitted when a reward token is removed from a market's list of rewards
+    /// @param market the market address
+    /// @param rewardToken the reward token address
+    event MarketRemovedFromRewards(
+        address indexed market,
+        address indexed rewardToken
+    );
+
     /// Emitted when the contract runs out of a reward token
     /// @param rewardToken the reward token address
     /// @param unclaimedRewards the amount of reward tokens still claimable
@@ -88,7 +96,9 @@ interface IRewardController {
 
     function getReductionFactor(address) external view returns (uint256);
 
-    function getRewardWeights(address) external view returns (uint16[] memory);
+    function getRewardWeights(
+        address
+    ) external view returns (address[] memory, uint16[] memory);
 
     function updateMarketRewards(uint256) external;
 
