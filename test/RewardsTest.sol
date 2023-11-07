@@ -1003,64 +1003,69 @@ contract RewardsTest is PerpetualUtils {
 
         // deploy new market contracts
         vm.startPrank(address(this));
-        VBase vBase3 = new VBase(
-            "vDAI base token",
-            "vDAI",
-            AggregatorV3Interface(
-                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
-            ),
-            30 days,
-            sequencerUptimeFeed,
-            gracePeriod
-        );
-        VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
-        TestPerpetual perpetual3 = new TestPerpetual(
-            vBase3,
-            vQuote3,
-            ICryptoSwap(
-                factory.deploy_pool(
-                    "DAI_USD",
-                    "DAI_USD",
-                    [address(vQuote3), address(vBase3)],
-                    A,
-                    gamma,
-                    mid_fee,
-                    out_fee,
-                    allowed_extra_profit,
-                    fee_gamma,
-                    adjustment_step,
-                    admin_fee,
-                    ma_half_time,
-                    initial_price
-                )
-            ),
-            clearingHouse,
-            curveCryptoViews,
-            true,
-            perp_params
-        );
+        TestPerpetual perpetual3;
+        {
+            VBase vBase3 = new VBase(
+                "vDAI base token",
+                "vDAI",
+                AggregatorV3Interface(
+                    address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
+                ),
+                30 days,
+                sequencerUptimeFeed,
+                gracePeriod
+            );
+            VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
+            perpetual3 = new TestPerpetual(
+                vBase3,
+                vQuote3,
+                ICryptoSwap(
+                    factory.deploy_pool(
+                        "DAI_USD",
+                        "DAI_USD",
+                        [address(vQuote3), address(vBase3)],
+                        A,
+                        gamma,
+                        mid_fee,
+                        out_fee,
+                        allowed_extra_profit,
+                        fee_gamma,
+                        adjustment_step,
+                        admin_fee,
+                        ma_half_time,
+                        initial_price
+                    )
+                ),
+                clearingHouse,
+                curveCryptoViews,
+                true,
+                perp_params
+            );
 
-        vBase3.transferPerpOwner(address(perpetual3));
-        vQuote3.transferPerpOwner(address(perpetual3));
-        clearingHouse.allowListPerpetual(perpetual3);
+            vBase3.transferPerpOwner(address(perpetual3));
+            vQuote3.transferPerpOwner(address(perpetual3));
+            clearingHouse.allowListPerpetual(perpetual3);
+        }
 
         // skip some time
         skip(10 days);
 
         // set new market weights
-        address[] memory markets = new address[](3);
-        markets[0] = address(perpetual);
-        markets[1] = address(perpetual2);
-        markets[2] = address(perpetual3);
-        uint16[] memory marketWeights = new uint16[](3);
-        marketWeights[0] = 5000;
-        marketWeights[1] = 3000;
-        marketWeights[2] = 2000;
-        rewardsDistributor.updateRewardWeights(
-            address(rewardsToken),
-            markets,
-            marketWeights
-        );
+        {
+            address[] memory markets = new address[](3);
+            markets[0] = address(perpetual);
+            markets[1] = address(perpetual2);
+            markets[2] = address(perpetual3);
+            uint16[] memory marketWeights = new uint16[](3);
+            marketWeights[0] = 5000;
+            marketWeights[1] = 3000;
+            marketWeights[2] = 2000;
+            rewardsDistributor.updateRewardWeights(
+                address(rewardsToken),
+                markets,
+                marketWeights
+            );
+        }
 
         // check that rewards were accrued to first two perpetuals at previous weights
         rewardsDistributor.accrueRewards(liquidityProviderTwo);

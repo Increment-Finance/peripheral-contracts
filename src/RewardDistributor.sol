@@ -571,21 +571,21 @@ contract RewardDistributor is
                 lastDepositTimeByUserByMarket[user][market] +
                     earlyWithdrawalThreshold
             );
-        uint256 lpPosition = lpPositionsPerUser[user][market];
-        if (lpPosition != getCurrentPosition(user, market))
+        if (
+            lpPositionsPerUser[user][market] != getCurrentPosition(user, market)
+        )
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
                 market,
-                lpPosition,
+                lpPositionsPerUser[user][market],
                 getCurrentPosition(user, market)
             );
-        uint256 liquidity = totalLiquidityPerMarket[market];
         if (timeOfLastCumRewardUpdate[market] == 0)
             revert RewardDistributor_UninitializedStartTime(market);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
-        if (liquidity == 0) return 0;
+        if (totalLiquidityPerMarket[market] == 0) return 0;
         RewardInfo memory rewardInfo = rewardInfoByToken[token];
         uint256 totalTimeElapsed = block.timestamp -
             rewardInfo.initialTimestamp;
@@ -593,14 +593,13 @@ contract RewardDistributor is
         uint256 inflationRate = rewardInfo.inflationRate.div(
             rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
         );
-        uint256 weightIdx = getMarketWeightIdx(token, market);
         uint256 newMarketRewards = (((inflationRate *
-            rewardInfo.marketWeights[weightIdx]) / 10000) * deltaTime) /
-            365 days;
+            rewardInfo.marketWeights[getMarketWeightIdx(token, market)]) /
+            10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
             market
-        ] + (newMarketRewards * 1e18) / liquidity;
-        uint256 newUserRewards = lpPosition.mul(
+        ] + (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];
+        uint256 newUserRewards = lpPositionsPerUser[user][market].mul(
             (newCumRewardPerLpToken -
                 cumulativeRewardPerLpTokenPerUser[user][token][market])
         );
