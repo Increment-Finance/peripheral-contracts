@@ -100,9 +100,13 @@ interface IRewardController {
         address
     ) external view returns (address[] memory, uint16[] memory);
 
-    function updateMarketRewards(uint256) external;
+    function updateMarketRewards(address) external;
 
-    function updateRewardWeights(address, uint16[] calldata) external;
+    function updateRewardWeights(
+        address,
+        address[] calldata,
+        uint16[] calldata
+    ) external;
 
     function updateInflationRate(address, uint256) external;
 
