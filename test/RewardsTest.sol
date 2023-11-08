@@ -983,6 +983,10 @@ contract RewardsTest is PerpetualUtils {
         // pause accrual
         vm.startPrank(address(this));
         rewardsDistributor.setPaused(address(rewardsToken), true);
+        (, bool paused, , , ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        assertTrue(paused, "Rewards not paused");
 
         // skip some time
         skip(10 days);
@@ -997,6 +1001,10 @@ contract RewardsTest is PerpetualUtils {
 
         // unpause accrual
         rewardsDistributor.setPaused(address(rewardsToken), false);
+        (, paused, , , ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        assertTrue(!paused, "Rewards not unpaused");
 
         // skip some more time
         skip(10 days);
@@ -1080,6 +1088,10 @@ contract RewardsTest is PerpetualUtils {
 
         // skip some time
         skip(10 days);
+
+        // call updateMarketRewards because Foundry doesn't think it's being covered
+        // (even though it gets called so frequently by other functions called here)
+        rewardsDistributor.updateMarketRewards(address(perpetual3));
 
         // set new market weights
         {
@@ -1225,6 +1237,22 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18
         );
 
+        // add a new reward token
+        vm.startPrank(address(this));
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual2);
+        uint16[] memory marketWeights = new uint16[](2);
+        marketWeights[0] = 7500;
+        marketWeights[1] = 2500;
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken2),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
+            markets,
+            marketWeights
+        );
+
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
@@ -1235,16 +1263,16 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         uint256 cumulativeRewards1 = rewardsDistributor
             .cumulativeRewardPerLpToken(
-                address(rewardsToken),
+                address(rewardsToken2),
                 address(perpetual)
             );
         uint256 cumulativeRewards2 = rewardsDistributor
             .cumulativeRewardPerLpToken(
-                address(rewardsToken),
+                address(rewardsToken2),
                 address(perpetual2)
             );
         (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
+            address(rewardsToken2)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual)
@@ -1336,11 +1364,11 @@ contract RewardsTest is PerpetualUtils {
             abi.encodeWithSignature(
                 "RewardDistributor_MarketHasNoRewardWeight(address,address)",
                 address(perpetual3),
-                address(rewardsToken)
+                address(rewardsToken2)
             )
         );
         rewardsDistributor.getMarketWeightIdx(
-            address(rewardsToken),
+            address(rewardsToken2),
             address(perpetual3)
         );
 
@@ -1354,33 +1382,31 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.viewNewRewardAccrual(
             address(perpetual3),
             liquidityProviderTwo,
-            address(rewardsToken)
+            address(rewardsToken2)
         );
         rewardsDistributor.initMarketStartTime(address(perpetual3));
         assertEq(
             rewardsDistributor.viewNewRewardAccrual(
                 address(perpetual3),
                 liquidityProviderTwo,
-                address(rewardsToken)
+                address(rewardsToken2)
             ),
             0,
             "Incorrect accrued rewards preview for new perp without liquidity"
         );
 
         // set new market weights
-        address[] memory markets = new address[](2);
         markets[0] = address(perpetual);
         markets[1] = address(perpetual3);
-        uint16[] memory marketWeights = new uint16[](2);
         marketWeights[0] = 7500;
         marketWeights[1] = 2500;
         vm.expectEmit(false, false, false, true);
         emit MarketRemovedFromRewards(
             address(perpetual2),
-            address(rewardsToken)
+            address(rewardsToken2)
         );
         rewardsDistributor.updateRewardWeights(
-            address(rewardsToken),
+            address(rewardsToken2),
             markets,
             marketWeights
         );
@@ -1401,11 +1427,11 @@ contract RewardsTest is PerpetualUtils {
         // check that rewards were accrued to first perpetual and new one at previous weights
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         cumulativeRewards1 = rewardsDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
+            address(rewardsToken2),
             address(perpetual)
         );
         cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
+            address(rewardsToken2),
             address(perpetual3)
         );
         totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(

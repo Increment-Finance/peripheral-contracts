@@ -183,25 +183,20 @@ abstract contract RewardController is
             // Check if market is being removed from rewards
             bool found = false;
             for (uint j; j < _markets.length; ++j) {
-                if (_markets[j] == market) {
-                    found = true;
-                    break;
-                }
+                if (_markets[j] != market) continue;
+                found = true;
+                break;
             }
-            if (!found) {
-                // Remove token from market's list of reward tokens
-                for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
-                    if (rewardTokensPerMarket[market][j] == _token) {
-                        rewardTokensPerMarket[market][
-                            j
-                        ] = rewardTokensPerMarket[market][
-                            rewardTokensPerMarket[market].length - 1
-                        ];
-                        rewardTokensPerMarket[market].pop();
-                        emit MarketRemovedFromRewards(market, _token);
-                        break;
-                    }
-                }
+            if (found) continue;
+            // Remove token from market's list of reward tokens
+            for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
+                if (rewardTokensPerMarket[market][j] != _token) continue;
+                rewardTokensPerMarket[market][j] = rewardTokensPerMarket[
+                    market
+                ][rewardTokensPerMarket[market].length - 1];
+                rewardTokensPerMarket[market].pop();
+                emit MarketRemovedFromRewards(market, _token);
+                break;
             }
         }
         // Replace stored lists of market addresses and weights
@@ -219,10 +214,9 @@ abstract contract RewardController is
                 // Check if token is already registered for this market
                 bool found = false;
                 for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
-                    if (rewardTokensPerMarket[market][j] == _token) {
-                        found = true;
-                        break;
-                    }
+                    if (rewardTokensPerMarket[market][j] != _token) continue;
+                    found = true;
+                    break;
                 }
                 // If the token was not previously registered for this market, add it
                 if (!found) rewardTokensPerMarket[market].push(_token);
@@ -290,8 +284,7 @@ abstract contract RewardController is
             revert RewardController_InvalidRewardTokenAddress(_token);
         if (rewardInfo.paused == false) {
             // If not currently paused, accrue rewards before pausing
-            uint256 marketsLength = rewardInfo.marketAddresses.length;
-            for (uint i; i < marketsLength; ++i) {
+            for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
                 address market = rewardInfo.marketAddresses[i];
                 updateMarketRewards(market);
             }
