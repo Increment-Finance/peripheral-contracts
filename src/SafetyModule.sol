@@ -102,18 +102,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return i;
     }
 
+    /// Returns the index of the staking token in the stakingTokens array
+    /// @param token Address of the staking token
     function getStakingTokenIdx(address token) public view returns (uint256) {
         for (uint256 i; i < stakingTokens.length; ++i) {
             if (address(stakingTokens[i]) == token) return i;
         }
         revert SafetyModule_InvalidStakingToken(token);
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getAllowlistIdx(
-        uint256 idx
-    ) public view virtual override returns (uint256) {
-        return getMarketIdx(idx);
     }
 
     /// Returns the user's staking token balance
@@ -145,10 +140,10 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
 
     /// Accrues rewards and updates the stored stake position of a user and the total tokens staked
     /// @dev Executes whenever a user's stake is updated for any reason
-    /// @param idx Index of the staking token in stakingTokens
+    /// @param market Address of the staking token in stakingTokens
     /// @param user Address of the staker
     function updateStakingPosition(
-        uint256 idx,
+        address market,
         address user
     )
         external
@@ -157,10 +152,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         nonReentrant
         onlyStakingToken
     {
-        if (idx >= getNumMarkets())
-            revert RewardDistributor_InvalidMarketIndex(idx, getMaxMarketIdx());
-        updateMarketRewards(idx);
-        address market = getMarketAddress(idx);
+        getStakingTokenIdx(market); // Called to make sure the staking token is registered
+        updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
         uint256 newPosition = getCurrentPosition(user, market);
         totalLiquidityPerMarket[market] =
@@ -211,25 +204,25 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /// Accrues rewards to a user for a given staking token
     /// @notice Assumes stake position hasn't changed since last accrual
     /// @dev Updating rewards due to changes in stake position is handled by updateStakingPosition
-    /// @param idx Index of the token in stakingTokens
+    /// @param market Address of the token in stakingTokens
     /// @param user Address of the user
     function accrueRewards(
-        uint256 idx,
+        address market,
         address user
     ) public virtual override nonReentrant {
-        address market = getMarketAddress(idx);
         uint256 lpPosition = lpPositionsPerUser[user][market];
-        if (lpPosition != getCurrentPosition(user, market))
+        uint256 currentPosition = getCurrentPosition(user, market);
+        if (lpPosition != currentPosition)
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
-                idx,
+                market,
                 lpPosition,
-                getCurrentPosition(user, market)
+                currentPosition
             );
         if (totalLiquidityPerMarket[market] == 0) return;
-        updateMarketRewards(idx);
+        updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
@@ -257,23 +250,22 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     }
 
     /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param idx Index of the staking token in stakingTokens
+    /// @param market Address of the staking token in stakingTokens
     /// @param user Address of the user
     /// @param token Address of the reward token
     /// @return Amount of new rewards that would be accrued to the user
     function viewNewRewardAccrual(
-        uint256 idx,
+        address market,
         address user,
         address token
     ) public view override returns (uint256) {
-        address market = getMarketAddress(idx);
         uint256 lpPosition = lpPositionsPerUser[user][market];
         if (lpPosition != getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_LpPositionMismatch(
                 user,
-                idx,
+                market,
                 lpPosition,
                 getCurrentPosition(user, market)
             );
@@ -287,7 +279,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
         );
         uint256 newMarketRewards = (((inflationRate *
-            rewardInfo.marketWeights[idx]) / 10000) * deltaTime) / 365 days;
+            rewardInfo.marketWeights[getMarketWeightIdx(token, market)]) /
+            10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
             market
         ] + (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];

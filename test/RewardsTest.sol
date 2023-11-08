@@ -37,6 +37,11 @@ contract RewardsTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
 
+    event MarketRemovedFromRewards(
+        address indexed market,
+        address indexed rewardToken
+    );
+
     event NewFundsAdmin(address indexed fundsAdmin);
     event EcosystemReserveUpdated(
         address prevEcosystemReserve,
@@ -244,7 +249,9 @@ contract RewardsTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             "Reduction factor mismatch"
         );
-        uint16[] memory weights = rewardsDistributor.getRewardWeights(token);
+        (, uint16[] memory weights) = rewardsDistributor.getRewardWeights(
+            token
+        );
         assertEq(weights[0], 7500, "Market weight mismatch");
         assertEq(weights[1], 2500, "Market weight mismatch");
         assertEq(
@@ -315,6 +322,7 @@ contract RewardsTest is PerpetualUtils {
     function testRewardControllerErrors(
         uint256 inflationRate,
         uint256 reductionFactor,
+        address[] memory markets,
         uint16[] memory marketWeights,
         address token
     ) public {
@@ -323,7 +331,9 @@ contract RewardsTest is PerpetualUtils {
                 token != address(rewardsToken2) &&
                 token != address(0)
         );
+        vm.assume(markets.length > 2);
         vm.assume(marketWeights.length > 2);
+        vm.assume(markets.length != marketWeights.length);
         vm.assume(
             uint256(marketWeights[0]) + marketWeights[1] <= type(uint16).max
         );
@@ -340,7 +350,7 @@ contract RewardsTest is PerpetualUtils {
                 token
             )
         );
-        rewardsDistributor.updateRewardWeights(token, marketWeights);
+        rewardsDistributor.updateRewardWeights(token, markets, marketWeights);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_InvalidRewardTokenAddress(address)",
@@ -386,6 +396,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             inflationRate,
             reductionFactor,
+            markets,
             marketWeights
         );
         vm.expectRevert(
@@ -410,6 +421,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             INITIAL_INFLATION_RATE,
             reductionFactor,
+            markets,
             marketWeights
         );
 
@@ -418,13 +430,17 @@ contract RewardsTest is PerpetualUtils {
             abi.encodeWithSignature(
                 "RewardController_IncorrectWeightsCount(uint256,uint256)",
                 marketWeights.length,
-                2
+                markets.length
             )
         );
         rewardsDistributor.updateRewardWeights(
             address(rewardsToken),
+            markets,
             marketWeights
         );
+        address[] memory markets2 = new address[](2);
+        markets2[0] = markets[0];
+        markets2[1] = markets[1];
         uint16[] memory marketWeights2 = new uint16[](2);
         marketWeights2[0] = marketWeights[0];
         marketWeights2[1] = marketWeights[1];
@@ -455,6 +471,7 @@ contract RewardsTest is PerpetualUtils {
         }
         rewardsDistributor.updateRewardWeights(
             address(rewardsToken),
+            markets2,
             marketWeights2
         );
     }
@@ -590,6 +607,9 @@ contract RewardsTest is PerpetualUtils {
 
         // add a new reward token
         vm.startPrank(address(this));
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual2);
         uint16[] memory marketWeights = new uint16[](2);
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
@@ -597,6 +617,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken2),
             inflationRate2,
             reductionFactor2,
+            markets,
             marketWeights
         );
 
@@ -605,9 +626,9 @@ contract RewardsTest is PerpetualUtils {
 
         // check rewards for token 1
         uint256[] memory previewAccruals1 = rewardsDistributor
-            .viewNewRewardAccrual(0, liquidityProviderTwo);
+            .viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
         uint256[] memory previewAccruals2 = rewardsDistributor
-            .viewNewRewardAccrual(1, liquidityProviderTwo);
+            .viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
         uint256[] memory previewAccruals = new uint256[](2);
         previewAccruals[0] = previewAccruals1[0] + previewAccruals2[0];
         if (previewAccruals1.length > 1) {
@@ -713,6 +734,9 @@ contract RewardsTest is PerpetualUtils {
 
         // add a new reward token
         vm.startPrank(address(this));
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual2);
         uint16[] memory marketWeights = new uint16[](2);
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
@@ -722,6 +746,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken2),
             inflationRate2,
             reductionFactor2,
+            markets,
             marketWeights
         );
         rewardsToken2.transfer(
@@ -739,8 +764,11 @@ contract RewardsTest is PerpetualUtils {
 
         // check previews and rewards for token 1
         uint256[] memory previewAccrualsPerp1 = rewardsDistributor
-            .viewNewRewardAccrual(0, liquidityProviderTwo);
-        rewardsDistributor.accrueRewards(0, liquidityProviderTwo);
+            .viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
+        rewardsDistributor.accrueRewards(
+            address(perpetual),
+            liquidityProviderTwo
+        );
         uint256 accruedRewards = rewardsDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
@@ -752,8 +780,11 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect accrued rewards preview: token 1 perp 1"
         );
         uint256[] memory previewAccrualsPerp2 = rewardsDistributor
-            .viewNewRewardAccrual(1, liquidityProviderTwo);
-        rewardsDistributor.accrueRewards(1, liquidityProviderTwo);
+            .viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
+        rewardsDistributor.accrueRewards(
+            address(perpetual2),
+            liquidityProviderTwo
+        );
         accruedRewards = _checkRewards(
             address(rewardsToken),
             liquidityProviderTwo,
@@ -952,6 +983,10 @@ contract RewardsTest is PerpetualUtils {
         // pause accrual
         vm.startPrank(address(this));
         rewardsDistributor.setPaused(address(rewardsToken), true);
+        (, bool paused, , , ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        assertTrue(paused, "Rewards not paused");
 
         // skip some time
         skip(10 days);
@@ -966,6 +1001,10 @@ contract RewardsTest is PerpetualUtils {
 
         // unpause accrual
         rewardsDistributor.setPaused(address(rewardsToken), false);
+        (, paused, , , ) = rewardsDistributor.rewardInfoByToken(
+            address(rewardsToken)
+        );
+        assertTrue(!paused, "Rewards not unpaused");
 
         // skip some more time
         skip(10 days);
@@ -1003,59 +1042,73 @@ contract RewardsTest is PerpetualUtils {
 
         // deploy new market contracts
         vm.startPrank(address(this));
-        VBase vBase3 = new VBase(
-            "vDAI base token",
-            "vDAI",
-            AggregatorV3Interface(
-                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
-            ),
-            30 days,
-            sequencerUptimeFeed,
-            gracePeriod
-        );
-        VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
-        TestPerpetual perpetual3 = new TestPerpetual(
-            vBase3,
-            vQuote3,
-            ICryptoSwap(
-                factory.deploy_pool(
-                    "DAI_USD",
-                    "DAI_USD",
-                    [address(vQuote3), address(vBase3)],
-                    A,
-                    gamma,
-                    mid_fee,
-                    out_fee,
-                    allowed_extra_profit,
-                    fee_gamma,
-                    adjustment_step,
-                    admin_fee,
-                    ma_half_time,
-                    initial_price
-                )
-            ),
-            clearingHouse,
-            curveCryptoViews,
-            true,
-            perp_params
-        );
+        TestPerpetual perpetual3;
+        {
+            VBase vBase3 = new VBase(
+                "vDAI base token",
+                "vDAI",
+                AggregatorV3Interface(
+                    address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
+                ),
+                30 days,
+                sequencerUptimeFeed,
+                gracePeriod
+            );
+            VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
+            perpetual3 = new TestPerpetual(
+                vBase3,
+                vQuote3,
+                ICryptoSwap(
+                    factory.deploy_pool(
+                        "DAI_USD",
+                        "DAI_USD",
+                        [address(vQuote3), address(vBase3)],
+                        A,
+                        gamma,
+                        mid_fee,
+                        out_fee,
+                        allowed_extra_profit,
+                        fee_gamma,
+                        adjustment_step,
+                        admin_fee,
+                        ma_half_time,
+                        initial_price
+                    )
+                ),
+                clearingHouse,
+                curveCryptoViews,
+                true,
+                perp_params
+            );
 
-        vBase3.transferPerpOwner(address(perpetual3));
-        vQuote3.transferPerpOwner(address(perpetual3));
-        clearingHouse.allowListPerpetual(perpetual3);
+            vBase3.transferPerpOwner(address(perpetual3));
+            vQuote3.transferPerpOwner(address(perpetual3));
+            clearingHouse.allowListPerpetual(perpetual3);
+        }
 
         // skip some time
         skip(10 days);
 
+        // call updateMarketRewards because Foundry doesn't think it's being covered
+        // (even though it gets called so frequently by other functions called here)
+        rewardsDistributor.updateMarketRewards(address(perpetual3));
+
         // set new market weights
-        uint16[] memory marketWeights = new uint16[](3);
-        marketWeights[0] = 5000;
-        marketWeights[1] = 3000;
-        marketWeights[2] = 2000;
-        rewardsDistributor.updateRewardWeights(
-            address(rewardsToken),
-            marketWeights
-        );
+        {
+            address[] memory markets = new address[](3);
+            markets[0] = address(perpetual);
+            markets[1] = address(perpetual2);
+            markets[2] = address(perpetual3);
+            uint16[] memory marketWeights = new uint16[](3);
+            marketWeights[0] = 5000;
+            marketWeights[1] = 3000;
+            marketWeights[2] = 2000;
+            rewardsDistributor.updateRewardWeights(
+                address(rewardsToken),
+                markets,
+                marketWeights
+            );
+        }
 
         // check that rewards were accrued to first two perpetuals at previous weights
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
@@ -1184,6 +1237,22 @@ contract RewardsTest is PerpetualUtils {
             providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18
         );
 
+        // add a new reward token
+        vm.startPrank(address(this));
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual2);
+        uint16[] memory marketWeights = new uint16[](2);
+        marketWeights[0] = 7500;
+        marketWeights[1] = 2500;
+        rewardsDistributor.addRewardToken(
+            address(rewardsToken2),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
+            markets,
+            marketWeights
+        );
+
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
@@ -1194,16 +1263,16 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         uint256 cumulativeRewards1 = rewardsDistributor
             .cumulativeRewardPerLpToken(
-                address(rewardsToken),
+                address(rewardsToken2),
                 address(perpetual)
             );
         uint256 cumulativeRewards2 = rewardsDistributor
             .cumulativeRewardPerLpToken(
-                address(rewardsToken),
+                address(rewardsToken2),
                 address(perpetual2)
             );
         (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
+            address(rewardsToken2)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual)
@@ -1290,10 +1359,17 @@ contract RewardsTest is PerpetualUtils {
             2,
             "Incorrect market index"
         );
-        assertEq(
-            rewardsDistributor.getAllowlistIdx(2),
-            1,
-            "Incorrect allowlist index"
+        // expect a revert from getMarketWeightIdx, since the market hasn't been added to rewards yet
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_MarketHasNoRewardWeight(address,address)",
+                address(perpetual3),
+                address(rewardsToken2)
+            )
+        );
+        rewardsDistributor.getMarketWeightIdx(
+            address(rewardsToken2),
+            address(perpetual3)
         );
 
         // expect a revert from viewNewRewardAccrual, since timeOfLastCumRewardUpdate[market] == 0
@@ -1304,27 +1380,34 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.viewNewRewardAccrual(
-            2,
+            address(perpetual3),
             liquidityProviderTwo,
-            address(rewardsToken)
+            address(rewardsToken2)
         );
         rewardsDistributor.initMarketStartTime(address(perpetual3));
         assertEq(
             rewardsDistributor.viewNewRewardAccrual(
-                2,
+                address(perpetual3),
                 liquidityProviderTwo,
-                address(rewardsToken)
+                address(rewardsToken2)
             ),
             0,
             "Incorrect accrued rewards preview for new perp without liquidity"
         );
 
         // set new market weights
-        uint16[] memory marketWeights = new uint16[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual3);
         marketWeights[0] = 7500;
         marketWeights[1] = 2500;
+        vm.expectEmit(false, false, false, true);
+        emit MarketRemovedFromRewards(
+            address(perpetual2),
+            address(rewardsToken2)
+        );
         rewardsDistributor.updateRewardWeights(
-            address(rewardsToken),
+            address(rewardsToken2),
+            markets,
             marketWeights
         );
 
@@ -1344,11 +1427,11 @@ contract RewardsTest is PerpetualUtils {
         // check that rewards were accrued to first perpetual and new one at previous weights
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
         cumulativeRewards1 = rewardsDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
+            address(rewardsToken2),
             address(perpetual)
         );
         cumulativeRewards2 = rewardsDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
+            address(rewardsToken2),
             address(perpetual3)
         );
         totalLiquidity2 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1428,19 +1511,22 @@ contract RewardsTest is PerpetualUtils {
         // before registering positions, expect accruing rewards to fail
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 0,
                 perpetual.getLpLiquidity(liquidityProviderTwo)
             )
         );
-        newRewardsDistributor.viewNewRewardAccrual(0, liquidityProviderTwo);
+        newRewardsDistributor.viewNewRewardAccrual(
+            address(perpetual),
+            liquidityProviderTwo
+        );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 0,
                 perpetual.getLpLiquidity(liquidityProviderTwo)
             )
@@ -1450,11 +1536,11 @@ contract RewardsTest is PerpetualUtils {
         // register user positions
         vm.startPrank(liquidityProviderOne);
         newRewardsDistributor.registerPositions();
-        uint256[] memory marketIndexes = new uint256[](2);
-        marketIndexes[0] = 0;
-        marketIndexes[1] = 1;
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual2);
         vm.startPrank(liquidityProviderTwo);
-        newRewardsDistributor.registerPositions(marketIndexes);
+        newRewardsDistributor.registerPositions(markets);
 
         // skip some time
         skip(10 days);
@@ -1497,7 +1583,11 @@ contract RewardsTest is PerpetualUtils {
         );
     }
 
-    function testRewardDistributorErrors() public {
+    function testRewardDistributorErrors(address invalidMarket) public {
+        vm.assume(
+            invalidMarket != address(perpetual) &&
+                invalidMarket != address(perpetual2)
+        );
         // getters
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1509,21 +1599,15 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.getMarketAddress(9);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_MarketIndexNotAllowlisted(uint256)",
-                9
+                "RewardController_MarketHasNoRewardWeight(address,address)",
+                invalidMarket,
+                address(rewardsToken)
             )
         );
-        rewardsDistributor.getAllowlistIdx(9);
-
-        // updateMarketRewards
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                9,
-                1
-            )
+        rewardsDistributor.getMarketWeightIdx(
+            address(rewardsToken),
+            invalidMarket
         );
-        rewardsDistributor.updateMarketRewards(9);
 
         // updateStakingPosition
         vm.expectRevert(
@@ -1532,16 +1616,18 @@ contract RewardsTest is PerpetualUtils {
                 address(this)
             )
         );
-        rewardsDistributor.updateStakingPosition(0, liquidityProviderOne);
-        vm.startPrank(address(clearingHouse));
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                2,
-                1
-            )
+        rewardsDistributor.updateStakingPosition(
+            address(perpetual),
+            liquidityProviderOne
         );
-        rewardsDistributor.updateStakingPosition(2, liquidityProviderOne);
+        vm.startPrank(address(clearingHouse));
+        // invalidMarket is not a Perpetual contract, so calling IPerpetual(invalidMarket).getLpLiquidity()
+        // in getCurrentPosition (called by updateStakingPosition), will revert due to missing function
+        vm.expectRevert();
+        rewardsDistributor.updateStakingPosition(
+            invalidMarket,
+            liquidityProviderOne
+        );
         vm.stopPrank();
 
         // initMarketStartTime
@@ -1578,9 +1664,9 @@ contract RewardsTest is PerpetualUtils {
                 "Incorrect revert error selector"
             );
         }
-        uint256[] memory positions = new uint256[](1);
-        positions[0] = 1;
-        try rewardsDistributor.registerPositions(positions) {
+        address[] memory markets = new address[](1);
+        markets[0] = address(perpetual2);
+        try rewardsDistributor.registerPositions(markets) {
             assertTrue(false, "Register positions should have reverted");
         } catch (bytes memory reason) {
             bytes4 expectedSelector = IRewardDistributor
@@ -1601,18 +1687,21 @@ contract RewardsTest is PerpetualUtils {
         skip(5 days);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,uint256,uint256)",
+                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 block.timestamp + 5 days
             )
         );
-        rewardsDistributor.viewNewRewardAccrual(0, liquidityProviderTwo);
+        rewardsDistributor.viewNewRewardAccrual(
+            address(perpetual),
+            liquidityProviderTwo
+        );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,uint256,uint256)",
+                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(perpetual),
                 block.timestamp + 5 days
             )
         );
@@ -1620,6 +1709,9 @@ contract RewardsTest is PerpetualUtils {
 
         // addRewardToken
         vm.startPrank(address(this));
+        address[] memory markets2 = new address[](2);
+        markets2[0] = address(perpetual);
+        markets2[1] = address(perpetual2);
         uint16[] memory weights1 = new uint16[](1);
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1632,6 +1724,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             1e18,
             1e18,
+            markets2,
             weights1
         );
         uint16[] memory weights2 = new uint16[](2);
@@ -1647,6 +1740,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             1e18,
             1e18,
+            markets2,
             weights2
         );
         weights2[0] = 0;
@@ -1661,6 +1755,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             1e18,
             1e18,
+            markets2,
             weights2
         );
         weights2[0] = 5000;
@@ -1670,6 +1765,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 1e18,
                 1e18,
+                markets2,
                 weights2
             );
         }
@@ -1683,6 +1779,7 @@ contract RewardsTest is PerpetualUtils {
             address(rewardsToken),
             1e18,
             1e18,
+            markets2,
             weights2
         );
 

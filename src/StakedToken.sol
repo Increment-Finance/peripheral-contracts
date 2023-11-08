@@ -60,10 +60,7 @@ contract StakedToken is
             amount
         );
 
-        safetyModule.updateStakingPosition(
-            safetyModule.getStakingTokenIdx(address(this)),
-            onBehalfOf
-        );
+        safetyModule.updateStakingPosition(address(this), onBehalfOf);
 
         emit Staked(msg.sender, onBehalfOf, amount);
     }
@@ -102,10 +99,7 @@ contract StakedToken is
 
         IERC20(STAKED_TOKEN).safeTransfer(to, amountToRedeem);
 
-        safetyModule.updateStakingPosition(
-            safetyModule.getStakingTokenIdx(address(this)),
-            msg.sender
-        );
+        safetyModule.updateStakingPosition(address(this), msg.sender);
 
         emit Redeem(msg.sender, to, amountToRedeem);
     }
@@ -221,8 +215,7 @@ contract StakedToken is
         super._transfer(from, to, amount);
 
         // Update SafetyModule
-        uint256 idx = safetyModule.getStakingTokenIdx(address(this));
-        safetyModule.updateStakingPosition(idx, from);
-        safetyModule.updateStakingPosition(idx, to);
+        safetyModule.updateStakingPosition(address(this), from);
+        safetyModule.updateStakingPosition(address(this), to);
     }
 }

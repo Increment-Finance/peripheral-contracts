@@ -87,14 +87,6 @@ abstract contract RewardDistributor is
     ) public view virtual override returns (uint256);
 
     /// @inheritdoc RewardController
-    function getAllowlistIdx(
-        uint256 idx
-    ) public view virtual override returns (uint256);
-
-    /// Returns the current position of the user in the market (i.e., perpetual market or staked token)
-    /// @param lp Address of the user
-    /// @param market Address of the market
-    /// @return Current position of the user in the market
     function getCurrentPosition(
         address lp,
         address market
@@ -105,8 +97,8 @@ abstract contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc RewardController
-    function updateMarketRewards(uint256 idx) public override {
-        address market = getMarketAddress(idx);
+    function updateMarketRewards(address market) public override {
+        if (rewardTokensPerMarket[market].length == 0) return;
         uint256 liquidity = totalLiquidityPerMarket[market];
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0) return;
@@ -114,17 +106,16 @@ abstract contract RewardDistributor is
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
-        uint256 allowlistIdx = getAllowlistIdx(idx);
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
+            uint256 weightIdx = getMarketWeightIdx(token, market);
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
             if (
                 rewardInfo.paused ||
                 rewardInfo.initialInflationRate == 0 ||
-                allowlistIdx >= rewardInfo.marketWeights.length ||
-                rewardInfo.marketWeights[allowlistIdx] == 0
+                rewardInfo.marketWeights[weightIdx] == 0
             ) continue;
-            uint16 marketWeight = rewardInfo.marketWeights[allowlistIdx];
+            uint16 marketWeight = rewardInfo.marketWeights[weightIdx];
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
@@ -148,9 +139,12 @@ abstract contract RewardDistributor is
 
     /// Accrues rewards and updates the stored position of a user and the total liquidity of a market
     /// @dev Executes whenever a user's position is updated for any reason
-    /// @param idx Index of the market (i.e., perpetual market or staking token)
+    /// @param market Address of the market (i.e., perpetual market or staking token)
     /// @param user Address of the user
-    function updateStakingPosition(uint256 idx, address user) external virtual;
+    function updateStakingPosition(
+        address market,
+        address user
+    ) external virtual;
 
     /* ****************** */
     /*     Governance     */
@@ -170,11 +164,13 @@ abstract contract RewardDistributor is
     /// @param _rewardToken Address of the reward token
     /// @param _initialInflationRate Initial inflation rate for the new token
     /// @param _initialReductionFactor Initial reduction factor for the new token
+    /// @param _markets Addresses of the markets to reward with the new token
     /// @param _marketWeights Initial weights per market for the new token
     function addRewardToken(
         address _rewardToken,
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor,
+        address[] calldata _markets,
         uint16[] calldata _marketWeights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
@@ -187,22 +183,20 @@ abstract contract RewardDistributor is
                 _initialReductionFactor,
                 MIN_REDUCTION_FACTOR
             );
-        uint256 marketsLength = getNumMarkets();
-        if (_marketWeights.length != marketsLength)
+        if (_marketWeights.length != _markets.length)
             revert RewardController_IncorrectWeightsCount(
                 _marketWeights.length,
-                marketsLength
+                _markets.length
             );
         // Validate weights
         uint16 totalWeight;
-        for (uint i; i < marketsLength; ++i) {
-            uint256 idx = getMarketIdx(i);
-            updateMarketRewards(idx);
+        for (uint i; i < _markets.length; ++i) {
+            address market = _markets[i];
+            updateMarketRewards(market);
             uint16 weight = _marketWeights[i];
             if (weight == 0) continue;
             if (weight > 10000)
                 revert RewardController_WeightExceedsMax(weight, 10000);
-            address market = getMarketAddress(idx);
             if (rewardTokensPerMarket[market].length >= MAX_REWARD_TOKENS)
                 revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
             totalWeight += weight;
@@ -218,6 +212,7 @@ abstract contract RewardDistributor is
             initialTimestamp: block.timestamp,
             initialInflationRate: _initialInflationRate,
             reductionFactor: _initialReductionFactor,
+            marketAddresses: _markets,
             marketWeights: _marketWeights
         });
         emit RewardTokenAdded(
@@ -233,16 +228,13 @@ abstract contract RewardDistributor is
     function removeRewardToken(
         address _token
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        if (
-            _token == address(0) ||
-            rewardInfoByToken[_token].token != IERC20Metadata(_token)
-        ) revert RewardController_InvalidRewardTokenAddress(_token);
-        uint256 marketsLength = getNumMarkets();
+        RewardInfo memory rewardInfo = rewardInfoByToken[_token];
+        if (_token == address(0) || rewardInfo.token != IERC20Metadata(_token))
+            revert RewardController_InvalidRewardTokenAddress(_token);
         // Update rewards for all markets before removal
-        for (uint i; i < marketsLength; ++i) {
-            uint256 idx = getMarketIdx(i);
-            address market = getMarketAddress(idx);
-            updateMarketRewards(idx);
+        for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
+            address market = rewardInfo.marketAddresses[i];
+            updateMarketRewards(market);
             // The `delete` keyword applied to arrays does not reduce array length
             uint256 numRewards = rewardTokensPerMarket[market].length;
             for (uint j = 0; j < numRewards; ++j) {
@@ -292,12 +284,11 @@ abstract contract RewardDistributor is
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            uint idx = getMarketIdx(i);
-            address market = getMarketAddress(idx);
+            address market = getMarketAddress(getMarketIdx(i));
             if (lpPositionsPerUser[msg.sender][market] != 0)
                 revert RewardDistributor_PositionAlreadyRegistered(
                     msg.sender,
-                    i,
+                    market,
                     lpPositionsPerUser[msg.sender][market]
                 );
             uint256 lpPosition = getCurrentPosition(msg.sender, market);
@@ -306,19 +297,18 @@ abstract contract RewardDistributor is
         }
     }
 
-    /// Fetches and stores the caller's LP/stake positions and updates the total liquidity in each market
-    /// @dev Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment
-    /// @param _marketIndexes Indexes of the perpetual markets in the ClearingHouse to sync with
+    /// Fetches and stores the caller's LP positions and updates the total liquidity in each market
+    /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
+    /// @param _markets Addresses of the perpetual markets in the ClearingHouse to sync with
     function registerPositions(
-        uint256[] calldata _marketIndexes
+        address[] calldata _markets
     ) external nonReentrant {
-        for (uint i; i < _marketIndexes.length; ++i) {
-            uint256 idx = _marketIndexes[i];
-            address market = getMarketAddress(idx);
+        for (uint i; i < _markets.length; ++i) {
+            address market = _markets[i];
             if (lpPositionsPerUser[msg.sender][market] != 0)
                 revert RewardDistributor_PositionAlreadyRegistered(
                     msg.sender,
-                    idx,
+                    market,
                     lpPositionsPerUser[msg.sender][market]
                 );
             uint256 lpPosition = getCurrentPosition(msg.sender, market);
@@ -353,8 +343,8 @@ abstract contract RewardDistributor is
         address[] memory _rewardTokens
     ) public override whenNotPaused {
         for (uint i; i < getNumMarkets(); ++i) {
-            uint256 idx = getMarketIdx(i);
-            accrueRewards(idx, _user);
+            address market = getMarketAddress(getMarketIdx(i));
+            accrueRewards(market, _user);
         }
         for (uint i; i < _rewardTokens.length; ++i) {
             address token = _rewardTokens[i];
@@ -383,45 +373,44 @@ abstract contract RewardDistributor is
     /// @param user Address of the user to accrue rewards for
     function accrueRewards(address user) external override {
         for (uint i; i < getNumMarkets(); ++i) {
-            uint256 idx = getMarketIdx(i);
-            accrueRewards(idx, user);
+            address market = getMarketAddress(getMarketIdx(i));
+            accrueRewards(market, user);
         }
     }
 
     /// Accrues rewards to a user for a given market
-    /// @notice Assumes users position hasn't changed since last accrual
-    /// @dev Updating rewards due to changes in position is handled by updateStakingPosition
-    /// @param idx Index of the market
+    /// @notice Assumes LP position hasn't changed since last accrual
+    /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
+    /// @param market Address of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
-    function accrueRewards(uint256 idx, address user) public virtual;
+    function accrueRewards(address market, address user) public virtual;
 
     /// Returns the amount of rewards that would be accrued to a user for a given market
     /// @notice Serves as a static version of accrueRewards(uint256 idx, address user)
-    /// @param idx Index of the market
+    /// @param market Address of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
     /// @return Amount of new rewards that would be accrued to the user for each reward token
     function viewNewRewardAccrual(
-        uint256 idx,
+        address market,
         address user
     ) public view returns (uint256[] memory) {
-        address market = getMarketAddress(idx);
         uint256[] memory newRewards = new uint256[](
             rewardTokensPerMarket[market].length
         );
         for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            newRewards[i] = viewNewRewardAccrual(idx, user, token);
+            newRewards[i] = viewNewRewardAccrual(market, user, token);
         }
         return newRewards;
     }
 
     /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param idx Index of the market
+    /// @param market Address of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
     /// @param token Address of the reward token
-    /// @return Amount of new rewards that would be accrued to the user
+    /// @return Amount of new rewards that would be accrued to the useridx Index
     function viewNewRewardAccrual(
-        uint256 idx,
+        address market,
         address user,
         address token
     ) public view virtual returns (uint256);

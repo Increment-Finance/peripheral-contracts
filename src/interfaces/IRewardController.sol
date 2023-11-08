@@ -24,6 +24,14 @@ interface IRewardController {
         uint256 remainingBalance
     );
 
+    /// Emitted when a reward token is removed from a market's list of rewards
+    /// @param market the market address
+    /// @param rewardToken the reward token address
+    event MarketRemovedFromRewards(
+        address indexed market,
+        address indexed rewardToken
+    );
+
     /// Emitted when the contract runs out of a reward token
     /// @param rewardToken the reward token address
     /// @param shortfallAmount the amount of reward tokens needed to fulfill all rewards
@@ -54,6 +62,10 @@ interface IRewardController {
     error RewardController_AboveMaxInflationRate(uint256 rate, uint256 max);
     error RewardController_BelowMinReductionFactor(uint256 factor, uint256 min);
     error RewardController_InvalidRewardTokenAddress(address token);
+    error RewardController_MarketHasNoRewardWeight(
+        address market,
+        address rewardToken
+    );
     error RewardController_IncorrectWeightsCount(
         uint256 actual,
         uint256 expected
@@ -74,7 +86,15 @@ interface IRewardController {
 
     function getMarketIdx(uint256) external view returns (uint256);
 
-    function getAllowlistIdx(uint256 idx) external view returns (uint256);
+    function getMarketWeightIdx(
+        address token,
+        address market
+    ) external view returns (uint256);
+
+    function getCurrentPosition(
+        address,
+        address
+    ) external view returns (uint256);
 
     function getRewardTokenCount(address) external view returns (uint256);
 
@@ -86,11 +106,17 @@ interface IRewardController {
 
     function getReductionFactor(address) external view returns (uint256);
 
-    function getRewardWeights(address) external view returns (uint16[] memory);
+    function getRewardWeights(
+        address
+    ) external view returns (address[] memory, uint16[] memory);
 
-    function updateMarketRewards(uint256) external;
+    function updateMarketRewards(address) external;
 
-    function updateRewardWeights(address, uint16[] calldata) external;
+    function updateRewardWeights(
+        address,
+        address[] calldata,
+        uint16[] calldata
+    ) external;
 
     function updateInflationRate(address, uint256) external;
 

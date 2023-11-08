@@ -28,6 +28,7 @@ abstract contract RewardController is
         uint256 initialTimestamp; // Time when the reward token was added
         uint256 initialInflationRate; // Amount of reward token emitted per year
         uint256 reductionFactor; // Factor by which the inflation rate is reduced each year
+        address[] marketAddresses; // List of markets for which the reward token is distributed
         uint16[] marketWeights; // Weights are basis points, i.e., 100 = 1%, 10000 = 100%
     }
 
@@ -53,9 +54,8 @@ abstract contract RewardController is
 
     /// Updates the reward accumulator for a given market
     /// @dev Executes when any of the following variables are changed: inflationRate, marketWeights, liquidity
-    /// @param idx Index of the market
-
-    function updateMarketRewards(uint256 idx) public virtual;
+    /// @param market Address of the market
+    function updateMarketRewards(address market) public virtual;
 
     /// Gets the number of markets to be used for reward distribution
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
@@ -80,11 +80,30 @@ abstract contract RewardController is
     /// @return Index of the market in the market list
     function getMarketIdx(uint256 i) public view virtual returns (uint256);
 
-    /// Gets the index of the market in the allowlist
+    /// Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param idx Index of the market in the market list
-    /// @return Index of the market in the allowlist ids
-    function getAllowlistIdx(uint256 idx) public view virtual returns (uint256);
+    /// @param token Address of the reward token
+    /// @param market Address of the market
+    /// @return Index of the market in the rewardInfo.marketWeights array
+    function getMarketWeightIdx(
+        address token,
+        address market
+    ) public view virtual returns (uint256) {
+        RewardInfo memory rewardInfo = rewardInfoByToken[token];
+        for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
+            if (rewardInfo.marketAddresses[i] == market) return i;
+        }
+        revert RewardController_MarketHasNoRewardWeight(market, token);
+    }
+
+    /// Returns the current position of the user in the market (i.e., perpetual market or staked token)
+    /// @param lp Address of the user
+    /// @param market Address of the market
+    /// @return Current position of the user in the market
+    function getCurrentPosition(
+        address lp,
+        address market
+    ) public view virtual returns (uint256);
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -138,10 +157,14 @@ abstract contract RewardController is
 
     /// Gets the weights of all markets for a reward token
     /// @param rewardToken Address of the reward token
+    /// @return List of market addresses and their corresponding weights
     function getRewardWeights(
         address rewardToken
-    ) external view returns (uint16[] memory) {
-        return rewardInfoByToken[rewardToken].marketWeights;
+    ) external view returns (address[] memory, uint16[] memory) {
+        return (
+            rewardInfoByToken[rewardToken].marketAddresses,
+            rewardInfoByToken[rewardToken].marketWeights
+        );
     }
 
     /* ****************** */
@@ -149,45 +172,66 @@ abstract contract RewardController is
     /* ****************** */
 
     /// Sets the weights for all perpetual markets
-    /// @param _weights List of weights for each market, in the order of perpetual markets
-    /// @dev Weights are basis points, i.e., 100 = 1%, 10000 = 100%
+    /// @param _weights List of weights for each market, in the order of perp
     function updateRewardWeights(
         address _token,
+        address[] calldata _markets,
         uint16[] calldata _weights
     ) external nonReentrant onlyRole(GOVERNANCE) {
         if (
             _token == address(0) ||
             rewardInfoByToken[_token].token != IERC20Metadata(_token)
         ) revert RewardController_InvalidRewardTokenAddress(_token);
-        uint256 marketsLength = getNumMarkets();
-        if (_weights.length != marketsLength)
+        if (_weights.length != _markets.length)
             revert RewardController_IncorrectWeightsCount(
                 _weights.length,
-                marketsLength
+                _markets.length
             );
+        // Update rewards for all currently rewarded markets before changing weights
+        for (
+            uint i;
+            i < rewardInfoByToken[_token].marketAddresses.length;
+            ++i
+        ) {
+            address market = rewardInfoByToken[_token].marketAddresses[i];
+            updateMarketRewards(market);
+            // Check if market is being removed from rewards
+            bool found = false;
+            for (uint j; j < _markets.length; ++j) {
+                if (_markets[j] != market) continue;
+                found = true;
+                break;
+            }
+            if (found) continue;
+            // Remove token from market's list of reward tokens
+            for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
+                if (rewardTokensPerMarket[market][j] != _token) continue;
+                rewardTokensPerMarket[market][j] = rewardTokensPerMarket[
+                    market
+                ][rewardTokensPerMarket[market].length - 1];
+                rewardTokensPerMarket[market].pop();
+                emit MarketRemovedFromRewards(market, _token);
+                break;
+            }
+        }
+        // Replace stored lists of market addresses and weights
+        rewardInfoByToken[_token].marketAddresses = _markets;
+        rewardInfoByToken[_token].marketWeights = _weights;
+        // Validate weights
         uint16 totalWeight;
-        for (uint i; i < marketsLength; ++i) {
-            uint256 idx = getMarketIdx(i);
-            updateMarketRewards(idx);
+        for (uint i; i < _markets.length; ++i) {
+            address market = _markets[i];
             uint16 weight = _weights[i];
             if (weight > 10000)
                 revert RewardController_WeightExceedsMax(weight, 10000);
-            address market = getMarketAddress(idx);
-            if (i == rewardInfoByToken[_token].marketWeights.length) {
-                // Market added since last update
-                rewardInfoByToken[_token].marketWeights.push(weight);
-            } else {
-                rewardInfoByToken[_token].marketWeights[i] = weight;
-            }
             totalWeight += weight;
             if (weight > 0) {
                 // Check if token is already registered for this market
                 bool found = false;
                 for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
-                    if (rewardTokensPerMarket[market][j] == _token) {
-                        found = true;
-                        break;
-                    }
+                    if (rewardTokensPerMarket[market][j] != _token) continue;
+                    found = true;
+                    break;
                 }
                 // If the token was not previously registered for this market, add it
                 if (!found) rewardTokensPerMarket[market].push(_token);
@@ -204,19 +248,17 @@ abstract contract RewardController is
         address _token,
         uint256 _newInflationRate
     ) external onlyRole(GOVERNANCE) {
-        if (
-            _token == address(0) ||
-            rewardInfoByToken[_token].token != IERC20Metadata(_token)
-        ) revert RewardController_InvalidRewardTokenAddress(_token);
+        RewardInfo memory rewardInfo = rewardInfoByToken[_token];
+        if (_token == address(0) || rewardInfo.token != IERC20Metadata(_token))
+            revert RewardController_InvalidRewardTokenAddress(_token);
         if (_newInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
                 _newInflationRate,
                 MAX_INFLATION_RATE
             );
-        uint256 marketsLength = getNumMarkets();
-        for (uint i; i < marketsLength; ++i) {
-            uint256 idx = getMarketIdx(i);
-            updateMarketRewards(idx);
+        for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
+            address market = rewardInfoByToken[_token].marketAddresses[i];
+            updateMarketRewards(market);
         }
         rewardInfoByToken[_token].initialInflationRate = _newInflationRate;
         emit NewInitialInflationRate(_token, _newInflationRate);
@@ -252,16 +294,14 @@ abstract contract RewardController is
         address _token,
         bool _paused
     ) external onlyRole(EMERGENCY_ADMIN) {
-        if (
-            _token == address(0) ||
-            rewardInfoByToken[_token].token != IERC20Metadata(_token)
-        ) revert RewardController_InvalidRewardTokenAddress(_token);
-        if (rewardInfoByToken[_token].paused == false) {
+        RewardInfo memory rewardInfo = rewardInfoByToken[_token];
+        if (_token == address(0) || rewardInfo.token != IERC20Metadata(_token))
+            revert RewardController_InvalidRewardTokenAddress(_token);
+        if (rewardInfo.paused == false) {
             // If not currently paused, accrue rewards before pausing
-            uint256 marketsLength = getNumMarkets();
-            for (uint i; i < marketsLength; ++i) {
-                uint256 idx = getMarketIdx(i);
-                updateMarketRewards(idx);
+            for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
+                address market = rewardInfo.marketAddresses[i];
+                updateMarketRewards(market);
             }
         }
         rewardInfoByToken[_token].paused = _paused;

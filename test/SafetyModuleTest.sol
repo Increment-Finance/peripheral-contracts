@@ -182,6 +182,9 @@ contract SafetyModuleTest is PerpetualUtils {
         // Register staking tokens with safety module
         safetyModule.addStakingToken(stakedToken1);
         safetyModule.addStakingToken(stakedToken2);
+        address[] memory stakingTokens = new address[](2);
+        stakingTokens[0] = address(stakedToken1);
+        stakingTokens[1] = address(stakedToken2);
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
@@ -189,6 +192,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
+            stakingTokens,
             rewardWeights
         );
 
@@ -249,9 +253,12 @@ contract SafetyModuleTest is PerpetualUtils {
             "Staking token index mismatch"
         );
         assertEq(
-            safetyModule.getAllowlistIdx(0),
+            safetyModule.getMarketWeightIdx(
+                address(rewardsToken),
+                address(stakedToken1)
+            ),
             0,
-            "Allowlist index mismatch"
+            "Market reward weight index mismatch"
         );
         assertEq(
             safetyModule.getCurrentPosition(
@@ -410,7 +417,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Get reward preview
         uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
-            0,
+            address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
         );
@@ -453,7 +460,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Check that rewards are not accrued after full redeem
         skip(10 days);
-        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
         assertEq(
             safetyModule.rewardsAccruedByUser(
                 liquidityProviderTwo,
@@ -569,6 +576,9 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("adding staking tokens to new safety module");
         newSafetyModule.addStakingToken(stakedToken1);
         newSafetyModule.addStakingToken(stakedToken2);
+        address[] memory stakingTokens = new address[](2);
+        stakingTokens[0] = address(stakedToken1);
+        stakingTokens[1] = address(stakedToken2);
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
@@ -576,6 +586,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
+            stakingTokens,
             rewardWeights
         );
 
@@ -606,20 +617,23 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting viewNewRewardAccrual to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(stakedToken1),
                 0,
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
         );
-        newSafetyModule.viewNewRewardAccrual(0, liquidityProviderTwo);
+        newSafetyModule.viewNewRewardAccrual(
+            address(stakedToken1),
+            liquidityProviderTwo
+        );
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(stakedToken1),
                 0,
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
@@ -629,11 +643,8 @@ contract SafetyModuleTest is PerpetualUtils {
         // register user positions
         vm.startPrank(liquidityProviderOne);
         newSafetyModule.registerPositions();
-        uint256[] memory marketIndexes = new uint256[](2);
-        marketIndexes[0] = 0;
-        marketIndexes[1] = 1;
         vm.startPrank(liquidityProviderTwo);
-        newSafetyModule.registerPositions(marketIndexes);
+        newSafetyModule.registerPositions(stakingTokens);
 
         // skip some time
         skip(10 days);
@@ -696,7 +707,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Get reward preview
         uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
-            0,
+            address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
         );
@@ -704,7 +715,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // Accrue rewards, expecting RewardTokenShortfall event
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
-        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
 
         // Skip some more time
         skip(9 days);
@@ -718,7 +729,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Get second reward preview
         uint256 rewardPreview2 = safetyModule.viewNewRewardAccrual(
-            0,
+            address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
         );
@@ -772,11 +783,19 @@ contract SafetyModuleTest is PerpetualUtils {
         safetyModule.addStakingToken(stakedToken3);
 
         // Update the reward weights
+        address[] memory stakingTokens = new address[](3);
+        stakingTokens[0] = address(stakedToken1);
+        stakingTokens[1] = address(stakedToken2);
+        stakingTokens[2] = address(stakedToken3);
         uint16[] memory rewardWeights = new uint16[](3);
         rewardWeights[0] = 3333;
         rewardWeights[1] = 3334;
         rewardWeights[2] = 3333;
-        safetyModule.updateRewardWeights(address(rewardsToken), rewardWeights);
+        safetyModule.updateRewardWeights(
+            address(rewardsToken),
+            stakingTokens,
+            rewardWeights
+        );
 
         // Check that rewardToken was added to the list of reward tokens for the new staked token
         assertEq(
@@ -790,14 +809,14 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Get reward preview, expecting it to be 0
         uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
-            2,
+            address(stakedToken3),
             liquidityProviderTwo,
             address(rewardsToken)
         );
         assertEq(rewardPreview, 0, "Reward preview should be 0");
 
         // Accrue rewards, expecting it to accrue 0 rewards
-        safetyModule.accrueRewards(2, liquidityProviderTwo);
+        safetyModule.accrueRewards(address(stakedToken3), liquidityProviderTwo);
         assertEq(
             safetyModule.rewardsAccruedByUser(
                 liquidityProviderTwo,
@@ -915,8 +934,8 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Check that user 2 accrues rewards according to their new balance and multiplier, while user 1 accrues no rewards
-        safetyModule.accrueRewards(0, liquidityProviderOne);
-        safetyModule.accrueRewards(0, liquidityProviderTwo);
+        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderOne);
+        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
         accruedRewards1 = safetyModule.rewardsAccruedByUser(
             liquidityProviderOne,
             address(rewardsToken)
@@ -1070,7 +1089,8 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 lowSmoothingValue,
         uint256 highSmoothingValue,
         uint256 invalidMarketIdx,
-        address invalidToken
+        address invalidMarket,
+        address invalidRewardToken
     ) public {
         /* bounds */
         highMaxUserLoss = bound(highMaxUserLoss, 1e18 + 1, type(uint256).max);
@@ -1088,9 +1108,10 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         invalidMarketIdx = bound(invalidMarketIdx, 2, type(uint256).max);
         vm.assume(
-            invalidToken != address(stakedToken1) &&
-                invalidToken != address(stakedToken2)
+            invalidMarket != address(stakedToken1) &&
+                invalidMarket != address(stakedToken2)
         );
+        vm.assume(invalidRewardToken != address(rewardsToken));
 
         // test governor-controlled params out of bounds
         vm.expectRevert(
@@ -1147,10 +1168,35 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.expectRevert(
             abi.encodeWithSignature(
                 "SafetyModule_InvalidStakingToken(address)",
-                invalidToken
+                invalidMarket
             )
         );
-        safetyModule.getStakingTokenIdx(invalidToken);
+        safetyModule.getStakingTokenIdx(invalidMarket);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_MarketHasNoRewardWeight(address,address)",
+                invalidMarket,
+                address(rewardsToken)
+            )
+        );
+        safetyModule.getMarketWeightIdx(address(rewardsToken), invalidMarket);
+        vm.startPrank(address(stakedToken1));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidStakingToken(address)",
+                invalidMarket
+            )
+        );
+        safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        vm.startPrank(invalidMarket);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_CallerIsNotStakingToken(address)",
+                invalidMarket
+            )
+        );
+        safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        vm.stopPrank();
 
         // test invalid market index
         vm.expectRevert(
@@ -1169,27 +1215,19 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.getMarketIdx(invalidMarketIdx);
+
+        // test invalid reward token
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
+                "RewardController_MarketHasNoRewardWeight(address,address)",
+                address(stakedToken1),
+                invalidRewardToken
             )
         );
-        safetyModule.getAllowlistIdx(invalidMarketIdx);
-        vm.startPrank(address(stakedToken1));
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
+        safetyModule.getMarketWeightIdx(
+            invalidRewardToken,
+            address(stakedToken1)
         );
-        safetyModule.updateStakingPosition(
-            invalidMarketIdx,
-            liquidityProviderOne
-        );
-        vm.stopPrank();
     }
 
     function testStakedTokenErrors() public {
