@@ -102,6 +102,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return i;
     }
 
+    /// Returns the index of the staking token in the stakingTokens array
+    /// @param token Address of the staking token
     function getStakingTokenIdx(address token) public view returns (uint256) {
         for (uint256 i; i < stakingTokens.length; ++i) {
             if (address(stakingTokens[i]) == token) return i;
