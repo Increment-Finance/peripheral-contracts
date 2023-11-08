@@ -351,9 +351,6 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardsDistributor.updateRewardWeights(token, markets, marketWeights);
-        console.log(
-            "updateInflationRate: RewardController_InvalidRewardTokenAddress"
-        );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_InvalidRewardTokenAddress(address)",

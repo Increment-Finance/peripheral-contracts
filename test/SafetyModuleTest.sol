@@ -617,9 +617,9 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting viewNewRewardAccrual to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(stakedToken1),
                 0,
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
@@ -631,9 +631,9 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,uint256,uint256,uint256)",
+                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
-                0,
+                address(stakedToken1),
                 0,
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
@@ -1175,8 +1175,8 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_MarketHasNoRewardWeight(address,address)",
-                address(rewardsToken),
-                invalidMarket
+                invalidMarket,
+                address(rewardsToken)
             )
         );
         safetyModule.getMarketWeightIdx(address(rewardsToken), invalidMarket);
@@ -1220,8 +1220,8 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_MarketHasNoRewardWeight(address,address)",
-                invalidRewardToken,
-                address(stakedToken1)
+                address(stakedToken1),
+                invalidRewardToken
             )
         );
         safetyModule.getMarketWeightIdx(

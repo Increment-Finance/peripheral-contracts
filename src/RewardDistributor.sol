@@ -125,7 +125,11 @@ abstract contract RewardDistributor is
             address token = rewardTokensPerMarket[market][i];
             uint256 weightIdx = getMarketWeightIdx(token, market);
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
-            if (rewardInfo.marketWeights[weightIdx] == 0) continue;
+            if (
+                rewardInfo.paused ||
+                rewardInfo.initialInflationRate == 0 ||
+                rewardInfo.marketWeights[weightIdx] == 0
+            ) continue;
             uint16 marketWeight = rewardInfo.marketWeights[weightIdx];
             uint256 totalTimeElapsed = block.timestamp -
                 rewardInfo.initialTimestamp;
