@@ -1174,7 +1174,7 @@ contract SafetyModuleTest is PerpetualUtils {
         safetyModule.getStakingTokenIdx(invalidMarket);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_MarketHasNoRewardWeight(address,address)",
+                "RewardController_MarketHasNoRewardWeight(address,address)",
                 invalidMarket,
                 address(rewardsToken)
             )
@@ -1219,7 +1219,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // test invalid reward token
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_MarketHasNoRewardWeight(address,address)",
+                "RewardController_MarketHasNoRewardWeight(address,address)",
                 address(stakedToken1),
                 invalidRewardToken
             )
