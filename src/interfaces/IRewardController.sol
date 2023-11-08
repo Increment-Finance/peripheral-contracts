@@ -91,6 +91,11 @@ interface IRewardController {
         address market
     ) external view returns (uint256);
 
+    function getCurrentPosition(
+        address,
+        address
+    ) external view returns (uint256);
+
     function getRewardTokenCount(address) external view returns (uint256);
 
     function getInitialTimestamp(address) external view returns (uint256);

@@ -79,11 +79,6 @@ interface IRewardDistributor {
     );
     error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
 
-    function getCurrentPosition(
-        address,
-        address
-    ) external view returns (uint256);
-
     function addRewardToken(
         address,
         uint256,

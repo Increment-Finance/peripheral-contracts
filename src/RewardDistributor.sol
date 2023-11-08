@@ -86,10 +86,7 @@ abstract contract RewardDistributor is
         uint256 i
     ) public view virtual override returns (uint256);
 
-    /// Returns the current position of the user in the market (i.e., perpetual market or staked token)
-    /// @param lp Address of the user
-    /// @param market Address of the market
-    /// @return Current position of the user in the market
+    /// @inheritdoc RewardController
     function getCurrentPosition(
         address lp,
         address market

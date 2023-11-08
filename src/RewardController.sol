@@ -96,6 +96,15 @@ abstract contract RewardController is
         revert RewardController_MarketHasNoRewardWeight(market, token);
     }
 
+    /// Returns the current position of the user in the market (i.e., perpetual market or staked token)
+    /// @param lp Address of the user
+    /// @param market Address of the market
+    /// @return Current position of the user in the market
+    function getCurrentPosition(
+        address lp,
+        address market
+    ) public view virtual returns (uint256);
+
     /* ******************* */
     /*  Reward Info Views  */
     /* ******************* */

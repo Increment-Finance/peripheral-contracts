@@ -101,7 +101,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         return clearingHouse.id(i);
     }
 
-    /// @inheritdoc RewardDistributor
+    /// @inheritdoc RewardController
     function getCurrentPosition(
         address lp,
         address market
