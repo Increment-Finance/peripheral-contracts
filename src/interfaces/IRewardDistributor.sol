@@ -3,7 +3,6 @@ pragma solidity 0.8.16;
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
 
 interface IRewardDistributor {
@@ -51,7 +50,13 @@ interface IRewardDistributor {
         uint256 newPosition
     );
 
-    error RewardDistributor_CallerIsNotClearingHouse(address caller);
+    /// Emitted when the address of the ecosystem reserve for storing reward tokens is updated
+    /// @param newEcosystemReserve Address of the new ecosystem reserve
+    event EcosystemReserveUpdated(
+        address prevEcosystemReserve,
+        address newEcosystemReserve
+    );
+
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
     error RewardDistributor_MarketHasNoRewardWeight(
         address market,
@@ -76,8 +81,7 @@ interface IRewardDistributor {
         uint256 prevPosition,
         uint256 newPosition
     );
-
-    function earlyWithdrawalThreshold() external view returns (uint256);
+    error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
 
     function getCurrentPosition(
         address,
@@ -93,6 +97,8 @@ interface IRewardDistributor {
     ) external;
 
     function removeRewardToken(address) external;
+
+    function setEcosystemReserve(address) external;
 
     function registerPositions() external;
 
