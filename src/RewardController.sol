@@ -88,7 +88,13 @@ abstract contract RewardController is
     function getMarketWeightIdx(
         address token,
         address market
-    ) public view virtual returns (uint256);
+    ) public view virtual returns (uint256) {
+        RewardInfo memory rewardInfo = rewardInfoByToken[token];
+        for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
+            if (rewardInfo.marketAddresses[i] == market) return i;
+        }
+        revert RewardController_MarketHasNoRewardWeight(market, token);
+    }
 
     /* ******************* */
     /*  Reward Info Views  */

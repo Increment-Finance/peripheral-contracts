@@ -58,10 +58,6 @@ interface IRewardDistributor {
     );
 
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
-    error RewardDistributor_MarketHasNoRewardWeight(
-        address market,
-        address rewardToken
-    );
     error RewardDistributor_UninitializedStartTime(address market);
     error RewardDistributor_AlreadyInitializedStartTime(address market);
     error RewardDistributor_NoRewardsToClaim(address user);

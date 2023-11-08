@@ -86,18 +86,6 @@ abstract contract RewardDistributor is
         uint256 i
     ) public view virtual override returns (uint256);
 
-    /// @inheritdoc RewardController
-    function getMarketWeightIdx(
-        address token,
-        address market
-    ) public view virtual override returns (uint256) {
-        RewardInfo memory rewardInfo = rewardInfoByToken[token];
-        for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
-            if (rewardInfo.marketAddresses[i] == market) return i;
-        }
-        revert RewardDistributor_MarketHasNoRewardWeight(market, token);
-    }
-
     /// Returns the current position of the user in the market (i.e., perpetual market or staked token)
     /// @param lp Address of the user
     /// @param market Address of the market

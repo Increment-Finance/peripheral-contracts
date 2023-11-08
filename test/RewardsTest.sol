@@ -1362,7 +1362,7 @@ contract RewardsTest is PerpetualUtils {
         // expect a revert from getMarketWeightIdx, since the market hasn't been added to rewards yet
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_MarketHasNoRewardWeight(address,address)",
+                "RewardController_MarketHasNoRewardWeight(address,address)",
                 address(perpetual3),
                 address(rewardsToken2)
             )
@@ -1599,7 +1599,7 @@ contract RewardsTest is PerpetualUtils {
         rewardsDistributor.getMarketAddress(9);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_MarketHasNoRewardWeight(address,address)",
+                "RewardController_MarketHasNoRewardWeight(address,address)",
                 invalidMarket,
                 address(rewardsToken)
             )

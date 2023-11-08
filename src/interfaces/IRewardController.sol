@@ -62,6 +62,10 @@ interface IRewardController {
     error RewardController_AboveMaxInflationRate(uint256 rate, uint256 max);
     error RewardController_BelowMinReductionFactor(uint256 factor, uint256 min);
     error RewardController_InvalidRewardTokenAddress(address token);
+    error RewardController_MarketHasNoRewardWeight(
+        address market,
+        address rewardToken
+    );
     error RewardController_IncorrectWeightsCount(
         uint256 actual,
         uint256 expected
