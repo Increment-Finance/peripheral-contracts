@@ -26,6 +26,7 @@ contract StakedToken is
 
     ISafetyModule public safetyModule;
 
+    /// @notice Max amount of staked tokens allowed per user
     uint256 public maxStakeAmount;
 
     mapping(address => uint256) public stakersCooldowns;
@@ -187,6 +188,8 @@ contract StakedToken is
         safetyModule = ISafetyModule(_safetyModule);
     }
 
+    /// @notice Sets the max amount of staked tokens allowed per user, callable only by governance
+    /// @param _maxStakeAmount New max amount of staked tokens allowed per user
     function setMaxStakeAmount(
         uint256 _maxStakeAmount
     ) external onlyRole(GOVERNANCE) {
