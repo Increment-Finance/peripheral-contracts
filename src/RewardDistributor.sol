@@ -137,7 +137,7 @@ abstract contract RewardDistributor is
         timeOfLastCumRewardUpdate[market] = block.timestamp;
     }
 
-    /// Accrues rewards and updates the stored position of a user and the total liquidity of a market
+    /// @notice Accrues rewards and updates the stored position of a user and the total liquidity of a market
     /// @dev Executes whenever a user's position is updated for any reason
     /// @param market Address of the market (i.e., perpetual market or staking token)
     /// @param user Address of the user
@@ -150,8 +150,8 @@ abstract contract RewardDistributor is
     /*     Governance     */
     /* ****************** */
 
-    /// Sets the start time for accruing rewards to a market which has not been initialized yet
-    /// @param _market Address of the market (i.e., perpetual market or staking token)
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by governance
     function initMarketStartTime(
         address _market
     ) external onlyRole(GOVERNANCE) {
@@ -160,12 +160,8 @@ abstract contract RewardDistributor is
         timeOfLastCumRewardUpdate[_market] = block.timestamp;
     }
 
-    /// Adds a new reward token
-    /// @param _rewardToken Address of the reward token
-    /// @param _initialInflationRate Initial inflation rate for the new token
-    /// @param _initialReductionFactor Initial reduction factor for the new token
-    /// @param _markets Addresses of the markets to reward with the new token
-    /// @param _marketWeights Initial weights per market for the new token
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by governance
     function addRewardToken(
         address _rewardToken,
         uint256 _initialInflationRate,
@@ -223,8 +219,8 @@ abstract contract RewardDistributor is
         );
     }
 
-    /// Removes a reward token
-    /// @param _token Address of the reward token to remove
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by governance
     function removeRewardToken(
         address _token
     ) external nonReentrant onlyRole(GOVERNANCE) {
@@ -265,6 +261,8 @@ abstract contract RewardDistributor is
         emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
     }
 
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by governance
     function setEcosystemReserve(
         address _ecosystemReserve
     ) external onlyRole(GOVERNANCE) {
@@ -279,8 +277,7 @@ abstract contract RewardDistributor is
     /*    External User   */
     /* ****************** */
 
-    /// Fetches and stores the caller's LP/stake positions and updates the total liquidity in each market
-    /// @dev Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment
+    /// @inheritdoc IRewardDistributor
     function registerPositions() external nonReentrant {
         uint256 numMarkets = getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
@@ -297,9 +294,7 @@ abstract contract RewardDistributor is
         }
     }
 
-    /// Fetches and stores the caller's LP positions and updates the total liquidity in each market
-    /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
-    /// @param _markets Addresses of the perpetual markets in the ClearingHouse to sync with
+    /// @inheritdoc IRewardDistributor
     function registerPositions(
         address[] calldata _markets
     ) external nonReentrant {
@@ -317,13 +312,12 @@ abstract contract RewardDistributor is
         }
     }
 
-    /// Accrues and then distributes rewards for all markets to the caller
+    /// @inheritdoc IRewardDistributor
     function claimRewards() public override {
         claimRewardsFor(msg.sender);
     }
 
-    /// Accrues and then distributes rewards for all markets to the given user
-    /// @param _user Address of the user to claim rewards for
+    /// @inheritdoc IRewardDistributor
     function claimRewardsFor(address _user) public override {
         for (uint i; i < getNumMarkets(); ++i) {
             uint256 idx = getMarketIdx(i);
@@ -332,12 +326,12 @@ abstract contract RewardDistributor is
         }
     }
 
+    /// @inheritdoc IRewardDistributor
     function claimRewardsFor(address _user, address _market) public override {
         claimRewardsFor(_user, rewardTokensPerMarket[_market]);
     }
 
-    /// Accrues and then distributes rewards for all markets to the given user
-    /// @param _user Address of the user to claim rewards for
+    /// @inheritdoc IRewardDistributor
     function claimRewardsFor(
         address _user,
         address[] memory _rewardTokens
@@ -367,10 +361,7 @@ abstract contract RewardDistributor is
         }
     }
 
-    /// Accrues rewards to a user for all markets
-    /// @notice Assumes user's position hasn't changed since last accrual
-    /// @dev Updating rewards due to changes in position is handled by updateStakingPosition
-    /// @param user Address of the user to accrue rewards for
+    /// @inheritdoc IRewardDistributor
     function accrueRewards(address user) external override {
         for (uint i; i < getNumMarkets(); ++i) {
             address market = getMarketAddress(getMarketIdx(i));
@@ -378,18 +369,10 @@ abstract contract RewardDistributor is
         }
     }
 
-    /// Accrues rewards to a user for a given market
-    /// @notice Assumes LP position hasn't changed since last accrual
-    /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
-    /// @param market Address of the market in ClearingHouse.perpetuals
-    /// @param user Address of the user
+    /// @inheritdoc IRewardDistributor
     function accrueRewards(address market, address user) public virtual;
 
-    /// Returns the amount of rewards that would be accrued to a user for a given market
-    /// @notice Serves as a static version of accrueRewards(uint256 idx, address user)
-    /// @param market Address of the market in ClearingHouse.perpetuals
-    /// @param user Address of the user
-    /// @return Amount of new rewards that would be accrued to the user for each reward token
+    /// @inheritdoc IRewardDistributor
     function viewNewRewardAccrual(
         address market,
         address user
@@ -404,11 +387,7 @@ abstract contract RewardDistributor is
         return newRewards;
     }
 
-    /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param market Address of the market in ClearingHouse.perpetuals
-    /// @param user Address of the user
-    /// @param token Address of the reward token
-    /// @return Amount of new rewards that would be accrued to the useridx Index
+    /// @inheritdoc IRewardDistributor
     function viewNewRewardAccrual(
         address market,
         address user,
@@ -419,6 +398,12 @@ abstract contract RewardDistributor is
     /*      Internal      */
     /* ****************** */
 
+    /// @notice Distributes accrued rewards from the ecosystem reserve to a user for a given reward token
+    /// @dev Checks if there are enough rewards remaining in the ecosystem reserve to distribute, updates totalUnclaimedRewards, and returns the amount of rewards that were not distributed
+    /// @param _token Address of the reward token
+    /// @param _to Address of the user to distribute rewards to
+    /// @param _amount Amount of rewards to distribute
+    /// @return Amount of rewards that were not distributed
     function _distributeReward(
         address _token,
         address _to,
@@ -442,6 +427,9 @@ abstract contract RewardDistributor is
         }
     }
 
+    /// @notice Gets the current balance of a reward token in the ecosystem reserve
+    /// @param _token Address of the reward token
+    /// @return Balance of the reward token in the ecosystem reserve
     function _rewardTokenBalance(
         address _token
     ) internal view returns (uint256) {

@@ -617,7 +617,7 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting viewNewRewardAccrual to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
                 address(stakedToken1),
                 0,
@@ -631,7 +631,7 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
                 address(stakedToken1),
                 0,

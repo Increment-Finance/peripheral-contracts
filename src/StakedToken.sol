@@ -9,6 +9,11 @@ import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.so
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
 import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
 
+/**
+ * @title StakedToken
+ * @author webthethird
+ * @notice Based on Aave's StakedToken, but with reward management outsourced to the SafetyModule
+ */
 contract StakedToken is
     IStakedToken,
     ERC20Permit,
@@ -18,14 +23,19 @@ contract StakedToken is
 {
     using SafeERC20 for IERC20;
 
+    /// @notice Address of the underlying token to stake
     IERC20 public immutable STAKED_TOKEN;
+
+    /// @notice Seconds that user must wait between calling cooldown and redeem
     uint256 public immutable COOLDOWN_SECONDS;
 
     /// @notice Seconds available to redeem once the cooldown period is fullfilled
     uint256 public immutable UNSTAKE_WINDOW;
 
+    /// @notice Address of the SafetyModule contract
     ISafetyModule public safetyModule;
 
+    /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
 
     constructor(
@@ -42,6 +52,9 @@ contract StakedToken is
         safetyModule = _safetyModule;
     }
 
+    /**
+     * @inheritdoc IStakedToken
+     */
     function stake(address onBehalfOf, uint256 amount) external override {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         uint256 balanceOfUser = balanceOf(onBehalfOf);
@@ -66,10 +79,8 @@ contract StakedToken is
     }
 
     /**
-     * @dev Redeems staked tokens, and stop earning rewards
-     * @param to Address to redeem to
-     * @param amount Amount to redeem
-     **/
+     * @inheritdoc IStakedToken
+     */
     function redeem(address to, uint256 amount) external override {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         //solium-disable-next-line
@@ -105,9 +116,8 @@ contract StakedToken is
     }
 
     /**
-     * @dev Activates the cooldown period to unstake
-     * - It can't be called if the user is not staking
-     **/
+     * @inheritdoc IStakedToken
+     */
     function cooldown() external override {
         if (balanceOf(msg.sender) == 0)
             revert StakedToken_ZeroBalanceAtCooldown();
@@ -118,9 +128,11 @@ contract StakedToken is
     }
 
     /**
-     * @dev Calculates a new cooldown timestamp depending on the sender/receiver situation
+     * @notice Calculates a new cooldown timestamp
+     * @dev Calculation depends on the sender/receiver situation, as follows:
      *  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0, we take the one of the recipient
-     *  - Weighted average of from/to cooldown timestamps if:
+     *  - Weighted average
+ of from/to cooldown timestamps if:
      *    # The sender doesn't have the cooldown activated (timestamp 0).
      *    # The sender timestamp is expired
      *    # The sender has a "worse" timestamp
@@ -172,6 +184,9 @@ contract StakedToken is
     /*     Governance     */
     /* ****************** */
 
+    /**
+     * @inheritdoc IStakedToken
+     */
     function setSafetyModule(
         address _safetyModule
     ) external onlyRole(GOVERNANCE) {
@@ -183,7 +198,8 @@ contract StakedToken is
     /* ****************** */
 
     /**
-     * @dev Internal ERC20 _transfer of the tokenized staked tokens
+     * @notice Internal ERC20 _transfer of the tokenized staked tokens
+     * @dev Updates the cooldown timestamps if necessary, and updates the staking positions of both users in the SafetyModule, accruing rewards in the process
      * @param from Address to transfer from
      * @param to Address to transfer to
      * @param amount Amount to transfer

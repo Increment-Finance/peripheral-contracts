@@ -271,7 +271,7 @@ contract RewardsTest is PerpetualUtils {
         initialReductionFactor = bound(initialReductionFactor, 1e18, 2e18);
 
         // Update inflation rate and reduction factor
-        rewardsDistributor.updateInflationRate(
+        rewardsDistributor.updateInitialInflationRate(
             address(rewardsToken),
             initialInflationRate
         );
@@ -357,7 +357,7 @@ contract RewardsTest is PerpetualUtils {
                 token
             )
         );
-        rewardsDistributor.updateInflationRate(token, inflationRate);
+        rewardsDistributor.updateInitialInflationRate(token, inflationRate);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_InvalidRewardTokenAddress(address)",
@@ -381,7 +381,7 @@ contract RewardsTest is PerpetualUtils {
                 5e24
             )
         );
-        rewardsDistributor.updateInflationRate(
+        rewardsDistributor.updateInitialInflationRate(
             address(rewardsToken),
             inflationRate
         );
@@ -1511,7 +1511,7 @@ contract RewardsTest is PerpetualUtils {
         // before registering positions, expect accruing rewards to fail
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
                 address(perpetual),
                 0,
@@ -1524,7 +1524,7 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
                 address(perpetual),
                 0,

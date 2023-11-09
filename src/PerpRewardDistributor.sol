@@ -17,6 +17,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
 
+    /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., updateStakingPosition
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse))
             revert PerpRewardDistributor_CallerIsNotClearingHouse(msg.sender);
@@ -113,9 +114,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /*   Reward Accrual   */
     /* ****************** */
 
-    /// Accrues rewards and updates the stored LP position of a user and the total LP of a market
+    /// @notice Accrues rewards and updates the stored LP position of a user and the total LP of a market
     /// @dev Executes whenever a user's liquidity is updated for any reason
-    /// @param market Address of the perpetual market or staking contract
+    /// @param market Address of the perpetual market
     /// @param user Address of the liquidity provier
     function updateStakingPosition(
         address market,
@@ -181,9 +182,8 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /*    External User   */
     /* ****************** */
 
-    /// Accrues rewards to a user for a given market
-    /// @notice Assumes LP position hasn't changed since last accrual
-    /// @dev Updating rewards due to changes in LP position is handled by updateStakingPosition
+    /// @notice Accrues rewards to a user for a given market
+    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in LP position is handled by updateStakingPosition
     /// @param market Address of the market in ClearingHouse.perpetuals
     /// @param user Address of the user
     function accrueRewards(
@@ -205,7 +205,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         if (lpPosition != getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_LpPositionMismatch(
+            revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 lpPosition,
@@ -228,10 +228,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         }
     }
 
-    /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param market Address of the market in ClearingHouse.perpetuals
+    /// @notice Returns the amount of rewards that would be accrued to a user for a given market and reward token
+    /// @param market Address of the market in ClearingHouse.perpetuals to view new rewards for
     /// @param user Address of the user
-    /// @param token Address of the reward token
+    /// @param token Address of the reward token to view new rewards for
     /// @return Amount of new rewards that would be accrued to the user
     function viewNewRewardAccrual(
         address market,
@@ -254,7 +254,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         )
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_LpPositionMismatch(
+            revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 lpPositionsPerUser[user][market],
@@ -284,6 +284,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         return newUserRewards;
     }
 
+    /// @notice Indicates whether claiming rewards is currently paused
+    /// @dev Contract is paused if either this contract or the ClearingHouse has been paused
+    /// @return True if paused, false otherwise
     function paused() public view override returns (bool) {
         return super.paused() || Pausable(address(clearingHouse)).paused();
     }

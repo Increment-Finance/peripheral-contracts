@@ -13,12 +13,21 @@ import {IStakedToken} from "./interfaces/IStakedToken.sol";
 import {LibMath} from "@increment/lib/LibMath.sol";
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
+/// @title SafetyModule
+/// @author webthethird
+/// @notice Handles reward accrual and distribution for staking tokens, and allows governance to auction a percent of user funds in the event of an insolvency in the vault
+/// @dev Auction module and related logic is not yet implemented
 contract SafetyModule is ISafetyModule, RewardDistributor {
     using LibMath for uint256;
     using PRBMathUD60x18 for uint256;
 
+    /// @notice Address of the Increment vault contract, where funds are sent in the event of an auction
     address public vault;
+
+    /// @notice Address of the auction module, which sells user funds in the event of an insolvency
     address public auctionModule;
+
+    /// @notice Array of staking tokens that are registered with the SafetyModule
     IStakedToken[] public stakingTokens;
 
     /// @notice The maximum percentage of user funds that can be sold at auction, normalized to 1e18
@@ -36,6 +45,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     mapping(address => mapping(address => uint256))
         public multiplierStartTimeByUser;
 
+    /// @notice Modifier for functions that can only be called by a registered StakedToken contract, i.e., updateStakingPosition
     modifier onlyStakingToken() {
         bool isStakingToken = false;
         for (uint i; i < stakingTokens.length; ++i) {
@@ -102,8 +112,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return i;
     }
 
-    /// Returns the index of the staking token in the stakingTokens array
-    /// @param token Address of the staking token
+    /// @inheritdoc ISafetyModule
     function getStakingTokenIdx(address token) public view returns (uint256) {
         for (uint256 i; i < stakingTokens.length; ++i) {
             if (address(stakingTokens[i]) == token) return i;
@@ -111,7 +120,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         revert SafetyModule_InvalidStakingToken(token);
     }
 
-    /// Returns the user's staking token balance
+    /// @notice Returns the user's staking token balance
     /// @param staker Address of the user
     /// @param token Address of the staking token
     /// @return Current balance of the user in the staking token
@@ -122,11 +131,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return IStakedToken(token).balanceOf(staker);
     }
 
-    /// Returns the amount of the user's staking tokens that can be sold at auction
-    /// in the event of an insolvency in the vault that cannot be covered by the insurance fund
-    /// @param staker Address of the user
-    /// @param token Address of the staking token
-    /// @return Balance of the user multiplied by the maxPercentUserLoss
+    /// @inheritdoc ISafetyModule
     function getAuctionableBalance(
         address staker,
         address token
@@ -138,7 +143,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*   Reward Accrual   */
     /* ****************** */
 
-    /// Accrues rewards and updates the stored stake position of a user and the total tokens staked
+    /// @notice Accrues rewards and updates the stored stake position of a user and the total tokens staked
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in stakingTokens
     /// @param user Address of the staker
@@ -193,7 +198,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 );
             }
         }
-        // TODO: What if a staking token is removed?
         lpPositionsPerUser[user][market] = newPosition;
     }
 
@@ -201,24 +205,23 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*    External User   */
     /* ****************** */
 
-    /// Accrues rewards to a user for a given staking token
-    /// @notice Assumes stake position hasn't changed since last accrual
-    /// @dev Updating rewards due to changes in stake position is handled by updateStakingPosition
+    /// @notice Accrues rewards to a user for a given staking token
+    /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in stake position is handled by updateStakingPosition
     /// @param market Address of the token in stakingTokens
     /// @param user Address of the user
     function accrueRewards(
         address market,
         address user
     ) public virtual override nonReentrant {
-        uint256 lpPosition = lpPositionsPerUser[user][market];
+        uint256 userPosition = lpPositionsPerUser[user][market];
         uint256 currentPosition = getCurrentPosition(user, market);
-        if (lpPosition != currentPosition)
+        if (userPosition != currentPosition)
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_LpPositionMismatch(
+            revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
-                lpPosition,
+                userPosition,
                 currentPosition
             );
         if (totalLiquidityPerMarket[market] == 0) return;
@@ -226,7 +229,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            uint256 newRewards = lpPosition
+            uint256 newRewards = userPosition
                 .mul(
                     cumulativeRewardPerLpToken[token][market] -
                         cumulativeRewardPerLpTokenPerUser[user][token][market]
@@ -249,7 +252,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         }
     }
 
-    /// Returns the amount of rewards that would be accrued to a user for a given market and reward token
+    /// @notice Returns the amount of new rewards that would be accrued to a user by calling accrueRewards for a given market and reward token
     /// @param market Address of the staking token in stakingTokens
     /// @param user Address of the user
     /// @param token Address of the reward token
@@ -263,7 +266,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         if (lpPosition != getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_LpPositionMismatch(
+            revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 lpPosition,
@@ -297,10 +300,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*  Reward Multiplier  */
     /* ******************* */
 
-    /// Computes the user's reward multiplier for the given staking token
-    /// @notice Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)
-    /// @param _user Address of the staker
-    /// @param _stakingToken Address of staking token earning rewards
+    /// @inheritdoc ISafetyModule
     function computeRewardMultiplier(
         address _user,
         address _stakingToken
@@ -328,6 +328,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*     Governance     */
     /* ****************** */
 
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance, reverts if the new value is greater than 1e18, i.e., 100%
     function setMaxPercentUserLoss(
         uint256 _maxPercentUserLoss
     ) external onlyRole(GOVERNANCE) {
@@ -340,6 +342,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
     }
 
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance, reverts if the new value is less than 1e18 (100%) or greater than 10e18 (1000%)
     function setMaxRewardMultiplier(
         uint256 _maxRewardMultiplier
     ) external onlyRole(GOVERNANCE) {
@@ -357,6 +361,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
     }
 
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance, reverts if the new value is less than 10e18 or greater than 100e18
     function setSmoothingValue(
         uint256 _smoothingValue
     ) external onlyRole(GOVERNANCE) {
@@ -374,6 +380,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         emit SmoothingValueUpdated(_smoothingValue);
     }
 
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance, reverts if the staking token is already registered
     function addStakingToken(
         IStakedToken _stakingToken
     ) external onlyRole(GOVERNANCE) {
