@@ -44,6 +44,8 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 shortfallAmount
     );
 
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
@@ -1303,9 +1305,22 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        // change max stake amount and try again, expecting it to succeed
+        vm.stopPrank();
+        stakedToken1.setMaxStakeAmount(type(uint256).max);
+        vm.startPrank(liquidityProviderTwo);
+        vm.expectEmit(false, false, false, true);
+        emit Transfer(
+            liquidityProviderTwo,
+            liquidityProviderOne,
+            invalidStakeAmount1
+        );
+        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        // transfer the amount back so that subsequent tests work
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.transfer(liquidityProviderTwo, invalidStakeAmount1);
 
         // test insufficient cooldown
-        vm.startPrank(liquidityProviderOne);
         stakedToken1.cooldown();
         uint256 cooldownStartTimestamp = block.timestamp;
         uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
