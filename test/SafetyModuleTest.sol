@@ -49,6 +49,10 @@ contract SafetyModuleTest is PerpetualUtils {
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
+    uint256 constant COOLDOWN_SECONDS = 1 days;
+    uint256 constant UNSTAKE_WINDOW = 10 days;
+    uint256 constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
+    uint256 constant MAX_STAKE_AMOUNT_2 = 100_000e18;
 
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
@@ -75,7 +79,7 @@ contract SafetyModuleTest is PerpetualUtils {
         super.setUp();
 
         // Deploy rewards tokens
-        rewardsToken = new IncrementToken(20000000e18, address(this));
+        rewardsToken = new IncrementToken(20_000_000e18, address(this));
         rewardsToken.unpause();
 
         // Deploy the Ecosystem Reserve vault
@@ -165,16 +169,18 @@ contract SafetyModuleTest is PerpetualUtils {
         stakedToken1 = new StakedToken(
             rewardsToken,
             safetyModule,
-            1 days,
-            10 days,
+            COOLDOWN_SECONDS,
+            UNSTAKE_WINDOW,
+            MAX_STAKE_AMOUNT_1,
             "Staked INCR",
             "stINCR"
         );
         stakedToken2 = new StakedToken(
             balancerPool,
             safetyModule,
-            1 days,
-            10 days,
+            COOLDOWN_SECONDS,
+            UNSTAKE_WINDOW,
+            MAX_STAKE_AMOUNT_2,
             "Staked 50INCR-50WETH BPT",
             "stIBPT"
         );
@@ -773,8 +779,9 @@ contract SafetyModuleTest is PerpetualUtils {
         StakedToken stakedToken3 = new StakedToken(
             rewardsToken,
             safetyModule,
-            1 days,
-            10 days,
+            COOLDOWN_SECONDS,
+            UNSTAKE_WINDOW,
+            MAX_STAKE_AMOUNT_1,
             "Staked INCR 2",
             "stINCR2"
         );
@@ -1230,7 +1237,26 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
-    function testStakedTokenErrors() public {
+    function testStakedTokenErrors(
+        uint256 invalidStakeAmount1,
+        uint256 invalidStakeAmount2
+    ) public {
+        /* bounds */
+        invalidStakeAmount1 = bound(
+            invalidStakeAmount1,
+            MAX_STAKE_AMOUNT_1 -
+                stakedToken1.balanceOf(liquidityProviderOne) +
+                1,
+            type(uint256).max / 2
+        );
+        invalidStakeAmount2 = bound(
+            invalidStakeAmount2,
+            MAX_STAKE_AMOUNT_2 -
+                stakedToken2.balanceOf(liquidityProviderOne) +
+                1,
+            type(uint256).max / 2
+        );
+
         // test zero amount
         vm.expectRevert(
             abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
@@ -1246,6 +1272,37 @@ contract SafetyModuleTest is PerpetualUtils {
             abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()")
         );
         stakedToken1.cooldown();
+
+        // test above max stake amount
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
+                MAX_STAKE_AMOUNT_1,
+                MAX_STAKE_AMOUNT_1 -
+                    stakedToken1.balanceOf(liquidityProviderOne)
+            )
+        );
+        stakedToken1.stake(liquidityProviderOne, invalidStakeAmount1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
+                MAX_STAKE_AMOUNT_2,
+                MAX_STAKE_AMOUNT_2 -
+                    stakedToken2.balanceOf(liquidityProviderOne)
+            )
+        );
+        stakedToken2.stake(liquidityProviderOne, invalidStakeAmount2);
+        deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount1);
+        vm.startPrank(liquidityProviderTwo);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
+                MAX_STAKE_AMOUNT_1,
+                MAX_STAKE_AMOUNT_1 -
+                    stakedToken1.balanceOf(liquidityProviderOne)
+            )
+        );
+        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
 
         // test insufficient cooldown
         vm.startPrank(liquidityProviderOne);
