@@ -26,6 +26,8 @@ contract StakedToken is
 
     ISafetyModule public safetyModule;
 
+    uint256 public maxStakeAmount;
+
     mapping(address => uint256) public stakersCooldowns;
 
     constructor(
@@ -33,6 +35,7 @@ contract StakedToken is
         ISafetyModule _safetyModule,
         uint256 _cooldownSeconds,
         uint256 _unstakeWindow,
+        uint256 _maxStakeAmount,
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) ERC20Permit(_name) {
@@ -40,11 +43,17 @@ contract StakedToken is
         COOLDOWN_SECONDS = _cooldownSeconds;
         UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
+        maxStakeAmount = _maxStakeAmount;
     }
 
     function stake(address onBehalfOf, uint256 amount) external override {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         uint256 balanceOfUser = balanceOf(onBehalfOf);
+        if (balanceOfUser + amount > maxStakeAmount)
+            revert StakedToken_AboveMaxStakeAmount(
+                maxStakeAmount,
+                maxStakeAmount - balanceOfUser
+            );
 
         stakersCooldowns[onBehalfOf] = getNextCooldownTimestamp(
             0,
@@ -105,7 +114,7 @@ contract StakedToken is
     }
 
     /**
-     * @dev Activates the cooldown period to unstake
+     * @dev Activates the cooldown period to unstakeaddress
      * - It can't be called if the user is not staking
      **/
     function cooldown() external override {
@@ -178,6 +187,12 @@ contract StakedToken is
         safetyModule = ISafetyModule(_safetyModule);
     }
 
+    function setMaxStakeAmount(
+        uint256 _maxStakeAmount
+    ) external onlyRole(GOVERNANCE) {
+        maxStakeAmount = _maxStakeAmount;
+    }
+
     /* ****************** */
     /*      Internal      */
     /* ****************** */
@@ -199,6 +214,11 @@ contract StakedToken is
         // Recipient
         if (from != to) {
             uint256 balanceOfTo = balanceOf(to);
+            if (balanceOfTo + amount > maxStakeAmount)
+                revert StakedToken_AboveMaxStakeAmount(
+                    maxStakeAmount,
+                    maxStakeAmount - balanceOfTo
+                );
             uint256 previousSenderCooldown = stakersCooldowns[from];
             stakersCooldowns[to] = getNextCooldownTimestamp(
                 previousSenderCooldown,
