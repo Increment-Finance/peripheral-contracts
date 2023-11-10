@@ -20,7 +20,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
 
-    /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., updateStakingPosition
+    /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., `updateStakingPosition`
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse))
             revert PerpRewardDistributor_CallerIsNotClearingHouse(msg.sender);
@@ -186,8 +186,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /* ****************** */
 
     /// @notice Accrues rewards to a user for a given market
-    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in LP position is handled by updateStakingPosition
-    /// @param market Address of the market in ClearingHouse.perpetuals
+    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
+    /// LP position is handled by `updateStakingPosition`
+    /// @param market Address of the market in `ClearingHouse.perpetuals`
     /// @param user Address of the user
     function accrueRewards(
         address market,
@@ -232,7 +233,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     }
 
     /// @notice Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param market Address of the market in ClearingHouse.perpetuals to view new rewards for
+    /// @param market Address of the market in `ClearingHouse.perpetuals` to view new rewards for
     /// @param user Address of the user
     /// @param token Address of the reward token to view new rewards for
     /// @return Amount of new rewards that would be accrued to the user

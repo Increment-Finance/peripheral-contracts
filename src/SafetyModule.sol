@@ -15,7 +15,8 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 /// @title SafetyModule
 /// @author webthethird
-/// @notice Handles reward accrual and distribution for staking tokens, and allows governance to auction a percent of user funds in the event of an insolvency in the vault
+/// @notice Handles reward accrual and distribution for staking tokens, and allows governance to auction a
+/// percentage of user funds in the event of an insolvency in the vault
 /// @dev Auction module and related logic is not yet implemented
 contract SafetyModule is ISafetyModule, RewardDistributor {
     using LibMath for uint256;
@@ -45,7 +46,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     mapping(address => mapping(address => uint256))
         public multiplierStartTimeByUser;
 
-    /// @notice Modifier for functions that can only be called by a registered StakedToken contract, i.e., updateStakingPosition
+    /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
+    /// i.e., `updateStakingPosition`
     modifier onlyStakingToken() {
         bool isStakingToken = false;
         for (uint i; i < stakingTokens.length; ++i) {
@@ -145,7 +147,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
 
     /// @notice Accrues rewards and updates the stored stake position of a user and the total tokens staked
     /// @dev Executes whenever a user's stake is updated for any reason
-    /// @param market Address of the staking token in stakingTokens
+    /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
     function updateStakingPosition(
         address market,
@@ -206,8 +208,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /* ****************** */
 
     /// @notice Accrues rewards to a user for a given staking token
-    /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in stake position is handled by updateStakingPosition
-    /// @param market Address of the token in stakingTokens
+    /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
+    /// stake position is handled by `updateStakingPosition`
+    /// @param market Address of the token in `stakingTokens`
     /// @param user Address of the user
     function accrueRewards(
         address market,
@@ -252,8 +255,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         }
     }
 
-    /// @notice Returns the amount of new rewards that would be accrued to a user by calling accrueRewards for a given market and reward token
-    /// @param market Address of the staking token in stakingTokens
+    /// @notice Returns the amount of new rewards that would be accrued to a user by calling `accrueRewards`
+    /// for a given market and reward token
+    /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the user
     /// @param token Address of the reward token
     /// @return Amount of new rewards that would be accrued to the user

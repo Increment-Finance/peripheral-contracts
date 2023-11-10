@@ -9,7 +9,7 @@ import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
 /// @author webthethird
 /// @notice Interface for the RewardDistributor contract
 interface IRewardDistributor {
-    /// @notice Emitted when rewards are accrued to an LP
+    /// @notice Emitted when rewards are accrued to a user
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
@@ -31,7 +31,7 @@ interface IRewardDistributor {
         uint256 reward
     );
 
-    /// @notice Emitted when an LP claims their accrued rewards
+    /// @notice Emitted when a user claims their accrued rewards
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
     /// @param reward Amount of reward claimed
@@ -41,11 +41,11 @@ interface IRewardDistributor {
         uint256 reward
     );
 
-    /// @notice Emitted when an LP's position is changed in the reward distributor
+    /// @notice Emitted when a user's position is changed in the reward distributor
     /// @param user Address of the user
     /// @param market Address of the market
-    /// @param prevPosition Previous LP position of the user
-    /// @param newPosition New LP position of the user
+    /// @param prevPosition Previous position of the user
+    /// @param newPosition New position of the user
     event PositionUpdated(
         address indexed user,
         address market,
@@ -60,21 +60,24 @@ interface IRewardDistributor {
         address newEcosystemReserve
     );
 
-    /// @notice Error returned when an invalid index is passed into getMarketAddress
+    /// @notice Error returned when an invalid index is passed into `getMarketAddress`
     /// @param index Index that was passed
     /// @param maxIndex Maximum allowed index
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
 
-    /// @notice Error returned when calling viewNewRewardAccrual with a market that has never accrued rewards
-    /// @dev Occurs when timeOfLastCumRewardUpdate[market] == 0. This value is updated whenever updateMarketRewards(market) is called, which is quite often.
+    /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
+    /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
+    /// `updateMarketRewards(market)` is called, which is quite often.
     /// @param market Address of the market
     error RewardDistributor_UninitializedStartTime(address market);
 
-    /// @notice Error returned when calling initMarketStartTime with a market that already has a non-zero timeOfLastCumRewardUpdate
+    /// @notice Error returned when calling `initMarketStartTime` with a market that already has a non-zero
+    /// `timeOfLastCumRewardUpdate`
     /// @param market Address of the market
     error RewardDistributor_AlreadyInitializedStartTime(address market);
 
-    /// @notice Error returned if a user calls registerPositions when the reward distributor has already stored their position for a market
+    /// @notice Error returned if a user calls `registerPositions` when the reward distributor has already
+    /// stored their position for a market
     /// @param user Address of the user
     /// @param market Address of the market
     /// @param position Position of the user
@@ -84,7 +87,8 @@ interface IRewardDistributor {
         uint256 position
     );
 
-    /// @notice Error returned when a user tries to manually accrue rewards before the early withdrawal penalty period is over
+    /// @notice Error returned when a user tries to manually accrue rewards before the early withdrawal
+    /// penalty period is over
     /// @param user Address of the user
     /// @param market Address of the market
     /// @param claimAllowedTimestamp Timestamp when the early withdrawal penalty period is over
@@ -95,7 +99,8 @@ interface IRewardDistributor {
     );
 
     /// @notice Error returned if a user's position stored in the RewardDistributor does not match their current position in a given market
-    /// @dev Only possible when the user had a pre-existing position in the market before the RewardDistributor was deployed, and has not called registerPositions yet
+    /// @dev Only possible when the user had a pre-existing position in the market before the RewardDistributor
+    /// was deployed, and has not called `registerPositions` yet
     /// @param user Address of the user
     /// @param market Address of the market
     /// @param storedPosition Position stored in the RewardDistributor
@@ -108,7 +113,7 @@ interface IRewardDistributor {
     );
 
     /// @notice Error returned if governance tries to set the ecosystem reserve to the zero address
-    /// @param invalidAddress Address that was passed (i.e., address(0))
+    /// @param invalidAddress Address that was passed (i.e., `address(0)`)
     error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
 
     /// @notice Gets the address of the reward token vault
@@ -149,7 +154,8 @@ interface IRewardDistributor {
         address market
     ) external view returns (uint256);
 
-    /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens per LP/staking token
+    /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens per
+    /// LP/staked token
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
     /// @return Number of reward tokens per LP/staking token
@@ -162,7 +168,7 @@ interface IRewardDistributor {
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
-    /// @return Number of reward tokens per LP/staking token when user rewards were last updated
+    /// @return Number of reward tokens per Led token when user rewards were last updated
     function cumulativeRewardPerLpTokenPerUser(
         address user,
         address rewardToken,
@@ -176,7 +182,7 @@ interface IRewardDistributor {
         address market
     ) external view returns (uint256);
 
-    /// @notice Total LP/staking tokens registered for rewards per market
+    /// @notice Total LP/staked tokens registered for rewards per market
     /// @param market Address of the market
     /// @return Stored total number of tokens per market
     function totalLiquidityPerMarket(
@@ -198,7 +204,8 @@ interface IRewardDistributor {
     ) external;
 
     /// @notice Removes a reward token from all markets for which it is registered
-    /// @dev EcosystemReserve keeps the amount stored in totalUnclaimedRewards[_rewardToken] for users to claim later, and the RewardDistributor sends the rest to governance
+    /// @dev EcosystemReserve keeps the amount stored in `totalUnclaimedRewards[_rewardToken]` for users to
+    /// claim later, and the RewardDistributor sends the rest to governance
     /// @param _rewardToken Address of the reward token to remove
     function removeRewardToken(address _rewardToken) external;
 
@@ -214,7 +221,8 @@ interface IRewardDistributor {
     /// @dev Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment
     function registerPositions() external;
 
-    /// @notice Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the provided markets
+    /// @notice Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the
+    /// provided markets
     /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
     /// @param _markets Addresses of the markets to sync with
     function registerPositions(address[] calldata _markets) external;
@@ -222,16 +230,19 @@ interface IRewardDistributor {
     /// @notice Accrues and then distributes rewards for all markets to the caller
     function claimRewards() external;
 
-    /// @notice Accrues and then distributes rewards for all markets and reward tokens to the giveand returns the amount of rewards that were not distributedn user
+    /// @notice Accrues and then distributes rewards for all markets and reward tokens
+    /// and returns the amount of rewards that were not distributed to the given user
     /// @param _user Address of the user to claim rewards for
     function claimRewardsFor(address _user) external;
 
-    /// @notice Accrues and then distributes rewards for a single market and all of its registered reward tokens to the given user
+    /// @notice Accrues and then distributes rewards for a single market and all of its registered reward tokens
+    /// to the given user
     /// @param _user Address of the user to claim rewards for
     /// @param _market Address of the market to claim rewards for
     function claimRewardsFor(address _user, address _market) external;
 
-    /// @notice Accrues and then distributes rewards for all markets that receive any of the provided reward tokens to the given user
+    /// @notice Accrues and then distributes rewards for all markets that receive any of the provided reward tokens
+    /// to the given user
     /// @param _user Address of the user to claim rewards for
     /// @param _rewardTokens Addresses of the reward tokens to claim rewards for
     function claimRewardsFor(
@@ -240,18 +251,20 @@ interface IRewardDistributor {
     ) external;
 
     /// @notice Accrues rewards to a user for all markets
-    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in position is handled by updateStakingPosition
+    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes
+    /// in position is handled by `updateStakingPosition`
     /// @param user Address of the user to accrue rewards for
     function accrueRewards(address user) external;
 
     /// @notice Accrues rewards to a user for a given market
-    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in LP position is handled by updateStakingPosition
-    /// @param market Address of the market in ClearingHouse.perpetuals
+    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
+    /// position is handled by `updateStakingPosition`
+    /// @param market Address of the market in `ClearingHouse.perpetuals`
     /// @param user Address of the user
     function accrueRewards(address market, address user) external;
 
     /// @notice Returns the amount of rewards that would be accrued to a user for a given market
-    /// @dev Serves as a static version of accrueRewards(address market, address user)
+    /// @dev Serves as a static version of `accrueRewards(address market, address user)`
     /// @param market Address of the market to view new rewards for
     /// @param user Address of the user
     /// @return Amount of new rewards that would be accrued to the user for each reward token the given market receives

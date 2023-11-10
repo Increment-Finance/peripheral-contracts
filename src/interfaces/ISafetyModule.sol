@@ -73,7 +73,7 @@ interface ISafetyModule is IStakingContract {
     /// @return Address of the Auction contract
     function auctionModule() external view returns (address);
 
-    /// @notice Gets the address of the StakedToken contract at the specified index in the stakingTokens array
+    /// @notice Gets the address of the StakedToken contract at the specified index in the `stakingTokens` array
     /// @param i Index of the staking token
     /// @return Address of the StakedToken contract
     function stakingTokens(uint256 i) external view returns (IStakedToken);
@@ -86,13 +86,14 @@ interface ISafetyModule is IStakingContract {
     /// @return Smoothing value
     function smoothingValue() external view returns (uint256);
 
-    /// @notice Returns the index of the staking token in the stakingTokens array
-    /// @dev Reverts with SafetyModule_InvalidStakingToken if the staking token is not registered
+    /// @notice Returns the index of the staking token in the `stakingTokens` array
+    /// @dev Reverts with `SafetyModule_InvalidStakingToken` if the staking token is not registered
     /// @param token Address of the staking token
-    /// @return Index of the staking token in the stakingTokens array
+    /// @return Index of the staking token in the `stakingTokens` array
     function getStakingTokenIdx(address token) external view returns (uint256);
 
-    /// @notice Returns the amount of the user's staking tokens that can be sold at auction in the event of an insolvency in the vault that cannot be covered by the insurance fund
+    /// @notice Returns the amount of the user's staking tokens that can be sold at auction in the event of
+    /// an insolvency in the vault that cannot be covered by the insurance fund
     /// @param staker Address of the user
     /// @param token Address of the staking token
     /// @return Balance of the user multiplied by the maxPercentUserLoss

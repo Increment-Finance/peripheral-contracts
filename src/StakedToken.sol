@@ -198,8 +198,9 @@ contract StakedToken is
     /* ****************** */
 
     /**
-     * @notice Internal ERC20 _transfer of the tokenized staked tokens
-     * @dev Updates the cooldown timestamps if necessary, and updates the staking positions of both users in the SafetyModule, accruing rewards in the process
+     * @notice Internal ERC20 `_transfer` of the tokenized staked tokens
+     * @dev Updates the cooldown timestamps if necessary, and updates the staking positions of both users
+     * in the SafetyModule, accruing rewards in the process
      * @param from Address to transfer from
      * @param to Address to transfer to
      * @param amount Amount to transfer

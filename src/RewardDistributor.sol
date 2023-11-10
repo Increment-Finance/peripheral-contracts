@@ -51,7 +51,8 @@ abstract contract RewardDistributor is
     /// @dev First address is user, second is the market
     mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
 
-    /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens per LP/staking token
+    /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens
+    /// per LP/staked token
     /// @dev First address is reward token, second is the market
     mapping(address => mapping(address => uint256))
         public cumulativeRewardPerLpToken;
@@ -64,7 +65,7 @@ abstract contract RewardDistributor is
     /// @notice Timestamp of the most recent update to the per-market reward accumulator
     mapping(address => uint256) public timeOfLastCumRewardUpdate;
 
-    /// @notice Total LP/staking tokens registered for rewards per market
+    /// @notice Total LP/staked tokens registered for rewards per market
     mapping(address => uint256) public totalLiquidityPerMarket;
 
     constructor(address _ecosystemReserve) {
@@ -407,7 +408,8 @@ abstract contract RewardDistributor is
     /* ****************** */
 
     /// @notice Distributes accrued rewards from the ecosystem reserve to a user for a given reward token
-    /// @dev Checks if there are enough rewards remaining in the ecosystem reserve to distribute, updates totalUnclaimedRewards, and returns the amount of rewards that were not distributed
+    /// @dev Checks if there are enough rewards remaining in the ecosystem reserve to distribute, updates
+    /// `totalUnclaimedRewards`, and returns the amount of rewards that were not distributed
     /// @param _token Address of the reward token
     /// @param _to Address of the user to distribute rewards to
     /// @param _amount Amount of rewards to distribute

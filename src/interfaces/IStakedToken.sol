@@ -30,7 +30,7 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Error returned when 0 amount is passed to stake or redeem functions
     error StakedToken_InvalidZeroAmount();
 
-    /// @notice Error returned when the caller has no balance when calling cooldown
+    /// @notice Error returned when the caller has no balance when calling `cooldown`
     error StakedToken_ZeroBalanceAtCooldown();
 
     /// @notice Error returned when the caller tries to redeem before the cooldown period is over
@@ -40,7 +40,7 @@ interface IStakedToken is IERC20Metadata {
     error StakedToken_UnstakeWindowFinished(uint256 unstakeWindowEndTimestamp);
 
     /// @notice Stakes tokens on behalf of the given address, and starts earning rewards
-    /// @dev Tokens are staked from the transaction sender, not from the `onBehalfOf` address
+    /// @dev Tokens are transferred from the transaction sender, not from the `onBehalfOf` address
     /// @param onBehalfOf Address to stake on behalf of
     /// @param amount Amount of tokens to stake
     function stake(address onBehalfOf, uint256 amount) external;

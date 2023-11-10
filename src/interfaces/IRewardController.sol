@@ -132,7 +132,7 @@ interface IRewardController {
 
     /// @notice Gets the index of an allowlisted market
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param i Index of the market in the allowlist ClearingHouse.ids (for the PerpRewardDistributor) or stakingTokens (for the SafetyModule)
+    /// @param i Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule)
     /// @return Index of the market in the market list
     function getMarketIdx(uint256 i) external view returns (uint256);
 
@@ -140,7 +140,7 @@ interface IRewardController {
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param token Address of the reward token
     /// @param market Address of the market
-    /// @return Index of the market in the rewardInfo.marketWeights array
+    /// @return Index of the market in the `rewardInfo.marketWeights` array
     function getMarketWeightIdx(
         address token,
         address market
@@ -177,7 +177,7 @@ interface IRewardController {
     ) external view returns (uint256);
 
     /// @notice Gets the current inflation rate of a reward token (factoring in reduction factor)
-    /// @dev inflationRate = initialInflationRate / reductionFactor^((block.timestamp - initialTimestamp) / secondsPerYear)
+    /// @dev `inflationRate = initialInflationRate / reductionFactor^((block.timestamp - initialTimestamp) / secondsPerYear)`
     /// @param rewardToken Address of the reward token
     /// @return Current inflation rate of the reward token
     function getInflationRate(
@@ -199,12 +199,12 @@ interface IRewardController {
     ) external view returns (address[] memory, uint16[] memory);
 
     /// @notice Updates the reward accumulator for a given market
-    /// @dev Executes when any of the following variables are changed: inflationRate, marketWeights, liquidity
+    /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
     /// @param market Address of the market
     function updateMarketRewards(address market) external;
 
     /// @notice Sets the market addresses and reward weights for a reward token
-    /// @param rewardToken Address of the rmaxRewardTokenseward token
+    /// @param rewardToken Address of the reward token
     /// @param markets List of market addresses to receive rewards
     /// @param weights List of weights for each market
     function updateRewardWeights(
@@ -216,7 +216,7 @@ interface IRewardController {
     /// @notice Sets the initial inflation rate used to calculate emissions over time for a given reward token
     /// @dev Current inflation rate still factors in the reduction factor and time elapsed since the initial timestamp
     /// @param rewardToken Address of the reward token
-    /// @param newInitialInflationRate The new inflation rate in INCR/year, scaled by 1e18
+    /// @param newInitialInflationRate The new inflation rate in tokens/year, scaled by 1e18
     function updateInitialInflationRate(
         address rewardToken,
         uint256 newInitialInflationRate
