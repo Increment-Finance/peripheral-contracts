@@ -6,6 +6,7 @@ import "./RewardDistributor.sol";
 
 // interfaces
 import "./interfaces/IPerpRewardDistributor.sol";
+import "./interfaces/IRewardController.sol";
 
 /// @title PerpRewardDistributor
 /// @author webthethird
@@ -86,17 +87,17 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /*   Market Getters   */
     /* ****************** */
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getNumMarkets() public view override returns (uint256) {
         return clearingHouse.getNumMarkets();
     }
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getMaxMarketIdx() public view override returns (uint256) {
         return clearingHouse.marketIds() - 1;
     }
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getMarketAddress(
         uint256 index
     ) public view override returns (address) {
@@ -108,12 +109,12 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         return address(clearingHouse.perpetuals(index));
     }
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getMarketIdx(uint256 i) public view override returns (uint256) {
         return clearingHouse.id(i);
     }
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getCurrentPosition(
         address lp,
         address market
@@ -138,7 +139,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 newLpPosition = getCurrentPosition(user, market);
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
-            /// newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            // newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = (prevLpPosition *
                 (cumulativeRewardPerLpToken[token][market] -
                     cumulativeRewardPerLpTokenPerUser[user][token][market])) /

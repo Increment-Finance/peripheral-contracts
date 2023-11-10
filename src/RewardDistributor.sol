@@ -4,7 +4,7 @@ pragma solidity 0.8.16;
 // contracts
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {RewardController} from "./RewardController.sol";
+import {RewardController, IRewardController} from "./RewardController.sol";
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -78,25 +78,25 @@ abstract contract RewardDistributor is
     /*   Market Getters   */
     /* ****************** */
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getNumMarkets() public view virtual override returns (uint256);
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getMaxMarketIdx() public view virtual override returns (uint256);
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getMarketAddress(
-        uint256 index
+        uint256 idx
     ) public view virtual override returns (address);
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getMarketIdx(
         uint256 i
     ) public view virtual override returns (uint256);
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function getCurrentPosition(
-        address lp,
+        address user,
         address market
     ) public view virtual override returns (uint256);
 
@@ -104,7 +104,7 @@ abstract contract RewardDistributor is
     /*   Reward Accrual   */
     /* ****************** */
 
-    /// @inheritdoc RewardController
+    /// @inheritdoc IRewardController
     function updateMarketRewards(address market) public override {
         if (rewardTokensPerMarket[market].length == 0) return;
         uint256 liquidity = totalLiquidityPerMarket[market];
@@ -233,11 +233,13 @@ abstract contract RewardDistributor is
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by governance
     function removeRewardToken(
-        address _token
+        address _rewardToken
     ) external nonReentrant onlyRole(GOVERNANCE) {
-        RewardInfo memory rewardInfo = rewardInfoByToken[_token];
-        if (_token == address(0) || rewardInfo.token != IERC20Metadata(_token))
-            revert RewardController_InvalidRewardTokenAddress(_token);
+        RewardInfo memory rewardInfo = rewardInfoByToken[_rewardToken];
+        if (
+            _rewardToken == address(0) ||
+            rewardInfo.token != IERC20Metadata(_rewardToken)
+        ) revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         // Update rewards for all markets before removal
         for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
             address market = rewardInfo.marketAddresses[i];
@@ -245,7 +247,7 @@ abstract contract RewardDistributor is
             // The `delete` keyword applied to arrays does not reduce array length
             uint256 numRewards = rewardTokensPerMarket[market].length;
             for (uint j = 0; j < numRewards; ++j) {
-                if (rewardTokensPerMarket[market][j] != _token) continue;
+                if (rewardTokensPerMarket[market][j] != _rewardToken) continue;
                 // Find the token in the array and swap it with the last element
                 rewardTokensPerMarket[market][j] = rewardTokensPerMarket[
                     market
@@ -255,21 +257,25 @@ abstract contract RewardDistributor is
                 break;
             }
         }
-        delete rewardInfoByToken[_token];
+        delete rewardInfoByToken[_rewardToken];
         // Determine how much of the removed token should be sent back to governance
-        uint256 balance = _rewardTokenBalance(_token);
-        uint256 unclaimedAccruals = totalUnclaimedRewards[_token];
+        uint256 balance = _rewardTokenBalance(_rewardToken);
+        uint256 unclaimedAccruals = totalUnclaimedRewards[_rewardToken];
         uint256 unaccruedBalance = balance >= unclaimedAccruals
             ? balance - unclaimedAccruals
             : 0;
         // Transfer remaining tokens to governance (which is the sender)
         if (unaccruedBalance > 0)
-            IERC20Metadata(_token).safeTransferFrom(
+            IERC20Metadata(_rewardToken).safeTransferFrom(
                 ecosystemReserve,
                 msg.sender,
                 unaccruedBalance
             );
-        emit RewardTokenRemoved(_token, unclaimedAccruals, unaccruedBalance);
+        emit RewardTokenRemoved(
+            _rewardToken,
+            unclaimedAccruals,
+            unaccruedBalance
+        );
     }
 
     /// @inheritdoc IRewardDistributor
@@ -402,7 +408,7 @@ abstract contract RewardDistributor is
     function viewNewRewardAccrual(
         address market,
         address user,
-        address token
+        address rewardToken
     ) public view virtual returns (uint256);
 
     /* ****************** */

@@ -138,11 +138,10 @@ contract StakedToken is
      * @notice Calculates a new cooldown timestamp
      * @dev Calculation depends on the sender/receiver situation, as follows:
      *  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0, we take the one of the recipient
-     *  - Weighted average
- of from/to cooldown timestamps if:
-     *    # The sender doesn't have the cooldown activated (timestamp 0).
-     *    # The sender timestamp is expired
-     *    # The sender has a "worse" timestamp
+     *  - Weighted average of from/to cooldown timestamps if:
+     *    - The sender doesn't have the cooldown activated (timestamp 0).
+     *    - The sender timestamp is expired
+     *    - The sender has a "worse" timestamp
      *  - If the receiver's cooldown timestamp expired (too old), the next is 0
      * @param fromCooldownTimestamp Cooldown timestamp of the sender
      * @param amountToReceive Amount

@@ -257,9 +257,9 @@ interface IRewardDistributor {
     function accrueRewards(address user) external;
 
     /// @notice Accrues rewards to a user for a given market
-    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
+    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
     /// position is handled by `updateStakingPosition`
-    /// @param market Address of the market in `ClearingHouse.perpetuals`
+    /// @param market Address of the market to accrue rewards for
     /// @param user Address of the user
     function accrueRewards(address market, address user) external;
 
