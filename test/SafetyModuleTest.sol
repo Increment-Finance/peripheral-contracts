@@ -11,9 +11,9 @@ import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
-import "../src/SafetyModule.sol";
-import "../src/StakedToken.sol";
-import {EcosystemReserve, IERC20 as AaveIERC20} from "../src/EcosystemReserve.sol";
+import "../contracts/SafetyModule.sol";
+import "../contracts/StakedToken.sol";
+import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -27,8 +27,8 @@ import "increment-protocol/interfaces/IInsurance.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
-import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../src/interfaces/balancer/IWeightedPool.sol";
-import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "../src/interfaces/balancer/IWeightedPoolFactory.sol";
+import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../contracts/interfaces/balancer/IWeightedPool.sol";
+import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "../contracts/interfaces/balancer/IWeightedPoolFactory.sol";
 
 // libraries
 import "increment-protocol/lib/LibMath.sol";
@@ -625,7 +625,7 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting viewNewRewardAccrual to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
                 address(stakedToken1),
                 0,
@@ -639,7 +639,7 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_LpPositionMismatch(address,address,uint256,uint256)",
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
                 liquidityProviderTwo,
                 address(stakedToken1),
                 0,
