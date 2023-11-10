@@ -13,6 +13,12 @@ import {IRewardController} from "./interfaces/IRewardController.sol";
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
+/// @title RewardController
+/// @author webthethird
+/// @notice Base contract for storing and updating reward info for multiple reward tokens, each with
+/// - a gradually decreasing emission rate, based on an initial inflation rate, reduction factor, and time elapsed
+/// - a list of markets for which the reward token is distributed
+/// - a list of weights representing the percentage of rewards that go to each market
 abstract contract RewardController is
     IRewardController,
     IncreAccessControl,
@@ -45,11 +51,11 @@ abstract contract RewardController is
     /// @notice Minimum reduction factor, applies to all reward tokens
     uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
 
-    /// @notice Maximum number of reward tokens supported
+    /// @notice Maximum number of reward tokens allowed for each market
     uint256 public constant MAX_REWARD_TOKENS = 10;
 
-    /// @notice List of reward token addresses
-    /// @dev Length must be <= maxRewardTokens
+    /// @notice List of reward token addresses for each market
+    /// @dev Length must be <= MAX_REWARD_TOKENS
     mapping(address => address[]) public rewardTokensPerMarket;
 
     /// @notice Info for each registered reward token
@@ -242,7 +248,8 @@ abstract contract RewardController is
             address market = rewardInfoByToken[_token].marketAddresses[i];
             updateMarketRewards(market);
         }
-        rewardInfoByToken[_token].initialInflationRate = _newInitialInflationRate;
+        rewardInfoByToken[_token]
+            .initialInflationRate = _newInitialInflationRate;
         emit NewInitialInflationRate(_token, _newInitialInflationRate);
     }
 

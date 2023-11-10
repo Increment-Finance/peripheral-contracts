@@ -16,8 +16,13 @@ import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
-// import {console2 as console} from "forge/console2.sol";
-
+/// @title RewardDistributor
+/// @author webthethird
+/// @notice Abstract contract responsible for accruing and distributing rewards to users for providing
+/// liquidity to perpetual markets (handled by PerpRewardDistributor) or staking tokens (with the SafetyModule)
+/// @dev Inherits from RewardController, which defines the RewardInfo data structure and functions allowing
+/// governance to add/remove reward tokens or update their parameters, and implements IStakingContract, the
+/// interface used by the ClearingHouse to update user rewards any time a user's position is updated
 abstract contract RewardDistributor is
     IRewardDistributor,
     IStakingContract,

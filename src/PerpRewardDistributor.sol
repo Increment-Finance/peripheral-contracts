@@ -7,6 +7,9 @@ import "./RewardDistributor.sol";
 // interfaces
 import "./interfaces/IPerpRewardDistributor.sol";
 
+/// @title PerpRewardDistributor
+/// @author webthethird
+/// @notice Handles reward accrual and distribution for liquidity providers in Perpetual markets
 contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     using SafeERC20 for IERC20Metadata;
     using PRBMathUD60x18 for uint256;
