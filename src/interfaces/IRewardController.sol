@@ -6,10 +6,10 @@ pragma solidity 0.8.16;
 /// @notice Interface for the RewardController contract
 interface IRewardController {
     /// @notice Emitted when a new reward token is added
-    /// @param rewardToken reward token address
-    /// @param initialTimestamp timestamp when reward token was added
-    /// @param initialInflationRate initial inflation rate for the reward token
-    /// @param initialReductionFactor initial reduction factor for the reward token
+    /// @param rewardToken Reward token address
+    /// @param initialTimestamp Timestamp when reward token was added
+    /// @param initialInflationRate Initial inflation rate for the reward token
+    /// @param initialReductionFactor Initial reduction factor for the reward token
     event RewardTokenAdded(
         address indexed rewardToken,
         uint256 initialTimestamp,
@@ -18,9 +18,9 @@ interface IRewardController {
     );
 
     /// @notice Emitted when governance removes a reward token
-    /// @param rewardToken the reward token address
-    /// @param unclaimedRewards the amount of reward tokens still claimable
-    /// @param remainingBalance the remaining balance of the reward token, sent to governance
+    /// @param rewardToken The reward token address
+    /// @param unclaimedRewards The amount of reward tokens still claimable
+    /// @param remainingBalance The remaining balance of the reward token, sent to governance
     event RewardTokenRemoved(
         address indexed rewardToken,
         uint256 unclaimedRewards,
@@ -28,25 +28,25 @@ interface IRewardController {
     );
 
     /// @notice Emitted when a reward token is removed from a market's list of rewards
-    /// @param market the market address
-    /// @param rewardToken the reward token address
+    /// @param market The market address
+    /// @param rewardToken The reward token address
     event MarketRemovedFromRewards(
         address indexed market,
         address indexed rewardToken
     );
 
     /// @notice Emitted when the contract runs out of a reward token
-    /// @param rewardToken the reward token address
-    /// @param shortfallAmount the amount of reward tokens needed to fulfill all rewards
+    /// @param rewardToken The reward token address
+    /// @param shortfallAmount The amount of reward tokens needed to fulfill all rewards
     event RewardTokenShortfall(
         address indexed rewardToken,
         uint256 shortfallAmount
     );
 
     /// @notice Emitted when a gauge weight is updated
-    /// @param market the address of the perp market or staked token
-    /// @param rewardToken the reward token address
-    /// @param newWeight the new weight value
+    /// @param market The address of the perp market or staked token
+    /// @param rewardToken The reward token address
+    /// @param newWeight The new weight value
     event NewWeight(
         address indexed market,
         address indexed rewardToken,
@@ -54,35 +54,35 @@ interface IRewardController {
     );
 
     /// @notice Emitted when a new inflation rate is set by governance
-    /// @param newRate the new inflation rate
+    /// @param newRate The new inflation rate
     event NewInitialInflationRate(address indexed rewardToken, uint256 newRate);
 
     /// @notice Emitted when a new reduction factor is set by governance
-    /// @param newFactor the new reduction factor
+    /// @param newFactor The new reduction factor
     event NewReductionFactor(address indexed rewardToken, uint256 newFactor);
 
     /// @notice Error returned when trying to add a reward token if the max number of reward tokens has been reached
-    /// @param max the maximum number of reward tokens allowed
-    /// @param market the market address which has reached the maximum number of reward tokens
+    /// @param max The maximum number of reward tokens allowed
+    /// @param market The market address which has reached the maximum number of reward tokens
     error RewardController_AboveMaxRewardTokens(uint256 max, address market);
 
     /// @notice Error returned when trying to set the inflation rate to a value that is too high
-    /// @param rate the value that was passed
-    /// @param max the maximum allowed value
+    /// @param rate The value that was passed
+    /// @param max The maximum allowed value
     error RewardController_AboveMaxInflationRate(uint256 rate, uint256 max);
 
     /// @notice Error returned when trying to set the reduction factor to a value that is too low
-    /// @param factor the value that was passed
-    /// @param min the minimum allowed value
+    /// @param factor The value that was passed
+    /// @param min The minimum allowed value
     error RewardController_BelowMinReductionFactor(uint256 factor, uint256 min);
 
     /// @notice Error returned when passing an invalid reward token address to a function
-    /// @param invalidAddress the address that was passed
+    /// @param invalidAddress The address that was passed
     error RewardController_InvalidRewardTokenAddress(address invalidAddress);
 
     /// @notice Error returned when a given market address has no reward weight stored in the RewardInfo for a given reward token
-    /// @param market the market address
-    /// @param rewardToken the reward token address
+    /// @param market The market address
+    /// @param rewardToken The reward token address
     error RewardController_MarketHasNoRewardWeight(
         address market,
         address rewardToken
