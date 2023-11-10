@@ -1819,7 +1819,9 @@ contract RewardsTest is PerpetualUtils {
         vm.stopPrank();
 
         // invalid address errors
-        vm.expectRevert(abi.encodeWithSignature("InvalidAdmin()"));
+        vm.expectRevert(
+            abi.encodeWithSignature("EcosystemReserve_InvalidAdmin()")
+        );
         ecosystemReserve.transferAdmin(address(0));
         vm.expectRevert(
             abi.encodeWithSignature(
