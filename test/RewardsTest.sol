@@ -11,8 +11,8 @@ import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
-import "../src/PerpRewardDistributor.sol";
-import {EcosystemReserve, IERC20 as AaveIERC20} from "../src/EcosystemReserve.sol";
+import "../contracts/PerpRewardDistributor.sol";
+import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
