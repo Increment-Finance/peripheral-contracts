@@ -63,7 +63,8 @@ interface IRewardController {
 
     /// @notice Error returned when trying to add a reward token if the max number of reward tokens has been reached
     /// @param max the maximum number of reward tokens allowed
-    error RewardController_AboveMaxRewardTokens(uint256 max);
+    /// @param market the market address which has reached the maximum number of reward tokens
+    error RewardController_AboveMaxRewardTokens(uint256 max, address market);
 
     /// @notice Error returned when trying to set the inflation rate to a value that is too high
     /// @param rate the value that was passed
@@ -203,7 +204,7 @@ interface IRewardController {
     function updateMarketRewards(address market) external;
 
     /// @notice Sets the market addresses and reward weights for a reward token
-    /// @param rewardToken Address of the reward token
+    /// @param rewardToken Address of the rmaxRewardTokenseward token
     /// @param markets List of market addresses to receive rewards
     /// @param weights List of weights for each market
     function updateRewardWeights(

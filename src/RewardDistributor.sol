@@ -194,7 +194,10 @@ abstract contract RewardDistributor is
             if (weight > 10000)
                 revert RewardController_WeightExceedsMax(weight, 10000);
             if (rewardTokensPerMarket[market].length >= MAX_REWARD_TOKENS)
-                revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
+                revert RewardController_AboveMaxRewardTokens(
+                    MAX_REWARD_TOKENS,
+                    market
+                );
             totalWeight += weight;
             rewardTokensPerMarket[market].push(_rewardToken);
             emit NewWeight(market, _rewardToken, weight);
