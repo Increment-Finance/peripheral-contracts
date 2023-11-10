@@ -99,14 +99,11 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @inheritdoc IRewardController
     function getMarketAddress(
-        uint256 index
+        uint256 idx
     ) public view override returns (address) {
-        if (index > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(
-                index,
-                getMaxMarketIdx()
-            );
-        return address(clearingHouse.perpetuals(index));
+        if (idx > getMaxMarketIdx())
+            revert RewardDistributor_InvalidMarketIndex(idx, getMaxMarketIdx());
+        return address(clearingHouse.perpetuals(idx));
     }
 
     /// @inheritdoc IRewardController
@@ -116,10 +113,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @inheritdoc IRewardController
     function getCurrentPosition(
-        address lp,
+        address user,
         address market
     ) public view override returns (uint256) {
-        return IPerpetual(market).getLpLiquidity(lp);
+        return IPerpetual(market).getLpLiquidity(user);
     }
 
     /* ****************** */

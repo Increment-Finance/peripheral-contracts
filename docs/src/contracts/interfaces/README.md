@@ -1,7 +1,7 @@
 
 
 # Contents
-- [balancer](/src/interfaces/balancer)
+- [balancer](/contracts/interfaces/balancer)
 - [IPerpRewardDistributor](IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
 - [IRewardController](IRewardController.sol/interface.IRewardController.md)
 - [IRewardDistributor](IRewardDistributor.sol/interface.IRewardDistributor.md)

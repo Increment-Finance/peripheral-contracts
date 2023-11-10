@@ -1,9 +1,9 @@
 # PerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/b10b7c737f1995b97150c4bde2bb1f9387e53eef/src/PerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/PerpRewardDistributor.sol)
 
 **Inherits:**
-[RewardDistributor](/src/RewardDistributor.sol/abstract.RewardDistributor.md), [IPerpRewardDistributor](/src/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
+[RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [IPerpRewardDistributor](/contracts/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
 
 **Author:**
 webthethird
@@ -73,7 +73,7 @@ Gets the number of markets to be used for reward distribution
 _Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
 
 ```solidity
-function getNumMarkets() public view virtual override returns (uint256);
+function getNumMarkets() public view override returns (uint256);
 ```
 
 **Returns**
@@ -87,7 +87,7 @@ function getNumMarkets() public view virtual override returns (uint256);
 Gets the highest valid market index
 
 ```solidity
-function getMaxMarketIdx() public view virtual override returns (uint256);
+function getMaxMarketIdx() public view override returns (uint256);
 ```
 
 **Returns**
@@ -125,7 +125,7 @@ Gets the index of an allowlisted market
 _Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
 
 ```solidity
-function getMarketIdx(uint256 i) public view virtual override returns (uint256);
+function getMarketIdx(uint256 i) public view override returns (uint256);
 ```
 
 **Parameters**
@@ -145,7 +145,7 @@ function getMarketIdx(uint256 i) public view virtual override returns (uint256);
 Returns the current position of the user in the market (i.e., perpetual market or staked token)
 
 ```solidity
-function getCurrentPosition(address user, address market) public view virtual override returns (uint256);
+function getCurrentPosition(address user, address market) public view override returns (uint256);
 ```
 
 **Parameters**

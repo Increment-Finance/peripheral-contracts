@@ -1,9 +1,9 @@
 # RewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/b10b7c737f1995b97150c4bde2bb1f9387e53eef/src/RewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/RewardController.sol)
 
 **Inherits:**
-[IRewardController](/src/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
+[IRewardController](/contracts/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
 
 **Author:**
 webthethird
@@ -345,7 +345,9 @@ Sets the initial inflation rate used to calculate emissions over time for a give
 _Only callable by Governance_
 
 ```solidity
-function updateInitialInflationRate(address rewardToken, uint256 newInitialInflationRate) external onlyRole(GOVERNANCE);
+function updateInitialInflationRate(address rewardToken, uint256 newInitialInflationRate)
+    external
+    onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
@@ -406,14 +408,3 @@ struct RewardInfo {
     uint16[] marketWeights;
 }
 ```
-
-**Properties**
-| Name | Type | Description |
-| ------------------------ | --------- | ------------------------------------------ |
-| `token` | `IERC20Metadata` | Address of the reward token |
-|`paused`|`bool`| Whether the reward token accrual is paused |
-| `initialTimestamp` | `uint256` | Time when the reward token was added |
-| `initialInflationRate` | `uint256` | Initial rate of reward token emission per year |
-| `reductionFactor` | `uint256` | Factor by which the inflation rate is reduced each year |
-| `marketAddresses`|`address[]`| List of markets for which the reward token is distributed |
-| `marketWeights`|`uint16[]`| Market reward weights as basis points, i.e., 100 = 1%, 10000 = 100% |

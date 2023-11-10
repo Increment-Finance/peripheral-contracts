@@ -1,6 +1,6 @@
 # IRewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/b10b7c737f1995b97150c4bde2bb1f9387e53eef/src/interfaces/IRewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/interfaces/IRewardController.sol)
 
 **Author:**
 webthethird
@@ -363,15 +363,6 @@ event RewardTokenAdded(
     address indexed rewardToken, uint256 initialTimestamp, uint256 initialInflationRate, uint256 initialReductionFactor
 );
 ```
-
-**Parameters**
-
-| Name                     | Type      | Description                                |
-| ------------------------ | --------- | ------------------------------------------ |
-| `rewardToken`            | `address` | Address of the reward token                |
-| `initialTimestamp`       | `uint256` | Timestamp when reward token was added      |
-| `initialInflationRate`   | `uint256` | Initial inflation rate for the new token   |
-| `initialReductionFactor` | `uint256` | Initial reduction factor for the new token |
 
 ### RewardTokenRemoved
 

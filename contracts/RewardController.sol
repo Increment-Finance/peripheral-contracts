@@ -259,20 +259,20 @@ abstract contract RewardController is
     /// @inheritdoc IRewardController
     /// @dev Only callable by Governance
     function updateReductionFactor(
-        address token,
+        address rewardToken,
         uint256 newReductionFactor
     ) external onlyRole(GOVERNANCE) {
         if (
-            token == address(0) ||
-            rewardInfoByToken[token].token != IERC20Metadata(token)
-        ) revert RewardController_InvalidRewardTokenAddress(token);
+            rewardToken == address(0) ||
+            rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
+        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
         if (MIN_REDUCTION_FACTOR > newReductionFactor)
             revert RewardController_BelowMinReductionFactor(
                 newReductionFactor,
                 MIN_REDUCTION_FACTOR
             );
-        rewardInfoByToken[token].reductionFactor = newReductionFactor;
-        emit NewReductionFactor(token, newReductionFactor);
+        rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
+        emit NewReductionFactor(rewardToken, newReductionFactor);
     }
 
     /* ****************** */

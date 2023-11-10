@@ -1,7 +1,7 @@
 
 
 # Contents
-- [interfaces](/src/interfaces)
+- [interfaces](/contracts/interfaces)
 - [EcosystemReserve](EcosystemReserve.sol/contract.EcosystemReserve.md)
 - [PerpRewardDistributor](PerpRewardDistributor.sol/contract.PerpRewardDistributor.md)
 - [RewardController](RewardController.sol/abstract.RewardController.md)

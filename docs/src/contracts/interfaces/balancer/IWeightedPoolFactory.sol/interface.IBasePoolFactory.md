@@ -1,8 +1,8 @@
 # IBasePoolFactory
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/b10b7c737f1995b97150c4bde2bb1f9387e53eef/src/interfaces/balancer/IWeightedPoolFactory.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/interfaces/balancer/IWeightedPoolFactory.sol)
 
 **Inherits:**
-[IAuthentication](/src/interfaces/balancer/IVault.sol/interface.IAuthentication.md), [IBaseSplitCodeFactory](/src/interfaces/balancer/IWeightedPoolFactory.sol/interface.IBaseSplitCodeFactory.md)
+[IAuthentication](/contracts/interfaces/balancer/IVault.sol/interface.IAuthentication.md), [IBaseSplitCodeFactory](/contracts/interfaces/balancer/IWeightedPoolFactory.sol/interface.IBaseSplitCodeFactory.md)
 
 
 ## Functions
