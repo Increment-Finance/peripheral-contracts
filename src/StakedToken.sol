@@ -38,6 +38,13 @@ contract StakedToken is
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
 
+    /// @notice StakedToken constructor
+    /// @param _stakedToken The underlying token to stake
+    /// @param _safetyModule The SafetyModule contract to use for reward management
+    /// @param _cooldownSeconds The number of seconds that users must wait between calling `cooldown` and `redeem`
+    /// @param _unstakeWindow The number of seconds available to redeem once the cooldown period is fullfilled
+    /// @param _name The name of the token
+    /// @param _symbol The symbol of the token
     constructor(
         IERC20 _stakedToken,
         ISafetyModule _safetyModule,

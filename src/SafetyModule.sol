@@ -61,6 +61,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         _;
     }
 
+    /// @notice SafetyModule constructor
+    /// @param _vault Address of the Increment vault contract, where funds are sent in the event of an auction
+    /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
+    /// @param _maxPercentUserLoss The max percentage of user funds that can be sold at auction, normalized to 1e18
+    /// @param _maxRewardMultiplier The maximum reward multiplier, scaled by 1e18
+    /// @param _smoothingValue The smoothing value, scaled by 1e18
+    /// @param _ecosystemReserve The address of the EcosystemReserve contract, where reward tokens are stored
     constructor(
         address _vault,
         address _auctionModule,

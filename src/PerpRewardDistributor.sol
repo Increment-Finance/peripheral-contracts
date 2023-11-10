@@ -27,6 +27,14 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         _;
     }
 
+    /// @notice PerpRewardDistributor constructor
+    /// @param _initialInflationRate The initial inflation rate for the first reward token, scaled by 1e18
+    /// @param _initialReductionFactor The initial reduction factor for the first reward token, scaled by 1e18
+    /// @param _rewardToken The address of the first reward token
+    /// @param _clearingHouse The address of the ClearingHouse contract, which calls `updateStakingPosition`
+    /// @param _ecosystemReserve The address of the EcosystemReserve contract, which stores reward tokens
+    /// @param _earlyWithdrawalThreshold The amount of time after which LPs can remove liquidity without penalties
+    /// @param _initialRewardWeights The initial reward weights for the first reward token, as basis points
     constructor(
         uint256 _initialInflationRate,
         uint256 _initialReductionFactor,

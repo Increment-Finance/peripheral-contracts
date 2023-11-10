@@ -12,6 +12,8 @@ contract EcosystemReserve is AdminControlledEcosystemReserve {
     /// @notice Error returned when trying to set the admin to the zero address
     error EcosystemReserve_InvalidAdmin();
 
+    /// @notice EcosystemReserve constructor
+    /// @param fundsAdmin Address of the admin who can approve or transfer tokens from the reserve
     constructor(address fundsAdmin) {
         _setFundsAdmin(fundsAdmin);
     }

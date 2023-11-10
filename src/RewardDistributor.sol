@@ -68,6 +68,8 @@ abstract contract RewardDistributor is
     /// @notice Total LP/staked tokens registered for rewards per market
     mapping(address => uint256) public totalLiquidityPerMarket;
 
+    /// @notice RewardDistributor constructor
+    /// @param _ecosystemReserve Address of the EcosystemReserve contract, which holds the reward tokens
     constructor(address _ecosystemReserve) {
         ecosystemReserve = _ecosystemReserve;
     }
