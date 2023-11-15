@@ -1,6 +1,6 @@
 # PerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/PerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/PerpRewardDistributor.sol)
 
 **Inherits:**
 [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [IPerpRewardDistributor](/contracts/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
@@ -103,7 +103,7 @@ Gets the address of a market at a given index
 _Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
 
 ```solidity
-function getMarketAddress(uint256 idx) public view virtual override returns (address);
+function getMarketAddress(uint256 idx) public view override returns (address);
 ```
 
 **Parameters**

@@ -1,6 +1,6 @@
 # StakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/StakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/StakedToken.sol)
 
 **Inherits:**
 [IStakedToken](/contracts/interfaces/IStakedToken.sol/interface.IStakedToken.md), ERC20Permit, IncreAccessControl, Pausable, ReentrancyGuard
@@ -44,6 +44,14 @@ Address of the SafetyModule contract
 ISafetyModule public safetyModule;
 ```
 
+### maxStakeAmount
+
+Max amount of staked tokens allowed per user
+
+```solidity
+uint256 public maxStakeAmount;
+```
+
 ### stakersCooldowns
 
 Timestamp of the start of the current cooldown period for each user
@@ -64,6 +72,7 @@ constructor(
     ISafetyModule _safetyModule,
     uint256 _cooldownSeconds,
     uint256 _unstakeWindow,
+    uint256 _maxStakeAmount,
     string memory _name,
     string memory _symbol
 ) ERC20(_name, _symbol) ERC20Permit(_name);
@@ -77,6 +86,7 @@ constructor(
 | `_safetyModule`    | `ISafetyModule` | The SafetyModule contract to use for reward management                             |
 | `_cooldownSeconds` | `uint256`       | The number of seconds that users must wait between calling `cooldown` and `redeem` |
 | `_unstakeWindow`   | `uint256`       | The number of seconds available to redeem once the cooldown period is fullfilled   |
+| `_maxStakeAmount`  | `uint256`       | The maximum amount of staked tokens allowed per user                               |
 | `_name`            | `string`        | The name of the token                                                              |
 | `_symbol`          | `string`        | The symbol of the token                                                            |
 
@@ -174,6 +184,20 @@ function setSafetyModule(address _safetyModule) external onlyRole(GOVERNANCE);
 | Name            | Type      | Description                              |
 | --------------- | --------- | ---------------------------------------- |
 | `_safetyModule` | `address` | Address of the new SafetyModule contract |
+
+### setMaxStakeAmount
+
+Sets the max amount of staked tokens allowed per user, callable only by governance
+
+```solidity
+function setMaxStakeAmount(uint256 _maxStakeAmount) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name              | Type      | Description                                      |
+| ----------------- | --------- | ------------------------------------------------ |
+| `_maxStakeAmount` | `uint256` | New max amount of staked tokens allowed per user |
 
 ### \_transfer
 

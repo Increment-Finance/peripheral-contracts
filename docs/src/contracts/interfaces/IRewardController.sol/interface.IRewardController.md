@@ -1,6 +1,6 @@
 # IRewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/interfaces/IRewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/interfaces/IRewardController.sol)
 
 **Author:**
 webthethird
@@ -364,6 +364,15 @@ event RewardTokenAdded(
 );
 ```
 
+**Parameters**
+
+| Name                     | Type      | Description                                   |
+| ------------------------ | --------- | --------------------------------------------- |
+| `rewardToken`            | `address` | Reward token address                          |
+| `initialTimestamp`       | `uint256` | Timestamp when reward token was added         |
+| `initialInflationRate`   | `uint256` | Initial inflation rate for the reward token   |
+| `initialReductionFactor` | `uint256` | Initial reduction factor for the reward token |
+
 ### RewardTokenRemoved
 
 Emitted when governance removes a reward token
@@ -371,6 +380,14 @@ Emitted when governance removes a reward token
 ```solidity
 event RewardTokenRemoved(address indexed rewardToken, uint256 unclaimedRewards, uint256 remainingBalance);
 ```
+
+**Parameters**
+
+| Name               | Type      | Description                                                   |
+| ------------------ | --------- | ------------------------------------------------------------- |
+| `rewardToken`      | `address` | The reward token address                                      |
+| `unclaimedRewards` | `uint256` | The amount of reward tokens still claimable                   |
+| `remainingBalance` | `uint256` | The remaining balance of the reward token, sent to governance |
 
 ### MarketRemovedFromRewards
 
@@ -380,6 +397,13 @@ Emitted when a reward token is removed from a market's list of rewards
 event MarketRemovedFromRewards(address indexed market, address indexed rewardToken);
 ```
 
+**Parameters**
+
+| Name          | Type      | Description              |
+| ------------- | --------- | ------------------------ |
+| `market`      | `address` | The market address       |
+| `rewardToken` | `address` | The reward token address |
+
 ### RewardTokenShortfall
 
 Emitted when the contract runs out of a reward token
@@ -387,6 +411,13 @@ Emitted when the contract runs out of a reward token
 ```solidity
 event RewardTokenShortfall(address indexed rewardToken, uint256 shortfallAmount);
 ```
+
+**Parameters**
+
+| Name              | Type      | Description                                               |
+| ----------------- | --------- | --------------------------------------------------------- |
+| `rewardToken`     | `address` | The reward token address                                  |
+| `shortfallAmount` | `uint256` | The amount of reward tokens needed to fulfill all rewards |
 
 ### NewWeight
 
@@ -396,6 +427,14 @@ Emitted when a gauge weight is updated
 event NewWeight(address indexed market, address indexed rewardToken, uint16 newWeight);
 ```
 
+**Parameters**
+
+| Name          | Type      | Description                                    |
+| ------------- | --------- | ---------------------------------------------- |
+| `market`      | `address` | The address of the perp market or staked token |
+| `rewardToken` | `address` | The reward token address                       |
+| `newWeight`   | `uint16`  | The new weight value                           |
+
 ### NewInitialInflationRate
 
 Emitted when a new inflation rate is set by governance
@@ -404,6 +443,13 @@ Emitted when a new inflation rate is set by governance
 event NewInitialInflationRate(address indexed rewardToken, uint256 newRate);
 ```
 
+**Parameters**
+
+| Name          | Type      | Description            |
+| ------------- | --------- | ---------------------- |
+| `rewardToken` | `address` |                        |
+| `newRate`     | `uint256` | The new inflation rate |
+
 ### NewReductionFactor
 
 Emitted when a new reduction factor is set by governance
@@ -411,6 +457,13 @@ Emitted when a new reduction factor is set by governance
 ```solidity
 event NewReductionFactor(address indexed rewardToken, uint256 newFactor);
 ```
+
+**Parameters**
+
+| Name          | Type      | Description              |
+| ------------- | --------- | ------------------------ |
+| `rewardToken` | `address` |                          |
+| `newFactor`   | `uint256` | The new reduction factor |
 
 ## Errors
 
@@ -422,6 +475,13 @@ Error returned when trying to add a reward token if the max number of reward tok
 error RewardController_AboveMaxRewardTokens(uint256 max, address market);
 ```
 
+**Parameters**
+
+| Name     | Type      | Description                                                              |
+| -------- | --------- | ------------------------------------------------------------------------ |
+| `max`    | `uint256` | The maximum number of reward tokens allowed                              |
+| `market` | `address` | The market address which has reached the maximum number of reward tokens |
+
 ### RewardController_AboveMaxInflationRate
 
 Error returned when trying to set the inflation rate to a value that is too high
@@ -429,6 +489,13 @@ Error returned when trying to set the inflation rate to a value that is too high
 ```solidity
 error RewardController_AboveMaxInflationRate(uint256 rate, uint256 max);
 ```
+
+**Parameters**
+
+| Name   | Type      | Description               |
+| ------ | --------- | ------------------------- |
+| `rate` | `uint256` | The value that was passed |
+| `max`  | `uint256` | The maximum allowed value |
 
 ### RewardController_BelowMinReductionFactor
 
@@ -438,6 +505,13 @@ Error returned when trying to set the reduction factor to a value that is too lo
 error RewardController_BelowMinReductionFactor(uint256 factor, uint256 min);
 ```
 
+**Parameters**
+
+| Name     | Type      | Description               |
+| -------- | --------- | ------------------------- |
+| `factor` | `uint256` | The value that was passed |
+| `min`    | `uint256` | The minimum allowed value |
+
 ### RewardController_InvalidRewardTokenAddress
 
 Error returned when passing an invalid reward token address to a function
@@ -445,6 +519,12 @@ Error returned when passing an invalid reward token address to a function
 ```solidity
 error RewardController_InvalidRewardTokenAddress(address invalidAddress);
 ```
+
+**Parameters**
+
+| Name             | Type      | Description                 |
+| ---------------- | --------- | --------------------------- |
+| `invalidAddress` | `address` | The address that was passed |
 
 ### RewardController_MarketHasNoRewardWeight
 
@@ -454,6 +534,13 @@ Error returned when a given market address has no reward weight stored in the Re
 error RewardController_MarketHasNoRewardWeight(address market, address rewardToken);
 ```
 
+**Parameters**
+
+| Name          | Type      | Description              |
+| ------------- | --------- | ------------------------ |
+| `market`      | `address` | The market address       |
+| `rewardToken` | `address` | The reward token address |
+
 ### RewardController_IncorrectWeightsCount
 
 Error returned when trying to set the reward weights with markets and weights arrays of different lengths
@@ -461,6 +548,13 @@ Error returned when trying to set the reward weights with markets and weights ar
 ```solidity
 error RewardController_IncorrectWeightsCount(uint256 actual, uint256 expected);
 ```
+
+**Parameters**
+
+| Name       | Type      | Description                              |
+| ---------- | --------- | ---------------------------------------- |
+| `actual`   | `uint256` | The length of the weights array provided |
+| `expected` | `uint256` | The length of the markets array provided |
 
 ### RewardController_IncorrectWeightsSum
 
@@ -470,6 +564,13 @@ Error returned when the sum of the weights provided is not equal to 100% (in bas
 error RewardController_IncorrectWeightsSum(uint16 actual, uint16 expected);
 ```
 
+**Parameters**
+
+| Name       | Type     | Description                                   |
+| ---------- | -------- | --------------------------------------------- |
+| `actual`   | `uint16` | The sum of the weights provided               |
+| `expected` | `uint16` | The expected sum of the weights (i.e., 10000) |
+
 ### RewardController_WeightExceedsMax
 
 Error returned when one of the weights provided is greater than the maximum allowed weight (i.e., 100% in basis points)
@@ -477,3 +578,10 @@ Error returned when one of the weights provided is greater than the maximum allo
 ```solidity
 error RewardController_WeightExceedsMax(uint16 weight, uint16 max);
 ```
+
+**Parameters**
+
+| Name     | Type     | Description                              |
+| -------- | -------- | ---------------------------------------- |
+| `weight` | `uint16` | The weight that was passed               |
+| `max`    | `uint16` | The maximum allowed weight (i.e., 10000) |

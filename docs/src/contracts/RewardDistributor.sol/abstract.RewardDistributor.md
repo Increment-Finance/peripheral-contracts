@@ -1,6 +1,6 @@
 # RewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/RewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/RewardDistributor.sol)
 
 **Inherits:**
 [IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IStakingContract, [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
