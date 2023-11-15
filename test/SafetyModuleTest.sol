@@ -44,11 +44,17 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 shortfallAmount
     );
 
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
+    uint256 constant COOLDOWN_SECONDS = 1 days;
+    uint256 constant UNSTAKE_WINDOW = 10 days;
+    uint256 constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
+    uint256 constant MAX_STAKE_AMOUNT_2 = 100_000e18;
 
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
@@ -75,7 +81,7 @@ contract SafetyModuleTest is PerpetualUtils {
         super.setUp();
 
         // Deploy rewards tokens
-        rewardsToken = new IncrementToken(20000000e18, address(this));
+        rewardsToken = new IncrementToken(20_000_000e18, address(this));
         rewardsToken.unpause();
 
         // Deploy the Ecosystem Reserve vault
@@ -165,16 +171,18 @@ contract SafetyModuleTest is PerpetualUtils {
         stakedToken1 = new StakedToken(
             rewardsToken,
             safetyModule,
-            1 days,
-            10 days,
+            COOLDOWN_SECONDS,
+            UNSTAKE_WINDOW,
+            MAX_STAKE_AMOUNT_1,
             "Staked INCR",
             "stINCR"
         );
         stakedToken2 = new StakedToken(
             balancerPool,
             safetyModule,
-            1 days,
-            10 days,
+            COOLDOWN_SECONDS,
+            UNSTAKE_WINDOW,
+            MAX_STAKE_AMOUNT_2,
             "Staked 50INCR-50WETH BPT",
             "stIBPT"
         );
@@ -773,8 +781,9 @@ contract SafetyModuleTest is PerpetualUtils {
         StakedToken stakedToken3 = new StakedToken(
             rewardsToken,
             safetyModule,
-            1 days,
-            10 days,
+            COOLDOWN_SECONDS,
+            UNSTAKE_WINDOW,
+            MAX_STAKE_AMOUNT_1,
             "Staked INCR 2",
             "stINCR2"
         );
@@ -1230,7 +1239,26 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
-    function testStakedTokenErrors() public {
+    function testStakedTokenErrors(
+        uint256 invalidStakeAmount1,
+        uint256 invalidStakeAmount2
+    ) public {
+        /* bounds */
+        invalidStakeAmount1 = bound(
+            invalidStakeAmount1,
+            MAX_STAKE_AMOUNT_1 -
+                stakedToken1.balanceOf(liquidityProviderOne) +
+                1,
+            type(uint256).max / 2
+        );
+        invalidStakeAmount2 = bound(
+            invalidStakeAmount2,
+            MAX_STAKE_AMOUNT_2 -
+                stakedToken2.balanceOf(liquidityProviderOne) +
+                1,
+            type(uint256).max / 2
+        );
+
         // test zero amount
         vm.expectRevert(
             abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
@@ -1247,8 +1275,52 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         stakedToken1.cooldown();
 
-        // test insufficient cooldown
+        // test above max stake amount
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
+                MAX_STAKE_AMOUNT_1,
+                MAX_STAKE_AMOUNT_1 -
+                    stakedToken1.balanceOf(liquidityProviderOne)
+            )
+        );
+        stakedToken1.stake(liquidityProviderOne, invalidStakeAmount1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
+                MAX_STAKE_AMOUNT_2,
+                MAX_STAKE_AMOUNT_2 -
+                    stakedToken2.balanceOf(liquidityProviderOne)
+            )
+        );
+        stakedToken2.stake(liquidityProviderOne, invalidStakeAmount2);
+        deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount1);
+        vm.startPrank(liquidityProviderTwo);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
+                MAX_STAKE_AMOUNT_1,
+                MAX_STAKE_AMOUNT_1 -
+                    stakedToken1.balanceOf(liquidityProviderOne)
+            )
+        );
+        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        // change max stake amount and try again, expecting it to succeed
+        vm.stopPrank();
+        stakedToken1.setMaxStakeAmount(type(uint256).max);
+        vm.startPrank(liquidityProviderTwo);
+        vm.expectEmit(false, false, false, true);
+        emit Transfer(
+            liquidityProviderTwo,
+            liquidityProviderOne,
+            invalidStakeAmount1
+        );
+        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        // transfer the amount back so that subsequent tests work
         vm.startPrank(liquidityProviderOne);
+        stakedToken1.transfer(liquidityProviderTwo, invalidStakeAmount1);
+
+        // test insufficient cooldown
         stakedToken1.cooldown();
         uint256 cooldownStartTimestamp = block.timestamp;
         uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
