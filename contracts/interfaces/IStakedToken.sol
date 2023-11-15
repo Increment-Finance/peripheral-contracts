@@ -34,10 +34,20 @@ interface IStakedToken is IERC20Metadata {
     error StakedToken_ZeroBalanceAtCooldown();
 
     /// @notice Error returned when the caller tries to redeem before the cooldown period is over
+    /// @param cooldownEndTimestamp Timestamp when the cooldown period ends
     error StakedToken_InsufficientCooldown(uint256 cooldownEndTimestamp);
 
     /// @notice Error returned when the caller tries to redeem after the unstake window is over
+    /// @param unstakeWindowEndTimestamp Timestamp when the unstake window ended
     error StakedToken_UnstakeWindowFinished(uint256 unstakeWindowEndTimestamp);
+
+    /// @notice Error returned when the caller tries to stake more than the max stake amount
+    /// @param maxStakeAmount Maximum allowed amount to stake
+    /// @param maxAmountMinusBalance Amount that the user can still stake without exceeding the max stake amount
+    error StakedToken_AboveMaxStakeAmount(
+        uint256 maxStakeAmount,
+        uint256 maxAmountMinusBalance
+    );
 
     /// @notice Stakes tokens on behalf of the given address, and starts earning rewards
     /// @dev Tokens are transferred from the transaction sender, not from the `onBehalfOf` address
