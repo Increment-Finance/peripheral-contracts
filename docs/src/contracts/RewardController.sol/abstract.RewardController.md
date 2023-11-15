@@ -1,6 +1,6 @@
 # RewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/fc86e744c6664e8852ac82787aa2f73b160e6a5d/contracts/RewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/RewardController.sol)
 
 **Inherits:**
 [IRewardController](/contracts/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -408,3 +408,15 @@ struct RewardInfo {
     uint16[] marketWeights;
 }
 ```
+
+**Properties**
+
+| Name                   | Type             | Description                                                         |
+| ---------------------- | ---------------- | ------------------------------------------------------------------- |
+| `token`                | `IERC20Metadata` | Address of the reward token                                         |
+| `paused`               | `bool`           | Whether the reward token accrual is paused                          |
+| `initialTimestamp`     | `uint256`        | Time when the reward token was added                                |
+| `initialInflationRate` | `uint256`        | Initial rate of reward token emission per year                      |
+| `reductionFactor`      | `uint256`        | Factor by which the inflation rate is reduced each year             |
+| `marketAddresses`      | `address[]`      | List of markets for which the reward token is distributed           |
+| `marketWeights`        | `uint16[]`       | Market reward weights as basis points, i.e., 100 = 1%, 10000 = 100% |

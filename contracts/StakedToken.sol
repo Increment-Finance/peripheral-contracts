@@ -46,6 +46,7 @@ contract StakedToken is
     /// @param _safetyModule The SafetyModule contract to use for reward management
     /// @param _cooldownSeconds The number of seconds that users must wait between calling `cooldown` and `redeem`
     /// @param _unstakeWindow The number of seconds available to redeem once the cooldown period is fullfilled
+    /// @param _maxStakeAmount The maximum amount of staked tokens allowed per user
     /// @param _name The name of the token
     /// @param _symbol The symbol of the token
     constructor(

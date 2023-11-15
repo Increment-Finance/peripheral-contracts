@@ -54,6 +54,7 @@ interface IRewardDistributor {
     );
 
     /// @notice Emitted when the address of the ecosystem reserve for storing reward tokens is updated
+    /// @param prevEcosystemReserve Address of the previous ecosystem reserve
     /// @param newEcosystemReserve Address of the new ecosystem reserve
     event EcosystemReserveUpdated(
         address prevEcosystemReserve,
