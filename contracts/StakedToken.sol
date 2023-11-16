@@ -24,7 +24,7 @@ contract StakedToken is
     using SafeERC20 for IERC20;
 
     /// @notice Address of the underlying token to stake
-    IERC20 public immutable STAKED_TOKEN;
+    IERC20 public immutable UNDERLYING_TOKEN;
 
     /// @notice Seconds that user must wait between calling cooldown and redeem
     uint256 public immutable COOLDOWN_SECONDS;
@@ -41,6 +41,7 @@ contract StakedToken is
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
 
+    /// @notice Modifier for functions that can only be called by the SafetyModule contract
     modifier onlySafetyModule() {
         if (msg.sender != address(safetyModule))
             revert StakedToken_CallerIsNotSafetyModule(msg.sender);
@@ -48,7 +49,7 @@ contract StakedToken is
     }
 
     /// @notice StakedToken constructor
-    /// @param _stakedToken The underlying token to stake
+    /// @param _underlyingToken The underlying token to stake
     /// @param _safetyModule The SafetyModule contract to use for reward management
     /// @param _cooldownSeconds The number of seconds that users must wait between calling `cooldown` and `redeem`
     /// @param _unstakeWindow The number of seconds available to redeem once the cooldown period is fullfilled
@@ -56,7 +57,7 @@ contract StakedToken is
     /// @param _name The name of the token
     /// @param _symbol The symbol of the token
     constructor(
-        IERC20 _stakedToken,
+        IERC20 _underlyingToken,
         ISafetyModule _safetyModule,
         uint256 _cooldownSeconds,
         uint256 _unstakeWindow,
@@ -64,7 +65,7 @@ contract StakedToken is
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) ERC20Permit(_name) {
-        STAKED_TOKEN = _stakedToken;
+        UNDERLYING_TOKEN = _underlyingToken;
         COOLDOWN_SECONDS = _cooldownSeconds;
         UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
@@ -91,7 +92,7 @@ contract StakedToken is
         );
 
         _mint(onBehalfOf, amount);
-        IERC20(STAKED_TOKEN).safeTransferFrom(
+        IERC20(UNDERLYING_TOKEN).safeTransferFrom(
             msg.sender,
             address(this),
             amount
@@ -132,7 +133,7 @@ contract StakedToken is
             stakersCooldowns[msg.sender] = 0;
         }
 
-        IERC20(STAKED_TOKEN).safeTransfer(to, amountToRedeem);
+        IERC20(UNDERLYING_TOKEN).safeTransfer(to, amountToRedeem);
 
         safetyModule.updateStakingPosition(address(this), msg.sender);
 
