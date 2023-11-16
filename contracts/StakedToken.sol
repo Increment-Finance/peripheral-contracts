@@ -210,6 +210,7 @@ contract StakedToken is
 
     /**
      * @inheritdoc IStakedToken
+     * @dev Only callable by governance
      */
     function setSafetyModule(
         address _safetyModule
@@ -217,8 +218,10 @@ contract StakedToken is
         safetyModule = ISafetyModule(_safetyModule);
     }
 
-    /// @notice Sets the max amount of staked tokens allowed per user, callable only by governance
-    /// @param _maxStakeAmount New max amount of staked tokens allowed per user
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by governance
+     */
     function setMaxStakeAmount(
         uint256 _maxStakeAmount
     ) external onlyRole(GOVERNANCE) {

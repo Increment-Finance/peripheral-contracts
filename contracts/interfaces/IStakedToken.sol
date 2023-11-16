@@ -72,4 +72,8 @@ interface IStakedToken is IERC20Metadata {
     /// @dev Only callable by Governance
     /// @param _safetyModule Address of the new SafetyModule contract
     function setSafetyModule(address _safetyModule) external;
+
+    /// @notice Sets the max amount of staked tokens allowed per user, callable only by governance
+    /// @param _maxStakeAmount New max amount of staked tokens allowed per user
+    function setMaxStakeAmount(uint256 _maxStakeAmount) external;
 }
