@@ -10,7 +10,7 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Emitted when tokens are staked
     /// @param from Address of the user that staked tokens
     /// @param onBehalfOf Address of the user that tokens were staked on behalf of
-    /// @param amount Amount of tokens staked
+    /// @param amount Amount of underlying tokens staked
     event Staked(
         address indexed from,
         address indexed onBehalfOf,
@@ -20,7 +20,7 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Emitted when tokens are redeemed
     /// @param from Address of the user that redeemed tokens
     /// @param to Address where redeemed tokens were sent to
-    /// @param amount Amount of tokens redeemed
+    /// @param amount Amount of staked tokens redeemed
     event Redeem(address indexed from, address indexed to, uint256 amount);
 
     /// @notice Emitted when the cooldown period is started
@@ -32,6 +32,11 @@ interface IStakedToken is IERC20Metadata {
 
     /// @notice Error returned when the caller has no balance when calling `cooldown`
     error StakedToken_ZeroBalanceAtCooldown();
+
+    /// @notice Error returned when the caller tries to stake or redeem tokens when the exchange rate is 0
+    /// @dev This can only happen if 100% of the underlying tokens have been slashed by the SafetyModule,
+    /// which should never occur in practice because the SafetyModule can only slash `maxPercentUserLoss`
+    error StakedToken_ZeroExchangeRate();
 
     /// @notice Error returned when the caller tries to redeem before the cooldown period is over
     /// @param cooldownEndTimestamp Timestamp when the cooldown period ends
