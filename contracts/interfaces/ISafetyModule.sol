@@ -92,7 +92,7 @@ interface ISafetyModule is IStakingContract {
     /// @return Index of the staking token in the `stakingTokens` array
     function getStakingTokenIdx(address token) external view returns (uint256);
 
-    /// @notice Returns the amount of the user's staking tokens that can be sold at auction in the event of
+    /// @notice Returns the amount of the user's stake tokens that can be sold at auction in the event of
     /// an insolvency in the vault that cannot be covered by the insurance fund
     /// @param staker Address of the user
     /// @param token Address of the staking token
@@ -101,6 +101,12 @@ interface ISafetyModule is IStakingContract {
         address staker,
         address token
     ) external view returns (uint256);
+
+    /// @notice Returns the total amount of staked tokens that can be sold at auction in the event of
+    /// an insolvency in the vault that cannot be covered by the insurance fund
+    /// @param token Address of the staking token
+    /// @return Total amount of staked tokens multiplied by the maxPercentUserLoss
+    function getAuctionableTotal(address token) external view returns (uint256);
 
     /// @notice Computes the user's reward multiplier for the given staking token
     /// @dev Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)
