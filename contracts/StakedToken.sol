@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
+// contracts
 import {ERC20, ERC20Permit, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.sol";
+
+// interfaces
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
 import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
+
+// libraries
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LibMath} from "@increment/lib/LibMath.sol";
 
 /**
  * @title StakedToken
@@ -22,6 +28,7 @@ contract StakedToken is
     ReentrancyGuard
 {
     using SafeERC20 for IERC20;
+    using LibMath for uint256;
 
     /// @notice Address of the underlying token to stake
     IERC20 public immutable UNDERLYING_TOKEN;
@@ -37,6 +44,12 @@ contract StakedToken is
 
     /// @notice Max amount of staked tokens allowed per user
     uint256 public maxStakeAmount;
+
+    /// @notice Exchange rate between the underlying token and the staked token, normalized to 1e18
+    /// @dev Rate is the amount of underlying tokens held in this contract per staked token issued, so
+    /// it should be 1e18 in normal conditions, when all staked tokens are backed 1:1 by underlying tokens,
+    /// but it can be lower if users' stakes have been slashed for an auction by the SafetyModule
+    uint256 public exchangeRate;
 
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
@@ -70,6 +83,7 @@ contract StakedToken is
         UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
         maxStakeAmount = _maxStakeAmount;
+        exchangeRate = 1e18;
     }
 
     /**
@@ -77,27 +91,36 @@ contract StakedToken is
      */
     function stake(address onBehalfOf, uint256 amount) external override {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+
+        // Make sure the user's stake balance doesn't exceed the max stake amount
+        uint256 stakeAmount = amount.wadDiv(exchangeRate);
         uint256 balanceOfUser = balanceOf(onBehalfOf);
-        if (balanceOfUser + amount > maxStakeAmount)
+        if (balanceOfUser + stakeAmount > maxStakeAmount)
             revert StakedToken_AboveMaxStakeAmount(
                 maxStakeAmount,
                 maxStakeAmount - balanceOfUser
             );
 
+        // Update cooldown timestamp
         stakersCooldowns[onBehalfOf] = getNextCooldownTimestamp(
             0,
-            amount,
+            stakeAmount,
             onBehalfOf,
             balanceOfUser
         );
 
-        _mint(onBehalfOf, amount);
+        // Mint staked tokens
+        _mint(onBehalfOf, stakeAmount);
+
+        // Transfer underlying tokens from the sender
         IERC20(UNDERLYING_TOKEN).safeTransferFrom(
             msg.sender,
             address(this),
             amount
         );
 
+        // Update user's position and rewards in the SafetyModule
         safetyModule.updateStakingPosition(address(this), onBehalfOf);
 
         emit Staked(msg.sender, onBehalfOf, amount);
@@ -108,6 +131,9 @@ contract StakedToken is
      */
     function redeem(address to, uint256 amount) external override {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+
+        // Make sure the user's cooldown period is over and the unstake window didn't pass
         //solium-disable-next-line
         uint256 cooldownStartTimestamp = stakersCooldowns[msg.sender];
         if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
@@ -121,20 +147,26 @@ contract StakedToken is
             revert StakedToken_UnstakeWindowFinished(
                 cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
             );
-        uint256 balanceOfMessageSender = balanceOf(msg.sender);
 
+        // Check the sender's balance and adjust the redeem amount if necessary
+        uint256 balanceOfMessageSender = balanceOf(msg.sender);
         uint256 amountToRedeem = (amount > balanceOfMessageSender)
             ? balanceOfMessageSender
             : amount;
 
+        // Burn staked tokens
         _burn(msg.sender, amountToRedeem);
 
+        // Reset cooldown to zero if the user redeemed their whole balance
         if (balanceOfMessageSender - amountToRedeem == 0) {
             stakersCooldowns[msg.sender] = 0;
         }
 
-        IERC20(UNDERLYING_TOKEN).safeTransfer(to, amountToRedeem);
+        // Transfer underlying tokens to the recipient
+        uint256 underlyingAmount = amountToRedeem.wadMul(exchangeRate);
+        IERC20(UNDERLYING_TOKEN).safeTransfer(to, underlyingAmount);
 
+        // Update user's position and rewards in the SafetyModule
         safetyModule.updateStakingPosition(address(this), msg.sender);
 
         emit Redeem(msg.sender, to, amountToRedeem);
@@ -162,7 +194,7 @@ contract StakedToken is
      *    - The sender has a "worse" timestamp
      *  - If the receiver's cooldown timestamp expired (too old), the next is 0
      * @param fromCooldownTimestamp Cooldown timestamp of the sender
-     * @param amountToReceive Amount
+     * @param amountToReceive Amount of staked tokens to receive
      * @param toAddress Address of the recipient
      * @param toBalance Current balance of the receiver
      * @return The new cooldown timestamp
@@ -231,6 +263,22 @@ contract StakedToken is
     /* ****************** */
     /*      Internal      */
     /* ****************** */
+
+    /**
+     * @notice Updates the exchange rate of the staked token, based on the current underlying token balance
+     * held by this contract and the total supply of the staked token
+     */
+    function _updateExchangeRate() internal {
+        uint256 totalSupply = totalSupply();
+        if (totalSupply == 0) {
+            // If there are no staked tokens, reset the exchange rate to 1:1
+            exchangeRate = 1e18;
+        } else {
+            exchangeRate = UNDERLYING_TOKEN.balanceOf(address(this)).wadDiv(
+                totalSupply
+            );
+        }
+    }
 
     /**
      * @notice Internal ERC20 `_transfer` of the tokenized staked tokens
