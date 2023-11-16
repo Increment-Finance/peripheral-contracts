@@ -215,8 +215,8 @@ contract RewardsTest is PerpetualUtils {
                 liquidityProviderOne,
                 address(perpetual)
             ),
-            4867996525552487585967,
-            1e16,
+            4867996525552487585967, // position from initial tests after providing liquidity in setUp()
+            5e16, // 5% tolerance to account for fluctuation in oracle price
             "Position mismatch"
         );
         assertEq(
@@ -1771,8 +1771,9 @@ contract RewardsTest is PerpetualUtils {
         }
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardController_AboveMaxRewardTokens(uint256)",
-                10
+                "RewardController_AboveMaxRewardTokens(uint256,address)",
+                10,
+                address(perpetual)
             )
         );
         rewardsDistributor.addRewardToken(
