@@ -41,6 +41,12 @@ contract StakedToken is
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
 
+    modifier onlySafetyModule() {
+        if (msg.sender != address(safetyModule))
+            revert StakedToken_CallerIsNotSafetyModule(msg.sender);
+        _;
+    }
+
     /// @notice StakedToken constructor
     /// @param _stakedToken The underlying token to stake
     /// @param _safetyModule The SafetyModule contract to use for reward management

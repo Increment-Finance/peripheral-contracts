@@ -49,6 +49,10 @@ interface IStakedToken is IERC20Metadata {
         uint256 maxAmountMinusBalance
     );
 
+    /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
+    /// @param caller Address of the caller
+    error StakedToken_CallerIsNotSafetyModule(address caller);
+
     /// @notice Stakes tokens on behalf of the given address, and starts earning rewards
     /// @dev Tokens are transferred from the transaction sender, not from the `onBehalfOf` address
     /// @param onBehalfOf Address to stake on behalf of
