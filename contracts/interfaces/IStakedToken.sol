@@ -56,12 +56,12 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Stakes tokens on behalf of the given address, and starts earning rewards
     /// @dev Tokens are transferred from the transaction sender, not from the `onBehalfOf` address
     /// @param onBehalfOf Address to stake on behalf of
-    /// @param amount Amount of tokens to stake
+    /// @param amount Amount of underlying tokens to stake
     function stake(address onBehalfOf, uint256 amount) external;
 
     /// @notice Redeems staked tokens, and stop earning rewards
     /// @param to Address to redeem to
-    /// @param amount Amount to redeem
+    /// @param amount Amount of staked tokens to redeem for underlying tokens
     function redeem(address to, uint256 amount) external;
 
     /// @notice Activates the cooldown period to unstake
@@ -69,11 +69,10 @@ interface IStakedToken is IERC20Metadata {
     function cooldown() external;
 
     /// @notice Changes the SafetyModule contract used for reward management
-    /// @dev Only callable by Governance
     /// @param _safetyModule Address of the new SafetyModule contract
     function setSafetyModule(address _safetyModule) external;
 
-    /// @notice Sets the max amount of staked tokens allowed per user, callable only by governance
-    /// @param _maxStakeAmount New max amount of staked tokens allowed per user
+    /// @notice Sets the max amount of underlying tokens allowed to be staked per user
+    /// @param _maxStakeAmount New max amount of underlying tokens allowed to be staked per user
     function setMaxStakeAmount(uint256 _maxStakeAmount) external;
 }
