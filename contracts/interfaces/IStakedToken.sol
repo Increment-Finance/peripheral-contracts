@@ -58,6 +58,20 @@ interface IStakedToken is IERC20Metadata {
     /// @param caller Address of the caller
     error StakedToken_CallerIsNotSafetyModule(address caller);
 
+    /// @notice Returns the amount of staked tokens one would receive for staking an amount of underlying tokens
+    /// @param amountToStake Amount of underlying tokens to stake
+    /// @return Amount of staked tokens that would be received at the current exchange rate
+    function previewStake(
+        uint256 amountToStake
+    ) external view returns (uint256);
+
+    /// @notice Returns the amount of underlying tokens one would receive for redeeming an amount of staked tokens
+    /// @param amountToRedeem Amount of staked tokens to redeem
+    /// @return Amount of underlying tokens that would be received at the current exchange rate
+    function previewRedeem(
+        uint256 amountToRedeem
+    ) external view returns (uint256);
+
     /// @notice Stakes tokens on behalf of the given address, and starts earning rewards
     /// @dev Tokens are transferred from the transaction sender, not from the `onBehalfOf` address
     /// @param onBehalfOf Address to stake on behalf of

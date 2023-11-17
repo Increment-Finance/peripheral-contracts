@@ -89,6 +89,24 @@ contract StakedToken is
     /**
      * @inheritdoc IStakedToken
      */
+    function previewStake(
+        uint256 amountToStake
+    ) external view returns (uint256) {
+        return amountToStake.wadDiv(exchangeRate);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function previewRedeem(
+        uint256 amountToRedeem
+    ) external view returns (uint256) {
+        return amountToRedeem.wadMul(exchangeRate);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
     function stake(address onBehalfOf, uint256 amount) external override {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
