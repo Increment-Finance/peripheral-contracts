@@ -2,6 +2,7 @@
 pragma solidity 0.8.16;
 
 import {IStakedToken} from "./IStakedToken.sol";
+import {IAuctionModule} from "./IAuctionModule.sol";
 import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
 
 /// @title ISafetyModule
@@ -69,9 +70,9 @@ interface ISafetyModule is IStakingContract {
     /// @return Address of the Vault contract
     function vault() external view returns (address);
 
-    /// @notice Gets the address of the Auction contract
-    /// @return Address of the Auction contract
-    function auctionModule() external view returns (address);
+    /// @notice Gets the address of the AuctionModule contract
+    /// @return The AuctionModule contract
+    function auctionModule() external view returns (IAuctionModule);
 
     /// @notice Gets the address of the StakedToken contract at the specified index in the `stakingTokens` array
     /// @param i Index of the staking token
@@ -117,6 +118,10 @@ interface ISafetyModule is IStakingContract {
         address _user,
         address _stakingToken
     ) external view returns (uint256);
+
+    /// @notice Sets the address of the AuctionModule contract
+    /// @param _auctionModule Address of the AuctionModule contract
+    function setAuctionModule(IAuctionModule _auctionModule) external;
 
     /// @notice Sets the maximum percentage of user funds that can be sold at auction, normalized to 1e18
     /// @param _maxPercentUserLoss New maximum percentage of user funds that can be sold at auction, normalized to 1e18

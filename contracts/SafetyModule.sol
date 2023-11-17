@@ -8,6 +8,7 @@ import {RewardDistributor} from "./RewardDistributor.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISafetyModule, IStakingContract} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
+import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 
 // libraries
 import {LibMath} from "@increment/lib/LibMath.sol";
@@ -26,7 +27,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     address public vault;
 
     /// @notice Address of the auction module, which sells user funds in the event of an insolvency
-    address public auctionModule;
+    IAuctionModule public auctionModule;
 
     /// @notice Array of staking tokens that are registered with the SafetyModule
     IStakedToken[] public stakingTokens;
@@ -77,7 +78,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address _ecosystemReserve
     ) RewardDistributor(_ecosystemReserve) {
         vault = _vault;
-        auctionModule = _auctionModule;
+        auctionModule = IAuctionModule(_auctionModule);
         maxPercentUserLoss = _maxPercentUserLoss;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
@@ -347,6 +348,14 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /* ****************** */
     /*     Governance     */
     /* ****************** */
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function setAuctionModule(
+        IAuctionModule _auctionModule
+    ) external onlyRole(GOVERNANCE) {
+        auctionModule = _auctionModule;
+    }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance, reverts if the new value is greater than 1e18, i.e., 100%
