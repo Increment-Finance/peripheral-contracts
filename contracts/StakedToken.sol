@@ -334,20 +334,22 @@ contract StakedToken is
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 
-        // Make sure the user's cooldown period is over and the unstake window didn't pass
-        //solium-disable-next-line
-        uint256 cooldownStartTimestamp = stakersCooldowns[from];
-        if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
-            revert StakedToken_InsufficientCooldown(
-                cooldownStartTimestamp + COOLDOWN_SECONDS
-            );
-        if (
-            block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
-            UNSTAKE_WINDOW
-        )
-            revert StakedToken_UnstakeWindowFinished(
-                cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
-            );
+        // Users can redeem without waiting for the cooldown period in a post-slashing state
+        if (!isInPostSlashingState) {
+            // Make sure the user's cooldown period is over and the unstake window didn't pass
+            uint256 cooldownStartTimestamp = stakersCooldowns[from];
+            if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
+                revert StakedToken_InsufficientCooldown(
+                    cooldownStartTimestamp + COOLDOWN_SECONDS
+                );
+            if (
+                block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
+                UNSTAKE_WINDOW
+            )
+                revert StakedToken_UnstakeWindowFinished(
+                    cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
+                );
+        }
 
         // Check the sender's balance and adjust the redeem amount if necessary
         uint256 balanceOfFrom = balanceOf(from);
