@@ -95,9 +95,7 @@ contract StakedToken is
     /**
      * @inheritdoc IStakedToken
      */
-    function previewStake(
-        uint256 amountToStake
-    ) external view returns (uint256) {
+    function previewStake(uint256 amountToStake) public view returns (uint256) {
         return amountToStake.wadDiv(exchangeRate);
     }
 
@@ -106,7 +104,7 @@ contract StakedToken is
      */
     function previewRedeem(
         uint256 amountToRedeem
-    ) external view returns (uint256) {
+    ) public view returns (uint256) {
         return amountToRedeem.wadMul(exchangeRate);
     }
 
@@ -155,6 +153,43 @@ contract StakedToken is
         stakersCooldowns[msg.sender] = block.timestamp;
 
         emit Cooldown(msg.sender);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the SafetyModule contract
+     */
+    function slash(
+        address destination,
+        uint256 amount
+    ) external onlySafetyModule returns (uint256) {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (destination == address(0)) revert StakedToken_InvalidZeroAddress();
+        if (isInPostSlashingState)
+            revert StakedToken_SlashingDisabledInPostSlashingState();
+        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
+            address(this)
+        );
+        if (amount > maxSlashAmount)
+            revert StakedToken_AboveMaxSlashAmount(amount, maxSlashAmount);
+
+        // Change state to post-slashing
+        isInPostSlashingState = true;
+
+        // Determine the amount of underlying tokens to transfer, given the current exchange rate
+        uint256 underlyingAmount = previewRedeem(amount);
+
+        // Update the exchange rate
+        _updateExchangeRate(
+            UNDERLYING_TOKEN.balanceOf(address(this)) - underlyingAmount,
+            totalSupply()
+        );
+
+        // Send the slashed underlying tokens to the destination
+        UNDERLYING_TOKEN.safeTransfer(destination, underlyingAmount);
+
+        emit Slashed(destination, amount, underlyingAmount);
+        return underlyingAmount;
     }
 
     /**
@@ -241,16 +276,17 @@ contract StakedToken is
      * @notice Updates the exchange rate of the staked token, based on the current underlying token balance
      * held by this contract and the total supply of the staked token
      */
-    function _updateExchangeRate() internal {
-        uint256 totalSupply = totalSupply();
-        if (totalSupply == 0) {
+    function _updateExchangeRate(
+        uint256 totalAssets,
+        uint256 totalShares
+    ) internal {
+        if (totalShares == 0) {
             // If there are no staked tokens, reset the exchange rate to 1:1
             exchangeRate = 1e18;
         } else {
-            exchangeRate = UNDERLYING_TOKEN.balanceOf(address(this)).wadDiv(
-                totalSupply
-            );
+            exchangeRate = totalAssets.wadDiv(totalShares);
         }
+        emit ExchangeRateUpdated(exchangeRate);
     }
 
     /**
@@ -324,7 +360,7 @@ contract StakedToken is
         _mint(to, stakeAmount);
 
         // Transfer underlying tokens from the sender
-        IERC20(UNDERLYING_TOKEN).safeTransferFrom(from, address(this), amount);
+        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
 
         // Update user's position and rewards in the SafetyModule
         safetyModule.updateStakingPosition(address(this), to);
@@ -369,11 +405,11 @@ contract StakedToken is
 
         // Transfer underlying tokens to the recipient
         uint256 underlyingAmount = amountToRedeem.wadMul(exchangeRate);
-        IERC20(UNDERLYING_TOKEN).safeTransfer(to, underlyingAmount);
+        UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
 
         // Update user's position and rewards in the SafetyModule
         safetyModule.updateStakingPosition(address(this), from);
 
-        emit Redeem(from, to, amountToRedeem);
+        emit Redeemed(from, to, amountToRedeem);
     }
 }

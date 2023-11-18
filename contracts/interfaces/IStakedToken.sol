@@ -21,11 +21,25 @@ interface IStakedToken is IERC20Metadata {
     /// @param from Address of the user that redeemed tokens
     /// @param to Address where redeemed tokens were sent to
     /// @param amount Amount of staked tokens redeemed
-    event Redeem(address indexed from, address indexed to, uint256 amount);
+    event Redeemed(address indexed from, address indexed to, uint256 amount);
 
     /// @notice Emitted when the cooldown period is started
     /// @param user Address of the user that started the cooldown period
     event Cooldown(address indexed user);
+
+    /// @notice Emitted when tokens are slashed
+    /// @param destination Address where slashed underlying tokens were sent to
+    /// @param stakeAmount Amount of staked tokens slashed
+    /// @param underlyingAmount Amount of underlying tokens sent to the destination
+    event Slashed(
+        address indexed destination,
+        uint256 stakeAmount,
+        uint256 underlyingAmount
+    );
+
+    /// @notice Emitted when the exchange rate is updated
+    /// @param exchangeRate New exchange rate, denominated in underlying per staked token, normalized to 1e18
+    event ExchangeRateUpdated(uint256 exchangeRate);
 
     /// @notice Error returned when 0 amount is passed to stake or redeem functions
     error StakedToken_InvalidZeroAmount();
@@ -66,6 +80,14 @@ interface IStakedToken is IERC20Metadata {
     error StakedToken_AboveMaxStakeAmount(
         uint256 maxStakeAmount,
         uint256 maxAmountMinusBalance
+    );
+
+    /// @notice Error returned when the caller tries to slash more than the max percent user loss
+    /// @param amount Amount passed to the `slash` function
+    /// @param maxSlashAmount Maximum allowed amount to slash
+    error StakedToken_AboveMaxSlashAmount(
+        uint256 amount,
+        uint256 maxSlashAmount
     );
 
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
@@ -109,6 +131,17 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Activates the cooldown period to unstake
     /// @dev Can't be called if the user is not staking
     function cooldown() external;
+
+    /// @notice Sends underlying tokens to the given address, lowers the exchange rate, and changes the
+    /// contract's state to `POST_SLASHING`, which disables staking, cooldown period and further slashing
+    /// until the state is returned to `RUNNING`
+    /// @param destination Address to send the slashed underlying tokens to
+    /// @param amount Amount of staked tokens to slash
+    /// @return Amount of underlying tokens slashed
+    function slash(
+        address destination,
+        uint256 amount
+    ) external returns (uint256);
 
     /// @notice Changes the SafetyModule contract used for reward management
     /// @param _safetyModule Address of the new SafetyModule contract
