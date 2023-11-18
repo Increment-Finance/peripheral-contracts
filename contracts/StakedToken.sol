@@ -340,7 +340,7 @@ contract StakedToken is
             revert StakedToken_StakingDisabledInPostSlashingState();
 
         // Make sure the user's stake balance doesn't exceed the max stake amount
-        uint256 stakeAmount = amount.wadDiv(exchangeRate);
+        uint256 stakeAmount = previewStake(amount);
         uint256 balanceOfUser = balanceOf(to);
         if (balanceOfUser + stakeAmount > maxStakeAmount)
             revert StakedToken_AboveMaxStakeAmount(
@@ -404,7 +404,7 @@ contract StakedToken is
         }
 
         // Transfer underlying tokens to the recipient
-        uint256 underlyingAmount = amountToRedeem.wadMul(exchangeRate);
+        uint256 underlyingAmount = previewRedeem(amountToRedeem);
         UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
 
         // Update user's position and rewards in the SafetyModule
