@@ -107,87 +107,32 @@ contract StakedToken is
     /**
      * @inheritdoc IStakedToken
      */
-    function stake(address onBehalfOf, uint256 amount) external override {
-        if (amount == 0) revert StakedToken_InvalidZeroAmount();
-        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
-
-        // Make sure the user's stake balance doesn't exceed the max stake amount
-        uint256 stakeAmount = amount.wadDiv(exchangeRate);
-        uint256 balanceOfUser = balanceOf(onBehalfOf);
-        if (balanceOfUser + stakeAmount > maxStakeAmount)
-            revert StakedToken_AboveMaxStakeAmount(
-                maxStakeAmount,
-                maxStakeAmount - balanceOfUser
-            );
-
-        // Update cooldown timestamp
-        stakersCooldowns[onBehalfOf] = getNextCooldownTimestamp(
-            0,
-            stakeAmount,
-            onBehalfOf,
-            balanceOfUser
-        );
-
-        // Mint staked tokens
-        _mint(onBehalfOf, stakeAmount);
-
-        // Transfer underlying tokens from the sender
-        IERC20(UNDERLYING_TOKEN).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        // Update user's position and rewards in the SafetyModule
-        safetyModule.updateStakingPosition(address(this), onBehalfOf);
-
-        emit Staked(msg.sender, onBehalfOf, amount);
+    function stake(uint256 amount) external override {
+        _stake(msg.sender, msg.sender, amount);
     }
 
     /**
      * @inheritdoc IStakedToken
      */
-    function redeem(address to, uint256 amount) external override {
-        if (amount == 0) revert StakedToken_InvalidZeroAmount();
-        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+    function stakeOnBehalfOf(
+        address onBehalfOf,
+        uint256 amount
+    ) external override {
+        _stake(msg.sender, onBehalfOf, amount);
+    }
 
-        // Make sure the user's cooldown period is over and the unstake window didn't pass
-        //solium-disable-next-line
-        uint256 cooldownStartTimestamp = stakersCooldowns[msg.sender];
-        if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
-            revert StakedToken_InsufficientCooldown(
-                cooldownStartTimestamp + COOLDOWN_SECONDS
-            );
-        if (
-            block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
-            UNSTAKE_WINDOW
-        )
-            revert StakedToken_UnstakeWindowFinished(
-                cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
-            );
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function redeem(uint256 amount) external override {
+        _redeem(msg.sender, msg.sender, amount);
+    }
 
-        // Check the sender's balance and adjust the redeem amount if necessary
-        uint256 balanceOfMessageSender = balanceOf(msg.sender);
-        uint256 amountToRedeem = (amount > balanceOfMessageSender)
-            ? balanceOfMessageSender
-            : amount;
-
-        // Burn staked tokens
-        _burn(msg.sender, amountToRedeem);
-
-        // Reset cooldown to zero if the user redeemed their whole balance
-        if (balanceOfMessageSender - amountToRedeem == 0) {
-            stakersCooldowns[msg.sender] = 0;
-        }
-
-        // Transfer underlying tokens to the recipient
-        uint256 underlyingAmount = amountToRedeem.wadMul(exchangeRate);
-        IERC20(UNDERLYING_TOKEN).safeTransfer(to, underlyingAmount);
-
-        // Update user's position and rewards in the SafetyModule
-        safetyModule.updateStakingPosition(address(this), msg.sender);
-
-        emit Redeem(msg.sender, to, amountToRedeem);
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function redeemTo(address to, uint256 amount) external override {
+        _redeem(msg.sender, to, amount);
     }
 
     /**
@@ -340,5 +285,81 @@ contract StakedToken is
         // Update SafetyModule
         safetyModule.updateStakingPosition(address(this), from);
         safetyModule.updateStakingPosition(address(this), to);
+    }
+
+    function _stake(address from, address to, uint256 amount) internal {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+
+        // Make sure the user's stake balance doesn't exceed the max stake amount
+        uint256 stakeAmount = amount.wadDiv(exchangeRate);
+        uint256 balanceOfUser = balanceOf(to);
+        if (balanceOfUser + stakeAmount > maxStakeAmount)
+            revert StakedToken_AboveMaxStakeAmount(
+                maxStakeAmount,
+                maxStakeAmount - balanceOfUser
+            );
+
+        // Update cooldown timestamp
+        stakersCooldowns[to] = getNextCooldownTimestamp(
+            0,
+            stakeAmount,
+            to,
+            balanceOfUser
+        );
+
+        // Mint staked tokens
+        _mint(to, stakeAmount);
+
+        // Transfer underlying tokens from the sender
+        IERC20(UNDERLYING_TOKEN).safeTransferFrom(from, address(this), amount);
+
+        // Update user's position and rewards in the SafetyModule
+        safetyModule.updateStakingPosition(address(this), to);
+
+        emit Staked(from, to, amount);
+    }
+
+    function _redeem(address from, address to, uint256 amount) internal {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+
+        // Make sure the user's cooldown period is over and the unstake window didn't pass
+        //solium-disable-next-line
+        uint256 cooldownStartTimestamp = stakersCooldowns[from];
+        if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
+            revert StakedToken_InsufficientCooldown(
+                cooldownStartTimestamp + COOLDOWN_SECONDS
+            );
+        if (
+            block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
+            UNSTAKE_WINDOW
+        )
+            revert StakedToken_UnstakeWindowFinished(
+                cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
+            );
+
+        // Check the sender's balance and adjust the redeem amount if necessary
+        uint256 balanceOfFrom = balanceOf(from);
+        uint256 amountToRedeem = (amount > balanceOfFrom)
+            ? balanceOfFrom
+            : amount;
+
+        // Burn staked tokens
+        _burn(from, amountToRedeem);
+
+        // Reset cooldown to zero if the user redeemed their whole balance
+        if (balanceOfFrom - amountToRedeem == 0) {
+            stakersCooldowns[from] = 0;
+        }
+
+        // Transfer underlying tokens to the recipient
+        uint256 underlyingAmount = amountToRedeem.wadMul(exchangeRate);
+        IERC20(UNDERLYING_TOKEN).safeTransfer(to, underlyingAmount);
+
+        // Update user's position and rewards in the SafetyModule
+        safetyModule.updateStakingPosition(address(this), from);
+
+        emit Redeem(from, to, amountToRedeem);
     }
 }

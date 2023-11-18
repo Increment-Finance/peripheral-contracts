@@ -72,16 +72,25 @@ interface IStakedToken is IERC20Metadata {
         uint256 amountToRedeem
     ) external view returns (uint256);
 
+    /// @notice Stakes tokens from the sender and starts earning rewards
+    /// @param amount Amount of underlying tokens to stake
+    function stake(uint256 amount) external;
+
     /// @notice Stakes tokens on behalf of the given address, and starts earning rewards
     /// @dev Tokens are transferred from the transaction sender, not from the `onBehalfOf` address
     /// @param onBehalfOf Address to stake on behalf of
     /// @param amount Amount of underlying tokens to stake
-    function stake(address onBehalfOf, uint256 amount) external;
+    function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external;
 
     /// @notice Redeems staked tokens, and stop earning rewards
+    /// @param amount Amount of staked tokens to redeem for underlying tokens
+    function redeem(uint256 amount) external;
+
+    /// @notice Redeems staked tokens, and stop earning rewards
+    /// @dev Staked tokens are redeemed from the sender, and underlying tokens are sent to the `to` address
     /// @param to Address to redeem to
     /// @param amount Amount of staked tokens to redeem for underlying tokens
-    function redeem(address to, uint256 amount) external;
+    function redeemTo(address to, uint256 amount) external;
 
     /// @notice Activates the cooldown period to unstake
     /// @dev Can't be called if the user is not staking
