@@ -51,6 +51,11 @@ contract StakedToken is
     /// but it can be lower if users' stakes have been slashed for an auction by the SafetyModule
     uint256 public exchangeRate;
 
+    /// @notice Whether the StakedToken is in a post-slashing state
+    /// @dev Post-slashing state disables staking and further slashing, and allows users to redeem their
+    /// staked tokens without waiting for the cooldown period
+    bool public isInPostSlashingState;
+
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
 
@@ -84,6 +89,7 @@ contract StakedToken is
         safetyModule = _safetyModule;
         maxStakeAmount = _maxStakeAmount;
         exchangeRate = 1e18;
+        isInPostSlashingState = false;
     }
 
     /**
@@ -141,6 +147,8 @@ contract StakedToken is
     function cooldown() external override {
         if (balanceOf(msg.sender) == 0)
             revert StakedToken_ZeroBalanceAtCooldown();
+        if (isInPostSlashingState)
+            revert StakedToken_CooldownDisabledInPostSlashingState();
         //solium-disable-next-line
         stakersCooldowns[msg.sender] = block.timestamp;
 
@@ -290,6 +298,8 @@ contract StakedToken is
     function _stake(address from, address to, uint256 amount) internal {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+        if (isInPostSlashingState)
+            revert StakedToken_StakingDisabledInPostSlashingState();
 
         // Make sure the user's stake balance doesn't exceed the max stake amount
         uint256 stakeAmount = amount.wadDiv(exchangeRate);
