@@ -30,6 +30,9 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Error returned when 0 amount is passed to stake or redeem functions
     error StakedToken_InvalidZeroAmount();
 
+    /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
+    error StakedToken_InvalidZeroAddress();
+
     /// @notice Error returned when the caller has no balance when calling `cooldown`
     error StakedToken_ZeroBalanceAtCooldown();
 

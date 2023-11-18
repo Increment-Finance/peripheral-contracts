@@ -124,6 +124,7 @@ contract StakedToken is
         address onBehalfOf,
         uint256 amount
     ) external override {
+        if (onBehalfOf == address(0)) revert StakedToken_InvalidZeroAddress();
         _stake(msg.sender, onBehalfOf, amount);
     }
 
@@ -138,6 +139,7 @@ contract StakedToken is
      * @inheritdoc IStakedToken
      */
     function redeemTo(address to, uint256 amount) external override {
+        if (to == address(0)) revert StakedToken_InvalidZeroAddress();
         _redeem(msg.sender, to, amount);
     }
 
