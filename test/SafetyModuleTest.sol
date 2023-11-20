@@ -437,7 +437,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Redeem stakedToken1
-        stakedToken1.redeem(liquidityProviderTwo, stakeAmount);
+        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
         // Get accrued rewards
         uint256 accruedRewards = safetyModule.rewardsAccruedByUser(
@@ -748,7 +748,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             rewardPreview + rewardPreview2
         );
-        stakedToken1.redeem(liquidityProviderTwo, stakeAmount);
+        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
         // Try to claim reward tokens, expecting RewardTokenShortfall event
         vm.expectEmit(false, false, false, true);
@@ -1263,11 +1263,11 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.expectRevert(
             abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
         );
-        stakedToken1.stake(liquidityProviderOne, 0);
+        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, 0);
         vm.expectRevert(
             abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
         );
-        stakedToken1.redeem(liquidityProviderOne, 0);
+        stakedToken1.redeemTo(liquidityProviderOne, 0);
 
         // test zero balance
         vm.expectRevert(
@@ -1284,7 +1284,7 @@ contract SafetyModuleTest is PerpetualUtils {
                     stakedToken1.balanceOf(liquidityProviderOne)
             )
         );
-        stakedToken1.stake(liquidityProviderOne, invalidStakeAmount1);
+        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount1);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
@@ -1293,7 +1293,7 @@ contract SafetyModuleTest is PerpetualUtils {
                     stakedToken2.balanceOf(liquidityProviderOne)
             )
         );
-        stakedToken2.stake(liquidityProviderOne, invalidStakeAmount2);
+        stakedToken2.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount2);
         deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount1);
         vm.startPrank(liquidityProviderTwo);
         vm.expectRevert(
@@ -1330,7 +1330,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 cooldownStartTimestamp + 1 days
             )
         );
-        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        stakedToken1.redeem(stakedBalance);
 
         // test unstake window finished
         skip(20 days);
@@ -1340,20 +1340,20 @@ contract SafetyModuleTest is PerpetualUtils {
                 cooldownStartTimestamp + 11 days
             )
         );
-        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        stakedToken1.redeem(stakedBalance);
         // redeem correctly
         stakedToken1.cooldown();
         skip(1 days);
-        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        stakedToken1.redeem(stakedBalance);
         // restake, then try redeeming without cooldown
-        stakedToken1.stake(liquidityProviderOne, stakedBalance);
+        stakedToken1.stake(stakedBalance);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "StakedToken_UnstakeWindowFinished(uint256)",
                 11 days
             )
         );
-        stakedToken1.redeem(liquidityProviderOne, stakedBalance);
+        stakedToken1.redeem(stakedBalance);
     }
 
     /* ****************** */
@@ -1366,7 +1366,7 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 amount
     ) internal {
         vm.startPrank(staker);
-        stakedToken.stake(staker, amount);
+        stakedToken.stake(amount);
         vm.stopPrank();
     }
 
@@ -1379,7 +1379,7 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.startPrank(staker);
         stakedToken.cooldown();
         skip(cooldown);
-        stakedToken.redeem(staker, amount);
+        stakedToken.redeem(amount);
         vm.stopPrank();
     }
 
