@@ -207,6 +207,15 @@ contract StakedToken is
     }
 
     /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the SafetyModule contract
+     */
+    function settleSlashing() external onlySafetyModule {
+        isInPostSlashingState = false;
+        emit SlashingSettled();
+    }
+
+    /**
      * @notice Calculates a new cooldown timestamp
      * @dev Calculation depends on the sender/receiver situation, as follows:
      *  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0, we take the one of the recipient

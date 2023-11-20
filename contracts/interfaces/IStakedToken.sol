@@ -37,6 +37,9 @@ interface IStakedToken is IERC20Metadata {
         uint256 underlyingAmount
     );
 
+    /// @notice Emitted when staking, slashing and cooldown are re-enabled after a slashing event is concluded
+    event SlashingSettled();
+
     /// @notice Emitted when underlying tokens are returned to the contract
     /// @param from Address where underlying tokens were transferred from
     /// @param amount Amount of underlying tokens returned
@@ -154,6 +157,9 @@ interface IStakedToken is IERC20Metadata {
     /// @param from Address to transfer tokens from
     /// @param amount Amount of underlying tokens to transfer
     function returnFunds(address from, uint256 amount) external;
+
+    /// @notice Sets `isInPostSlashingState` to false, which re-enables staking, slashing and cooldown period
+    function settleSlashing() external;
 
     /// @notice Changes the SafetyModule contract used for reward management
     /// @param _safetyModule Address of the new SafetyModule contract
