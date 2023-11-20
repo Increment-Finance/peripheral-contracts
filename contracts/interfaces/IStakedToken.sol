@@ -114,6 +114,11 @@ interface IStakedToken is IERC20Metadata {
     /// @return Number of seconds in the unstake window
     function getUnstakeWindowSeconds() external view returns (uint256);
 
+    /// @notice Returns whether the contract is in a post-slashing state
+    /// @dev In a post-slashing state, staking and slashing are disabled, and users can redeem without cooldown
+    /// @return True if the contract is in a post-slashing state, false otherwise
+    function isInPostSlashingState() external view returns (bool);
+
     /// @notice Returns the amount of staked tokens one would receive for staking an amount of underlying tokens
     /// @param amountToStake Amount of underlying tokens to stake
     /// @return Amount of staked tokens that would be received at the current exchange rate
