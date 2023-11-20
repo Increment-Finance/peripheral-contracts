@@ -193,6 +193,20 @@ contract StakedToken is
     }
 
     /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the SafetyModule contract
+     */
+    function returnFunds(
+        address from,
+        uint256 amount
+    ) external onlySafetyModule {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (from == address(0)) revert StakedToken_InvalidZeroAddress();
+        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
+        emit FundsReturned(from, amount);
+    }
+
+    /**
      * @notice Calculates a new cooldown timestamp
      * @dev Calculation depends on the sender/receiver situation, as follows:
      *  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0, we take the one of the recipient

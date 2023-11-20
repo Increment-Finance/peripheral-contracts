@@ -37,6 +37,11 @@ interface IStakedToken is IERC20Metadata {
         uint256 underlyingAmount
     );
 
+    /// @notice Emitted when underlying tokens are returned to the contract
+    /// @param from Address where underlying tokens were transferred from
+    /// @param amount Amount of underlying tokens returned
+    event FundsReturned(address indexed from, uint256 amount);
+
     /// @notice Emitted when the exchange rate is updated
     /// @param exchangeRate New exchange rate, denominated in underlying per staked token, normalized to 1e18
     event ExchangeRateUpdated(uint256 exchangeRate);
@@ -132,9 +137,9 @@ interface IStakedToken is IERC20Metadata {
     /// @dev Can't be called if the user is not staking
     function cooldown() external;
 
-    /// @notice Sends underlying tokens to the given address, lowers the exchange rate, and changes the
-    /// contract's state to `POST_SLASHING`, which disables staking, cooldown period and further slashing
-    /// until the state is returned to `RUNNING`
+    /// @notice Sends underlying tokens to the given address, lowers the exchange rate accordingly, and
+    /// changes the contract's state to `POST_SLASHING`, which disables staking, cooldown period and
+    /// further slashing until the state is returned to `RUNNING`
     /// @param destination Address to send the slashed underlying tokens to
     /// @param amount Amount of staked tokens to slash
     /// @return Amount of underlying tokens slashed
@@ -142,6 +147,13 @@ interface IStakedToken is IERC20Metadata {
         address destination,
         uint256 amount
     ) external returns (uint256);
+
+    /// @notice Transfers underlying tokens from the given address to this contract and increases the
+    /// exchange rate accordingly
+    /// @dev The `from` address must have approved this contract to transfer the tokens
+    /// @param from Address to transfer tokens from
+    /// @param amount Amount of underlying tokens to transfer
+    function returnFunds(address from, uint256 amount) external;
 
     /// @notice Changes the SafetyModule contract used for reward management
     /// @param _safetyModule Address of the new SafetyModule contract
