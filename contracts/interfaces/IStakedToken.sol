@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title IStakedToken
 /// @author webthethird
@@ -101,6 +101,18 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
     error StakedToken_CallerIsNotSafetyModule(address caller);
+
+    /// @notice Returns the underlying ERC20 token
+    /// @return Underlying ERC20 token
+    function getUnderlyingToken() external view returns (IERC20);
+
+    /// @notice Returns the length of the cooldown period
+    /// @return Number of seconds in the cooldown period
+    function getCooldownSeconds() external view returns (uint256);
+
+    /// @notice Returns the length of the unstake window
+    /// @return Number of seconds in the unstake window
+    function getUnstakeWindowSeconds() external view returns (uint256);
 
     /// @notice Returns the amount of staked tokens one would receive for staking an amount of underlying tokens
     /// @param amountToStake Amount of underlying tokens to stake

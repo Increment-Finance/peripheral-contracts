@@ -95,6 +95,27 @@ contract StakedToken is
     /**
      * @inheritdoc IStakedToken
      */
+    function getUnderlyingToken() external view returns (IERC20) {
+        return UNDERLYING_TOKEN;
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function getCooldownSeconds() external view returns (uint256) {
+        return COOLDOWN_SECONDS;
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function getUnstakeWindowSeconds() external view returns (uint256) {
+        return UNSTAKE_WINDOW;
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
     function previewStake(uint256 amountToStake) public view returns (uint256) {
         return amountToStake.wadDiv(exchangeRate);
     }
