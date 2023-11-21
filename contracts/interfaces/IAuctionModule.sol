@@ -64,6 +64,14 @@ interface IAuctionModule {
         uint256 lotPrice
     );
 
+    /// @notice Emitted when the payment token is changed
+    /// @param newPaymentToken Address of the new payment token
+    /// @param oldPaymentToken Address of the old payment token
+    event PaymentTokenChanged(
+        address indexed newPaymentToken,
+        address oldPaymentToken
+    );
+
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
     error AuctionModule_CallerIsNotSafetyModule(address caller);
@@ -133,6 +141,8 @@ interface IAuctionModule {
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
+    /// Sets the token required for payments in all auctions
+    /// @param _paymentToken ERC20 token to use for payment
     function setPaymentToken(IERC20 _paymentToken) external;
 
     /// @notice Starts a new auction
