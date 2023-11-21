@@ -369,7 +369,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (address(stakingToken) == address(0))
             revert SafetyModule_InvalidAuctionId(_auctionId);
-        _returnFunds(_auctionId, _remainingBalance);
+        _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
         _settleSlashing(stakingToken);
         emit AuctionEnded(
             _auctionId,
@@ -453,7 +453,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 remainingBalance = auctionToken.balanceOf(
             address(auctionModule)
         );
-        _returnFunds(_auctionId, remainingBalance);
+        _returnFunds(stakingToken, address(auctionModule), remainingBalance);
         _settleSlashing(stakingToken);
         emit AuctionTerminated(
             _auctionId,
@@ -465,29 +465,19 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function returnRemainingFunds(
-        uint256 _auctionId
+    function returnFunds(
+        address _stakingToken,
+        address _from,
+        uint256 _amount
     ) external onlyRole(GOVERNANCE) {
-        if (auctionModule.isAuctionActive(_auctionId))
-            revert SafetyModule_AuctionStillActive(_auctionId);
-        IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
-        if (address(auctionToken) == address(0))
-            revert SafetyModule_InvalidAuctionId(_auctionId);
-        uint256 remainingBalance = auctionToken.balanceOf(
-            address(auctionModule)
-        );
-        _returnFunds(_auctionId, remainingBalance);
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance
-    function settleSlashing(uint256 _auctionId) external onlyRole(GOVERNANCE) {
-        if (auctionModule.isAuctionActive(_auctionId))
-            revert SafetyModule_AuctionStillActive(_auctionId);
-        IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (address(stakingToken) == address(0))
-            revert SafetyModule_InvalidAuctionId(_auctionId);
-        if (stakingToken.isInPostSlashingState()) _settleSlashing(stakingToken);
+        if (_stakingToken == address(0))
+            revert SafetyModule_InvalidZeroAddress(0);
+        if (_from == address(0)) revert SafetyModule_InvalidZeroAddress(1);
+        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(2);
+        IStakedToken stakingToken = stakingTokens[
+            getStakingTokenIdx(_stakingToken)
+        ];
+        _returnFunds(stakingToken, _from, _amount);
     }
 
     /// @inheritdoc ISafetyModule
@@ -570,9 +560,12 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*      Internal      */
     /* ****************** */
 
-    function _returnFunds(uint256 _auctionId, uint256 _amount) internal {
-        IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        stakingToken.returnFunds(address(auctionModule), _amount);
+    function _returnFunds(
+        IStakedToken _stakingToken,
+        address _from,
+        uint256 _amount
+    ) internal {
+        _stakingToken.returnFunds(_from, _amount);
     }
 
     function _settleSlashing(IStakedToken _stakingToken) internal {

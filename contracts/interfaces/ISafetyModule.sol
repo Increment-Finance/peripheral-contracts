@@ -121,9 +121,13 @@ interface ISafetyModule is IStakingContract {
         uint256 maxAmount
     );
 
-    /// @notice Error returned when attempting to return tokens or settle slashing before the auction ends
-    /// @param auctionId ID of the auction
-    error SafetyModule_AuctionStillActive(uint256 auctionId);
+    /// @notice Error returned when a caller passes a zero amount to a function that requires a non-zero value
+    /// @param argIndex Index of the argument where a zero was passed
+    error SafetyModule_InvalidZeroAmount(uint256 argIndex);
+
+    /// @notice Error returned when a caller passes the zero address to a function that requires a non-zero address
+    /// @param argIndex Index of the argument where a zero address was passed
+    error SafetyModule_InvalidZeroAddress(uint256 argIndex);
 
     /// @notice Gets the address of the Vault contract
     /// @return Address of the Vault contract
@@ -218,15 +222,17 @@ interface ISafetyModule is IStakingContract {
         uint256 _remainingBalance
     ) external;
 
-    /// @notice Returns any remaining underlying tokens from the auction to the StakedToken
-    /// @dev The auction must have ended first
-    /// @param _auctionId ID of the auction
-    function returnRemainingFunds(uint256 _auctionId) external;
-
-    /// @notice Sets `StakedToken.isInPostSlashingState` to false, which re-enables staking, slashing and cooldown
-    /// @dev The auction must have ended first
-    /// @param _auctionId ID of the auction for the staking token that was slashed
-    function settleSlashing(uint256 _auctionId) external;
+    /// @notice Donates underlying tokens to a StakedToken contract, raising its exchange rate
+    /// @dev Unsold auction tokens are returned automatically from the AuctionModule when one ends, so this
+    /// is meant for transferring tokens from some other source, which must approve the StakedToken first
+    /// @param _stakingToken Address of the StakedToken contract to return underlying tokens to
+    /// @param _from Address of the account to transfer funds from
+    /// @param _amount Amount of underlying tokens to return
+    function returnFunds(
+        address _stakingToken,
+        address _from,
+        uint256 _amount
+    ) external;
 
     /// @notice Sets the address of the AuctionModule contract
     /// @param _auctionModule Address of the AuctionModule contract
