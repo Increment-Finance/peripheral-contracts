@@ -13,7 +13,7 @@ interface IAuctionModule {
     /// @param auctionId ID of the auction
     /// @param startTimestamp Timestamp when the auction started
     /// @param endTimestamp Timestamp when the auction ends
-    /// @param lotPrice Price of each lot of tokens in USDC
+    /// @param lotPrice Price of each lot of tokens in payment token
     /// @param numLots Number of lots in the auction
     /// @param initialLotSize Initial size of each lot
     /// @param lotIncreaseIncrement Amount of tokens by which the lot size increases each period
@@ -35,13 +35,13 @@ interface IAuctionModule {
     /// @param remainingLots Number of lots that were not sold
     /// @param finalLotSize Lot size when the auction ended
     /// @param totalTokensSold Total number of tokens sold
-    /// @param totalUSDCRaised Total amount of USDC raised
+    /// @param totalFundsRaised Total amount of payment tokens raised
     event AuctionEnded(
         uint256 indexed auctionId,
         uint256 remainingLots,
         uint256 finalLotSize,
         uint256 totalTokensSold,
-        uint256 totalUSDCRaised
+        uint256 totalFundsRaised
     );
 
     /// @notice Emitted when an auction is terminated by the SafetyModule
@@ -91,76 +91,78 @@ interface IAuctionModule {
     /// @notice Returns the address of the SafetyModule
     function safetyModule() external view returns (ISafetyModule);
 
-    /// @notice Returns the address of the USDC token
-    function usdc() external view returns (IERC20);
+    /// @notice Returns the address of the payment token
+    function paymentToken() external view returns (IERC20);
 
     /// @notice Returns the current lot size of the auction
-    /// @param auctionId ID of the auction
+    /// @param _auctionId ID of the auction
     /// @return Current number of tokens per lot
     function getCurrentLotSize(
-        uint256 auctionId
+        uint256 _auctionId
     ) external view returns (uint256);
 
     /// @notice Returns the number of lots still available for sale in the auction
-    /// @param auctionId ID of the auction
+    /// @param _auctionId ID of the auction
     /// @return Number of lots still available for sale
     function getRemainingLots(
-        uint256 auctionId
+        uint256 _auctionId
     ) external view returns (uint256);
 
     /// @notice Returns the price of each lot in the auction
-    /// @param auctionId ID of the auction
-    /// @return Price of each lot in USDC
-    function getLotPrice(uint256 auctionId) external view returns (uint256);
+    /// @param _auctionId ID of the auction
+    /// @return Price of each lot in payment tokens
+    function getLotPrice(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the address of the token being auctioned
-    /// @param auctionId ID of the auction
+    /// @param _auctionId ID of the auction
     /// @return The ERC20 token being auctioned
-    function getAuctionToken(uint256 auctionId) external view returns (IERC20);
+    function getAuctionToken(uint256 _auctionId) external view returns (IERC20);
 
     /// @notice Returns the timestamp when the auction started
-    /// @param auctionId ID of the auction
+    /// @param _auctionId ID of the auction
     /// @return Timestamp when the auction started
-    function getStartTime(uint256 auctionId) external view returns (uint256);
+    function getStartTime(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the timestamp when the auction ends
-    /// @param auctionId ID of the auction
+    /// @param _auctionId ID of the auction
     /// @return Timestamp when the auction ends
-    function getEndTime(uint256 auctionId) external view returns (uint256);
+    function getEndTime(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns whether the auction is still active
-    /// @param auctionId ID of the auction
+    /// @param _auctionId ID of the auction
     /// @return True if the auction is still active, false otherwise
-    function isAuctionActive(uint256 auctionId) external view returns (bool);
+    function isAuctionActive(uint256 _auctionId) external view returns (bool);
+
+    function setPaymentToken(IERC20 _paymentToken) external;
 
     /// @notice Starts a new auction
     /// @dev First the SafetyModule slashes the StakedToken, removing the underlying slashed tokens,
     /// and approves this contract to transfer them from the SafetyModule to itself
-    /// @param token The ERC20 token to auction
-    /// @param lotPrice Price of each lot of tokens in USDC
-    /// @param numLots Number of lots in the auction
-    /// @param initialLotSize Initial number of tokens in each lot
-    /// @param lotIncreaseIncrement Amount of tokens by which the lot size increases each period
-    /// @param lotIncreasePeriod Number of seconds between each lot size increase
-    /// @param timeLimit Number of seconds before the auction ends if all lots are not sold
+    /// @param _token The ERC20 token to auction
+    /// @param _lotPrice Price of each lot of tokens in payment tokens
+    /// @param _numLots Number of lots in the auction
+    /// @param _initialLotSize Initial number of tokens in each lot
+    /// @param _lotIncreaseIncrement Amount of tokens by which the lot size increases each period
+    /// @param _lotIncreasePeriod Number of seconds between each lot size increase
+    /// @param _timeLimit Number of seconds before the auction ends if all lots are not sold
     /// @return ID of the auction
     function startAuction(
-        IERC20 token,
-        uint256 lotPrice,
-        uint256 numLots,
-        uint256 initialLotSize,
-        uint256 lotIncreaseIncrement,
-        uint256 lotIncreasePeriod,
-        uint256 timeLimit
+        IERC20 _token,
+        uint256 _lotPrice,
+        uint256 _numLots,
+        uint256 _initialLotSize,
+        uint256 _lotIncreaseIncrement,
+        uint256 _lotIncreasePeriod,
+        uint256 _timeLimit
     ) external returns (uint256);
 
     /// @notice Terminates an auction and sends the remaining tokens back to the SafetyModule
-    /// @param auctionId ID of the auction
-    function terminateAuction(uint256 auctionId) external;
+    /// @param _auctionId ID of the auction
+    function terminateAuction(uint256 _auctionId) external;
 
     /// @notice Buys one or more lots in an auction at the current lot size
-    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in USDC
-    /// @param auctionId ID of the auction
-    /// @param numLotsToBuy Number of lots to buy
-    function buyLots(uint256 auctionId, uint256 numLotsToBuy) external;
+    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
+    /// @param _auctionId ID of the auction
+    /// @param _numLotsToBuy Number of lots to buy
+    function buyLots(uint256 _auctionId, uint256 _numLotsToBuy) external;
 }
