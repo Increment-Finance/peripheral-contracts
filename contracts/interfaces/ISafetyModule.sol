@@ -129,10 +129,6 @@ interface ISafetyModule is IStakingContract {
     /// @param argIndex Index of the argument where a zero address was passed
     error SafetyModule_InvalidZeroAddress(uint256 argIndex);
 
-    /// @notice Gets the address of the Vault contract
-    /// @return Address of the Vault contract
-    function vault() external view returns (address);
-
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
     function auctionModule() external view returns (IAuctionModule);
@@ -223,8 +219,8 @@ interface ISafetyModule is IStakingContract {
     ) external;
 
     /// @notice Donates underlying tokens to a StakedToken contract, raising its exchange rate
-    /// @dev Unsold auction tokens are returned automatically from the AuctionModule when one ends, so this
-    /// is meant for transferring tokens from some other source, which must approve the StakedToken first
+    /// @dev Unsold tokens are returned automatically from the AuctionModule when one ends, so this is meant
+    /// for transferring tokens from some other source, which must approve the StakedToken to transfer first
     /// @param _stakingToken Address of the StakedToken contract to return underlying tokens to
     /// @param _from Address of the account to transfer funds from
     /// @param _amount Amount of underlying tokens to return
@@ -233,6 +229,10 @@ interface ISafetyModule is IStakingContract {
         address _from,
         uint256 _amount
     ) external;
+
+    /// @notice Sends payment tokens raised in auctions from the AuctionModule to the governance treasury
+    /// @param _amount Amount of payment tokens to withdraw
+    function withdrawFundsRaisedFromAuction(uint256 _amount) external;
 
     /// @notice Sets the address of the AuctionModule contract
     /// @param _auctionModule Address of the AuctionModule contract

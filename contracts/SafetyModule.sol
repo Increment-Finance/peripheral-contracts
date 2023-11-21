@@ -13,6 +13,7 @@ import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 // libraries
 import {LibMath} from "@increment/lib/LibMath.sol";
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title SafetyModule
 /// @author webthethird
@@ -22,9 +23,7 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 contract SafetyModule is ISafetyModule, RewardDistributor {
     using LibMath for uint256;
     using PRBMathUD60x18 for uint256;
-
-    /// @notice Address of the Increment vault contract, where funds are sent in the event of an auction
-    address public vault;
+    using SafeERC20 for IERC20;
 
     /// @notice Address of the auction module, which sells user funds in the event of an insolvency
     IAuctionModule public auctionModule;
@@ -74,21 +73,18 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     }
 
     /// @notice SafetyModule constructor
-    /// @param _vault Address of the Increment vault contract, where funds are sent in the event of an auction
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _maxPercentUserLoss The max percentage of user funds that can be sold at auction, normalized to 1e18
     /// @param _maxRewardMultiplier The maximum reward multiplier, scaled by 1e18
     /// @param _smoothingValue The smoothing value, scaled by 1e18
     /// @param _ecosystemReserve The address of the EcosystemReserve contract, where reward tokens are stored
     constructor(
-        address _vault,
         address _auctionModule,
         uint256 _maxPercentUserLoss,
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
         address _ecosystemReserve
     ) RewardDistributor(_ecosystemReserve) {
-        vault = _vault;
         auctionModule = IAuctionModule(_auctionModule);
         maxPercentUserLoss = _maxPercentUserLoss;
         maxRewardMultiplier = _maxRewardMultiplier;
@@ -478,6 +474,20 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             getStakingTokenIdx(_stakingToken)
         ];
         _returnFunds(stakingToken, _from, _amount);
+    }
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function withdrawFundsRaisedFromAuction(
+        uint256 _amount
+    ) external onlyRole(GOVERNANCE) {
+        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(0);
+        IERC20 paymentToken = auctionModule.paymentToken();
+        paymentToken.safeTransferFrom(
+            address(auctionModule),
+            msg.sender,
+            _amount
+        );
     }
 
     /// @inheritdoc ISafetyModule
