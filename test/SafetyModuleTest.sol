@@ -93,7 +93,6 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Deploy safety module
         safetyModule = new SafetyModule(
-            address(vault),
             address(0),
             INITIAL_MAX_USER_LOSS,
             INITIAL_MAX_MULTIPLIER,
@@ -567,7 +566,6 @@ contract SafetyModuleTest is PerpetualUtils {
 
         console.log("deploying new safety module");
         SafetyModule newSafetyModule = new SafetyModule(
-            address(vault),
             address(0),
             INITIAL_MAX_USER_LOSS,
             INITIAL_MAX_MULTIPLIER,
