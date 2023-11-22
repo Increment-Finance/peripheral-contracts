@@ -9,23 +9,23 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @notice Interface for the AuctionModule contract
 interface IAuctionModule {
     /// @notice Emitted when a new auction is started
-    /// @param token Address of the token being auctioned
     /// @param auctionId ID of the auction
+    /// @param token Address of the token being auctioned
     /// @param startTimestamp Timestamp when the auction started
     /// @param endTimestamp Timestamp when the auction ends
     /// @param lotPrice Price of each lot of tokens in payment token
+    /// @param initialLotSize Initial number of tokens in each lot
     /// @param numLots Number of lots in the auction
-    /// @param initialLotSize Initial size of each lot
     /// @param lotIncreaseIncrement Amount of tokens by which the lot size increases each period
     /// @param lotIncreasePeriod Number of seconds between each lot size increase
     event AuctionStarted(
-        address indexed token,
         uint256 indexed auctionId,
-        uint256 startTimestamp,
-        uint256 endTimestamp,
+        address indexed token,
+        uint128 startTimestamp,
+        uint128 endTimestamp,
         uint256 lotPrice,
-        uint256 numLots,
         uint256 initialLotSize,
+        uint256 numLots,
         uint256 lotIncreaseIncrement,
         uint256 lotIncreasePeriod
     );
@@ -42,14 +42,6 @@ interface IAuctionModule {
         uint256 finalLotSize,
         uint256 totalTokensSold,
         uint256 totalFundsRaised
-    );
-
-    /// @notice Emitted when an auction is terminated by the SafetyModule
-    /// @param auctionId ID of the auction
-    /// @param remainingBalance Amount of remaining tokens returned to the SafetyModule
-    event AuctionTerminated(
-        uint256 indexed auctionId,
-        uint256 remainingBalance
     );
 
     /// @notice Emitted when a lot is sold
@@ -80,13 +72,23 @@ interface IAuctionModule {
     /// @param invalidId ID that was passed
     error AuctionModule_InvalidAuctionId(uint256 invalidId);
 
-    /// @notice Error returned when a caller passes a zero argument to a function that requires a non-zero value
+    /// @notice Error returned when a caller passes a zero to a function that requires a non-zero value
     /// @param argIndex Index of the argument where a zero was passed
     error AuctionModule_InvalidZeroArgument(uint256 argIndex);
 
-    /// @notice Error returned when a user calls buyLots after the auction has ended
+    /// @notice Error returned when a caller passes a zero address to a function that requires a non-zero address
+    /// @param argIndex Index of the argument where a zero address was passed
+    error AuctionModule_InvalidZeroAddress(uint256 argIndex);
+
+    /// @notice Error returned when a user calls `buyLots` or the SafetyModule calls `terminateAuction`
+    /// after the auction has ended
     /// @param auctionId ID of the auction
     error AuctionModule_AuctionNotActive(uint256 auctionId);
+
+    /// @notice Error returned when a user calls `completeAuction` before the auction's end time
+    /// @param auctionId ID of the auction
+    /// @param endTime Timestamp when the auction ends
+    error AuctionModule_AuctionStillActive(uint256 auctionId, uint256 endTime);
 
     /// @notice Error returned when a user tries to buy more than the number of lots remaining
     /// @param auctionId ID of the auction
@@ -96,13 +98,22 @@ interface IAuctionModule {
         uint256 lotsRemaining
     );
 
-    /// @notice Returns the address of the SafetyModule
+    /// @notice Returns the SafetyModule contract which manages this contract
+    /// @return SafetyModule contract
     function safetyModule() external view returns (ISafetyModule);
 
-    /// @notice Returns the address of the payment token
+    /// @notice Returns the ERC20 token used for payments in all auctions
+    /// @return ERC20 token used for payments
     function paymentToken() external view returns (IERC20);
 
+    /// @notice Returns the ID of the next auction
+    /// @return ID of the next auction
+    function nextAuctionId() external view returns (uint256);
+
     /// @notice Returns the current lot size of the auction
+    /// @dev Lot size starts at `auction.initialLotSize` and increases by `auction.lotIncreaseIncrement` every
+    /// `auction.lotIncreasePeriod` seconds, unless the lot size times the number of remaining lots reaches the
+    /// contract's total balance of tokens, then the size remains fixed at `totalBalance / auction.remainingLots`
     /// @param _auctionId ID of the auction
     /// @return Current number of tokens per lot
     function getCurrentLotSize(
@@ -121,17 +132,43 @@ interface IAuctionModule {
     /// @return Price of each lot in payment tokens
     function getLotPrice(uint256 _auctionId) external view returns (uint256);
 
+    /// @notice Returns the number of tokens by which the lot size increases each period
+    /// @param _auctionId ID of the auction
+    /// @return Size of each lot increase
+    function getLotIncreaseIncrement(
+        uint256 _auctionId
+    ) external view returns (uint256);
+
+    /// @notice Returns the amount of time between each lot size increase
+    /// @param _auctionId ID of the auction
+    /// @return Number of seconds between each lot size increase
+    function getLotIncreasePeriod(
+        uint256 _auctionId
+    ) external view returns (uint256);
+
+    /// @notice Returns the amount of tokens sold so far in the auction
+    /// @param _auctionId ID of the auction
+    /// @return Number of tokens sold
+    function getTokensSold(uint256 _auctionId) external view returns (uint256);
+
+    /// @notice Returns the amount of funds raised so far in the auction
+    /// @param _auctionId ID of the auction
+    /// @return Number of payment tokens raised
+    function getFundsRaised(uint256 _auctionId) external view returns (uint256);
+
     /// @notice Returns the address of the token being auctioned
     /// @param _auctionId ID of the auction
     /// @return The ERC20 token being auctioned
     function getAuctionToken(uint256 _auctionId) external view returns (IERC20);
 
     /// @notice Returns the timestamp when the auction started
+    /// @dev The auction starts when the SafetyModule calls `startAuction`
     /// @param _auctionId ID of the auction
     /// @return Timestamp when the auction started
     function getStartTime(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the timestamp when the auction ends
+    /// @dev Auction can end early if all lots are sold or if the auction is terminated by the SafetyModule
     /// @param _auctionId ID of the auction
     /// @return Timestamp when the auction ends
     function getEndTime(uint256 _auctionId) external view returns (uint256);
@@ -166,11 +203,17 @@ interface IAuctionModule {
         uint256 _timeLimit
     ) external returns (uint256);
 
-    /// @notice Terminates an auction and sends the remaining tokens back to the SafetyModule
+    /// @notice Terminates an auction early and approves the transfer of unsold tokens and funds raised
     /// @param _auctionId ID of the auction
     function terminateAuction(uint256 _auctionId) external;
 
-    /// @notice Buys one or more lots in an auction at the current lot size
+    /// @notice Ends an auction after the time limit has been reached and approves the transfer of
+    /// unsold tokens and funds raised
+    /// @dev This function can be called by anyone, but only after the auction's end time has passed
+    /// @param _auctionId ID of the auction
+    function completeAuction(uint256 _auctionId) external;
+
+    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
     /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
     /// @param _auctionId ID of the auction
     /// @param _numLotsToBuy Number of lots to buy
