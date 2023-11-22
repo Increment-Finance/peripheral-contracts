@@ -183,8 +183,7 @@ interface IAuctionModule {
     function setPaymentToken(IERC20 _paymentToken) external;
 
     /// @notice Starts a new auction
-    /// @dev First the SafetyModule slashes the StakedToken, removing the underlying slashed tokens,
-    /// and approves this contract to transfer them from the SafetyModule to itself
+    /// @dev First the SafetyModule slashes the StakedToken, sending the underlying slashed tokens here
     /// @param _token The ERC20 token to auction
     /// @param _lotPrice Price of each lot of tokens in payment tokens
     /// @param _numLots Number of lots in the auction
