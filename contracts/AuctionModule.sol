@@ -18,12 +18,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @author webthethird
 /// @notice Handles auctioning tokens slashed by the SafetyModule, triggered by governance
 /// in the event of an insolvency in the vault which cannot be covered by the insurance fund
-contract AuctionModule is
-    IAuctionModule,
-    IncreAccessControl,
-    Pausable,
-    ReentrancyGuard
-{
+contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, ReentrancyGuard {
     using LibMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -32,7 +27,7 @@ contract AuctionModule is
     /// @param startTime Timestamp when the auction started
     /// @param endTime Timestamp when the auction ends
     /// @param lotPrice Price of each lot of tokens, denominated in payment tokens
-    /// @param initialLotSize Initial size of each lot
+    /// @param initialLotSize Initial size of each lotchop down that nSLOC number by a couple hundred lines if I just turned off my auto-formatting on save in VSCode and made my code just a little less legible
     /// @param numLots Total number of lots in the auction
     /// @param remainingLots Number of lots that have not been sold
     /// @param lotIncreaseIncrement Amount of tokens by which the lot size increases each period
@@ -90,22 +85,16 @@ contract AuctionModule is
     function getCurrentLotSize(
         uint256 _auctionId
     ) public view returns (uint256) {
-        if (auctions[_auctionId].startTime == 0)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
+        if (auctions[_auctionId].startTime == 0) revert AuctionModule_InvalidAuctionId(_auctionId);
         if (auctions[_auctionId].endTime >= block.timestamp) return 0;
-        uint256 incrementPeriods = (block.timestamp -
-            auctions[_auctionId].startTime) /
+        uint256 incrementPeriods = (block.timestamp - auctions[_auctionId].startTime) /
             auctions[_auctionId].lotIncreasePeriod;
         uint256 lotSize = auctions[_auctionId].initialLotSize +
-            incrementPeriods *
-            auctions[_auctionId].lotIncreaseIncrement;
-        uint256 tokenBalance = auctions[_auctionId].token.balanceOf(
-            address(this)
-        );
+            incrementPeriods * auctions[_auctionId].lotIncreaseIncrement;
+        uint256 tokenBalance = auctions[_auctionId].token.balanceOf(address(this));
         uint256 remainingLots = auctions[_auctionId].remainingLots;
-        if (lotSize * remainingLots > tokenBalance) {
+        if (lotSize * remainingLots > tokenBalance)
             lotSize = tokenBalance / remainingLots;
-        }
         return lotSize;
     }
 
@@ -179,19 +168,12 @@ contract AuctionModule is
         uint256 _numLotsToBuy
     ) external nonReentrant whenNotPaused {
         // Safety checks
-        if (_auctionId >= nextAuctionId)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
+        if (_auctionId >= nextAuctionId) revert AuctionModule_InvalidAuctionId(_auctionId);
         if (_numLotsToBuy == 0) revert AuctionModule_InvalidZeroArgument(1);
-        if (block.timestamp >= auctions[_auctionId].endTime)
-            auctions[_auctionId].active = false;
-        if (!isAuctionActive(_auctionId))
-            revert AuctionModule_AuctionNotActive(_auctionId);
+        if (block.timestamp >= auctions[_auctionId].endTime) auctions[_auctionId].active = false;
+        if (!isAuctionActive(_auctionId)) revert AuctionModule_AuctionNotActive(_auctionId);
         uint256 remainingLots = auctions[_auctionId].remainingLots;
-        if (_numLotsToBuy > remainingLots)
-            revert AuctionModule_NotEnoughLotsRemaining(
-                _auctionId,
-                remainingLots
-            );
+        if (_numLotsToBuy > remainingLots) revert AuctionModule_NotEnoughLotsRemaining(_auctionId, remainingLots);
 
         // Calculate payment and purchase amounts
         uint256 paymentAmount = _numLotsToBuy * auctions[_auctionId].lotPrice;
@@ -221,17 +203,11 @@ contract AuctionModule is
         uint256 _auctionId
     ) external nonReentrant whenNotPaused {
         // Safety checks
-        if (_auctionId >= nextAuctionId)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
-        if (block.timestamp >= auctions[_auctionId].endTime)
-            auctions[_auctionId].active = false;
+        if (_auctionId >= nextAuctionId) revert AuctionModule_InvalidAuctionId(_auctionId);
+        if (block.timestamp >= auctions[_auctionId].endTime) auctions[_auctionId].active = false;
         if (isAuctionActive(_auctionId))
-            revert AuctionModule_AuctionStillActive(
-                _auctionId,
-                auctions[_auctionId].endTime
-            );
-        if (auctions[_auctionId].completed)
-            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
+            revert AuctionModule_AuctionStillActive(_auctionId, auctions[_auctionId].endTime);
+        if (auctions[_auctionId].completed) revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
 
         _completeAuction(_auctionId, false);
     }
@@ -259,15 +235,12 @@ contract AuctionModule is
         uint256 _timeLimit
     ) external onlySafetyModule whenNotPaused returns (uint256) {
         // Safety checks
-        if (_token == IERC20(address(0)))
-            revert AuctionModule_InvalidZeroAddress(0);
+        if (_token == IERC20(address(0))) revert AuctionModule_InvalidZeroAddress(0);
         if (_lotPrice == 0) revert AuctionModule_InvalidZeroArgument(1);
         if (_numLots == 0) revert AuctionModule_InvalidZeroArgument(2);
         if (_initialLotSize == 0) revert AuctionModule_InvalidZeroArgument(3);
-        if (_lotIncreaseIncrement == 0)
-            revert AuctionModule_InvalidZeroArgument(4);
-        if (_lotIncreasePeriod == 0)
-            revert AuctionModule_InvalidZeroArgument(5);
+        if (_lotIncreaseIncrement == 0) revert AuctionModule_InvalidZeroArgument(4);
+        if (_lotIncreasePeriod == 0) revert AuctionModule_InvalidZeroArgument(5);
         if (_timeLimit == 0) revert AuctionModule_InvalidZeroArgument(6);
 
         // Create auction
@@ -310,12 +283,9 @@ contract AuctionModule is
     /// @dev Only callable by the SafetyModule
     function terminateAuction(uint256 _auctionId) external onlySafetyModule {
         // Safety checks
-        if (_auctionId >= nextAuctionId)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
-        if (!isAuctionActive(_auctionId))
-            revert AuctionModule_AuctionNotActive(_auctionId);
-        if (auctions[_auctionId].completed)
-            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
+        if (_auctionId >= nextAuctionId) revert AuctionModule_InvalidAuctionId(_auctionId);
+        if (!isAuctionActive(_auctionId)) revert AuctionModule_AuctionNotActive(_auctionId);
+        if (auctions[_auctionId].completed) revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
 
         auctions[_auctionId].active = false;
         _completeAuction(_auctionId, true);
@@ -328,13 +298,11 @@ contract AuctionModule is
     /// @inheritdoc IAuctionModule
     /// @dev Only callable by governance
     function setPaymentToken(
-        IERC20 _paymentToken
+        IERC20 _newPaymentToken
     ) external onlyRole(GOVERNANCE) {
-        if (address(_paymentToken) == address(0))
-            revert AuctionModule_InvalidZeroAddress(0);
-        address previousPaymentToken = address(paymentToken);
-        paymentToken = _paymentToken;
-        emit PaymentTokenChanged(address(_paymentToken), previousPaymentToken);
+        if (address(_newPaymentToken) == address(0)) revert AuctionModule_InvalidZeroAddress(0);
+        emit PaymentTokenChanged(_newPaymentToken, paymentToken);
+        paymentToken = _newPaymentToken;
     }
 
     /* ****************** */
@@ -350,16 +318,13 @@ contract AuctionModule is
 
         // Approvals
         IERC20 auctionToken = auctions[_auctionId].token;
-        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(
-            _auctionId
-        );
+        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(_auctionId);
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
         uint256 fundsRaised = auctions[_auctionId].totalFundsRaised;
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         auctionToken.approve(address(stakedToken), remainingBalance);
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
-        if (fundsRaised > 0)
-            paymentToken.approve(address(safetyModule), fundsRaised);
+        if (fundsRaised > 0) paymentToken.approve(address(safetyModule), fundsRaised);
 
         // Emit event
         emit AuctionEnded(
@@ -371,7 +336,6 @@ contract AuctionModule is
         );
 
         // Notify SafetyModule if necessary
-        if (!_terminatedEarly)
-            safetyModule.auctionEnded(_auctionId, remainingBalance);
+        if (!_terminatedEarly) safetyModule.auctionEnded(_auctionId, remainingBalance);
     }
 }

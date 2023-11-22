@@ -46,8 +46,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
 
     /// @notice Stores the timestamp of the first deposit or most recent withdrawal
     /// @dev First address is user, second is staking token
-    mapping(address => mapping(address => uint256))
-        public multiplierStartTimeByUser;
+    mapping(address => mapping(address => uint256)) public multiplierStartTimeByUser;
 
     /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
     /// i.e., `updateStakingPosition`
@@ -59,16 +58,14 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                 break;
             }
         }
-        if (!isStakingToken)
-            revert SafetyModule_CallerIsNotStakingToken(msg.sender);
+        if (!isStakingToken) revert SafetyModule_CallerIsNotStakingToken(msg.sender);
         _;
     }
 
     /// @notice Modifier for functions that can only be called by the AuctionModule contract,
     /// i.e., `auctionEnded`
     modifier onlyAuctionModule() {
-        if (msg.sender != address(auctionModule))
-            revert SafetyModule_CallerIsNotAuctionModule(msg.sender);
+        if (msg.sender != address(auctionModule)) revert SafetyModule_CallerIsNotAuctionModule(msg.sender);
         _;
     }
 
@@ -112,11 +109,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function getMarketAddress(
         uint256 index
     ) public view virtual override returns (address) {
-        if (index > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(
-                index,
-                getMaxMarketIdx()
-            );
+        if (index > getMaxMarketIdx()) revert RewardDistributor_InvalidMarketIndex(index, getMaxMarketIdx());
         return address(stakingTokens[index]);
     }
 
@@ -124,8 +117,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     function getMarketIdx(
         uint256 i
     ) public view virtual override returns (uint256) {
-        if (i > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(i, getMaxMarketIdx());
+        if (i > getMaxMarketIdx()) revert RewardDistributor_InvalidMarketIndex(i, getMaxMarketIdx());
         return i;
     }
 
@@ -187,20 +179,14 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
         uint256 newPosition = getCurrentPosition(user, market);
-        totalLiquidityPerMarket[market] =
-            totalLiquidityPerMarket[market] +
-            newPosition -
-            prevPosition;
+        totalLiquidityPerMarket[market] = totalLiquidityPerMarket[market] + newPosition - prevPosition;
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
             address token = rewardTokensPerMarket[market][i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
-            uint256 newRewards = prevPosition
-                .mul(
-                    cumulativeRewardPerLpToken[token][market] -
-                        cumulativeRewardPerLpTokenPerUser[user][token][market]
-                )
-                .mul(rewardMultiplier);
+            uint256 newRewards = prevPosition.mul(
+                    cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
+                ).mul(rewardMultiplier);
             if (newPosition < prevPosition || prevPosition == 0) {
                 // Removed stake or staked for the first time - need to reset multiplier
                 if (newPosition > 0) {
@@ -209,20 +195,14 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                     multiplierStartTimeByUser[user][market] = 0;
                 }
             }
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
+            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) continue;
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
-            if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(
-                    token,
-                    totalUnclaimedRewards[token] - rewardTokenBalance
-                );
-            }
+            if (totalUnclaimedRewards[token] > rewardTokenBalance)
+                emit RewardTokenShortfall(token, totalUnclaimedRewards[token] - rewardTokenBalance);
         }
         lpPositionsPerUser[user][market] = newPosition;
     }
@@ -245,12 +225,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         if (userPosition != currentPosition)
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                userPosition,
-                currentPosition
-            );
+            revert RewardDistributor_UserPositionMismatch(user, market, userPosition, currentPosition);
         if (totalLiquidityPerMarket[market] == 0) return;
         updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
@@ -271,10 +246,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(
-                    token,
-                    totalUnclaimedRewards[token] - rewardTokenBalance
-                );
+                emit RewardTokenShortfall(token, totalUnclaimedRewards[token] - rewardTokenBalance);
             }
         }
     }
@@ -294,17 +266,11 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         if (lpPosition != getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                lpPosition,
-                getCurrentPosition(user, market)
-            );
+            revert RewardDistributor_UserPositionMismatch(user, market, lpPosition, getCurrentPosition(user, market));
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
         if (totalLiquidityPerMarket[market] == 0) return 0;
         RewardInfo memory rewardInfo = rewardInfoByToken[token];
-        uint256 totalTimeElapsed = block.timestamp -
-            rewardInfo.initialTimestamp;
+        uint256 totalTimeElapsed = block.timestamp - rewardInfo.initialTimestamp;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
         uint256 inflationRate = rewardInfo.initialInflationRate.div(
             rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
@@ -312,16 +278,11 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 newMarketRewards = (((inflationRate *
             rewardInfo.marketWeights[getMarketWeightIdx(token, market)]) /
             10000) * deltaTime) / 365 days;
-        uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
-            market
-        ] + (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];
-        return
-            lpPosition
-                .mul(
-                    (newCumRewardPerLpToken -
-                        cumulativeRewardPerLpTokenPerUser[user][token][market])
-                )
-                .mul(computeRewardMultiplier(user, market));
+        uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][market] + 
+            (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];
+        return lpPosition.mul(
+                    newCumRewardPerLpToken - cumulativeRewardPerLpTokenPerUser[user][token][market]
+                ).mul(computeRewardMultiplier(user, market));
     }
 
     /* ******************* */
@@ -347,9 +308,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         return
             maxRewardMultiplier -
             (smoothingValue * (maxRewardMultiplier - 1e18)) /
-            ((deltaDays * (maxRewardMultiplier - 1e18)) /
-                1e18 +
-                smoothingValue);
+            ((deltaDays * (maxRewardMultiplier - 1e18)) / 1e18 + smoothingValue);
     }
 
     /* ****************** */
@@ -363,8 +322,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _remainingBalance
     ) external onlyAuctionModule {
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (address(stakingToken) == address(0))
-            revert SafetyModule_InvalidAuctionId(_auctionId);
+        if (address(stakingToken) == address(0)) revert SafetyModule_InvalidAuctionId(_auctionId);
         _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
         _settleSlashing(stakingToken);
         emit AuctionEnded(
@@ -390,18 +348,13 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _lotIncreasePeriod,
         uint256 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
-        IStakedToken stakedToken = stakingTokens[
-            getStakingTokenIdx(_stakedToken)
-        ];
+        IStakedToken stakedToken = stakingTokens[getStakingTokenIdx(_stakedToken)];
 
         // Slash the staked tokens and transfer the underlying tokens to the auction module
         // Note: the StakedToken contract will revert if the slash amount exceeds the max slash amount,
         //       but that should never happen because we slash exactly the max auctionable amount
         uint256 slashAmount = getAuctionableTotal(_stakedToken);
-        uint256 underlyingAmount = stakedToken.slash(
-            address(auctionModule),
-            slashAmount
-        );
+        uint256 underlyingAmount = stakedToken.slash(address(auctionModule), slashAmount);
 
         // Make sure the amount of underlying tokens transferred to the auction module is enough to
         // cover the initial lot size and number of lots to auction
@@ -442,13 +395,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         auctionModule.terminateAuction(_auctionId);
         IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (
-            address(stakingToken) == address(0) ||
-            address(auctionToken) == address(0)
-        ) revert SafetyModule_InvalidAuctionId(_auctionId);
-        uint256 remainingBalance = auctionToken.balanceOf(
-            address(auctionModule)
-        );
+        if (address(stakingToken) == address(0) || address(auctionToken) == address(0)) 
+            revert SafetyModule_InvalidAuctionId(_auctionId);
+        uint256 remainingBalance = auctionToken.balanceOf(address(auctionModule));
         _returnFunds(stakingToken, address(auctionModule), remainingBalance);
         _settleSlashing(stakingToken);
         emit AuctionTerminated(
@@ -466,13 +415,10 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address _from,
         uint256 _amount
     ) external onlyRole(GOVERNANCE) {
-        if (_stakingToken == address(0))
-            revert SafetyModule_InvalidZeroAddress(0);
+        if (_stakingToken == address(0)) revert SafetyModule_InvalidZeroAddress(0);
         if (_from == address(0)) revert SafetyModule_InvalidZeroAddress(1);
         if (_amount == 0) revert SafetyModule_InvalidZeroAmount(2);
-        IStakedToken stakingToken = stakingTokens[
-            getStakingTokenIdx(_stakingToken)
-        ];
+        IStakedToken stakingToken = stakingTokens[getStakingTokenIdx(_stakingToken)];
         _returnFunds(stakingToken, _from, _amount);
     }
 
@@ -483,11 +429,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     ) external onlyRole(GOVERNANCE) {
         if (_amount == 0) revert SafetyModule_InvalidZeroAmount(0);
         IERC20 paymentToken = auctionModule.paymentToken();
-        paymentToken.safeTransferFrom(
-            address(auctionModule),
-            msg.sender,
-            _amount
-        );
+        paymentToken.safeTransferFrom(address(auctionModule), msg.sender, _amount);
     }
 
     /// @inheritdoc ISafetyModule
@@ -504,10 +446,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _maxPercentUserLoss
     ) external onlyRole(GOVERNANCE) {
         if (_maxPercentUserLoss > 1e18)
-            revert SafetyModule_InvalidMaxUserLossTooHigh(
-                _maxPercentUserLoss,
-                1e18
-            );
+            revert SafetyModule_InvalidMaxUserLossTooHigh(_maxPercentUserLoss, 1e18);
         maxPercentUserLoss = _maxPercentUserLoss;
         emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
     }
@@ -518,15 +457,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _maxRewardMultiplier
     ) external onlyRole(GOVERNANCE) {
         if (_maxRewardMultiplier < 1e18)
-            revert SafetyModule_InvalidMaxMultiplierTooLow(
-                _maxRewardMultiplier,
-                1e18
-            );
+            revert SafetyModule_InvalidMaxMultiplierTooLow(_maxRewardMultiplier, 1e18);
         else if (_maxRewardMultiplier > 10e18)
-            revert SafetyModule_InvalidMaxMultiplierTooHigh(
-                _maxRewardMultiplier,
-                10e18
-            );
+            revert SafetyModule_InvalidMaxMultiplierTooHigh(_maxRewardMultiplier, 10e18);
         maxRewardMultiplier = _maxRewardMultiplier;
         emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
     }
@@ -537,15 +470,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         uint256 _smoothingValue
     ) external onlyRole(GOVERNANCE) {
         if (_smoothingValue < 10e18)
-            revert SafetyModule_InvalidSmoothingValueTooLow(
-                _smoothingValue,
-                10e18
-            );
+            revert SafetyModule_InvalidSmoothingValueTooLow(_smoothingValue, 10e18);
         else if (_smoothingValue > 100e18)
-            revert SafetyModule_InvalidSmoothingValueTooHigh(
-                _smoothingValue,
-                100e18
-            );
+            revert SafetyModule_InvalidSmoothingValueTooHigh(_smoothingValue, 100e18);
         smoothingValue = _smoothingValue;
         emit SmoothingValueUpdated(_smoothingValue);
     }
@@ -557,9 +484,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     ) external onlyRole(GOVERNANCE) {
         for (uint i; i < stakingTokens.length; ++i) {
             if (stakingTokens[i] == _stakingToken)
-                revert SafetyModule_StakingTokenAlreadyRegistered(
-                    address(_stakingToken)
-                );
+                revert SafetyModule_StakingTokenAlreadyRegistered(address(_stakingToken));
         }
         stakingTokens.push(_stakingToken);
         timeOfLastCumRewardUpdate[address(_stakingToken)] = block.timestamp;

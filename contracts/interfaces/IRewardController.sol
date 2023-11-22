@@ -83,18 +83,12 @@ interface IRewardController {
     /// @notice Error returned when a given market address has no reward weight stored in the RewardInfo for a given reward token
     /// @param market The market address
     /// @param rewardToken The reward token address
-    error RewardController_MarketHasNoRewardWeight(
-        address market,
-        address rewardToken
-    );
+    error RewardController_MarketHasNoRewardWeight(address market, address rewardToken);
 
     /// @notice Error returned when trying to set the reward weights with markets and weights arrays of different lengths
     /// @param actual The length of the weights array provided
     /// @param expected The length of the markets array provided
-    error RewardController_IncorrectWeightsCount(
-        uint256 actual,
-        uint256 expected
-    );
+    error RewardController_IncorrectWeightsCount(uint256 actual, uint256 expected);
 
     /// @notice Error returned when the sum of the weights provided is not equal to 100% (in basis points)
     /// @param actual The sum of the weights provided

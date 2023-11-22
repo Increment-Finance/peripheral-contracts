@@ -20,13 +20,7 @@ import {LibMath} from "@increment/lib/LibMath.sol";
  * @author webthethird
  * @notice Based on Aave's StakedToken, but with reward management outsourced to the SafetyModule
  */
-contract StakedToken is
-    IStakedToken,
-    ERC20Permit,
-    IncreAccessControl,
-    Pausable,
-    ReentrancyGuard
-{
+contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using LibMath for uint256;
 
@@ -61,8 +55,7 @@ contract StakedToken is
 
     /// @notice Modifier for functions that can only be called by the SafetyModule contract
     modifier onlySafetyModule() {
-        if (msg.sender != address(safetyModule))
-            revert StakedToken_CallerIsNotSafetyModule(msg.sender);
+        if (msg.sender != address(safetyModule)) revert StakedToken_CallerIsNotSafetyModule(msg.sender);
         _;
     }
 
@@ -166,10 +159,8 @@ contract StakedToken is
      * @inheritdoc IStakedToken
      */
     function cooldown() external override {
-        if (balanceOf(msg.sender) == 0)
-            revert StakedToken_ZeroBalanceAtCooldown();
-        if (isInPostSlashingState)
-            revert StakedToken_CooldownDisabledInPostSlashingState();
+        if (balanceOf(msg.sender) == 0) revert StakedToken_ZeroBalanceAtCooldown();
+        if (isInPostSlashingState) revert StakedToken_CooldownDisabledInPostSlashingState();
         //solium-disable-next-line
         stakersCooldowns[msg.sender] = block.timestamp;
 
@@ -186,13 +177,9 @@ contract StakedToken is
     ) external onlySafetyModule returns (uint256) {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (destination == address(0)) revert StakedToken_InvalidZeroAddress();
-        if (isInPostSlashingState)
-            revert StakedToken_SlashingDisabledInPostSlashingState();
-        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
-            address(this)
-        );
-        if (amount > maxSlashAmount)
-            revert StakedToken_AboveMaxSlashAmount(amount, maxSlashAmount);
+        if (isInPostSlashingState) revert StakedToken_SlashingDisabledInPostSlashingState();
+        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(address(this));
+        if (amount > maxSlashAmount) revert StakedToken_AboveMaxSlashAmount(amount, maxSlashAmount);
 
         // Change state to post-slashing
         isInPostSlashingState = true;
@@ -258,31 +245,23 @@ contract StakedToken is
         uint256 toBalance
     ) public view returns (uint256) {
         uint256 toCooldownTimestamp = stakersCooldowns[toAddress];
-        if (toCooldownTimestamp == 0) {
-            return 0;
-        }
+        if (toCooldownTimestamp == 0) return 0;
 
-        uint256 minimalValidCooldownTimestamp = block.timestamp -
-            COOLDOWN_SECONDS -
-            UNSTAKE_WINDOW;
+        uint256 minimalValidCooldownTimestamp = block.timestamp - COOLDOWN_SECONDS - UNSTAKE_WINDOW;
 
         if (minimalValidCooldownTimestamp > toCooldownTimestamp) {
             toCooldownTimestamp = 0;
         } else {
-            fromCooldownTimestamp = (minimalValidCooldownTimestamp >
-                fromCooldownTimestamp)
+            fromCooldownTimestamp = minimalValidCooldownTimestamp > fromCooldownTimestamp
                 ? block.timestamp
                 : fromCooldownTimestamp;
 
-            if (fromCooldownTimestamp < toCooldownTimestamp) {
+            if (fromCooldownTimestamp < toCooldownTimestamp)
                 return toCooldownTimestamp;
-            } else {
-                toCooldownTimestamp =
-                    (amountToReceive *
-                        fromCooldownTimestamp +
-                        (toBalance * toCooldownTimestamp)) /
-                    (amountToReceive + toBalance);
-            }
+            else
+                toCooldownTimestamp = (
+                    (amountToReceive * fromCooldownTimestamp) + (toBalance * toCooldownTimestamp)
+                ) / (amountToReceive + toBalance);
         }
 
         return toCooldownTimestamp;
@@ -324,12 +303,10 @@ contract StakedToken is
         uint256 totalAssets,
         uint256 totalShares
     ) internal {
-        if (totalShares == 0) {
+        if (totalShares == 0)
             // If there are no staked tokens, reset the exchange rate to 1:1
             exchangeRate = 1e18;
-        } else {
-            exchangeRate = totalAssets.wadDiv(totalShares);
-        }
+        else exchangeRate = totalAssets.wadDiv(totalShares);
         emit ExchangeRateUpdated(exchangeRate);
     }
 
@@ -353,10 +330,7 @@ contract StakedToken is
         if (from != to) {
             uint256 balanceOfTo = balanceOf(to);
             if (balanceOfTo + amount > maxStakeAmount)
-                revert StakedToken_AboveMaxStakeAmount(
-                    maxStakeAmount,
-                    maxStakeAmount - balanceOfTo
-                );
+                revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, maxStakeAmount - balanceOfTo);
             uint256 previousSenderCooldown = stakersCooldowns[from];
             stakersCooldowns[to] = getNextCooldownTimestamp(
                 previousSenderCooldown,
@@ -365,9 +339,8 @@ contract StakedToken is
                 balanceOfTo
             );
             // if cooldown was set and whole balance of sender was transferred - clear cooldown
-            if (balanceOfFrom == amount && previousSenderCooldown != 0) {
+            if (balanceOfFrom == amount && previousSenderCooldown != 0)
                 stakersCooldowns[from] = 0;
-            }
         }
 
         super._transfer(from, to, amount);
@@ -380,25 +353,16 @@ contract StakedToken is
     function _stake(address from, address to, uint256 amount) internal {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
-        if (isInPostSlashingState)
-            revert StakedToken_StakingDisabledInPostSlashingState();
+        if (isInPostSlashingState) revert StakedToken_StakingDisabledInPostSlashingState();
 
         // Make sure the user's stake balance doesn't exceed the max stake amount
         uint256 stakeAmount = previewStake(amount);
         uint256 balanceOfUser = balanceOf(to);
         if (balanceOfUser + stakeAmount > maxStakeAmount)
-            revert StakedToken_AboveMaxStakeAmount(
-                maxStakeAmount,
-                maxStakeAmount - balanceOfUser
-            );
+            revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, maxStakeAmount - balanceOfUser);
 
         // Update cooldown timestamp
-        stakersCooldowns[to] = getNextCooldownTimestamp(
-            0,
-            stakeAmount,
-            to,
-            balanceOfUser
-        );
+        stakersCooldowns[to] = getNextCooldownTimestamp(0, stakeAmount, to, balanceOfUser);
 
         // Mint staked tokens
         _mint(to, stakeAmount);
@@ -421,13 +385,8 @@ contract StakedToken is
             // Make sure the user's cooldown period is over and the unstake window didn't pass
             uint256 cooldownStartTimestamp = stakersCooldowns[from];
             if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
-                revert StakedToken_InsufficientCooldown(
-                    cooldownStartTimestamp + COOLDOWN_SECONDS
-                );
-            if (
-                block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
-                UNSTAKE_WINDOW
-            )
+                revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + COOLDOWN_SECONDS);
+            if (block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS > UNSTAKE_WINDOW)
                 revert StakedToken_UnstakeWindowFinished(
                     cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
                 );
@@ -443,9 +402,8 @@ contract StakedToken is
         _burn(from, amountToRedeem);
 
         // Reset cooldown to zero if the user redeemed their whole balance
-        if (balanceOfFrom - amountToRedeem == 0) {
+        if (balanceOfFrom - amountToRedeem == 0)
             stakersCooldowns[from] = 0;
-        }
 
         // Transfer underlying tokens to the recipient
         uint256 underlyingAmount = previewRedeem(amountToRedeem);

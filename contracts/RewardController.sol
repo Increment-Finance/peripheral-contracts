@@ -19,12 +19,7 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 /// - a gradually decreasing emission rate, based on an initial inflation rate, reduction factor, and time elapsed
 /// - a list of markets for which the reward token is distributed
 /// - a list of weights representing the percentage of rewards that go to each market
-abstract contract RewardController is
-    IRewardController,
-    IncreAccessControl,
-    Pausable,
-    ReentrancyGuard
-{
+abstract contract RewardController is IRewardController, IncreAccessControl, Pausable, ReentrancyGuard {
     using PRBMathUD60x18 for uint256;
 
     /// @notice Data structure containing essential info for each reward token
@@ -130,8 +125,7 @@ abstract contract RewardController is
         address rewardToken
     ) external view returns (uint256) {
         RewardInfo memory rewardInfo = rewardInfoByToken[rewardToken];
-        uint256 totalTimeElapsed = block.timestamp -
-            rewardInfo.initialTimestamp;
+        uint256 totalTimeElapsed = block.timestamp - rewardInfo.initialTimestamp;
         return
             rewardInfo.initialInflationRate.div(
                 rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
@@ -171,16 +165,9 @@ abstract contract RewardController is
             rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
         ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
         if (weights.length != markets.length)
-            revert RewardController_IncorrectWeightsCount(
-                weights.length,
-                markets.length
-            );
+            revert RewardController_IncorrectWeightsCount(weights.length, markets.length);
         // Update rewards for all currently rewarded markets before changing weights
-        for (
-            uint i;
-            i < rewardInfoByToken[rewardToken].marketAddresses.length;
-            ++i
-        ) {
+        for (uint i; i < rewardInfoByToken[rewardToken].marketAddresses.length; ++i) {
             address market = rewardInfoByToken[rewardToken].marketAddresses[i];
             updateMarketRewards(market);
             // Check if market is being removed from rewards
@@ -194,9 +181,8 @@ abstract contract RewardController is
             // Remove token from market's list of reward tokens
             for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
                 if (rewardTokensPerMarket[market][j] != rewardToken) continue;
-                rewardTokensPerMarket[market][j] = rewardTokensPerMarket[
-                    market
-                ][rewardTokensPerMarket[market].length - 1];
+                rewardTokensPerMarket[market][j] = 
+                    rewardTokensPerMarket[market][rewardTokensPerMarket[market].length - 1];
                 rewardTokensPerMarket[market].pop();
                 emit MarketRemovedFromRewards(market, rewardToken);
                 break;
@@ -210,15 +196,13 @@ abstract contract RewardController is
         for (uint i; i < markets.length; ++i) {
             address market = markets[i];
             uint16 weight = weights[i];
-            if (weight > 10000)
-                revert RewardController_WeightExceedsMax(weight, 10000);
+            if (weight > 10000) revert RewardController_WeightExceedsMax(weight, 10000);
             totalWeight += weight;
             if (weight > 0) {
                 // Check if token is already registered for this market
                 bool found = false;
                 for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
-                    if (rewardTokensPerMarket[market][j] != rewardToken)
-                        continue;
+                    if (rewardTokensPerMarket[market][j] != rewardToken) continue;
                     found = true;
                     break;
                 }
@@ -227,8 +211,7 @@ abstract contract RewardController is
             }
             emit NewWeight(market, rewardToken, weight);
         }
-        if (totalWeight != 10000)
-            revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
+        if (totalWeight != 10000) revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
     }
 
     /// @inheritdoc IRewardController
@@ -238,21 +221,15 @@ abstract contract RewardController is
         uint256 newInitialInflationRate
     ) external onlyRole(GOVERNANCE) {
         RewardInfo memory rewardInfo = rewardInfoByToken[rewardToken];
-        if (
-            rewardToken == address(0) ||
-            rewardInfo.token != IERC20Metadata(rewardToken)
-        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
+        if (rewardToken == address(0) || rewardInfo.token != IERC20Metadata(rewardToken)) 
+            revert RewardController_InvalidRewardTokenAddress(rewardToken);
         if (newInitialInflationRate > MAX_INFLATION_RATE)
-            revert RewardController_AboveMaxInflationRate(
-                newInitialInflationRate,
-                MAX_INFLATION_RATE
-            );
+            revert RewardController_AboveMaxInflationRate(newInitialInflationRate, MAX_INFLATION_RATE);
         for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
             address market = rewardInfoByToken[rewardToken].marketAddresses[i];
             updateMarketRewards(market);
         }
-        rewardInfoByToken[rewardToken]
-            .initialInflationRate = newInitialInflationRate;
+        rewardInfoByToken[rewardToken].initialInflationRate = newInitialInflationRate;
         emit NewInitialInflationRate(rewardToken, newInitialInflationRate);
     }
 
@@ -267,10 +244,7 @@ abstract contract RewardController is
             rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
         ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
         if (MIN_REDUCTION_FACTOR > newReductionFactor)
-            revert RewardController_BelowMinReductionFactor(
-                newReductionFactor,
-                MIN_REDUCTION_FACTOR
-            );
+            revert RewardController_BelowMinReductionFactor(newReductionFactor, MIN_REDUCTION_FACTOR);
         rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
         emit NewReductionFactor(rewardToken, newReductionFactor);
     }
@@ -286,10 +260,8 @@ abstract contract RewardController is
         bool paused
     ) external onlyRole(EMERGENCY_ADMIN) {
         RewardInfo memory rewardInfo = rewardInfoByToken[rewardToken];
-        if (
-            rewardToken == address(0) ||
-            rewardInfo.token != IERC20Metadata(rewardToken)
-        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
+        if (rewardToken == address(0) || rewardInfo.token != IERC20Metadata(rewardToken)) 
+            revert RewardController_InvalidRewardTokenAddress(rewardToken);
         if (rewardInfo.paused == false) {
             // If not currently paused, accrue rewards before pausing
             for (uint i; i < rewardInfo.marketAddresses.length; ++i) {

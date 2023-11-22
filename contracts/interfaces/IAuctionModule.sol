@@ -59,10 +59,7 @@ interface IAuctionModule {
     /// @notice Emitted when the payment token is changed
     /// @param newPaymentToken Address of the new payment token
     /// @param oldPaymentToken Address of the old payment token
-    event PaymentTokenChanged(
-        address indexed newPaymentToken,
-        address oldPaymentToken
-    );
+    event PaymentTokenChanged(IERC20 indexed newPaymentToken, IERC20 oldPaymentToken);
 
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
@@ -97,10 +94,7 @@ interface IAuctionModule {
     /// @notice Error returned when a user tries to buy more than the number of lots remaining
     /// @param auctionId ID of the auction
     /// @param lotsRemaining Number of lots remaining
-    error AuctionModule_NotEnoughLotsRemaining(
-        uint256 auctionId,
-        uint256 lotsRemaining
-    );
+    error AuctionModule_NotEnoughLotsRemaining(uint256 auctionId, uint256 lotsRemaining);
 
     /// @notice Returns the SafetyModule contract which manages this contract
     /// @return SafetyModule contract
@@ -183,8 +177,8 @@ interface IAuctionModule {
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
     /// Sets the token required for payments in all auctions
-    /// @param _paymentToken ERC20 token to use for payment
-    function setPaymentToken(IERC20 _paymentToken) external;
+    /// @param _newPaymentToken ERC20 token to use for payment
+    function setPaymentToken(IERC20 _newPaymentToken) external;
 
     /// @notice Starts a new auction
     /// @dev First the SafetyModule slashes the StakedToken, sending the underlying slashed tokens here
