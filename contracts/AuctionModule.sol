@@ -41,6 +41,8 @@ contract AuctionModule is
     /// @param totalFundsRaised Total amount of payment tokens raised
     struct Auction {
         IERC20 token;
+        bool active;
+        bool completed;
         uint128 startTime;
         uint128 endTime;
         uint256 lotPrice;
@@ -164,7 +166,7 @@ contract AuctionModule is
 
     /// @inheritdoc IAuctionModule
     function isAuctionActive(uint256 _auctionId) public view returns (bool) {
-        return block.timestamp < auctions[_auctionId].endTime;
+        return auctions[_auctionId].active;
     }
 
     /* ***************** */
@@ -180,6 +182,8 @@ contract AuctionModule is
         if (_auctionId >= nextAuctionId)
             revert AuctionModule_InvalidAuctionId(_auctionId);
         if (_numLotsToBuy == 0) revert AuctionModule_InvalidZeroArgument(1);
+        if (block.timestamp >= auctions[_auctionId].endTime)
+            auctions[_auctionId].active = false;
         if (!isAuctionActive(_auctionId))
             revert AuctionModule_AuctionNotActive(_auctionId);
         uint256 remainingLots = auctions[_auctionId].remainingLots;
@@ -208,6 +212,7 @@ contract AuctionModule is
 
         // Check if auction is over
         if (remainingLots - _numLotsToBuy == 0) {
+            auctions[_auctionId].active = false;
             _completeAuction(_auctionId, false);
         }
     }
@@ -218,11 +223,15 @@ contract AuctionModule is
         // Safety checks
         if (_auctionId >= nextAuctionId)
             revert AuctionModule_InvalidAuctionId(_auctionId);
+        if (block.timestamp >= auctions[_auctionId].endTime)
+            auctions[_auctionId].active = false;
         if (isAuctionActive(_auctionId))
             revert AuctionModule_AuctionStillActive(
                 _auctionId,
                 auctions[_auctionId].endTime
             );
+        if (auctions[_auctionId].completed)
+            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
 
         _completeAuction(_auctionId, false);
     }
@@ -265,6 +274,8 @@ contract AuctionModule is
         uint256 auctionId = nextAuctionId;
         auctions[auctionId] = Auction({
             token: _token,
+            active: true,
+            completed: false,
             startTime: (block.timestamp).toUint128(),
             endTime: (block.timestamp + _timeLimit).toUint128(),
             lotPrice: _lotPrice,
@@ -303,7 +314,10 @@ contract AuctionModule is
             revert AuctionModule_InvalidAuctionId(_auctionId);
         if (!isAuctionActive(_auctionId))
             revert AuctionModule_AuctionNotActive(_auctionId);
+        if (auctions[_auctionId].completed)
+            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
 
+        auctions[_auctionId].active = false;
         _completeAuction(_auctionId, true);
     }
 
@@ -331,8 +345,8 @@ contract AuctionModule is
         uint256 _auctionId,
         bool _terminatedEarly
     ) internal {
-        // End auction
-        auctions[_auctionId].endTime = (block.timestamp).toUint128();
+        // Complete auction
+        auctions[_auctionId].completed = true;
 
         // Approvals
         IERC20 auctionToken = auctions[_auctionId].token;
