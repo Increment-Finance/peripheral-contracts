@@ -7,11 +7,13 @@ import {RewardDistributor} from "./RewardDistributor.sol";
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISafetyModule, IStakingContract} from "./interfaces/ISafetyModule.sol";
-import {IStakedToken} from "./interfaces/IStakedToken.sol";
+import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
+import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 
 // libraries
 import {LibMath} from "@increment/lib/LibMath.sol";
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title SafetyModule
 /// @author webthethird
@@ -21,15 +23,16 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 contract SafetyModule is ISafetyModule, RewardDistributor {
     using LibMath for uint256;
     using PRBMathUD60x18 for uint256;
-
-    /// @notice Address of the Increment vault contract, where funds are sent in the event of an auction
-    address public vault;
+    using SafeERC20 for IERC20;
 
     /// @notice Address of the auction module, which sells user funds in the event of an insolvency
-    address public auctionModule;
+    IAuctionModule public auctionModule;
 
     /// @notice Array of staking tokens that are registered with the SafetyModule
     IStakedToken[] public stakingTokens;
+
+    /// @notice Mapping from auction ID to staking token that was slashed for the auction
+    mapping(uint256 => IStakedToken) public stakingTokenByAuctionId;
 
     /// @notice The maximum percentage of user funds that can be sold at auction, normalized to 1e18
     uint256 public maxPercentUserLoss;
@@ -61,23 +64,28 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         _;
     }
 
+    /// @notice Modifier for functions that can only be called by the AuctionModule contract,
+    /// i.e., `auctionEnded`
+    modifier onlyAuctionModule() {
+        if (msg.sender != address(auctionModule))
+            revert SafetyModule_CallerIsNotAuctionModule(msg.sender);
+        _;
+    }
+
     /// @notice SafetyModule constructor
-    /// @param _vault Address of the Increment vault contract, where funds are sent in the event of an auction
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _maxPercentUserLoss The max percentage of user funds that can be sold at auction, normalized to 1e18
     /// @param _maxRewardMultiplier The maximum reward multiplier, scaled by 1e18
     /// @param _smoothingValue The smoothing value, scaled by 1e18
     /// @param _ecosystemReserve The address of the EcosystemReserve contract, where reward tokens are stored
     constructor(
-        address _vault,
         address _auctionModule,
         uint256 _maxPercentUserLoss,
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
         address _ecosystemReserve
     ) RewardDistributor(_ecosystemReserve) {
-        vault = _vault;
-        auctionModule = _auctionModule;
+        auctionModule = IAuctionModule(_auctionModule);
         maxPercentUserLoss = _maxPercentUserLoss;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
@@ -145,7 +153,16 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address staker,
         address token
     ) public view virtual returns (uint256) {
+        getStakingTokenIdx(token); // Called to make sure the staking token is registered
         return getCurrentPosition(staker, token).mul(maxPercentUserLoss);
+    }
+
+    /// @inheritdoc ISafetyModule
+    function getAuctionableTotal(
+        address token
+    ) public view virtual returns (uint256) {
+        getStakingTokenIdx(token); // Called to make sure the staking token is registered
+        return IStakedToken(token).totalSupply().mul(maxPercentUserLoss);
     }
 
     /* ****************** */
@@ -336,8 +353,150 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     }
 
     /* ****************** */
+    /*   Auction Module   */
+    /* ****************** */
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by the auction module
+    function auctionEnded(
+        uint256 _auctionId,
+        uint256 _remainingBalance
+    ) external onlyAuctionModule {
+        IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
+        if (address(stakingToken) == address(0))
+            revert SafetyModule_InvalidAuctionId(_auctionId);
+        _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
+        _settleSlashing(stakingToken);
+        emit AuctionEnded(
+            _auctionId,
+            address(stakingToken),
+            address(stakingToken.getUnderlyingToken()),
+            _remainingBalance
+        );
+    }
+
+    /* ****************** */
     /*     Governance     */
     /* ****************** */
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function slashAndStartAuction(
+        address _stakedToken,
+        uint256 _lotPrice,
+        uint256 _numLots,
+        uint256 _initialLotSize,
+        uint256 _lotIncreaseIncrement,
+        uint256 _lotIncreasePeriod,
+        uint256 _timeLimit
+    ) external onlyRole(GOVERNANCE) returns (uint256) {
+        IStakedToken stakedToken = stakingTokens[
+            getStakingTokenIdx(_stakedToken)
+        ];
+
+        // Slash the staked tokens and transfer the underlying tokens to the auction module
+        // Note: the StakedToken contract will revert if the slash amount exceeds the max slash amount,
+        //       but that should never happen because we slash exactly the max auctionable amount
+        uint256 slashAmount = getAuctionableTotal(_stakedToken);
+        uint256 underlyingAmount = stakedToken.slash(
+            address(auctionModule),
+            slashAmount
+        );
+
+        // Make sure the amount of underlying tokens transferred to the auction module is enough to
+        // cover the initial lot size and number of lots to auction
+        uint256 initialAuctionAmount = _initialLotSize * _numLots;
+        if (underlyingAmount < initialAuctionAmount)
+            revert SafetyModule_InsufficientSlashedTokensForAuction(
+                stakedToken.getUnderlyingToken(),
+                initialAuctionAmount,
+                underlyingAmount
+            );
+
+        // Start the auction and return the auction ID
+        // Note: the AuctionModule contract will revert if zero is passed for any of the parameters
+        uint256 auctionId = auctionModule.startAuction(
+            stakedToken.getUnderlyingToken(),
+            _lotPrice,
+            _numLots,
+            _initialLotSize,
+            _lotIncreaseIncrement,
+            _lotIncreasePeriod,
+            _timeLimit
+        );
+        stakingTokenByAuctionId[auctionId] = stakedToken;
+        emit TokensSlashedForAuction(
+            _stakedToken,
+            slashAmount,
+            underlyingAmount,
+            auctionId
+        );
+        return auctionId;
+    }
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function terminateAuction(
+        uint256 _auctionId
+    ) external onlyRole(GOVERNANCE) {
+        auctionModule.terminateAuction(_auctionId);
+        IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
+        IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
+        if (
+            address(stakingToken) == address(0) ||
+            address(auctionToken) == address(0)
+        ) revert SafetyModule_InvalidAuctionId(_auctionId);
+        uint256 remainingBalance = auctionToken.balanceOf(
+            address(auctionModule)
+        );
+        _returnFunds(stakingToken, address(auctionModule), remainingBalance);
+        _settleSlashing(stakingToken);
+        emit AuctionTerminated(
+            _auctionId,
+            address(stakingToken),
+            address(auctionToken),
+            remainingBalance
+        );
+    }
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function returnFunds(
+        address _stakingToken,
+        address _from,
+        uint256 _amount
+    ) external onlyRole(GOVERNANCE) {
+        if (_stakingToken == address(0))
+            revert SafetyModule_InvalidZeroAddress(0);
+        if (_from == address(0)) revert SafetyModule_InvalidZeroAddress(1);
+        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(2);
+        IStakedToken stakingToken = stakingTokens[
+            getStakingTokenIdx(_stakingToken)
+        ];
+        _returnFunds(stakingToken, _from, _amount);
+    }
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function withdrawFundsRaisedFromAuction(
+        uint256 _amount
+    ) external onlyRole(GOVERNANCE) {
+        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(0);
+        IERC20 paymentToken = auctionModule.paymentToken();
+        paymentToken.safeTransferFrom(
+            address(auctionModule),
+            msg.sender,
+            _amount
+        );
+    }
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by governance
+    function setAuctionModule(
+        IAuctionModule _auctionModule
+    ) external onlyRole(GOVERNANCE) {
+        auctionModule = _auctionModule;
+    }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance, reverts if the new value is greater than 1e18, i.e., 100%
@@ -405,5 +564,21 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         stakingTokens.push(_stakingToken);
         timeOfLastCumRewardUpdate[address(_stakingToken)] = block.timestamp;
         emit StakingTokenAdded(address(_stakingToken));
+    }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    function _returnFunds(
+        IStakedToken _stakingToken,
+        address _from,
+        uint256 _amount
+    ) internal {
+        _stakingToken.returnFunds(_from, _amount);
+    }
+
+    function _settleSlashing(IStakedToken _stakingToken) internal {
+        _stakingToken.settleSlashing();
     }
 }
