@@ -29,30 +29,28 @@ contract AuctionModule is
 
     /// @notice Struct representing an auction
     /// @param token Address of the token being auctioned
-    /// @param startTime Timestamp when the auction started
-    /// @param endTime Timestamp when the auction ends
+    /// @param active Whether the auction is still active
+    /// @param completed Whether the auction has been completed and tokens approved for transfer
     /// @param lotPrice Price of each lot of tokens, denominated in payment tokens
     /// @param initialLotSize Initial size of each lot
     /// @param numLots Total number of lots in the auction
     /// @param remainingLots Number of lots that have not been sold
-    /// @param lotIncreaseIncrement Amount of tokens by which the lot size increases each period
+    /// @param startTime Timestamp when the auction started
+    /// @param endTime Timestamp when the auction ends
     /// @param lotIncreasePeriod Number of seconds between each lot size increase
-    /// @param totalTokensSold Total number of tokens sold
-    /// @param totalFundsRaised Total amount of payment tokens raised
+    /// @param lotIncreaseIncrement Amount of tokens by which the lot size increases each period
     struct Auction {
         IERC20 token;
         bool active;
         bool completed;
-        uint128 startTime;
-        uint128 endTime;
-        uint256 lotPrice;
-        uint256 initialLotSize;
-        uint256 numLots;
-        uint256 remainingLots;
-        uint256 lotIncreaseIncrement;
-        uint256 lotIncreasePeriod;
-        uint256 totalTokensSold;
-        uint256 totalFundsRaised;
+        uint128 lotPrice;
+        uint128 initialLotSize;
+        uint8 numLots;
+        uint8 remainingLots;
+        uint64 startTime;
+        uint64 endTime;
+        uint16 lotIncreasePeriod;
+        uint96 lotIncreaseIncrement;
     }
 
     /// @notice SafetyModule contract which manages staked token rewards, slashing and auctions
@@ -64,8 +62,14 @@ contract AuctionModule is
     /// @notice ID of the next auction
     uint256 public nextAuctionId;
 
-    /// @notice Mapping of auction IDs to auctions
+    /// @notice Mapping of auction IDs to auction information
     mapping(uint256 => Auction) public auctions;
+
+    /// @notice Mapping of auction IDs to the number of tokens sold in that auction
+    mapping(uint256 => uint256) public tokensSoldPerAuction;
+
+    /// @notice Mapping of auction IDs to the number of payment tokens raised in that auction
+    mapping(uint256 => uint256) public fundsRaisedPerAuction;
 
     /// @notice Modifier for functions that should only be called by the SafetyModule
     modifier onlySafetyModule() {
@@ -136,18 +140,6 @@ contract AuctionModule is
     }
 
     /// @inheritdoc IAuctionModule
-    function getTokensSold(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].totalTokensSold;
-    }
-
-    /// @inheritdoc IAuctionModule
-    function getFundsRaised(
-        uint256 _auctionId
-    ) external view returns (uint256) {
-        return auctions[_auctionId].totalFundsRaised;
-    }
-
-    /// @inheritdoc IAuctionModule
     function getAuctionToken(
         uint256 _auctionId
     ) external view returns (IERC20) {
@@ -176,7 +168,7 @@ contract AuctionModule is
     /// @inheritdoc IAuctionModule
     function buyLots(
         uint256 _auctionId,
-        uint256 _numLotsToBuy
+        uint8 _numLotsToBuy
     ) external nonReentrant whenNotPaused {
         // Safety checks
         if (_auctionId >= nextAuctionId)
@@ -200,8 +192,8 @@ contract AuctionModule is
 
         // Update auction in storage
         auctions[_auctionId].remainingLots -= _numLotsToBuy;
-        auctions[_auctionId].totalTokensSold += purchaseAmount;
-        auctions[_auctionId].totalFundsRaised += paymentAmount;
+        tokensSoldPerAuction[_auctionId] += purchaseAmount;
+        fundsRaisedPerAuction[_auctionId] += paymentAmount;
 
         // Handle payment
         paymentToken.safeTransferFrom(msg.sender, address(this), paymentAmount);
@@ -251,12 +243,12 @@ contract AuctionModule is
     /// @dev Only callable by the SafetyModule
     function startAuction(
         IERC20 _token,
-        uint256 _lotPrice,
-        uint256 _numLots,
-        uint256 _initialLotSize,
-        uint256 _lotIncreaseIncrement,
-        uint256 _lotIncreasePeriod,
-        uint256 _timeLimit
+        uint8 _numLots,
+        uint128 _lotPrice,
+        uint128 _initialLotSize,
+        uint96 _lotIncreaseIncrement,
+        uint16 _lotIncreasePeriod,
+        uint32 _timeLimit
     ) external onlySafetyModule whenNotPaused returns (uint256) {
         // Safety checks
         if (_token == IERC20(address(0)))
@@ -272,20 +264,20 @@ contract AuctionModule is
 
         // Create auction
         uint256 auctionId = nextAuctionId;
+        uint64 auctionStartTime = uint64(block.timestamp);
+        uint64 auctionEndTime = auctionStartTime + _timeLimit;
         auctions[auctionId] = Auction({
             token: _token,
             active: true,
             completed: false,
-            startTime: (block.timestamp).toUint128(),
-            endTime: (block.timestamp + _timeLimit).toUint128(),
             lotPrice: _lotPrice,
             initialLotSize: _initialLotSize,
             numLots: _numLots,
             remainingLots: _numLots,
-            lotIncreaseIncrement: _lotIncreaseIncrement,
+            startTime: auctionStartTime,
+            endTime: auctionEndTime,
             lotIncreasePeriod: _lotIncreasePeriod,
-            totalTokensSold: 0,
-            totalFundsRaised: 0
+            lotIncreaseIncrement: _lotIncreaseIncrement
         });
         nextAuctionId += 1;
 
@@ -293,8 +285,7 @@ contract AuctionModule is
         emit AuctionStarted(
             auctionId,
             address(_token),
-            (block.timestamp).toUint128(),
-            (block.timestamp + _timeLimit).toUint128(),
+            auctionEndTime,
             _lotPrice,
             _initialLotSize,
             _numLots,
@@ -354,7 +345,7 @@ contract AuctionModule is
             _auctionId
         );
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
-        uint256 fundsRaised = auctions[_auctionId].totalFundsRaised;
+        uint256 fundsRaised = fundsRaisedPerAuction[_auctionId];
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         auctionToken.approve(address(stakedToken), remainingBalance);
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
@@ -366,7 +357,7 @@ contract AuctionModule is
             _auctionId,
             auctions[_auctionId].remainingLots,
             getCurrentLotSize(_auctionId),
-            auctions[_auctionId].totalTokensSold,
+            tokensSoldPerAuction[_auctionId],
             fundsRaised
         );
 

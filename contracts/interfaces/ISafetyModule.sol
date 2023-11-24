@@ -188,8 +188,8 @@ interface ISafetyModule is IStakingContract {
     /// @notice Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
     /// transfers the underlying tokens to the AuctionModule and starts an auction to sell them
     /// @param _stakedToken Address of the staked token to slash
-    /// @param _lotPrice Fixed price of each lot in the auction
     /// @param _numLots Number of lots in the auction
+    /// @param _lotPrice Fixed price of each lot in the auction
     /// @param _initialLotSize Initial number of underlying tokens in each lot
     /// @param _lotIncreaseIncrement Amount of tokens by which the lot size increases each period
     /// @param _lotIncreasePeriod Number of seconds between each lot size increase
@@ -197,12 +197,12 @@ interface ISafetyModule is IStakingContract {
     /// @return ID of the auction
     function slashAndStartAuction(
         address _stakedToken,
-        uint256 _lotPrice,
-        uint256 _numLots,
-        uint256 _initialLotSize,
-        uint256 _lotIncreaseIncrement,
-        uint256 _lotIncreasePeriod,
-        uint256 _timeLimit
+        uint8 _numLots,
+        uint128 _lotPrice,
+        uint128 _initialLotSize,
+        uint96 _lotIncreaseIncrement,
+        uint16 _lotIncreasePeriod,
+        uint32 _timeLimit
     ) external returns (uint256);
 
     /// @notice Terminates an auction early and returns any remaining underlying tokens to the StakedToken

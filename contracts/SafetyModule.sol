@@ -383,12 +383,12 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /// @dev Only callable by governance
     function slashAndStartAuction(
         address _stakedToken,
-        uint256 _lotPrice,
-        uint256 _numLots,
-        uint256 _initialLotSize,
-        uint256 _lotIncreaseIncrement,
-        uint256 _lotIncreasePeriod,
-        uint256 _timeLimit
+        uint8 _numLots,
+        uint128 _lotPrice,
+        uint128 _initialLotSize,
+        uint96 _lotIncreaseIncrement,
+        uint16 _lotIncreasePeriod,
+        uint32 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
         IStakedToken stakedToken = stakingTokens[
             getStakingTokenIdx(_stakedToken)
@@ -417,8 +417,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         // Note: the AuctionModule contract will revert if zero is passed for any of the parameters
         uint256 auctionId = auctionModule.startAuction(
             stakedToken.getUnderlyingToken(),
-            _lotPrice,
             _numLots,
+            _lotPrice,
             _initialLotSize,
             _lotIncreaseIncrement,
             _lotIncreasePeriod,
