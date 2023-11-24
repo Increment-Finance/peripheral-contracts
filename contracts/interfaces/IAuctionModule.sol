@@ -11,7 +11,6 @@ interface IAuctionModule {
     /// @notice Emitted when a new auction is started
     /// @param auctionId ID of the auction
     /// @param token Address of the token being auctioned
-    /// @param startTimestamp Timestamp when the auction started
     /// @param endTimestamp Timestamp when the auction ends
     /// @param lotPrice Price of each lot of tokens in payment token
     /// @param initialLotSize Initial number of tokens in each lot
@@ -21,13 +20,12 @@ interface IAuctionModule {
     event AuctionStarted(
         uint256 indexed auctionId,
         address indexed token,
-        uint128 startTimestamp,
-        uint128 endTimestamp,
-        uint256 lotPrice,
-        uint256 initialLotSize,
-        uint256 numLots,
-        uint256 lotIncreaseIncrement,
-        uint256 lotIncreasePeriod
+        uint64 endTimestamp,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint8 numLots,
+        uint96 lotIncreaseIncrement,
+        uint16 lotIncreasePeriod
     );
 
     /// @notice Emitted when an auction ends, because either all lots were sold or the time limit was reached
@@ -38,7 +36,7 @@ interface IAuctionModule {
     /// @param totalFundsRaised Total amount of payment tokens raised
     event AuctionEnded(
         uint256 indexed auctionId,
-        uint256 remainingLots,
+        uint8 remainingLots,
         uint256 finalLotSize,
         uint256 totalTokensSold,
         uint256 totalFundsRaised
@@ -53,7 +51,7 @@ interface IAuctionModule {
         uint256 indexed auctionId,
         address indexed buyer,
         uint256 lotSize,
-        uint256 lotPrice
+        uint128 lotPrice
     );
 
     /// @notice Emitted when the payment token is changed
@@ -114,6 +112,20 @@ interface IAuctionModule {
     /// @return ID of the next auction
     function nextAuctionId() external view returns (uint256);
 
+    /// @notice Returns the number of tokens sold in the auction
+    /// @param _auctionId ID of the auction
+    /// @return Number of tokens sold
+    function tokensSoldPerAuction(
+        uint256 _auctionId
+    ) external view returns (uint256);
+
+    /// @notice Returns the amount of funds raised in the auction
+    /// @param _auctionId ID of the auction
+    /// @return Number of payment tokens raised
+    function fundsRaisedPerAuction(
+        uint256 _auctionId
+    ) external view returns (uint256);
+
     /// @notice Returns the current lot size of the auction
     /// @dev Lot size starts at `auction.initialLotSize` and increases by `auction.lotIncreaseIncrement` every
     /// `auction.lotIncreasePeriod` seconds, unless the lot size times the number of remaining lots reaches the
@@ -150,16 +162,6 @@ interface IAuctionModule {
         uint256 _auctionId
     ) external view returns (uint256);
 
-    /// @notice Returns the amount of tokens sold so far in the auction
-    /// @param _auctionId ID of the auction
-    /// @return Number of tokens sold
-    function getTokensSold(uint256 _auctionId) external view returns (uint256);
-
-    /// @notice Returns the amount of funds raised so far in the auction
-    /// @param _auctionId ID of the auction
-    /// @return Number of payment tokens raised
-    function getFundsRaised(uint256 _auctionId) external view returns (uint256);
-
     /// @notice Returns the address of the token being auctioned
     /// @param _auctionId ID of the auction
     /// @return The ERC20 token being auctioned
@@ -189,8 +191,8 @@ interface IAuctionModule {
     /// @notice Starts a new auction
     /// @dev First the SafetyModule slashes the StakedToken, sending the underlying slashed tokens here
     /// @param _token The ERC20 token to auction
-    /// @param _lotPrice Price of each lot of tokens in payment tokens
     /// @param _numLots Number of lots in the auction
+    /// @param _lotPrice Price of each lot of tokens in payment tokens
     /// @param _initialLotSize Initial number of tokens in each lot
     /// @param _lotIncreaseIncrement Amount of tokens by which the lot size increases each period
     /// @param _lotIncreasePeriod Number of seconds between each lot size increase
@@ -198,12 +200,12 @@ interface IAuctionModule {
     /// @return ID of the auction
     function startAuction(
         IERC20 _token,
-        uint256 _lotPrice,
-        uint256 _numLots,
-        uint256 _initialLotSize,
-        uint256 _lotIncreaseIncrement,
-        uint256 _lotIncreasePeriod,
-        uint256 _timeLimit
+        uint8 _numLots,
+        uint128 _lotPrice,
+        uint128 _initialLotSize,
+        uint96 _lotIncreaseIncrement,
+        uint16 _lotIncreasePeriod,
+        uint32 _timeLimit
     ) external returns (uint256);
 
     /// @notice Terminates an auction early and approves the transfer of unsold tokens and funds raised
@@ -220,5 +222,5 @@ interface IAuctionModule {
     /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
     /// @param _auctionId ID of the auction
     /// @param _numLotsToBuy Number of lots to buy
-    function buyLots(uint256 _auctionId, uint256 _numLotsToBuy) external;
+    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
 }
