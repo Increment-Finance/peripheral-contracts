@@ -230,11 +230,11 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             // To prevent users from gaming the system by staking a small amount early to start the multiplier
             // and then staking a large amount once their multiplier is very high in order to claim a large
             // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
-            // to the magnitude of the increase in stake
+            // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
             uint256 timeDelta = block.timestamp -
                 multiplierStartTimeByUser[user][market];
             uint256 increaseRatio = (newPosition - prevPosition).div(
-                prevPosition
+                newPosition
             );
             multiplierStartTimeByUser[user][market] += timeDelta.mul(
                 increaseRatio
