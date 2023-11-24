@@ -27,8 +27,8 @@ import "increment-protocol/interfaces/IInsurance.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
-import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../contracts/interfaces/balancer/IWeightedPool.sol";
-import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "../contracts/interfaces/balancer/IWeightedPoolFactory.sol";
+import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "./balancer/IWeightedPool.sol";
+import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "./balancer/IWeightedPoolFactory.sol";
 
 // libraries
 import "increment-protocol/lib/LibMath.sol";
