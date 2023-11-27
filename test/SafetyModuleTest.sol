@@ -13,6 +13,7 @@ import "increment-protocol/mocks/MockAggregator.sol";
 import "@increment-governance/IncrementToken.sol";
 import "../contracts/SafetyModule.sol";
 import "../contracts/StakedToken.sol";
+import "../contracts/AuctionModule.sol";
 import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
@@ -66,6 +67,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
     EcosystemReserve public rewardVault;
     SafetyModule public safetyModule;
+    AuctionModule public auctionModule;
     IWeightedPoolFactory public weightedPoolFactory;
     IWeightedPool public balancerPool;
     IBalancerVault public balancerVault;
@@ -99,6 +101,10 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_SMOOTHING_VALUE,
             address(rewardVault)
         );
+
+        // Deploy auction module
+        auctionModule = new AuctionModule(safetyModule, usdc);
+        safetyModule.setAuctionModule(auctionModule);
 
         // Transfer half of the rewards tokens to the reward vault
         rewardsToken.transfer(
@@ -1145,7 +1151,9 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 highSmoothingValue,
         uint256 invalidMarketIdx,
         address invalidMarket,
-        address invalidRewardToken
+        address invalidRewardToken,
+        uint8 numLots,
+        uint128 lotSize
     ) public {
         /* bounds */
         highMaxUserLoss = bound(highMaxUserLoss, 1e18 + 1, type(uint256).max);
@@ -1167,6 +1175,10 @@ contract SafetyModuleTest is PerpetualUtils {
                 invalidMarket != address(stakedToken2)
         );
         vm.assume(invalidRewardToken != address(rewardsToken));
+        vm.assume(
+            uint256(numLots) * uint256(lotSize) >
+                safetyModule.getAuctionableTotal(address(stakedToken1))
+        );
 
         // test governor-controlled params out of bounds
         vm.expectRevert(
@@ -1283,6 +1295,83 @@ contract SafetyModuleTest is PerpetualUtils {
             invalidRewardToken,
             address(stakedToken1)
         );
+
+        // test invalid auction ID
+        // (auction exists but corresponding StakedToken is not stored in SafetyModule)
+        vm.startPrank(address(safetyModule));
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            numLots,
+            1 ether,
+            lotSize,
+            0.1 ether,
+            1 hours,
+            10 days
+        );
+        vm.stopPrank();
+        vm.expectRevert(
+            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
+        );
+        safetyModule.terminateAuction(0);
+        vm.expectRevert(
+            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
+        );
+        vm.startPrank(address(auctionModule));
+        safetyModule.auctionEnded(0, 0);
+        vm.stopPrank();
+
+        // test insufficient auctionable funds
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InsufficientSlashedTokensForAuction(address,uint256,uint256)",
+                address(stakedToken1.getUnderlyingToken()),
+                uint256(numLots) * uint256(lotSize),
+                safetyModule.getAuctionableTotal(address(stakedToken1))
+            )
+        );
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            numLots,
+            0,
+            lotSize,
+            0,
+            0,
+            1 days
+        );
+
+        // test invalid zero args
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        safetyModule.returnFunds(address(0), address(auctionModule), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidZeroAddress(uint256)",
+                1
+            )
+        );
+        safetyModule.returnFunds(address(stakedToken1), address(0), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidZeroAmount(uint256)",
+                2
+            )
+        );
+        safetyModule.returnFunds(
+            address(stakedToken1),
+            address(auctionModule),
+            0
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidZeroAmount(uint256)",
+                0
+            )
+        );
+        safetyModule.withdrawFundsRaisedFromAuction(0);
     }
 
     function testStakedTokenErrors(
