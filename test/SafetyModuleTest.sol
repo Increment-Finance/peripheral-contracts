@@ -300,6 +300,21 @@ contract SafetyModuleTest is PerpetualUtils {
             1e18,
             "Reward multiplier mismatch"
         );
+        assertEq(
+            address(stakedToken1.getUnderlyingToken()),
+            address(rewardsToken),
+            "Underlying token mismatch"
+        );
+        assertEq(
+            stakedToken1.getCooldownSeconds(),
+            COOLDOWN_SECONDS,
+            "Cooldown seconds mismatch"
+        );
+        assertEq(
+            stakedToken1.getUnstakeWindowSeconds(),
+            UNSTAKE_WINDOW,
+            "Unstake window mismatch"
+        );
     }
 
     function testRewardMultiplier() public {
@@ -342,24 +357,26 @@ contract SafetyModuleTest is PerpetualUtils {
             2e18,
             "Reward multiplier mismatch after 5 days"
         );
-        // Staking again does not reset the multiplier
+        // Staking again pushed the multiplier start time forward by a weighted amount
+        // In this case, the multiplier start time is pushed forward by 2.5 days, because
+        // it had been 5 days ago, and the user doubled their stake
         _stake(stakedToken1, liquidityProviderTwo, 50 ether);
         assertEq(
             safetyModule.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
-            2e18,
+            1.6e18,
             "Reward multiplier mismatch after staking again"
         );
-        skip(5 days);
+        skip(2.5 days);
         assertEq(
             safetyModule.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
-            2.5e18,
-            "Reward multiplier mismatch after another 5 days"
+            2e18,
+            "Reward multiplier mismatch after another 2.5 days"
         );
         // Redeeming completely resets the multiplier to 0
         _redeem(stakedToken1, liquidityProviderTwo, 100 ether, 1 days);
@@ -503,6 +520,16 @@ contract SafetyModuleTest is PerpetualUtils {
             ),
             balance2.wadMul(maxPercentUserLoss),
             "Auctionable balance 2 mismatch"
+        );
+        assertEq(
+            safetyModule.getAuctionableTotal(address(stakedToken1)),
+            balance1.wadMul(maxPercentUserLoss),
+            "Auctionable total 1 mismatch"
+        );
+        assertEq(
+            safetyModule.getAuctionableTotal(address(stakedToken2)),
+            balance2.wadMul(maxPercentUserLoss),
+            "Auctionable total 2 mismatch"
         );
     }
 
@@ -897,7 +924,11 @@ contract SafetyModuleTest is PerpetualUtils {
             "Accrued rewards mismatch: user 2"
         );
 
-        // Check that user 1's multiplier is now 0, while user 2's is still 2
+        // Check that user 1's multiplier is now 0, while user 2's is scaled according to the increase in stake
+        uint256 increaseRatio = initialBalance1.wadDiv(
+            initialBalance1 + initialBalance2
+        );
+        console.log("increaseRatio: %s", increaseRatio);
         assertEq(
             safetyModule.computeRewardMultiplier(
                 liquidityProviderOne,
@@ -906,12 +937,29 @@ contract SafetyModuleTest is PerpetualUtils {
             0,
             "Reward multiplier mismatch after transfer: user 1"
         );
+        uint256 newMultiplierStartTime = safetyModule.multiplierStartTimeByUser(
+            liquidityProviderTwo,
+            address(stakedToken1)
+        );
+        assertEq(
+            newMultiplierStartTime,
+            block.timestamp - uint256(5 days).wadMul(1e18 - increaseRatio),
+            "Multiplier start time mismatch after transfer: user 2"
+        );
+        uint256 deltaDays = (block.timestamp - newMultiplierStartTime).wadDiv(
+            1 days
+        );
+        uint256 expectedMultiplier = INITIAL_MAX_MULTIPLIER -
+            (INITIAL_SMOOTHING_VALUE * (INITIAL_MAX_MULTIPLIER - 1e18)) /
+            ((deltaDays * (INITIAL_MAX_MULTIPLIER - 1e18)) /
+                1e18 +
+                INITIAL_SMOOTHING_VALUE);
         assertEq(
             safetyModule.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
-            2e18,
+            expectedMultiplier,
             "Reward multiplier mismatch after transfer: user 2"
         );
 
@@ -920,9 +968,9 @@ contract SafetyModuleTest is PerpetualUtils {
         safetyModule.claimRewardsFor(liquidityProviderTwo);
 
         // Skip some more time
-        skip(5 days);
+        skip(10 days - (block.timestamp - newMultiplierStartTime));
 
-        // After 10 days, user 2's multiplier should be 2.5, while user 1's is still 0
+        // 10 days after the new multiplier start time, user 2's multiplier should be 2.5
         assertEq(
             safetyModule.computeRewardMultiplier(
                 liquidityProviderOne,
