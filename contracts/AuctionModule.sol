@@ -347,7 +347,8 @@ contract AuctionModule is
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
         uint256 fundsRaised = fundsRaisedPerAuction[_auctionId];
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
-        auctionToken.approve(address(stakedToken), remainingBalance);
+        if (remainingBalance > 0)
+            auctionToken.approve(address(stakedToken), remainingBalance);
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
         if (fundsRaised > 0)
             paymentToken.approve(address(safetyModule), fundsRaised);
