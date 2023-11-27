@@ -201,14 +201,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                         cumulativeRewardPerLpTokenPerUser[user][token][market]
                 )
                 .mul(rewardMultiplier);
-            if (newPosition < prevPosition || prevPosition == 0) {
-                // Removed stake or staked for the first time - need to reset multiplier
-                if (newPosition > 0) {
-                    multiplierStartTimeByUser[user][market] = block.timestamp;
-                } else {
-                    multiplierStartTimeByUser[user][market] = 0;
-                }
-            }
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
@@ -223,6 +215,30 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
                     totalUnclaimedRewards[token] - rewardTokenBalance
                 );
             }
+        }
+        if (prevPosition == 0 || newPosition < prevPosition) {
+            // Removed stake or staked for the first time - need to reset multiplier
+            if (newPosition > 0) {
+                // Partial removal or first stake - reset multiplier to 1
+                multiplierStartTimeByUser[user][market] = block.timestamp;
+            } else {
+                // Full removal - set multiplier to 0 until the user stakes again
+                multiplierStartTimeByUser[user][market] = 0;
+            }
+        } else {
+            // User added to their existing stake - need to update multiplier start time
+            // To prevent users from gaming the system by staking a small amount early to start the multiplier
+            // and then staking a large amount once their multiplier is very high in order to claim a large
+            // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
+            // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
+            uint256 timeDelta = block.timestamp -
+                multiplierStartTimeByUser[user][market];
+            uint256 increaseRatio = (newPosition - prevPosition).div(
+                newPosition
+            );
+            multiplierStartTimeByUser[user][market] += timeDelta.mul(
+                increaseRatio
+            );
         }
         lpPositionsPerUser[user][market] = newPosition;
     }
