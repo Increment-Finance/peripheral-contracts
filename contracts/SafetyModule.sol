@@ -421,7 +421,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
 
         // Make sure the amount of underlying tokens transferred to the auction module is enough to
         // cover the initial lot size and number of lots to auction
-        uint256 initialAuctionAmount = _initialLotSize * _numLots;
+        uint256 initialAuctionAmount = uint256(_initialLotSize) *
+            uint256(_numLots);
         if (underlyingAmount < initialAuctionAmount)
             revert SafetyModule_InsufficientSlashedTokensForAuction(
                 stakedToken.getUnderlyingToken(),
@@ -459,8 +460,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (
-            address(stakingToken) == address(0) ||
-            address(auctionToken) == address(0)
+            address(auctionToken) == address(0) ||
+            address(stakingToken) == address(0)
         ) revert SafetyModule_InvalidAuctionId(_auctionId);
         uint256 remainingBalance = auctionToken.balanceOf(
             address(auctionModule)
