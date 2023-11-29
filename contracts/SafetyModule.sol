@@ -141,15 +141,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     }
 
     /// @inheritdoc ISafetyModule
-    function getAuctionableBalance(
-        address staker,
-        address token
-    ) public view virtual returns (uint256) {
-        getStakingTokenIdx(token); // Called to make sure the staking token is registered
-        return getCurrentPosition(staker, token).mul(maxPercentUserLoss);
-    }
-
-    /// @inheritdoc ISafetyModule
     function getAuctionableTotal(
         address token
     ) public view virtual returns (uint256) {

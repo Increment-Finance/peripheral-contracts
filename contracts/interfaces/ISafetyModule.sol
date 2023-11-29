@@ -123,16 +123,6 @@ interface ISafetyModule is IStakingContract {
     /// @return Index of the staking token in the `stakingTokens` array
     function getStakingTokenIdx(address token) external view returns (uint256);
 
-    /// @notice Returns the amount of the user's stake tokens that can be sold at auction in the event of
-    /// an insolvency in the vault that cannot be covered by the insurance fund
-    /// @param staker Address of the user
-    /// @param token Address of the staking token
-    /// @return Balance of the user multiplied by the maxPercentUserLoss
-    function getAuctionableBalance(
-        address staker,
-        address token
-    ) external view returns (uint256);
-
     /// @notice Returns the total amount of staked tokens that can be sold at auction in the event of
     /// an insolvency in the vault that cannot be covered by the insurance fund
     /// @param token Address of the staking token

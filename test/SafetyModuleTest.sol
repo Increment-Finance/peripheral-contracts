@@ -512,22 +512,6 @@ contract SafetyModuleTest is PerpetualUtils {
         // Set new max percent user loss and check auctionable balances
         safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
         assertEq(
-            safetyModule.getAuctionableBalance(
-                liquidityProviderOne,
-                address(stakedToken1)
-            ),
-            balance1.wadMul(maxPercentUserLoss),
-            "Auctionable balance 1 mismatch"
-        );
-        assertEq(
-            safetyModule.getAuctionableBalance(
-                liquidityProviderOne,
-                address(stakedToken2)
-            ),
-            balance2.wadMul(maxPercentUserLoss),
-            "Auctionable balance 2 mismatch"
-        );
-        assertEq(
             safetyModule.getAuctionableTotal(address(stakedToken1)),
             balance1.wadMul(maxPercentUserLoss),
             "Auctionable total 1 mismatch"
