@@ -297,21 +297,6 @@ contract AuctionModule is
         return auctionId;
     }
 
-    /// @inheritdoc IAuctionModule
-    /// @dev Only callable by the SafetyModule
-    function terminateAuction(uint256 _auctionId) external onlySafetyModule {
-        // Safety checks
-        if (_auctionId >= nextAuctionId)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
-        if (!isAuctionActive(_auctionId))
-            revert AuctionModule_AuctionNotActive(_auctionId);
-        if (auctions[_auctionId].completed)
-            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
-
-        auctions[_auctionId].active = false;
-        _completeAuction(_auctionId, true);
-    }
-
     /* ****************** */
     /*     Governance     */
     /* ****************** */
@@ -326,6 +311,32 @@ contract AuctionModule is
         address previousPaymentToken = address(paymentToken);
         paymentToken = _paymentToken;
         emit PaymentTokenChanged(address(_paymentToken), previousPaymentToken);
+    }
+
+    /// @inheritdoc IAuctionModule
+    /// @dev Only callable by governance
+    function terminateAuction(
+        uint256 _auctionId
+    ) external onlyRole(GOVERNANCE) {
+        // Safety checks
+        if (_auctionId >= nextAuctionId)
+            revert AuctionModule_InvalidAuctionId(_auctionId);
+        if (!isAuctionActive(_auctionId))
+            revert AuctionModule_AuctionNotActive(_auctionId);
+        if (auctions[_auctionId].completed)
+            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
+
+        auctions[_auctionId].active = false;
+        _completeAuction(_auctionId, true);
+    }
+
+    /// @inheritdoc IAuctionModule
+    /// @dev Only callable by governance
+    function withdrawFundsRaisedFromAuction(
+        uint256 _amount
+    ) external onlyRole(GOVERNANCE) {
+        if (_amount == 0) revert AuctionModule_InvalidZeroArgument(0);
+        paymentToken.safeTransfer(msg.sender, _amount);
     }
 
     /* ****************** */
@@ -349,11 +360,11 @@ contract AuctionModule is
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         if (remainingBalance > 0)
             auctionToken.approve(address(stakedToken), remainingBalance);
-        // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
-        if (fundsRaised > 0)
-            paymentToken.approve(address(safetyModule), fundsRaised);
 
-        // Emit event
+        // Notify SafetyModule
+        safetyModule.auctionEnded(_auctionId, remainingBalance);
+
+        // Emit events
         emit AuctionEnded(
             _auctionId,
             auctions[_auctionId].remainingLots,
@@ -362,8 +373,12 @@ contract AuctionModule is
             fundsRaised
         );
 
-        // Notify SafetyModule if necessary
-        if (!_terminatedEarly)
-            safetyModule.auctionEnded(_auctionId, remainingBalance);
+        if (_terminatedEarly)
+            emit AuctionTerminated(
+                _auctionId,
+                address(stakedToken),
+                address(auctionToken),
+                remainingBalance
+            );
     }
 }

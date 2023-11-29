@@ -381,8 +381,8 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (address(stakingToken) == address(0))
             revert SafetyModule_InvalidAuctionId(_auctionId);
-        _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
-        _settleSlashing(stakingToken);
+        stakingToken.returnFunds(address(auctionModule), _remainingBalance);
+        stakingToken.settleSlashing();
         emit AuctionEnded(
             _auctionId,
             address(stakingToken),
@@ -453,31 +453,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function terminateAuction(
-        uint256 _auctionId
-    ) external onlyRole(GOVERNANCE) {
-        auctionModule.terminateAuction(_auctionId);
-        IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
-        IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (
-            address(auctionToken) == address(0) ||
-            address(stakingToken) == address(0)
-        ) revert SafetyModule_InvalidAuctionId(_auctionId);
-        uint256 remainingBalance = auctionToken.balanceOf(
-            address(auctionModule)
-        );
-        _returnFunds(stakingToken, address(auctionModule), remainingBalance);
-        _settleSlashing(stakingToken);
-        emit AuctionTerminated(
-            _auctionId,
-            address(stakingToken),
-            address(auctionToken),
-            remainingBalance
-        );
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance
     function returnFunds(
         address _stakingToken,
         address _from,
@@ -490,21 +465,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         IStakedToken stakingToken = stakingTokens[
             getStakingTokenIdx(_stakingToken)
         ];
-        _returnFunds(stakingToken, _from, _amount);
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance
-    function withdrawFundsRaisedFromAuction(
-        uint256 _amount
-    ) external onlyRole(GOVERNANCE) {
-        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(0);
-        IERC20 paymentToken = auctionModule.paymentToken();
-        paymentToken.safeTransferFrom(
-            address(auctionModule),
-            msg.sender,
-            _amount
-        );
+        stakingToken.returnFunds(_from, _amount);
     }
 
     /// @inheritdoc ISafetyModule
@@ -581,21 +542,5 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         stakingTokens.push(_stakingToken);
         timeOfLastCumRewardUpdate[address(_stakingToken)] = block.timestamp;
         emit StakingTokenAdded(address(_stakingToken));
-    }
-
-    /* ****************** */
-    /*      Internal      */
-    /* ****************** */
-
-    function _returnFunds(
-        IStakedToken _stakingToken,
-        address _from,
-        uint256 _amount
-    ) internal {
-        _stakingToken.returnFunds(_from, _amount);
-    }
-
-    function _settleSlashing(IStakedToken _stakingToken) internal {
-        _stakingToken.settleSlashing();
     }
 }

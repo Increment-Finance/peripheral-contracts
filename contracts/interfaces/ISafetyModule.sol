@@ -41,18 +41,6 @@ interface ISafetyModule is IStakingContract {
         uint256 indexed auctionId
     );
 
-    /// @notice Emitted when an auction is terminated by governance
-    /// @param auctionId ID of the auction
-    /// @param stakingToken Address of the staking token that was slashed for the auction
-    /// @param underlyingToken Address of the underlying token being sold in the auction
-    /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
-    event AuctionTerminated(
-        uint256 indexed auctionId,
-        address stakingToken,
-        address underlyingToken,
-        uint256 underlyingBalanceReturned
-    );
-
     /// @notice Emitted when an auction ends, either because all lots were sold or the time limit was reached
     /// @param auctionId ID of the auction
     /// @param stakingToken Address of the staking token that was slashed for the auction
@@ -205,10 +193,6 @@ interface ISafetyModule is IStakingContract {
         uint32 _timeLimit
     ) external returns (uint256);
 
-    /// @notice Terminates an auction early and returns any remaining underlying tokens to the StakedToken
-    /// @param _auctionId ID of the auction
-    function terminateAuction(uint256 _auctionId) external;
-
     /// @notice Called by the AuctionModule when an auction ends, and returns the remaining balance of
     /// underlying tokens from the auction to the StakedToken
     /// @param _auctionId ID of the auction
@@ -229,10 +213,6 @@ interface ISafetyModule is IStakingContract {
         address _from,
         uint256 _amount
     ) external;
-
-    /// @notice Sends payment tokens raised in auctions from the AuctionModule to the governance treasury
-    /// @param _amount Amount of payment tokens to withdraw
-    function withdrawFundsRaisedFromAuction(uint256 _amount) external;
 
     /// @notice Sets the address of the AuctionModule contract
     /// @param _auctionModule Address of the AuctionModule contract

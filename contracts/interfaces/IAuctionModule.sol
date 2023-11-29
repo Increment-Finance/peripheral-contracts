@@ -42,6 +42,18 @@ interface IAuctionModule {
         uint256 totalFundsRaised
     );
 
+    /// @notice Emitted when an auction is terminated by governance
+    /// @param auctionId ID of the auction
+    /// @param stakingToken Address of the staking token that was slashed for the auction
+    /// @param underlyingToken Address of the underlying token being sold in the auction
+    /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
+    event AuctionTerminated(
+        uint256 indexed auctionId,
+        address stakingToken,
+        address underlyingToken,
+        uint256 underlyingBalanceReturned
+    );
+
     /// @notice Emitted when a lot is sold
     /// @param auctionId ID of the auction
     /// @param buyer Address of the buyer
@@ -184,6 +196,12 @@ interface IAuctionModule {
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
+    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
+    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
+    /// @param _auctionId ID of the auction
+    /// @param _numLotsToBuy Number of lots to buy
+    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+
     /// Sets the token required for payments in all auctions
     /// @param _paymentToken ERC20 token to use for payment
     function setPaymentToken(IERC20 _paymentToken) external;
@@ -218,9 +236,7 @@ interface IAuctionModule {
     /// @param _auctionId ID of the auction
     function completeAuction(uint256 _auctionId) external;
 
-    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
-    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
-    /// @param _auctionId ID of the auction
-    /// @param _numLotsToBuy Number of lots to buy
-    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+    /// @notice Sends payment tokens raised in auctions to the governance treasury
+    /// @param _amount Amount of payment tokens to withdraw
+    function withdrawFundsRaisedFromAuction(uint256 _amount) external;
 }

@@ -1312,10 +1312,6 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.expectRevert(
             abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
         );
-        safetyModule.terminateAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
         vm.startPrank(address(auctionModule));
         safetyModule.auctionEnded(0, 0);
         vm.stopPrank();
@@ -1365,13 +1361,6 @@ contract SafetyModuleTest is PerpetualUtils {
             address(auctionModule),
             0
         );
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                0
-            )
-        );
-        safetyModule.withdrawFundsRaisedFromAuction(0);
     }
 
     function testStakedTokenErrors(
