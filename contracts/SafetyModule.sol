@@ -11,7 +11,6 @@ import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 
 // libraries
-import {LibMath} from "@increment/lib/LibMath.sol";
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -21,7 +20,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// percentage of user funds in the event of an insolvency in the vault
 /// @dev Auction module and related logic is not yet implemented
 contract SafetyModule is ISafetyModule, RewardDistributor {
-    using LibMath for uint256;
     using PRBMathUD60x18 for uint256;
     using SafeERC20 for IERC20;
 
@@ -338,7 +336,7 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         // If the user has never staked, return zero
         if (startTime == 0) return 0;
         uint256 timeDelta = block.timestamp - startTime;
-        uint256 deltaDays = timeDelta.wadDiv(1 days);
+        uint256 deltaDays = timeDelta.div(1 days);
         /**
          * Multiplier formula:
          *   maxRewardMultiplier - 1 / ((1 / smoothingValue) * deltaDays + (1 / (maxRewardMultiplier - 1)))
