@@ -1296,26 +1296,6 @@ contract SafetyModuleTest is PerpetualUtils {
             address(stakedToken1)
         );
 
-        // test invalid auction ID
-        // (auction exists but corresponding StakedToken is not stored in SafetyModule)
-        vm.startPrank(address(safetyModule));
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            numLots,
-            1 ether,
-            lotSize,
-            0.1 ether,
-            1 hours,
-            10 days
-        );
-        vm.stopPrank();
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
-        vm.startPrank(address(auctionModule));
-        safetyModule.auctionEnded(0, 0);
-        vm.stopPrank();
-
         // test insufficient auctionable funds
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1333,33 +1313,6 @@ contract SafetyModuleTest is PerpetualUtils {
             0,
             0,
             1 days
-        );
-
-        // test invalid zero args
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        safetyModule.returnFunds(address(0), address(auctionModule), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                1
-            )
-        );
-        safetyModule.returnFunds(address(stakedToken1), address(0), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                2
-            )
-        );
-        safetyModule.returnFunds(
-            address(stakedToken1),
-            address(auctionModule),
-            0
         );
     }
 

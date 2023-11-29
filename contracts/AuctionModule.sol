@@ -350,19 +350,17 @@ contract AuctionModule is
         // Complete auction
         auctions[_auctionId].completed = true;
 
-        // Approvals
+        // Check funds raised and unsold tokens
         IERC20 auctionToken = auctions[_auctionId].token;
         IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(
             _auctionId
         );
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
         uint256 fundsRaised = fundsRaisedPerAuction[_auctionId];
-        // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
+
+        // If there are unsold tokens, approve the StakedToken to transfer the remaining balance to itself
         if (remainingBalance > 0)
             auctionToken.approve(address(stakedToken), remainingBalance);
-
-        // Notify SafetyModule
-        safetyModule.auctionEnded(_auctionId, remainingBalance);
 
         // Emit events
         emit AuctionEnded(

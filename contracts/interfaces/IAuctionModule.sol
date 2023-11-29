@@ -46,12 +46,12 @@ interface IAuctionModule {
     /// @param auctionId ID of the auction
     /// @param stakingToken Address of the staking token that was slashed for the auction
     /// @param underlyingToken Address of the underlying token being sold in the auction
-    /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
+    /// @param remainingBalance Amount of underlying tokens returned from the AuctionModule
     event AuctionTerminated(
         uint256 indexed auctionId,
         address stakingToken,
         address underlyingToken,
-        uint256 underlyingBalanceReturned
+        uint256 remainingBalance
     );
 
     /// @notice Emitted when a lot is sold

@@ -41,18 +41,6 @@ interface ISafetyModule is IStakingContract {
         uint256 indexed auctionId
     );
 
-    /// @notice Emitted when an auction ends, either because all lots were sold or the time limit was reached
-    /// @param auctionId ID of the auction
-    /// @param stakingToken Address of the staking token that was slashed for the auction
-    /// @param underlyingToken Address of the underlying token being sold in the auction
-    /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
-    event AuctionEnded(
-        uint256 indexed auctionId,
-        address stakingToken,
-        address underlyingToken,
-        uint256 underlyingBalanceReturned
-    );
-
     /// @notice Error returned a caller other than a registered staking token tries to call a restricted function
     /// @param caller Address of the caller
     error SafetyModule_CallerIsNotStakingToken(address caller);
@@ -68,10 +56,6 @@ interface ISafetyModule is IStakingContract {
     /// @notice Error returned when passing an invalid staking token address to a function
     /// @param invalidAddress Address that was passed
     error SafetyModule_InvalidStakingToken(address invalidAddress);
-
-    /// @notice Error returned when passing an invalid auction ID to a function that interacts with the auction module
-    /// @param invalidId ID that was passed
-    error SafetyModule_InvalidAuctionId(uint256 invalidId);
 
     /// @notice Error returned when trying to set the max percent user loss to a value that is too high
     /// @param value Value that was passed
@@ -108,14 +92,6 @@ interface ISafetyModule is IStakingContract {
         uint256 amount,
         uint256 maxAmount
     );
-
-    /// @notice Error returned when a caller passes a zero amount to a function that requires a non-zero value
-    /// @param argIndex Index of the argument where a zero was passed
-    error SafetyModule_InvalidZeroAmount(uint256 argIndex);
-
-    /// @notice Error returned when a caller passes the zero address to a function that requires a non-zero address
-    /// @param argIndex Index of the argument where a zero address was passed
-    error SafetyModule_InvalidZeroAddress(uint256 argIndex);
 
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
@@ -192,27 +168,6 @@ interface ISafetyModule is IStakingContract {
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external returns (uint256);
-
-    /// @notice Called by the AuctionModule when an auction ends, and returns the remaining balance of
-    /// underlying tokens from the auction to the StakedToken
-    /// @param _auctionId ID of the auction
-    /// @param _remainingBalance Amount of underlying tokens remaining from the auction
-    function auctionEnded(
-        uint256 _auctionId,
-        uint256 _remainingBalance
-    ) external;
-
-    /// @notice Donates underlying tokens to a StakedToken contract, raising its exchange rate
-    /// @dev Unsold tokens are returned automatically from the AuctionModule when one ends, so this is meant
-    /// for transferring tokens from some other source, which must approve the StakedToken to transfer first
-    /// @param _stakingToken Address of the StakedToken contract to return underlying tokens to
-    /// @param _from Address of the account to transfer funds from
-    /// @param _amount Amount of underlying tokens to return
-    function returnFunds(
-        address _stakingToken,
-        address _from,
-        uint256 _amount
-    ) external;
 
     /// @notice Sets the address of the AuctionModule contract
     /// @param _auctionModule Address of the AuctionModule contract

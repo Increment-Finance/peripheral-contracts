@@ -183,7 +183,7 @@ contract StakedToken is
     function slash(
         address destination,
         uint256 amount
-    ) external onlySafetyModule returns (uint256) {
+    ) external nonReentrant onlySafetyModule returns (uint256) {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (destination == address(0)) revert StakedToken_InvalidZeroAddress();
         if (isInPostSlashingState)
@@ -211,29 +211,6 @@ contract StakedToken is
 
         emit Slashed(destination, amount, underlyingAmount);
         return underlyingAmount;
-    }
-
-    /**
-     * @inheritdoc IStakedToken
-     * @dev Only callable by the SafetyModule contract
-     */
-    function returnFunds(
-        address from,
-        uint256 amount
-    ) external onlySafetyModule {
-        if (amount == 0) revert StakedToken_InvalidZeroAmount();
-        if (from == address(0)) revert StakedToken_InvalidZeroAddress();
-        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
-        emit FundsReturned(from, amount);
-    }
-
-    /**
-     * @inheritdoc IStakedToken
-     * @dev Only callable by the SafetyModule contract
-     */
-    function settleSlashing() external onlySafetyModule {
-        isInPostSlashingState = false;
-        emit SlashingSettled();
     }
 
     /**
@@ -291,6 +268,33 @@ contract StakedToken is
     /* ****************** */
     /*     Governance     */
     /* ****************** */
+
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the governance contract
+     */
+    function returnFunds(
+        address from,
+        uint256 amount
+    ) external nonReentrant onlyRole(GOVERNANCE) {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (from == address(0)) revert StakedToken_InvalidZeroAddress();
+        _updateExchangeRate(
+            UNDERLYING_TOKEN.balanceOf(address(this)) + amount,
+            totalSupply()
+        );
+        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
+        emit FundsReturned(from, amount);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the governance contract
+     */
+    function settleSlashing() external onlyRole(GOVERNANCE) {
+        isInPostSlashingState = false;
+        emit SlashingSettled();
+    }
 
     /**
      * @inheritdoc IStakedToken

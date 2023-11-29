@@ -64,14 +64,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         _;
     }
 
-    /// @notice Modifier for functions that can only be called by the AuctionModule contract,
-    /// i.e., `auctionEnded`
-    modifier onlyAuctionModule() {
-        if (msg.sender != address(auctionModule))
-            revert SafetyModule_CallerIsNotAuctionModule(msg.sender);
-        _;
-    }
-
     /// @notice SafetyModule constructor
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _maxPercentUserLoss The max percentage of user funds that can be sold at auction, normalized to 1e18
@@ -369,29 +361,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     }
 
     /* ****************** */
-    /*   Auction Module   */
-    /* ****************** */
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by the auction module
-    function auctionEnded(
-        uint256 _auctionId,
-        uint256 _remainingBalance
-    ) external onlyAuctionModule {
-        IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (address(stakingToken) == address(0))
-            revert SafetyModule_InvalidAuctionId(_auctionId);
-        stakingToken.returnFunds(address(auctionModule), _remainingBalance);
-        stakingToken.settleSlashing();
-        emit AuctionEnded(
-            _auctionId,
-            address(stakingToken),
-            address(stakingToken.getUnderlyingToken()),
-            _remainingBalance
-        );
-    }
-
-    /* ****************** */
     /*     Governance     */
     /* ****************** */
 
@@ -449,23 +418,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             auctionId
         );
         return auctionId;
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance
-    function returnFunds(
-        address _stakingToken,
-        address _from,
-        uint256 _amount
-    ) external onlyRole(GOVERNANCE) {
-        if (_stakingToken == address(0))
-            revert SafetyModule_InvalidZeroAddress(0);
-        if (_from == address(0)) revert SafetyModule_InvalidZeroAddress(1);
-        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(2);
-        IStakedToken stakingToken = stakingTokens[
-            getStakingTokenIdx(_stakingToken)
-        ];
-        stakingToken.returnFunds(_from, _amount);
     }
 
     /// @inheritdoc ISafetyModule
