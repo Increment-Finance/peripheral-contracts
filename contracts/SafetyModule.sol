@@ -184,8 +184,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             newPosition -
             prevPosition;
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
-        for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
-            address token = rewardTokensPerMarket[market][i];
+        uint256 numTokens = rewardTokens.length;
+        for (uint256 i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
             uint256 newRewards = prevPosition
                 .mul(
@@ -262,8 +263,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         if (totalLiquidityPerMarket[market] == 0) return;
         updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
-        for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
-            address token = rewardTokensPerMarket[market][i];
+        uint256 numTokens = rewardTokens.length;
+        for (uint256 i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
             uint256 newRewards = userPosition
                 .mul(
                     cumulativeRewardPerLpToken[token][market] -

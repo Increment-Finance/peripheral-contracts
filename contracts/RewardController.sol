@@ -51,12 +51,12 @@ abstract contract RewardController is
     /// @notice Minimum reduction factor, applies to all reward tokens
     uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
 
-    /// @notice Maximum number of reward tokens allowed for each market
+    /// @notice Maximum number of reward tokens allowed
     uint256 public constant MAX_REWARD_TOKENS = 10;
 
-    /// @notice List of reward token addresses for each market
+    /// @notice List of reward token addresses
     /// @dev Length must be <= MAX_REWARD_TOKENS
-    mapping(address => address[]) public rewardTokensPerMarket;
+    address[] public rewardTokens;
 
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) public rewardInfoByToken;
@@ -105,10 +105,8 @@ abstract contract RewardController is
     /* ******************* */
 
     /// @inheritdoc IRewardController
-    function getRewardTokenCount(
-        address market
-    ) external view returns (uint256) {
-        return rewardTokensPerMarket[market].length;
+    function getRewardTokenCount() external view returns (uint256) {
+        return rewardTokens.length;
     }
 
     /// @inheritdoc IRewardController
@@ -183,24 +181,6 @@ abstract contract RewardController is
         ) {
             address market = rewardInfoByToken[rewardToken].marketAddresses[i];
             updateMarketRewards(market);
-            // Check if market is being removed from rewards
-            bool found = false;
-            for (uint j; j < markets.length; ++j) {
-                if (markets[j] != market) continue;
-                found = true;
-                break;
-            }
-            if (found) continue;
-            // Remove token from market's list of reward tokens
-            for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
-                if (rewardTokensPerMarket[market][j] != rewardToken) continue;
-                rewardTokensPerMarket[market][j] = rewardTokensPerMarket[
-                    market
-                ][rewardTokensPerMarket[market].length - 1];
-                rewardTokensPerMarket[market].pop();
-                emit MarketRemovedFromRewards(market, rewardToken);
-                break;
-            }
         }
         // Replace stored lists of market addresses and weights
         rewardInfoByToken[rewardToken].marketAddresses = markets;
@@ -213,18 +193,6 @@ abstract contract RewardController is
             if (weight > 10000)
                 revert RewardController_WeightExceedsMax(weight, 10000);
             totalWeight += weight;
-            if (weight > 0) {
-                // Check if token is already registered for this market
-                bool found = false;
-                for (uint j; j < rewardTokensPerMarket[market].length; ++j) {
-                    if (rewardTokensPerMarket[market][j] != rewardToken)
-                        continue;
-                    found = true;
-                    break;
-                }
-                // If the token was not previously registered for this market, add it
-                if (!found) rewardTokensPerMarket[market].push(rewardToken);
-            }
             emit NewWeight(market, rewardToken, weight);
         }
         if (totalWeight != 10000)
