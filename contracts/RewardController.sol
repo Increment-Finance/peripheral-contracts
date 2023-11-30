@@ -59,7 +59,7 @@ abstract contract RewardController is
     address[] public rewardTokens;
 
     /// @notice Info for each registered reward token
-    mapping(address => RewardInfo) private rewardInfoByToken;
+    mapping(address => RewardInfo) internal rewardInfoByToken;
 
     /* ****************** */
     /*      Abstract      */
