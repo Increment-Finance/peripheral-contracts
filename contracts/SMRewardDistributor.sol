@@ -200,15 +200,14 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         nonReentrant
     {
         uint256 userPosition = lpPositionsPerUser[user][market];
-        uint256 currentPosition = getCurrentPosition(user, market);
-        if (userPosition != currentPosition)
+        if (userPosition != getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 userPosition,
-                currentPosition
+                getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
         updateMarketRewards(market);
@@ -301,8 +300,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         uint256 startTime = multiplierStartTimeByUser[_user][_stakingToken];
         // If the user has never staked, return zero
         if (startTime == 0) return 0;
-        uint256 timeDelta = block.timestamp - startTime;
-        uint256 deltaDays = timeDelta.div(1 days);
+        uint256 deltaDays = (block.timestamp - startTime).div(1 days);
         /**
          * Multiplier formula:
          *   maxRewardMultiplier - 1 / ((1 / smoothingValue) * deltaDays + (1 / (maxRewardMultiplier - 1)))

@@ -69,8 +69,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             marketWeights: _initialRewardWeights
         });
         for (uint256 i; i < numMarkets; ++i) {
-            uint256 idx = getMarketIdx(i);
-            address market = getMarketAddress(idx);
+            address market = getMarketAddress(getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
             timeOfLastCumRewardUpdate[market] = block.timestamp;
         }

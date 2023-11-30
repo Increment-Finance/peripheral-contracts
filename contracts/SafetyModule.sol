@@ -103,7 +103,8 @@ contract SafetyModule is
 
     /// @inheritdoc ISafetyModule
     function getStakingTokenIdx(address token) public view returns (uint256) {
-        for (uint256 i; i < stakingTokens.length; ++i) {
+        uint256 numTokens = stakingTokens.length;
+        for (uint256 i; i < numTokens; ++i) {
             if (address(stakingTokens[i]) == token) return i;
         }
         revert SafetyModule_InvalidStakingToken(token);
@@ -186,12 +187,10 @@ contract SafetyModule is
 
         // Make sure the amount of underlying tokens transferred to the auction module is enough to
         // cover the initial lot size and number of lots to auction
-        uint256 initialAuctionAmount = uint256(_initialLotSize) *
-            uint256(_numLots);
-        if (underlyingAmount < initialAuctionAmount)
+        if (underlyingAmount < uint256(_initialLotSize) * uint256(_numLots))
             revert SafetyModule_InsufficientSlashedTokensForAuction(
                 stakedToken.getUnderlyingToken(),
-                initialAuctionAmount,
+                uint256(_initialLotSize) * uint256(_numLots),
                 underlyingAmount
             );
 
@@ -315,7 +314,8 @@ contract SafetyModule is
     function addStakingToken(
         IStakedToken _stakingToken
     ) external onlyRole(GOVERNANCE) {
-        for (uint i; i < stakingTokens.length; ++i) {
+        uint256 numTokens = stakingTokens.length;
+        for (uint i; i < numTokens; ++i) {
             if (stakingTokens[i] == _stakingToken)
                 revert SafetyModule_StakingTokenAlreadyRegistered(
                     address(_stakingToken)
