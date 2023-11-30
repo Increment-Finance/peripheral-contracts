@@ -459,7 +459,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(1 days);
 
         // Get reward preview
-        uint256 rewardPreview = rewardDistributor.viewNewRewardAccrual(
+        uint256 rewardPreview = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -660,10 +660,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
         );
-        newRewardDistributor.viewNewRewardAccrual(
-            address(stakedToken1),
-            liquidityProviderTwo
-        );
+        _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo);
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -698,8 +695,9 @@ contract SafetyModuleTest is PerpetualUtils {
                 address(rewardsToken),
                 address(stakedToken2)
             );
-        (, , , uint256 inflationRate, ) = newRewardDistributor
-            .rewardInfoByToken(address(rewardsToken));
+        uint256 inflationRate = newRewardDistributor.getInitialInflationRate(
+            address(rewardsToken)
+        );
         uint256 totalLiquidity1 = newRewardDistributor.totalLiquidityPerMarket(
             address(stakedToken1)
         );
@@ -743,7 +741,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(10 days);
 
         // Get reward preview
-        uint256 rewardPreview = rewardDistributor.viewNewRewardAccrual(
+        uint256 rewardPreview = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -768,7 +766,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(1 days);
 
         // Get second reward preview
-        uint256 rewardPreview2 = rewardDistributor.viewNewRewardAccrual(
+        uint256 rewardPreview2 = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -849,7 +847,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(10 days);
 
         // Get reward preview, expecting it to be 0
-        uint256 rewardPreview = rewardDistributor.viewNewRewardAccrual(
+        uint256 rewardPreview = _viewNewRewardAccrual(
             address(stakedToken3),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -1550,5 +1548,57 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         vm.stopPrank();
+    }
+
+    function _viewNewRewardAccrual(
+        address market,
+        address user
+    ) public view returns (uint256[] memory) {
+        uint256 numTokens = rewardDistributor.getRewardTokenCount();
+        uint256[] memory newRewards = new uint256[](numTokens);
+        for (uint i; i < numTokens; ++i) {
+            newRewards[i] = _viewNewRewardAccrual(
+                market,
+                user,
+                rewardDistributor.rewardTokens(i)
+            );
+        }
+        return newRewards;
+    }
+
+    function _viewNewRewardAccrual(
+        address market,
+        address user,
+        address token
+    ) internal view returns (uint256) {
+        uint256 timeOfLastCumRewardUpdate = rewardDistributor
+            .timeOfLastCumRewardUpdate(market);
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate;
+        if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
+        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+        (, uint16[] memory marketWeights) = rewardDistributor.getRewardWeights(
+            token
+        );
+        uint256 newMarketRewards = (((rewardDistributor.getInflationRate(
+            token
+        ) *
+            marketWeights[
+                rewardDistributor.getMarketWeightIdx(token, market)
+            ]) / 10000) * deltaTime) / 365 days;
+        uint256 newCumRewardPerLpToken = rewardDistributor
+            .cumulativeRewardPerLpToken(token, market) +
+            (newMarketRewards * 1e18) /
+            rewardDistributor.totalLiquidityPerMarket(market);
+        uint256 newUserRewards = rewardDistributor
+            .lpPositionsPerUser(user, market)
+            .wadMul(
+                (newCumRewardPerLpToken -
+                    rewardDistributor.cumulativeRewardPerLpTokenPerUser(
+                        user,
+                        token,
+                        market
+                    ))
+            );
+        return newUserRewards;
     }
 }
