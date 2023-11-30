@@ -190,6 +190,11 @@ interface IRewardController {
         address rewardToken
     ) external view returns (address[] memory, uint16[] memory);
 
+    /// @notice Gets whether a reward token is paused
+    /// @param rewardToken Address of the reward token
+    /// @return True if the reward token is paused, false otherwise
+    function isTokenPaused(address rewardToken) external view returns (bool);
+
     /// @notice Updates the reward accumulator for a given market
     /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
     /// @param market Address of the market

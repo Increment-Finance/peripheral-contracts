@@ -59,7 +59,7 @@ abstract contract RewardController is
     address[] public rewardTokens;
 
     /// @notice Info for each registered reward token
-    mapping(address => RewardInfo) public rewardInfoByToken;
+    mapping(address => RewardInfo) private rewardInfoByToken;
 
     /* ****************** */
     /*      Abstract      */
@@ -152,6 +152,11 @@ abstract contract RewardController is
             rewardInfoByToken[rewardToken].marketAddresses,
             rewardInfoByToken[rewardToken].marketWeights
         );
+    }
+
+    /// @inheritdoc IRewardController
+    function isTokenPaused(address rewardToken) external view returns (bool) {
+        return rewardInfoByToken[rewardToken].paused;
     }
 
     /* ****************** */
