@@ -14,7 +14,6 @@ import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 
 // libraries
-import {LibMath} from "@increment/lib/LibMath.sol";
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -29,7 +28,6 @@ contract SafetyModule is
     Pausable,
     ReentrancyGuard
 {
-    using LibMath for uint256;
     using PRBMathUD60x18 for uint256;
     using SafeERC20 for IERC20;
 
