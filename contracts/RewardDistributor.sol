@@ -302,15 +302,7 @@ abstract contract RewardDistributor is
         uint256 numMarkets = getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
             address market = getMarketAddress(getMarketIdx(i));
-            if (lpPositionsPerUser[msg.sender][market] != 0)
-                revert RewardDistributor_PositionAlreadyRegistered(
-                    msg.sender,
-                    market,
-                    lpPositionsPerUser[msg.sender][market]
-                );
-            uint256 lpPosition = getCurrentPosition(msg.sender, market);
-            lpPositionsPerUser[msg.sender][market] = lpPosition;
-            totalLiquidityPerMarket[market] += lpPosition;
+            _registerPosition(msg.sender, market);
         }
     }
 
@@ -320,15 +312,7 @@ abstract contract RewardDistributor is
     ) external nonReentrant {
         for (uint i; i < _markets.length; ++i) {
             address market = _markets[i];
-            if (lpPositionsPerUser[msg.sender][market] != 0)
-                revert RewardDistributor_PositionAlreadyRegistered(
-                    msg.sender,
-                    market,
-                    lpPositionsPerUser[msg.sender][market]
-                );
-            uint256 lpPosition = getCurrentPosition(msg.sender, market);
-            lpPositionsPerUser[msg.sender][market] = lpPosition;
-            totalLiquidityPerMarket[market] += lpPosition;
+            _registerPosition(msg.sender, market);
         }
     }
 
@@ -446,5 +430,17 @@ abstract contract RewardDistributor is
     ) internal view returns (uint256) {
         IERC20Metadata rewardToken = IERC20Metadata(_token);
         return rewardToken.balanceOf(ecosystemReserve);
+    }
+
+    function _registerPosition(address _user, address _market) internal {
+        if (lpPositionsPerUser[_user][_market] != 0)
+            revert RewardDistributor_PositionAlreadyRegistered(
+                _user,
+                _market,
+                lpPositionsPerUser[_user][_market]
+            );
+        uint256 lpPosition = getCurrentPosition(_user, _market);
+        lpPositionsPerUser[_user][_market] = lpPosition;
+        totalLiquidityPerMarket[_market] += lpPosition;
     }
 }
