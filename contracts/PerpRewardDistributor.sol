@@ -6,7 +6,6 @@ import "./RewardDistributor.sol";
 
 // interfaces
 import "./interfaces/IPerpRewardDistributor.sol";
-import "./interfaces/IRewardController.sol";
 
 /// @title PerpRewardDistributor
 /// @author webthethird
@@ -58,7 +57,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
-        uint256 numMarkets = getNumMarkets();
+        uint256 numMarkets = _getNumMarkets();
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             paused: false,
@@ -69,7 +68,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             marketWeights: _initialRewardWeights
         });
         for (uint256 i; i < numMarkets; ++i) {
-            address market = getMarketAddress(getMarketIdx(i));
+            address market = _getMarketAddress(_getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
             timeOfLastCumRewardUpdate[market] = block.timestamp;
         }
@@ -80,42 +79,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             _initialInflationRate,
             _initialReductionFactor
         );
-    }
-
-    /* ****************** */
-    /*   Market Getters   */
-    /* ****************** */
-
-    /// @inheritdoc IRewardController
-    function getNumMarkets() public view override returns (uint256) {
-        return clearingHouse.getNumMarkets();
-    }
-
-    /// @inheritdoc IRewardController
-    function getMaxMarketIdx() public view override returns (uint256) {
-        return clearingHouse.marketIds() - 1;
-    }
-
-    /// @inheritdoc IRewardController
-    function getMarketAddress(
-        uint256 idx
-    ) public view override returns (address) {
-        if (idx > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(idx, getMaxMarketIdx());
-        return address(clearingHouse.perpetuals(idx));
-    }
-
-    /// @inheritdoc IRewardController
-    function getMarketIdx(uint256 i) public view override returns (uint256) {
-        return clearingHouse.id(i);
-    }
-
-    /// @inheritdoc IRewardController
-    function getCurrentPosition(
-        address user,
-        address market
-    ) public view override returns (uint256) {
-        return IPerpetual(market).getLpLiquidity(user);
     }
 
     /* ****************** */
@@ -130,9 +93,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address market,
         address user
     ) external virtual override nonReentrant onlyClearingHouse {
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
-        uint256 newLpPosition = getCurrentPosition(user, market);
+        uint256 newLpPosition = _getCurrentPosition(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens; ++i) {
             address token = rewardTokens[i];
@@ -212,17 +175,17 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     earlyWithdrawalThreshold
             );
         uint256 lpPosition = lpPositionsPerUser[user][market];
-        if (lpPosition != getCurrentPosition(user, market))
+        if (lpPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 lpPosition,
-                getCurrentPosition(user, market)
+                _getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 numTokens = rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
             address token = rewardTokens[i];
@@ -300,5 +263,45 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @return True if paused, false otherwise
     function paused() public view override returns (bool) {
         return super.paused() || Pausable(address(clearingHouse)).paused();
+    }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    /// @inheritdoc RewardController
+    function _getNumMarkets() internal view override returns (uint256) {
+        return clearingHouse.getNumMarkets();
+    }
+
+    /// @inheritdoc RewardController
+    function _getMaxMarketIdx() internal view override returns (uint256) {
+        return clearingHouse.marketIds() - 1;
+    }
+
+    /// @inheritdoc RewardController
+    function _getMarketAddress(
+        uint256 idx
+    ) internal view override returns (address) {
+        address market = address(clearingHouse.perpetuals(idx));
+        if (market == address(0))
+            revert RewardDistributor_InvalidMarketIndex(
+                idx,
+                _getMaxMarketIdx()
+            );
+        return market;
+    }
+
+    /// @inheritdoc RewardController
+    function _getMarketIdx(uint256 i) internal view override returns (uint256) {
+        return clearingHouse.id(i);
+    }
+
+    /// @inheritdoc RewardController
+    function _getCurrentPosition(
+        address user,
+        address market
+    ) internal view override returns (uint256) {
+        return IPerpetual(market).getLpLiquidity(user);
     }
 }

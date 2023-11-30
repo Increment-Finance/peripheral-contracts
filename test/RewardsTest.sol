@@ -199,27 +199,6 @@ contract RewardsTest is PerpetualUtils {
 
     function testDeployment() public {
         assertEq(
-            rewardsDistributor.getNumMarkets(),
-            2,
-            "Market count mismatch"
-        );
-        address marketAddress1 = rewardsDistributor.getMarketAddress(0);
-        assertEq(
-            rewardsDistributor.getMaxMarketIdx(),
-            1,
-            "Max market index mismatch"
-        );
-        assertEq(marketAddress1, address(perpetual), "Market address mismatch");
-        assertApproxEqRel(
-            rewardsDistributor.getCurrentPosition(
-                liquidityProviderOne,
-                address(perpetual)
-            ),
-            4867996525552487585967, // position from initial tests after providing liquidity in setUp()
-            5e16, // 5% tolerance to account for fluctuation in oracle price
-            "Position mismatch"
-        );
-        assertEq(
             rewardsDistributor.getRewardTokenCount(),
             1,
             "Token count mismatch"
@@ -522,7 +501,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        uint256 inflationRate = rewardsDistributor.getInitialInflationRate(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -556,14 +535,8 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
 
-        uint256 lpBalance1 = rewardsDistributor.getCurrentPosition(
-            liquidityProviderOne,
-            address(perpetual)
-        );
-        uint256 lpBalance2 = rewardsDistributor.getCurrentPosition(
-            liquidityProviderOne,
-            address(perpetual2)
-        );
+        uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderOne);
+        uint256 lpBalance2 = perpetual2.getLpLiquidity(liquidityProviderOne);
 
         uint256 expectedAccruedRewards1 = (cumulativeRewards1 * lpBalance1) /
             1e18;
@@ -980,9 +953,7 @@ contract RewardsTest is PerpetualUtils {
         // pause accrual
         vm.startPrank(address(this));
         rewardsDistributor.setPaused(address(rewardsToken), true);
-        (, bool paused, , , ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
+        bool paused = rewardsDistributor.isTokenPaused(address(rewardsToken));
         assertTrue(paused, "Rewards not paused");
 
         // skip some time
@@ -998,9 +969,7 @@ contract RewardsTest is PerpetualUtils {
 
         // unpause accrual
         rewardsDistributor.setPaused(address(rewardsToken), false);
-        (, paused, , , ) = rewardsDistributor.rewardInfoByToken(
-            address(rewardsToken)
-        );
+        paused = rewardsDistributor.isTokenPaused(address(rewardsToken));
         assertTrue(!paused, "Rewards not unpaused");
 
         // skip some more time
@@ -1083,10 +1052,6 @@ contract RewardsTest is PerpetualUtils {
         // skip some time
         skip(10 days);
 
-        // call updateMarketRewards because Foundry doesn't think it's being covered
-        // (even though it gets called so frequently by other functions called here)
-        rewardsDistributor.updateMarketRewards(address(perpetual3));
-
         // set new market weights
         {
             address[] memory markets = new address[](3);
@@ -1121,7 +1086,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual3)
             );
-        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        uint256 inflationRate = rewardsDistributor.getInitialInflationRate(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1265,7 +1230,7 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken2),
                 address(perpetual2)
             );
-        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
+        uint256 inflationRate = rewardsDistributor.getInitialInflationRate(
             address(rewardsToken2)
         );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
@@ -1337,34 +1302,6 @@ contract RewardsTest is PerpetualUtils {
         vBase3.transferPerpOwner(address(perpetual3));
         vQuote3.transferPerpOwner(address(perpetual3));
         clearingHouse.allowListPerpetual(perpetual3);
-        console.log("Added new perpetual: %s", address(perpetual3));
-        assertEq(
-            rewardsDistributor.getMarketAddress(2),
-            address(perpetual3),
-            "Incorrect market address"
-        );
-        assertEq(
-            rewardsDistributor.getNumMarkets(),
-            2,
-            "Incorrect number of markets"
-        );
-        assertEq(
-            rewardsDistributor.getMarketIdx(1),
-            2,
-            "Incorrect market index"
-        );
-        // expect a revert from getMarketWeightIdx, since the market hasn't been added to rewards yet
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                address(perpetual3),
-                address(rewardsToken2)
-            )
-        );
-        rewardsDistributor.getMarketWeightIdx(
-            address(rewardsToken2),
-            address(perpetual3)
-        );
 
         // expect a revert from viewNewRewardAccrual, since timeOfLastCumRewardUpdate[market] == 0
         vm.expectRevert(
@@ -1551,8 +1488,9 @@ contract RewardsTest is PerpetualUtils {
                 address(rewardsToken),
                 address(perpetual2)
             );
-        (, , , uint256 inflationRate, ) = newRewardsDistributor
-            .rewardInfoByToken(address(rewardsToken));
+        uint256 inflationRate = newRewardsDistributor.getInitialInflationRate(
+            address(rewardsToken)
+        );
         uint256 totalLiquidity1 = rewardsDistributor.totalLiquidityPerMarket(
             address(perpetual)
         );
@@ -1582,26 +1520,6 @@ contract RewardsTest is PerpetualUtils {
             invalidMarket != address(perpetual) &&
                 invalidMarket != address(perpetual2)
         );
-        // getters
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                9,
-                1
-            )
-        );
-        rewardsDistributor.getMarketAddress(9);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                invalidMarket,
-                address(rewardsToken)
-            )
-        );
-        rewardsDistributor.getMarketWeightIdx(
-            address(rewardsToken),
-            invalidMarket
-        );
 
         // updateStakingPosition
         vm.expectRevert(
@@ -1616,7 +1534,7 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.startPrank(address(clearingHouse));
         // invalidMarket is not a Perpetual contract, so calling IPerpetual(invalidMarket).getLpLiquidity()
-        // in getCurrentPosition (called by updateStakingPosition), will revert due to missing function
+        // in _getCurrentPosition (called by updateStakingPosition), will revert due to missing function
         vm.expectRevert();
         rewardsDistributor.updateStakingPosition(
             invalidMarket,
@@ -1861,8 +1779,8 @@ contract RewardsTest is PerpetualUtils {
             .cumulativeRewardPerLpToken(token, address(perpetual));
         uint256 cumulativeRewards2 = rewardsDistributor
             .cumulativeRewardPerLpToken(token, address(perpetual2));
-        (, , , uint256 inflationRate, ) = rewardsDistributor.rewardInfoByToken(
-            token
+        uint256 inflationRate = rewardsDistributor.getInitialInflationRate(
+            address(token)
         );
         {
             uint256 expectedCumulativeRewards1 = (((((inflationRate *

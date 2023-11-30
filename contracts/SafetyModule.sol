@@ -2,7 +2,7 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {RewardDistributor} from "./RewardDistributor.sol";
+import {RewardDistributor, RewardController} from "./RewardDistributor.sol";
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -88,37 +88,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /*      Markets       */
     /* ****************** */
 
-    /// @inheritdoc RewardDistributor
-    function getNumMarkets() public view virtual override returns (uint256) {
-        return stakingTokens.length;
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getMaxMarketIdx() public view override returns (uint256) {
-        return stakingTokens.length - 1;
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getMarketAddress(
-        uint256 index
-    ) public view virtual override returns (address) {
-        if (index > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(
-                index,
-                getMaxMarketIdx()
-            );
-        return address(stakingTokens[index]);
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getMarketIdx(
-        uint256 i
-    ) public view virtual override returns (uint256) {
-        if (i > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(i, getMaxMarketIdx());
-        return i;
-    }
-
     /// @inheritdoc ISafetyModule
     function getStakingTokenIdx(address token) public view returns (uint256) {
         uint256 numTokens = stakingTokens.length;
@@ -126,17 +95,6 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
             if (address(stakingTokens[i]) == token) return i;
         }
         revert SafetyModule_InvalidStakingToken(token);
-    }
-
-    /// @notice Returns the user's staking token balance
-    /// @param staker Address of the user
-    /// @param token Address of the staking token
-    /// @return Current balance of the user in the staking token
-    function getCurrentPosition(
-        address staker,
-        address token
-    ) public view virtual override returns (uint256) {
-        return IStakedToken(token).balanceOf(staker);
     }
 
     /// @inheritdoc ISafetyModule
@@ -166,9 +124,9 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         onlyStakingToken
     {
         getStakingTokenIdx(market); // Called to make sure the staking token is registered
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
-        uint256 newPosition = getCurrentPosition(user, market);
+        uint256 newPosition = _getCurrentPosition(user, market);
         totalLiquidityPerMarket[market] =
             totalLiquidityPerMarket[market] +
             newPosition -
@@ -240,17 +198,17 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         address user
     ) public virtual override nonReentrant {
         uint256 userPosition = lpPositionsPerUser[user][market];
-        if (userPosition != getCurrentPosition(user, market))
+        if (userPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 userPosition,
-                getCurrentPosition(user, market)
+                _getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens; ++i) {
@@ -483,5 +441,51 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
         stakingTokens.push(_stakingToken);
         timeOfLastCumRewardUpdate[address(_stakingToken)] = block.timestamp;
         emit StakingTokenAdded(address(_stakingToken));
+    }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    /// @inheritdoc RewardController
+    function _getNumMarkets() internal view virtual override returns (uint256) {
+        return stakingTokens.length;
+    }
+
+    /// @inheritdoc RewardController
+    function _getMaxMarketIdx() internal view override returns (uint256) {
+        return stakingTokens.length - 1;
+    }
+
+    /// @inheritdoc RewardController
+    function _getMarketAddress(
+        uint256 index
+    ) internal view virtual override returns (address) {
+        if (index > _getMaxMarketIdx())
+            revert RewardDistributor_InvalidMarketIndex(
+                index,
+                _getMaxMarketIdx()
+            );
+        return address(stakingTokens[index]);
+    }
+
+    /// @inheritdoc RewardController
+    function _getMarketIdx(
+        uint256 i
+    ) internal view virtual override returns (uint256) {
+        if (i > _getMaxMarketIdx())
+            revert RewardDistributor_InvalidMarketIndex(i, _getMaxMarketIdx());
+        return i;
+    }
+
+    /// @notice Returns the user's staking token balance
+    /// @param staker Address of the user
+    /// @param token Address of the staking token
+    /// @return Current balance of the user in the staking token
+    function _getCurrentPosition(
+        address staker,
+        address token
+    ) internal view virtual override returns (uint256) {
+        return IStakedToken(token).balanceOf(staker);
     }
 }

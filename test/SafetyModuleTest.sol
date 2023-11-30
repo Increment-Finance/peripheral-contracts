@@ -248,36 +248,13 @@ contract SafetyModuleTest is PerpetualUtils {
     }
 
     function testDeployment() public {
-        assertEq(safetyModule.getNumMarkets(), 2, "Market count mismatch");
-        assertEq(
-            safetyModule.getMaxMarketIdx(),
-            1,
-            "Max market index mismatch"
-        );
-        assertEq(
-            safetyModule.getMarketAddress(0),
-            address(stakedToken1),
-            "Market address mismatch"
-        );
-        assertEq(safetyModule.getMarketIdx(0), 0, "Market index mismatch");
         assertEq(
             safetyModule.getStakingTokenIdx(address(stakedToken2)),
             1,
             "Staking token index mismatch"
         );
         assertEq(
-            safetyModule.getMarketWeightIdx(
-                address(rewardsToken),
-                address(stakedToken1)
-            ),
-            0,
-            "Market reward weight index mismatch"
-        );
-        assertEq(
-            safetyModule.getCurrentPosition(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            ),
+            stakedToken1.balanceOf(liquidityProviderTwo),
             0,
             "Current position mismatch"
         );
@@ -291,10 +268,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
-            safetyModule.getCurrentPosition(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            ),
+            stakedToken1.balanceOf(liquidityProviderTwo),
             100 ether,
             "Current position mismatch"
         );
@@ -683,7 +657,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             address(stakedToken2)
         );
-        (, , , uint256 inflationRate, ) = newSafetyModule.rewardInfoByToken(
+        uint256 inflationRate = newSafetyModule.getInitialInflationRate(
             address(rewardsToken)
         );
         uint256 totalLiquidity1 = newSafetyModule.totalLiquidityPerMarket(
@@ -1223,14 +1197,6 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.getStakingTokenIdx(invalidMarket);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                invalidMarket,
-                address(rewardsToken)
-            )
-        );
-        safetyModule.getMarketWeightIdx(address(rewardsToken), invalidMarket);
         vm.startPrank(address(stakedToken1));
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1248,37 +1214,6 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
         vm.stopPrank();
-
-        // test invalid market index
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
-        );
-        safetyModule.getMarketAddress(invalidMarketIdx);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
-        );
-        safetyModule.getMarketIdx(invalidMarketIdx);
-
-        // test invalid reward token
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                address(stakedToken1),
-                invalidRewardToken
-            )
-        );
-        safetyModule.getMarketWeightIdx(
-            invalidRewardToken,
-            address(stakedToken1)
-        );
 
         // test insufficient auctionable funds
         vm.expectRevert(

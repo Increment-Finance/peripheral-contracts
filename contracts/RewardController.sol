@@ -59,46 +59,7 @@ abstract contract RewardController is
     address[] public rewardTokens;
 
     /// @notice Info for each registered reward token
-    mapping(address => RewardInfo) public rewardInfoByToken;
-
-    /* ****************** */
-    /*      Abstract      */
-    /* ****************** */
-
-    /// @inheritdoc IRewardController
-    function updateMarketRewards(address market) public virtual;
-
-    /// @inheritdoc IRewardController
-    function getNumMarkets() public view virtual returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMaxMarketIdx() public view virtual returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMarketAddress(
-        uint256 idx
-    ) public view virtual returns (address);
-
-    /// @inheritdoc IRewardController
-    function getMarketIdx(uint256 i) public view virtual returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMarketWeightIdx(
-        address token,
-        address market
-    ) public view virtual returns (uint256) {
-        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
-        for (uint i; i < numMarkets; ++i) {
-            if (rewardInfoByToken[token].marketAddresses[i] == market) return i;
-        }
-        revert RewardController_MarketHasNoRewardWeight(market, token);
-    }
-
-    /// @inheritdoc IRewardController
-    function getCurrentPosition(
-        address user,
-        address market
-    ) public view virtual returns (uint256);
+    mapping(address => RewardInfo) internal rewardInfoByToken;
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -154,6 +115,11 @@ abstract contract RewardController is
         );
     }
 
+    /// @inheritdoc IRewardController
+    function isTokenPaused(address rewardToken) external view returns (bool) {
+        return rewardInfoByToken[rewardToken].paused;
+    }
+
     /* ****************** */
     /*     Governance     */
     /* ****************** */
@@ -179,7 +145,7 @@ abstract contract RewardController is
             .marketAddresses
             .length;
         for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
+            _updateMarketRewards(
                 rewardInfoByToken[rewardToken].marketAddresses[i]
             );
         }
@@ -218,7 +184,7 @@ abstract contract RewardController is
             .marketAddresses
             .length;
         for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
+            _updateMarketRewards(
                 rewardInfoByToken[rewardToken].marketAddresses[i]
             );
         }
@@ -246,9 +212,9 @@ abstract contract RewardController is
         emit NewReductionFactor(rewardToken, newReductionFactor);
     }
 
-    /* ****************** */
-    /*   Emergency Admin  */
-    /* ****************** */
+    /* ***************** */
+    /*  Emergency Admin  */
+    /* ***************** */
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Emergency Admin
@@ -266,11 +232,68 @@ abstract contract RewardController is
                 .marketAddresses
                 .length;
             for (uint i; i < numMarkets; ++i) {
-                updateMarketRewards(
+                _updateMarketRewards(
                     rewardInfoByToken[rewardToken].marketAddresses[i]
                 );
             }
         }
         rewardInfoByToken[rewardToken].paused = paused;
+    }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    /// @notice Updates the reward accumulator for a given market
+    /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
+    /// @param market Address of the market
+    function _updateMarketRewards(address market) internal virtual;
+
+    /// @notice Gets the number of markets to be used for reward distribution
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @return Number of markets
+    function _getNumMarkets() internal view virtual returns (uint256);
+
+    /// @notice Gets the highest valid market index
+    /// @return Highest valid market index
+    function _getMaxMarketIdx() internal view virtual returns (uint256);
+
+    /// @notice Gets the address of a market at a given index
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param idx Index of the market
+    /// @return Address of the market
+    function _getMarketAddress(
+        uint256 idx
+    ) internal view virtual returns (address);
+
+    /// @notice Gets the index of an allowlisted market
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param i Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule)
+    /// @return Index of the market in the market list
+    function _getMarketIdx(uint256 i) internal view virtual returns (uint256);
+
+    /// @notice Returns the current position of the user in the market (i.e., perpetual market or staked token)
+    /// @param user Address of the user
+    /// @param market Address of the market
+    /// @return Current position of the user in the market
+    function _getCurrentPosition(
+        address user,
+        address market
+    ) internal view virtual returns (uint256);
+
+    /// @notice Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param token Address of the reward token
+    /// @param market Address of the market
+    /// @return Index of the market in the `rewardInfo.marketWeights` array
+    function _getMarketWeightIdx(
+        address token,
+        address market
+    ) internal view virtual returns (uint256) {
+        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
+        for (uint i; i < numMarkets; ++i) {
+            if (rewardInfoByToken[token].marketAddresses[i] == market) return i;
+        }
+        revert RewardController_MarketHasNoRewardWeight(market, token);
     }
 }

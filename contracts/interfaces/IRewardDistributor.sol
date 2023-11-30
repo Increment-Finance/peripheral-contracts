@@ -61,7 +61,7 @@ interface IRewardDistributor {
         address newEcosystemReserve
     );
 
-    /// @notice Error returned when an invalid index is passed into `getMarketAddress`
+    /// @notice Error returned when an invalid index is passed into `_getMarketAddress`
     /// @param index Index that was passed
     /// @param maxIndex Maximum allowed index
     error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
