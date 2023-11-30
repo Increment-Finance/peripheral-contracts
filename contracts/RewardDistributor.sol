@@ -106,7 +106,8 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardController
     function updateMarketRewards(address market) public override {
-        if (rewardTokensPerMarket[market].length == 0) return;
+        uint256 numTokens = rewardTokens.length;
+        if (numTokens == 0) return;
         uint256 liquidity = totalLiquidityPerMarket[market];
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0) return;
@@ -114,8 +115,8 @@ abstract contract RewardDistributor is
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
-        for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
-            address token = rewardTokensPerMarket[market][i];
+        for (uint256 i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
             uint256 weightIdx = getMarketWeightIdx(token, market);
             RewardInfo memory rewardInfo = rewardInfoByToken[token];
             if (
@@ -192,27 +193,25 @@ abstract contract RewardDistributor is
                 _marketWeights.length,
                 _markets.length
             );
+        if (rewardTokens.length >= MAX_REWARD_TOKENS)
+            revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         // Validate weights
         uint16 totalWeight;
-        for (uint i; i < _markets.length; ++i) {
+        uint256 numMarkets = _markets.length;
+        for (uint i; i < numMarkets; ++i) {
             address market = _markets[i];
             updateMarketRewards(market);
             uint16 weight = _marketWeights[i];
             if (weight == 0) continue;
             if (weight > 10000)
                 revert RewardController_WeightExceedsMax(weight, 10000);
-            if (rewardTokensPerMarket[market].length >= MAX_REWARD_TOKENS)
-                revert RewardController_AboveMaxRewardTokens(
-                    MAX_REWARD_TOKENS,
-                    market
-                );
             totalWeight += weight;
-            rewardTokensPerMarket[market].push(_rewardToken);
             emit NewWeight(market, _rewardToken, weight);
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
+        rewardTokens.push(_rewardToken);
         rewardInfoByToken[_rewardToken] = RewardInfo({
             token: IERC20Metadata(_rewardToken),
             paused: false,
@@ -240,30 +239,34 @@ abstract contract RewardDistributor is
             _rewardToken == address(0) ||
             rewardInfo.token != IERC20Metadata(_rewardToken)
         ) revert RewardController_InvalidRewardTokenAddress(_rewardToken);
+
         // Update rewards for all markets before removal
-        for (uint i; i < rewardInfo.marketAddresses.length; ++i) {
-            address market = rewardInfo.marketAddresses[i];
-            updateMarketRewards(market);
-            // The `delete` keyword applied to arrays does not reduce array length
-            uint256 numRewards = rewardTokensPerMarket[market].length;
-            for (uint j = 0; j < numRewards; ++j) {
-                if (rewardTokensPerMarket[market][j] != _rewardToken) continue;
-                // Find the token in the array and swap it with the last element
-                rewardTokensPerMarket[market][j] = rewardTokensPerMarket[
-                    market
-                ][numRewards - 1];
-                // Delete the last element
-                rewardTokensPerMarket[market].pop();
-                break;
-            }
+        uint256 numMarkets = rewardInfo.marketAddresses.length;
+        for (uint i; i < numMarkets; ++i) {
+            updateMarketRewards(rewardInfo.marketAddresses[i]);
         }
+
+        // Remove reward token address from list
+        // The `delete` keyword applied to arrays does not reduce array length
+        uint256 numRewards = rewardTokens.length;
+        for (uint i = 0; i < numRewards; ++i) {
+            if (rewardTokens[i] != _rewardToken) continue;
+            // Find the token in the array and swap it with the last element
+            rewardTokens[i] = rewardTokens[numRewards - 1];
+            // Delete the last element
+            rewardTokens.pop();
+            break;
+        }
+        // Delete reward token info
         delete rewardInfoByToken[_rewardToken];
+
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = _rewardTokenBalance(_rewardToken);
         uint256 unclaimedAccruals = totalUnclaimedRewards[_rewardToken];
         uint256 unaccruedBalance = balance >= unclaimedAccruals
             ? balance - unclaimedAccruals
             : 0;
+
         // Transfer remaining tokens to governance (which is the sender)
         if (unaccruedBalance > 0)
             IERC20Metadata(_rewardToken).safeTransferFrom(
@@ -336,16 +339,7 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function claimRewardsFor(address _user) public override {
-        for (uint i; i < getNumMarkets(); ++i) {
-            uint256 idx = getMarketIdx(i);
-            address market = getMarketAddress(idx);
-            claimRewardsFor(_user, market);
-        }
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function claimRewardsFor(address _user, address _market) public override {
-        claimRewardsFor(_user, rewardTokensPerMarket[_market]);
+        claimRewardsFor(_user, rewardTokens);
     }
 
     /// @inheritdoc IRewardDistributor
@@ -353,11 +347,12 @@ abstract contract RewardDistributor is
         address _user,
         address[] memory _rewardTokens
     ) public override whenNotPaused {
-        for (uint i; i < getNumMarkets(); ++i) {
-            address market = getMarketAddress(getMarketIdx(i));
-            accrueRewards(market, _user);
+        uint256 numMarkets = getNumMarkets();
+        for (uint i; i < numMarkets; ++i) {
+            accrueRewards(getMarketAddress(getMarketIdx(i)), _user);
         }
-        for (uint i; i < _rewardTokens.length; ++i) {
+        uint256 numTokens = _rewardTokens.length;
+        for (uint i; i < numTokens; ++i) {
             address token = _rewardTokens[i];
             uint256 rewards = rewardsAccruedByUser[_user][token];
             if (rewards > 0) {
@@ -380,9 +375,9 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function accrueRewards(address user) external override {
-        for (uint i; i < getNumMarkets(); ++i) {
-            address market = getMarketAddress(getMarketIdx(i));
-            accrueRewards(market, user);
+        uint256 numMarkets = getNumMarkets();
+        for (uint i; i < numMarkets; ++i) {
+            accrueRewards(getMarketAddress(getMarketIdx(i)), user);
         }
     }
 
@@ -394,12 +389,10 @@ abstract contract RewardDistributor is
         address market,
         address user
     ) public view returns (uint256[] memory) {
-        uint256[] memory newRewards = new uint256[](
-            rewardTokensPerMarket[market].length
-        );
-        for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
-            address token = rewardTokensPerMarket[market][i];
-            newRewards[i] = viewNewRewardAccrual(market, user, token);
+        uint256 numTokens = rewardTokens.length;
+        uint256[] memory newRewards = new uint256[](numTokens);
+        for (uint i; i < numTokens; ++i) {
+            newRewards[i] = viewNewRewardAccrual(market, user, rewardTokens[i]);
         }
         return newRewards;
     }

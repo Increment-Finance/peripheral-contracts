@@ -236,12 +236,6 @@ interface IRewardDistributor {
     /// @param _user Address of the user to claim rewards for
     function claimRewardsFor(address _user) external;
 
-    /// @notice Accrues and then distributes rewards for a single market and all of its registered reward tokens
-    /// to the given user
-    /// @param _user Address of the user to claim rewards for
-    /// @param _market Address of the market to claim rewards for
-    function claimRewardsFor(address _user, address _market) external;
-
     /// @notice Accrues and then distributes rewards for all markets that receive any of the provided reward tokens
     /// to the given user
     /// @param _user Address of the user to claim rewards for

@@ -68,13 +68,13 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             marketAddresses: new address[](numMarkets),
             marketWeights: _initialRewardWeights
         });
-        for (uint256 i; i < getNumMarkets(); ++i) {
+        for (uint256 i; i < numMarkets; ++i) {
             uint256 idx = getMarketIdx(i);
             address market = getMarketAddress(idx);
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
-            rewardTokensPerMarket[market].push(_rewardToken);
             timeOfLastCumRewardUpdate[market] = block.timestamp;
         }
+        rewardTokens.push(_rewardToken);
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -134,8 +134,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = getCurrentPosition(user, market);
-        for (uint256 i; i < rewardTokensPerMarket[market].length; ++i) {
-            address token = rewardTokensPerMarket[market][i];
+        uint256 numTokens = rewardTokens.length;
+        for (uint256 i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
             // newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = (prevLpPosition *
                 (cumulativeRewardPerLpToken[token][market] -
@@ -223,8 +224,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             );
         if (totalLiquidityPerMarket[market] == 0) return;
         updateMarketRewards(market);
-        for (uint i; i < rewardTokensPerMarket[market].length; ++i) {
-            address token = rewardTokensPerMarket[market][i];
+        uint256 numTokens = rewardTokens.length;
+        for (uint i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
             uint256 newRewards = (lpPosition *
                 (cumulativeRewardPerLpToken[token][market] -
                     cumulativeRewardPerLpTokenPerUser[user][token][market])) /

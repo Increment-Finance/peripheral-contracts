@@ -220,14 +220,11 @@ contract RewardsTest is PerpetualUtils {
             "Position mismatch"
         );
         assertEq(
-            rewardsDistributor.getRewardTokenCount(address(perpetual)),
+            rewardsDistributor.getRewardTokenCount(),
             1,
             "Token count mismatch"
         );
-        address token = rewardsDistributor.rewardTokensPerMarket(
-            address(perpetual),
-            0
-        );
+        address token = rewardsDistributor.rewardTokens(0);
         assertEq(token, address(rewardsToken), "Reward token mismatch");
         assertEq(
             rewardsDistributor.getInitialTimestamp(token),
@@ -1010,10 +1007,7 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // check that rewards were accrued
-        rewardsDistributor.claimRewardsFor(
-            liquidityProviderTwo,
-            address(perpetual)
-        );
+        rewardsDistributor.claimRewardsFor(liquidityProviderTwo);
         accruedRewards = rewardsToken.balanceOf(liquidityProviderTwo);
         assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
     }

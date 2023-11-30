@@ -840,7 +840,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Check that rewardToken was added to the list of reward tokens for the new staked token
         assertEq(
-            rewardDistributor.rewardTokensPerMarket(address(stakedToken3), 0),
+            rewardDistributor.rewardTokens(0),
             address(rewardsToken),
             "Reward token missing for new staked token"
         );
