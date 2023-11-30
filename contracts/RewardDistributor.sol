@@ -4,7 +4,7 @@ pragma solidity 0.8.16;
 // contracts
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {RewardController, IRewardController} from "./RewardController.sol";
+import {RewardController} from "./RewardController.sol";
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -309,26 +309,6 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function accrueRewards(address market, address user) public virtual;
-
-    /// @inheritdoc IRewardDistributor
-    function viewNewRewardAccrual(
-        address market,
-        address user
-    ) public view returns (uint256[] memory) {
-        uint256 numTokens = rewardTokens.length;
-        uint256[] memory newRewards = new uint256[](numTokens);
-        for (uint i; i < numTokens; ++i) {
-            newRewards[i] = viewNewRewardAccrual(market, user, rewardTokens[i]);
-        }
-        return newRewards;
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function viewNewRewardAccrual(
-        address market,
-        address user,
-        address rewardToken
-    ) public view virtual returns (uint256);
 
     /* ****************** */
     /*      Internal      */

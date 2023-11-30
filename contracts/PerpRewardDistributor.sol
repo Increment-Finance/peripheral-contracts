@@ -202,62 +202,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         }
     }
 
-    /// @notice Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param market Address of the market in `ClearingHouse.perpetuals` to view new rewards for
-    /// @param user Address of the user
-    /// @param token Address of the reward token to view new rewards for
-    /// @return Amount of new rewards that would be accrued to the user
-    function viewNewRewardAccrual(
-        address market,
-        address user,
-        address token
-    ) public view override returns (uint256) {
-        if (
-            block.timestamp <
-            lastDepositTimeByUserByMarket[user][market] +
-                earlyWithdrawalThreshold
-        )
-            revert RewardDistributor_EarlyRewardAccrual(
-                user,
-                market,
-                lastDepositTimeByUserByMarket[user][market] +
-                    earlyWithdrawalThreshold
-            );
-        if (
-            lpPositionsPerUser[user][market] != getCurrentPosition(user, market)
-        )
-            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                lpPositionsPerUser[user][market],
-                getCurrentPosition(user, market)
-            );
-        if (timeOfLastCumRewardUpdate[market] == 0)
-            revert RewardDistributor_UninitializedStartTime(market);
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
-        if (totalLiquidityPerMarket[market] == 0) return 0;
-        RewardInfo memory rewardInfo = rewardInfoByToken[token];
-        uint256 totalTimeElapsed = block.timestamp -
-            rewardInfo.initialTimestamp;
-        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        uint256 inflationRate = rewardInfo.initialInflationRate.div(
-            rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
-        );
-        uint256 newMarketRewards = (((inflationRate *
-            rewardInfo.marketWeights[getMarketWeightIdx(token, market)]) /
-            10000) * deltaTime) / 365 days;
-        uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
-            market
-        ] + (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];
-        uint256 newUserRewards = lpPositionsPerUser[user][market].mul(
-            (newCumRewardPerLpToken -
-                cumulativeRewardPerLpTokenPerUser[user][token][market])
-        );
-        return newUserRewards;
-    }
-
     /// @notice Indicates whether claiming rewards is currently paused
     /// @dev Contract is paused if either this contract or the ClearingHouse has been paused
     /// @return True if paused, false otherwise

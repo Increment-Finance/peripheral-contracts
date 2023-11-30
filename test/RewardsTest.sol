@@ -595,18 +595,18 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // check rewards for token 1
-        uint256[] memory previewAccruals1 = rewardsDistributor
-            .viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
-        uint256[] memory previewAccruals2 = rewardsDistributor
-            .viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
-        uint256[] memory previewAccruals = new uint256[](2);
-        previewAccruals[0] = previewAccruals1[0] + previewAccruals2[0];
-        if (previewAccruals1.length > 1) {
-            previewAccruals[1] = previewAccruals1[1];
-        }
-        if (previewAccruals2.length > 1) {
-            previewAccruals[1] += previewAccruals2[1];
-        }
+        // uint256[] memory previewAccruals1 = rewardsDistributor
+        //     .viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
+        // uint256[] memory previewAccruals2 = rewardsDistributor
+        //     .viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
+        // uint256[] memory previewAccruals = new uint256[](2);
+        // previewAccruals[0] = previewAccruals1[0] + previewAccruals2[0];
+        // if (previewAccruals1.length > 1) {
+        //     previewAccruals[1] = previewAccruals1[1];
+        // }
+        // if (previewAccruals2.length > 1) {
+        //     previewAccruals[1] += previewAccruals2[1];
+        // }
 
         rewardsDistributor.accrueRewards(liquidityProviderOne);
         rewardsDistributor.accrueRewards(liquidityProviderTwo);
@@ -633,18 +633,18 @@ contract RewardsTest is PerpetualUtils {
             marketWeights[1],
             10
         );
-        assertApproxEqRel(
-            accruedRewards,
-            previewAccruals[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1"
-        );
-        assertApproxEqRel(
-            accruedRewards2,
-            previewAccruals[1],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 2"
-        );
+        // assertApproxEqRel(
+        //     accruedRewards,
+        //     previewAccruals[0],
+        //     1e15, // 0.1%
+        //     "Incorrect accrued rewards preview: token 1"
+        // );
+        // assertApproxEqRel(
+        //     accruedRewards2,
+        //     previewAccruals[1],
+        //     1e15, // 0.1%
+        //     "Incorrect accrued rewards preview: token 2"
+        // );
 
         // remove reward token 2
         vm.startPrank(address(this));
@@ -733,8 +733,8 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // check previews and rewards for token 1
-        uint256[] memory previewAccrualsPerp1 = rewardsDistributor
-            .viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
+        // uint256[] memory previewAccrualsPerp1 = rewardsDistributor
+        //     .viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
         rewardsDistributor.accrueRewards(
             address(perpetual),
             liquidityProviderTwo
@@ -743,14 +743,14 @@ contract RewardsTest is PerpetualUtils {
             liquidityProviderTwo,
             address(rewardsToken)
         );
-        assertApproxEqRel(
-            accruedRewards,
-            previewAccrualsPerp1[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1 perp 1"
-        );
-        uint256[] memory previewAccrualsPerp2 = rewardsDistributor
-            .viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
+        // assertApproxEqRel(
+        //     accruedRewards,
+        //     previewAccrualsPerp1[0],
+        //     1e15, // 0.1%
+        //     "Incorrect accrued rewards preview: token 1 perp 1"
+        // );
+        // uint256[] memory previewAccrualsPerp2 = rewardsDistributor
+        //     .viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
         rewardsDistributor.accrueRewards(
             address(perpetual2),
             liquidityProviderTwo
@@ -762,12 +762,12 @@ contract RewardsTest is PerpetualUtils {
             2500,
             10
         );
-        assertApproxEqRel(
-            accruedRewards,
-            previewAccrualsPerp1[0] + previewAccrualsPerp2[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1"
-        );
+        // assertApproxEqRel(
+        //     accruedRewards,
+        //     previewAccrualsPerp1[0] + previewAccrualsPerp2[0],
+        //     1e15, // 0.1%
+        //     "Incorrect accrued rewards preview: token 1"
+        // );
 
         // check rewards for token 2
         uint256 accruedRewards2 = _checkRewards(
@@ -1304,27 +1304,27 @@ contract RewardsTest is PerpetualUtils {
         clearingHouse.allowListPerpetual(perpetual3);
 
         // expect a revert from viewNewRewardAccrual, since timeOfLastCumRewardUpdate[market] == 0
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UninitializedStartTime(address)",
-                address(perpetual3)
-            )
-        );
-        rewardsDistributor.viewNewRewardAccrual(
-            address(perpetual3),
-            liquidityProviderTwo,
-            address(rewardsToken2)
-        );
+        // vm.expectRevert(
+        //     abi.encodeWithSignature(
+        //         "RewardDistributor_UninitializedStartTime(address)",
+        //         address(perpetual3)
+        //     )
+        // );
+        // rewardsDistributor.viewNewRewardAccrual(
+        //     address(perpetual3),
+        //     liquidityProviderTwo,
+        //     address(rewardsToken2)
+        // );
         rewardsDistributor.initMarketStartTime(address(perpetual3));
-        assertEq(
-            rewardsDistributor.viewNewRewardAccrual(
-                address(perpetual3),
-                liquidityProviderTwo,
-                address(rewardsToken2)
-            ),
-            0,
-            "Incorrect accrued rewards preview for new perp without liquidity"
-        );
+        // assertEq(
+        //     rewardsDistributor.viewNewRewardAccrual(
+        //         address(perpetual3),
+        //         liquidityProviderTwo,
+        //         address(rewardsToken2)
+        //     ),
+        //     0,
+        //     "Incorrect accrued rewards preview for new perp without liquidity"
+        // );
 
         // set new market weights
         markets[0] = address(perpetual);
@@ -1440,19 +1440,19 @@ contract RewardsTest is PerpetualUtils {
         skip(10 days);
 
         // before registering positions, expect accruing rewards to fail
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                liquidityProviderTwo,
-                address(perpetual),
-                0,
-                perpetual.getLpLiquidity(liquidityProviderTwo)
-            )
-        );
-        newRewardsDistributor.viewNewRewardAccrual(
-            address(perpetual),
-            liquidityProviderTwo
-        );
+        // vm.expectRevert(
+        //     abi.encodeWithSignature(
+        //         "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
+        //         liquidityProviderTwo,
+        //         address(perpetual),
+        //         0,
+        //         perpetual.getLpLiquidity(liquidityProviderTwo)
+        //     )
+        // );
+        // newRewardsDistributor.viewNewRewardAccrual(
+        //     address(perpetual),
+        //     liquidityProviderTwo
+        // );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
@@ -1597,18 +1597,18 @@ contract RewardsTest is PerpetualUtils {
 
         // accrueRewards
         skip(5 days);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
-                liquidityProviderTwo,
-                address(perpetual),
-                block.timestamp + 5 days
-            )
-        );
-        rewardsDistributor.viewNewRewardAccrual(
-            address(perpetual),
-            liquidityProviderTwo
-        );
+        // vm.expectRevert(
+        //     abi.encodeWithSignature(
+        //         "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
+        //         liquidityProviderTwo,
+        //         address(perpetual),
+        //         block.timestamp + 5 days
+        //     )
+        // );
+        // rewardsDistributor.viewNewRewardAccrual(
+        //     address(perpetual),
+        //     liquidityProviderTwo
+        // );
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",

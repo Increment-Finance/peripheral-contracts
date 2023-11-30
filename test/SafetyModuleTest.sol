@@ -419,13 +419,6 @@ contract SafetyModuleTest is PerpetualUtils {
         // Skip cooldown period
         skip(1 days);
 
-        // Get reward preview
-        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
-            address(stakedToken1),
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-
         // Get current reward multiplier
         uint256 rewardMultiplier = safetyModule.computeRewardMultiplier(
             liquidityProviderTwo,
@@ -439,13 +432,6 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 accruedRewards = safetyModule.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
-        );
-
-        // Check that accrued rewards are equal to reward preview
-        assertEq(
-            accruedRewards,
-            rewardPreview,
-            "Accrued rewards preview mismatch"
         );
 
         // Check that accrued rewards equal stake amount times cumulative reward per token times reward multiplier
@@ -611,20 +597,6 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(10 days);
 
         // before registering positions, expect accruing rewards to fail
-        console.log("expecting viewNewRewardAccrual to fail");
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                liquidityProviderTwo,
-                address(stakedToken1),
-                0,
-                stakedToken1.balanceOf(liquidityProviderTwo)
-            )
-        );
-        newSafetyModule.viewNewRewardAccrual(
-            address(stakedToken1),
-            liquidityProviderTwo
-        );
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -702,16 +674,9 @@ contract SafetyModuleTest is PerpetualUtils {
         // Skip some time
         skip(10 days);
 
-        // Get reward preview
-        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
-            address(stakedToken1),
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-
         // Accrue rewards, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
+        vm.expectEmit(false, false, false, false);
+        emit RewardTokenShortfall(address(rewardsToken), 0);
         safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
 
         // Skip some more time
@@ -724,44 +689,19 @@ contract SafetyModuleTest is PerpetualUtils {
         // Skip cooldown period
         skip(1 days);
 
-        // Get second reward preview
-        uint256 rewardPreview2 = safetyModule.viewNewRewardAccrual(
-            address(stakedToken1),
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-
         // Redeem stakedToken1, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(
-            address(rewardsToken),
-            rewardPreview + rewardPreview2
-        );
+        vm.expectEmit(false, false, false, false);
+        emit RewardTokenShortfall(address(rewardsToken), 0);
         stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
         // Try to claim reward tokens, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(
-            address(rewardsToken),
-            rewardPreview + rewardPreview2
-        );
+        vm.expectEmit(false, false, false, false);
+        emit RewardTokenShortfall(address(rewardsToken), 0);
         safetyModule.claimRewards();
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18,
             "Claimed rewards after shortfall"
-        );
-
-        // Transfer reward tokens back to the EcosystemReserve
-        vm.stopPrank();
-        rewardsToken.transfer(address(rewardVault), rewardBalance);
-
-        // Claim tokens and check that the accrued rewards were distributed
-        safetyModule.claimRewardsFor(liquidityProviderTwo);
-        assertEq(
-            rewardsToken.balanceOf(liquidityProviderTwo),
-            10_000e18 + rewardPreview + rewardPreview2,
-            "Incorrect rewards after resolving shortfall"
         );
     }
 
@@ -804,14 +744,6 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Skip some time
         skip(10 days);
-
-        // Get reward preview, expecting it to be 0
-        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
-            address(stakedToken3),
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
-        assertEq(rewardPreview, 0, "Reward preview should be 0");
 
         // Accrue rewards, expecting it to accrue 0 rewards
         safetyModule.accrueRewards(address(stakedToken3), liquidityProviderTwo);
