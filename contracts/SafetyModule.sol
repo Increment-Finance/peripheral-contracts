@@ -50,15 +50,15 @@ contract SafetyModule is ISafetyModule, RewardDistributor {
     /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
     /// i.e., `updateStakingPosition`
     modifier onlyStakingToken() {
-        bool isStakingToken = false;
-        for (uint i; i < stakingTokens.length; ++i) {
+        uint256 numTokens = stakingTokens.length;
+        for (uint i; i < numTokens; ++i) {
             if (msg.sender == address(stakingTokens[i])) {
-                isStakingToken = true;
                 break;
             }
+            if (i == numTokens - 1) {
+                revert SafetyModule_CallerIsNotStakingToken(msg.sender);
+            }
         }
-        if (!isStakingToken)
-            revert SafetyModule_CallerIsNotStakingToken(msg.sender);
         _;
     }
 
