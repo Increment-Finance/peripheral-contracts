@@ -3,6 +3,7 @@ pragma solidity 0.8.16;
 
 import {IStakedToken, IERC20} from "./IStakedToken.sol";
 import {IAuctionModule} from "./IAuctionModule.sol";
+import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
 import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
 
 /// @title ISafetyModule
@@ -16,6 +17,22 @@ interface ISafetyModule is IStakingContract {
     /// @notice Emitted when a staking token is removed
     /// @param stakingToken Address of the staking token
     event StakingTokenRemoved(address indexed stakingToken);
+
+    /// @notice Emitted when the AuctionModule is updated by governance
+    /// @param oldAuctionModule Address of the old AuctionModule
+    /// @param newAuctionModule Address of the new AuctionModule
+    event AuctionModuleUpdated(
+        address oldAuctionModule,
+        address newAuctionModule
+    );
+
+    /// @notice Emitted when the SMRewardDistributor is updated by governance
+    /// @param oldRewardDistributor Address of the old SMRewardDistributor
+    /// @param newRewardDistributor Address of the new SMRewardDistributor
+    event RewardDistributorUpdated(
+        address oldRewardDistributor,
+        address newRewardDistributor
+    );
 
     /// @notice Emitted when the max percent user loss is updated by governance
     /// @param maxPercentUserLoss New max percent user loss
@@ -90,26 +107,6 @@ interface ISafetyModule is IStakingContract {
     /// @param max Maximum allowed value
     error SafetyModule_InvalidMaxUserLossTooHigh(uint256 value, uint256 max);
 
-    /// @notice Error returned when trying to set the max reward multiplier to a value that is too low
-    /// @param value Value that was passed
-    /// @param min Minimum allowed value
-    error SafetyModule_InvalidMaxMultiplierTooLow(uint256 value, uint256 min);
-
-    /// @notice Error returned when trying to set the max reward multiplier to a value that is too high
-    /// @param value Value that was passed
-    /// @param max Maximum allowed value
-    error SafetyModule_InvalidMaxMultiplierTooHigh(uint256 value, uint256 max);
-
-    /// @notice Error returned when trying to set the smoothing value to a value that is too low
-    /// @param value Value that was passed
-    /// @param min Minimum allowed value
-    error SafetyModule_InvalidSmoothingValueTooLow(uint256 value, uint256 min);
-
-    /// @notice Error returned when trying to set the smoothing value to a value that is too high
-    /// @param value Value that was passed
-    /// @param max Maximum allowed value
-    error SafetyModule_InvalidSmoothingValueTooHigh(uint256 value, uint256 max);
-
     /// @notice Error returned when the maximum auctionable amount of underlying tokens is less than
     /// the given initial lot size multiplied by the number of lots when calling `slashAndStartAuction`
     /// @param token The underlying ERC20 token
@@ -133,6 +130,10 @@ interface ISafetyModule is IStakingContract {
     /// @return The AuctionModule contract
     function auctionModule() external view returns (IAuctionModule);
 
+    /// @notice Gets the address of the SMRewardDistributor contract
+    /// @return The SMRewardDistributor contract
+    function smRewardDistributor() external view returns (ISMRewardDistributor);
+
     /// @notice Gets the address of the StakedToken contract at the specified index in the `stakingTokens` array
     /// @param i Index of the staking token
     /// @return Address of the StakedToken contract
@@ -145,13 +146,13 @@ interface ISafetyModule is IStakingContract {
         uint256 auctionId
     ) external view returns (IStakedToken);
 
-    /// @notice Gets the maximum reward multiplier set by governance
-    /// @return Maximum reward multiplier
-    function maxRewardMultiplier() external view returns (uint256);
+    /// @notice Gets the maximum percentage of user funds that can be slashed and sold at auction, normalized to 1e18
+    /// @return Maximum user loss percentage
+    function maxPercentUserLoss() external view returns (uint256);
 
-    /// @notice Gets the smoothing value set by governance
-    /// @return Smoothing value
-    function smoothingValue() external view returns (uint256);
+    /// @notice Gets the number of staking tokens registered in the SafetyModule
+    /// @return Number of staking tokens
+    function getNumStakingTokens() external view returns (uint256);
 
     /// @notice Returns the index of the staking token in the `stakingTokens` array
     /// @dev Reverts with `SafetyModule_InvalidStakingToken` if the staking token is not registered
@@ -159,31 +160,11 @@ interface ISafetyModule is IStakingContract {
     /// @return Index of the staking token in the `stakingTokens` array
     function getStakingTokenIdx(address token) external view returns (uint256);
 
-    /// @notice Returns the amount of the user's stake tokens that can be sold at auction in the event of
-    /// an insolvency in the vault that cannot be covered by the insurance fund
-    /// @param staker Address of the user
-    /// @param token Address of the staking token
-    /// @return Balance of the user multiplied by the maxPercentUserLoss
-    function getAuctionableBalance(
-        address staker,
-        address token
-    ) external view returns (uint256);
-
     /// @notice Returns the total amount of staked tokens that can be sold at auction in the event of
     /// an insolvency in the vault that cannot be covered by the insurance fund
     /// @param token Address of the staking token
     /// @return Total amount of staked tokens multiplied by the maxPercentUserLoss
     function getAuctionableTotal(address token) external view returns (uint256);
-
-    /// @notice Computes the user's reward multiplier for the given staking token
-    /// @dev Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)
-    /// @param _user Address of the staker
-    /// @param _stakingToken Address of staking token earning rewards
-    /// @return User's reward multiplier, scaled by 1e18
-    function computeRewardMultiplier(
-        address _user,
-        address _stakingToken
-    ) external view returns (uint256);
 
     /// @notice Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
     /// transfers the underlying tokens to the AuctionModule and starts an auction to sell them
@@ -235,20 +216,18 @@ interface ISafetyModule is IStakingContract {
     function withdrawFundsRaisedFromAuction(uint256 _amount) external;
 
     /// @notice Sets the address of the AuctionModule contract
-    /// @param _auctionModule Address of the AuctionModule contract
-    function setAuctionModule(IAuctionModule _auctionModule) external;
+    /// @param _newAuctionModule Address of the AuctionModule contract
+    function setAuctionModule(IAuctionModule _newAuctionModule) external;
+
+    /// @notice Sets the address of the SMRewardDistributor contract
+    /// @param _newRewardDistributor Address of the SMRewardDistributor contract
+    function setRewardDistributor(
+        ISMRewardDistributor _newRewardDistributor
+    ) external;
 
     /// @notice Sets the maximum percentage of user funds that can be sold at auction, normalized to 1e18
     /// @param _maxPercentUserLoss New maximum percentage of user funds that can be sold at auction, normalized to 1e18
     function setMaxPercentUserLoss(uint256 _maxPercentUserLoss) external;
-
-    /// @notice Sets the maximum reward multiplier, normalized to 1e18
-    /// @param _maxRewardMultiplier New maximum reward multiplier, normalized to 1e18
-    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external;
-
-    /// @notice Sets the smoothing value used in calculating the reward multiplier, normalized to 1e18
-    /// @param _smoothingValue New smoothing value, normalized to 1e18
-    function setSmoothingValue(uint256 _smoothingValue) external;
 
     /// @notice Adds a new staking token to the SafetyModule's stakingTokens array
     /// @param _stakingToken Address of the new staking token
