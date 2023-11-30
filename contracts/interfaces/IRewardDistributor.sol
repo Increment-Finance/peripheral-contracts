@@ -257,25 +257,4 @@ interface IRewardDistributor {
     /// @param market Address of the market to accrue rewards for
     /// @param user Address of the user
     function accrueRewards(address market, address user) external;
-
-    /// @notice Returns the amount of rewards that would be accrued to a user for a given market
-    /// @dev Serves as a static version of `accrueRewards(address market, address user)`
-    /// @param market Address of the market to view new rewards for
-    /// @param user Address of the user
-    /// @return Amount of new rewards that would be accrued to the user for each reward token the given market receives
-    function viewNewRewardAccrual(
-        address market,
-        address user
-    ) external view returns (uint256[] memory);
-
-    /// @notice Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param market Address of the market to view new rewards for
-    /// @param user Address of the user
-    /// @param rewardToken Address of the reward token to view new rewards for
-    /// @return Amount of new rewards that would be accrued to the user
-    function viewNewRewardAccrual(
-        address market,
-        address user,
-        address rewardToken
-    ) external view returns (uint256);
 }

@@ -375,26 +375,6 @@ abstract contract RewardDistributor is
     /// @inheritdoc IRewardDistributor
     function accrueRewards(address market, address user) public virtual;
 
-    /// @inheritdoc IRewardDistributor
-    function viewNewRewardAccrual(
-        address market,
-        address user
-    ) public view returns (uint256[] memory) {
-        uint256 numTokens = rewardTokens.length;
-        uint256[] memory newRewards = new uint256[](numTokens);
-        for (uint i; i < numTokens; ++i) {
-            newRewards[i] = viewNewRewardAccrual(market, user, rewardTokens[i]);
-        }
-        return newRewards;
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function viewNewRewardAccrual(
-        address market,
-        address user,
-        address rewardToken
-    ) public view virtual returns (uint256);
-
     /* ****************** */
     /*      Internal      */
     /* ****************** */

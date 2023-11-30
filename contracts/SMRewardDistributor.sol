@@ -238,56 +238,6 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         }
     }
 
-    /// @notice Returns the amount of new rewards that would be accrued to a user by calling `accrueRewards`
-    /// for a given market and reward token
-    /// @param market Address of the staking token in `stakingTokens`
-    /// @param user Address of the user
-    /// @param token Address of the reward token
-    /// @return Amount of new rewards that would be accrued to the user
-    function viewNewRewardAccrual(
-        address market,
-        address user,
-        address token
-    )
-        public
-        view
-        override(IRewardDistributor, RewardDistributor)
-        returns (uint256)
-    {
-        uint256 lpPosition = lpPositionsPerUser[user][market];
-        if (lpPosition != getCurrentPosition(user, market))
-            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                lpPosition,
-                getCurrentPosition(user, market)
-            );
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
-        if (totalLiquidityPerMarket[market] == 0) return 0;
-        RewardInfo memory rewardInfo = rewardInfoByToken[token];
-        uint256 totalTimeElapsed = block.timestamp -
-            rewardInfo.initialTimestamp;
-        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        uint256 inflationRate = rewardInfo.initialInflationRate.div(
-            rewardInfo.reductionFactor.pow(totalTimeElapsed.div(365 days))
-        );
-        uint256 newMarketRewards = (((inflationRate *
-            rewardInfo.marketWeights[getMarketWeightIdx(token, market)]) /
-            10000) * deltaTime) / 365 days;
-        uint256 newCumRewardPerLpToken = cumulativeRewardPerLpToken[token][
-            market
-        ] + (newMarketRewards * 1e18) / totalLiquidityPerMarket[market];
-        return
-            lpPosition
-                .mul(
-                    (newCumRewardPerLpToken -
-                        cumulativeRewardPerLpTokenPerUser[user][token][market])
-                )
-                .mul(computeRewardMultiplier(user, market));
-    }
-
     /* ******************* */
     /*  Reward Multiplier  */
     /* ******************* */
