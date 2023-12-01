@@ -63,8 +63,7 @@ interface IRewardController {
 
     /// @notice Error returned when trying to add a reward token if the max number of reward tokens has been reached
     /// @param max The maximum number of reward tokens allowed
-    /// @param market The market address which has reached the maximum number of reward tokens
-    error RewardController_AboveMaxRewardTokens(uint256 max, address market);
+    error RewardController_AboveMaxRewardTokens(uint256 max);
 
     /// @notice Error returned when trying to set the inflation rate to a value that is too high
     /// @param rate The value that was passed
@@ -106,14 +105,10 @@ interface IRewardController {
     /// @param max The maximum allowed weight (i.e., 10000)
     error RewardController_WeightExceedsMax(uint16 weight, uint16 max);
 
-    /// @notice Gets the address of the reward token at the specified index in the array of reward tokens for a given market
-    /// @param market The market address
+    /// @notice Gets the address of the reward token at the specified index in the array of reward tokens
     /// @param i The index of the reward token
     /// @return The address of the reward token
-    function rewardTokensPerMarket(
-        address market,
-        uint256 i
-    ) external view returns (address);
+    function rewardTokens(uint256 i) external view returns (address);
 
     /// @notice Gets the number of markets to be used for reward distribution
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
@@ -155,12 +150,9 @@ interface IRewardController {
         address market
     ) external view returns (uint256);
 
-    /// @notice Gets the number of reward tokens for a given market
-    /// @param market The market address
-    /// @return Number of reward tokens for the market
-    function getRewardTokenCount(
-        address market
-    ) external view returns (uint256);
+    /// @notice Gets the number of reward tokens
+    /// @return Number of reward tokens
+    function getRewardTokenCount() external view returns (uint256);
 
     /// @notice Gets the timestamp when a reward token was registered
     /// @param rewardToken Address of the reward token
@@ -197,6 +189,11 @@ interface IRewardController {
     function getRewardWeights(
         address rewardToken
     ) external view returns (address[] memory, uint16[] memory);
+
+    /// @notice Gets whether a reward token is paused
+    /// @param rewardToken Address of the reward token
+    /// @return True if the reward token is paused, false otherwise
+    function isTokenPaused(address rewardToken) external view returns (bool);
 
     /// @notice Updates the reward accumulator for a given market
     /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`

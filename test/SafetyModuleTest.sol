@@ -14,6 +14,7 @@ import "@increment-governance/IncrementToken.sol";
 import "../contracts/SafetyModule.sol";
 import "../contracts/StakedToken.sol";
 import "../contracts/AuctionModule.sol";
+import "../contracts/SMRewardDistributor.sol";
 import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
@@ -68,6 +69,7 @@ contract SafetyModuleTest is PerpetualUtils {
     EcosystemReserve public rewardVault;
     SafetyModule public safetyModule;
     AuctionModule public auctionModule;
+    SMRewardDistributor public rewardDistributor;
     IWeightedPoolFactory public weightedPoolFactory;
     IWeightedPool public balancerPool;
     IBalancerVault public balancerVault;
@@ -96,15 +98,22 @@ contract SafetyModuleTest is PerpetualUtils {
         // Deploy safety module
         safetyModule = new SafetyModule(
             address(0),
-            INITIAL_MAX_USER_LOSS,
-            INITIAL_MAX_MULTIPLIER,
-            INITIAL_SMOOTHING_VALUE,
-            address(rewardVault)
+            address(0),
+            INITIAL_MAX_USER_LOSS
         );
 
         // Deploy auction module
         auctionModule = new AuctionModule(safetyModule, usdc);
         safetyModule.setAuctionModule(auctionModule);
+
+        // Deploy reward distributor
+        rewardDistributor = new SMRewardDistributor(
+            safetyModule,
+            INITIAL_MAX_MULTIPLIER,
+            INITIAL_SMOOTHING_VALUE,
+            address(rewardVault)
+        );
+        safetyModule.setRewardDistributor(rewardDistributor);
 
         // Transfer half of the rewards tokens to the reward vault
         rewardsToken.transfer(
@@ -201,7 +210,7 @@ contract SafetyModuleTest is PerpetualUtils {
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
-        safetyModule.addRewardToken(
+        rewardDistributor.addRewardToken(
             address(rewardsToken),
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
@@ -248,25 +257,29 @@ contract SafetyModuleTest is PerpetualUtils {
     }
 
     function testDeployment() public {
-        assertEq(safetyModule.getNumMarkets(), 2, "Market count mismatch");
         assertEq(
-            safetyModule.getMaxMarketIdx(),
+            safetyModule.getNumStakingTokens(),
+            2,
+            "Market count mismatch"
+        );
+        assertEq(
+            rewardDistributor.getMaxMarketIdx(),
             1,
             "Max market index mismatch"
         );
         assertEq(
-            safetyModule.getMarketAddress(0),
+            rewardDistributor.getMarketAddress(0),
             address(stakedToken1),
             "Market address mismatch"
         );
-        assertEq(safetyModule.getMarketIdx(0), 0, "Market index mismatch");
+        assertEq(rewardDistributor.getMarketIdx(0), 0, "Market index mismatch");
         assertEq(
             safetyModule.getStakingTokenIdx(address(stakedToken2)),
             1,
             "Staking token index mismatch"
         );
         assertEq(
-            safetyModule.getMarketWeightIdx(
+            rewardDistributor.getMarketWeightIdx(
                 address(rewardsToken),
                 address(stakedToken1)
             ),
@@ -274,7 +287,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Market reward weight index mismatch"
         );
         assertEq(
-            safetyModule.getCurrentPosition(
+            rewardDistributor.getCurrentPosition(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -282,7 +295,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Current position mismatch"
         );
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -291,7 +304,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
-            safetyModule.getCurrentPosition(
+            rewardDistributor.getCurrentPosition(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -299,7 +312,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Current position mismatch"
         );
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -328,7 +341,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // These values match those in the spreadsheet used to design the SM rewards
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -337,7 +350,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         skip(2 days);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -347,7 +360,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // Partially redeeming resets the multiplier to 1
         _redeem(stakedToken1, liquidityProviderTwo, 50 ether, 1 days);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -356,7 +369,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         skip(5 days);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -368,7 +381,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // it had been 5 days ago, and the user doubled their stake
         _stake(stakedToken1, liquidityProviderTwo, 50 ether);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -377,7 +390,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         skip(2.5 days);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -387,7 +400,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // Redeeming completely resets the multiplier to 0
         _redeem(stakedToken1, liquidityProviderTwo, 100 ether, 1 days);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -396,10 +409,10 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Test with smoothing value of 60, doubling the time it takes to reach the same multiplier
-        safetyModule.setSmoothingValue(60e18);
+        rewardDistributor.setSmoothingValue(60e18);
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -408,7 +421,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         skip(4 days);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -417,9 +430,9 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Test with max multiplier of 6, increasing the multiplier by 50%
-        safetyModule.setMaxRewardMultiplier(6e18);
+        rewardDistributor.setMaxRewardMultiplier(6e18);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -446,14 +459,14 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(1 days);
 
         // Get reward preview
-        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+        uint256 rewardPreview = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
         );
 
         // Get current reward multiplier
-        uint256 rewardMultiplier = safetyModule.computeRewardMultiplier(
+        uint256 rewardMultiplier = rewardDistributor.computeRewardMultiplier(
             liquidityProviderTwo,
             address(stakedToken1)
         );
@@ -462,7 +475,7 @@ contract SafetyModuleTest is PerpetualUtils {
         stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
         // Get accrued rewards
-        uint256 accruedRewards = safetyModule.rewardsAccruedByUser(
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
         );
@@ -475,7 +488,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Check that accrued rewards equal stake amount times cumulative reward per token times reward multiplier
-        uint256 cumulativeRewardsPerLpToken = safetyModule
+        uint256 cumulativeRewardsPerLpToken = rewardDistributor
             .cumulativeRewardPerLpToken(
                 address(rewardsToken),
                 address(stakedToken1)
@@ -490,9 +503,12 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Check that rewards are not accrued after full redeem
         skip(10 days);
-        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
+        rewardDistributor.accrueRewards(
+            address(stakedToken1),
+            liquidityProviderTwo
+        );
         assertEq(
-            safetyModule.rewardsAccruedByUser(
+            rewardDistributor.rewardsAccruedByUser(
                 liquidityProviderTwo,
                 address(rewardsToken)
             ),
@@ -511,22 +527,6 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Set new max percent user loss and check auctionable balances
         safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
-        assertEq(
-            safetyModule.getAuctionableBalance(
-                liquidityProviderOne,
-                address(stakedToken1)
-            ),
-            balance1.wadMul(maxPercentUserLoss),
-            "Auctionable balance 1 mismatch"
-        );
-        assertEq(
-            safetyModule.getAuctionableBalance(
-                liquidityProviderOne,
-                address(stakedToken2)
-            ),
-            balance2.wadMul(maxPercentUserLoss),
-            "Auctionable balance 2 mismatch"
-        );
         assertEq(
             safetyModule.getAuctionableTotal(address(stakedToken1)),
             balance1.wadMul(maxPercentUserLoss),
@@ -580,13 +580,13 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         console.log("original safety module lp positions:");
         console.log(
-            safetyModule.lpPositionsPerUser(
+            rewardDistributor.lpPositionsPerUser(
                 liquidityProviderTwo,
                 address(stakedToken1)
             )
         );
         console.log(
-            safetyModule.lpPositionsPerUser(
+            rewardDistributor.lpPositionsPerUser(
                 liquidityProviderTwo,
                 address(stakedToken2)
             )
@@ -600,11 +600,22 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("deploying new safety module");
         SafetyModule newSafetyModule = new SafetyModule(
             address(0),
-            INITIAL_MAX_USER_LOSS,
+            address(0),
+            INITIAL_MAX_USER_LOSS
+        );
+        AuctionModule newAuctionModule = new AuctionModule(
+            newSafetyModule,
+            usdc
+        );
+        newSafetyModule.setAuctionModule(newAuctionModule);
+        SMRewardDistributor newRewardDistributor = new SMRewardDistributor(
+            newSafetyModule,
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
             address(rewardVault)
         );
+        newSafetyModule.setRewardDistributor(newRewardDistributor);
+
         rewardVault.approve(
             AaveIERC20(address(rewardsToken)),
             address(newSafetyModule),
@@ -621,7 +632,7 @@ contract SafetyModuleTest is PerpetualUtils {
         uint16[] memory rewardWeights = new uint16[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
-        newSafetyModule.addRewardToken(
+        newRewardDistributor.addRewardToken(
             address(rewardsToken),
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
@@ -633,20 +644,6 @@ contract SafetyModuleTest is PerpetualUtils {
         console.log("updating safety module in staked tokens");
         stakedToken1.setSafetyModule(address(newSafetyModule));
         stakedToken2.setSafetyModule(address(newSafetyModule));
-
-        console.log("new safety module lp positions:");
-        console.log(
-            newSafetyModule.lpPositionsPerUser(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            )
-        );
-        console.log(
-            newSafetyModule.lpPositionsPerUser(
-                liquidityProviderTwo,
-                address(stakedToken2)
-            )
-        );
 
         // skip some time
         console.log("skipping 10 days");
@@ -663,10 +660,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
         );
-        newSafetyModule.viewNewRewardAccrual(
-            address(stakedToken1),
-            liquidityProviderTwo
-        );
+        _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo);
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -677,35 +671,37 @@ contract SafetyModuleTest is PerpetualUtils {
                 stakedToken1.balanceOf(liquidityProviderTwo)
             )
         );
-        newSafetyModule.accrueRewards(liquidityProviderTwo);
+        newRewardDistributor.accrueRewards(liquidityProviderTwo);
 
         // register user positions
         vm.startPrank(liquidityProviderOne);
-        newSafetyModule.registerPositions();
+        newRewardDistributor.registerPositions();
         vm.startPrank(liquidityProviderTwo);
-        newSafetyModule.registerPositions(stakingTokens);
+        newRewardDistributor.registerPositions(stakingTokens);
 
         // skip some time
         skip(10 days);
 
         // check that rewards were accrued correctly
 
-        newSafetyModule.accrueRewards(liquidityProviderTwo);
-        uint256 cumulativeRewards1 = newSafetyModule.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(stakedToken1)
-        );
-        uint256 cumulativeRewards2 = newSafetyModule.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(stakedToken2)
-        );
-        (, , , uint256 inflationRate, ) = newSafetyModule.rewardInfoByToken(
+        newRewardDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 cumulativeRewards1 = newRewardDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken1)
+            );
+        uint256 cumulativeRewards2 = newRewardDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken2)
+            );
+        uint256 inflationRate = newRewardDistributor.getInitialInflationRate(
             address(rewardsToken)
         );
-        uint256 totalLiquidity1 = newSafetyModule.totalLiquidityPerMarket(
+        uint256 totalLiquidity1 = newRewardDistributor.totalLiquidityPerMarket(
             address(stakedToken1)
         );
-        uint256 totalLiquidity2 = newSafetyModule.totalLiquidityPerMarket(
+        uint256 totalLiquidity2 = newRewardDistributor.totalLiquidityPerMarket(
             address(stakedToken2)
         );
         uint256 expectedCumulativeRewards1 = (((((inflationRate * 5000) /
@@ -745,7 +741,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(10 days);
 
         // Get reward preview
-        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+        uint256 rewardPreview = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -754,7 +750,10 @@ contract SafetyModuleTest is PerpetualUtils {
         // Accrue rewards, expecting RewardTokenShortfall event
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
-        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
+        rewardDistributor.accrueRewards(
+            address(stakedToken1),
+            liquidityProviderTwo
+        );
 
         // Skip some more time
         skip(9 days);
@@ -767,7 +766,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(1 days);
 
         // Get second reward preview
-        uint256 rewardPreview2 = safetyModule.viewNewRewardAccrual(
+        uint256 rewardPreview2 = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -787,7 +786,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             rewardPreview + rewardPreview2
         );
-        safetyModule.claimRewards();
+        rewardDistributor.claimRewards();
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18,
@@ -799,7 +798,7 @@ contract SafetyModuleTest is PerpetualUtils {
         rewardsToken.transfer(address(rewardVault), rewardBalance);
 
         // Claim tokens and check that the accrued rewards were distributed
-        safetyModule.claimRewardsFor(liquidityProviderTwo);
+        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18 + rewardPreview + rewardPreview2,
@@ -831,7 +830,7 @@ contract SafetyModuleTest is PerpetualUtils {
         rewardWeights[0] = 3333;
         rewardWeights[1] = 3334;
         rewardWeights[2] = 3333;
-        safetyModule.updateRewardWeights(
+        rewardDistributor.updateRewardWeights(
             address(rewardsToken),
             stakingTokens,
             rewardWeights
@@ -839,7 +838,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // Check that rewardToken was added to the list of reward tokens for the new staked token
         assertEq(
-            safetyModule.rewardTokensPerMarket(address(stakedToken3), 0),
+            rewardDistributor.rewardTokens(0),
             address(rewardsToken),
             "Reward token missing for new staked token"
         );
@@ -848,7 +847,7 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(10 days);
 
         // Get reward preview, expecting it to be 0
-        uint256 rewardPreview = safetyModule.viewNewRewardAccrual(
+        uint256 rewardPreview = _viewNewRewardAccrual(
             address(stakedToken3),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -856,9 +855,12 @@ contract SafetyModuleTest is PerpetualUtils {
         assertEq(rewardPreview, 0, "Reward preview should be 0");
 
         // Accrue rewards, expecting it to accrue 0 rewards
-        safetyModule.accrueRewards(address(stakedToken3), liquidityProviderTwo);
+        rewardDistributor.accrueRewards(
+            address(stakedToken3),
+            liquidityProviderTwo
+        );
         assertEq(
-            safetyModule.rewardsAccruedByUser(
+            rewardDistributor.rewardsAccruedByUser(
                 liquidityProviderTwo,
                 address(rewardsToken)
             ),
@@ -883,7 +885,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // After 5 days, both users should have 2x multiplier (given smoothing value of 30 and max multiplier of 4)
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderOne,
                 address(stakedToken1)
             ),
@@ -891,7 +893,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Reward multiplier mismatch: user 1"
         );
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -907,18 +909,19 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.stopPrank();
 
         // Check that both users accrued rewards according to their initial balances and multipliers
-        uint256 accruedRewards1 = safetyModule.rewardsAccruedByUser(
+        uint256 accruedRewards1 = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderOne,
             address(rewardsToken)
         );
-        uint256 accruedRewards2 = safetyModule.rewardsAccruedByUser(
+        uint256 accruedRewards2 = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
         );
-        uint256 cumRewardsPerLpToken = safetyModule.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(stakedToken1)
-        );
+        uint256 cumRewardsPerLpToken = rewardDistributor
+            .cumulativeRewardPerLpToken(
+                address(rewardsToken),
+                address(stakedToken1)
+            );
         assertEq(
             accruedRewards1,
             initialBalance1.wadMul(cumRewardsPerLpToken).wadMul(2e18),
@@ -936,17 +939,18 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         console.log("increaseRatio: %s", increaseRatio);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderOne,
                 address(stakedToken1)
             ),
             0,
             "Reward multiplier mismatch after transfer: user 1"
         );
-        uint256 newMultiplierStartTime = safetyModule.multiplierStartTimeByUser(
-            liquidityProviderTwo,
-            address(stakedToken1)
-        );
+        uint256 newMultiplierStartTime = rewardDistributor
+            .multiplierStartTimeByUser(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            );
         assertEq(
             newMultiplierStartTime,
             block.timestamp - uint256(5 days).wadMul(1e18 - increaseRatio),
@@ -961,7 +965,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 1e18 +
                 INITIAL_SMOOTHING_VALUE);
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -970,15 +974,15 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Claim rewards for both users
-        safetyModule.claimRewardsFor(liquidityProviderOne);
-        safetyModule.claimRewardsFor(liquidityProviderTwo);
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
 
         // Skip some more time
         skip(10 days - (block.timestamp - newMultiplierStartTime));
 
         // 10 days after the new multiplier start time, user 2's multiplier should be 2.5
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderOne,
                 address(stakedToken1)
             ),
@@ -986,7 +990,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Reward multiplier mismatch after 10 days: user 1"
         );
         assertEq(
-            safetyModule.computeRewardMultiplier(
+            rewardDistributor.computeRewardMultiplier(
                 liquidityProviderTwo,
                 address(stakedToken1)
             ),
@@ -995,18 +999,24 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Check that user 2 accrues rewards according to their new balance and multiplier, while user 1 accrues no rewards
-        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderOne);
-        safetyModule.accrueRewards(address(stakedToken1), liquidityProviderTwo);
-        accruedRewards1 = safetyModule.rewardsAccruedByUser(
+        rewardDistributor.accrueRewards(
+            address(stakedToken1),
+            liquidityProviderOne
+        );
+        rewardDistributor.accrueRewards(
+            address(stakedToken1),
+            liquidityProviderTwo
+        );
+        accruedRewards1 = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderOne,
             address(rewardsToken)
         );
-        accruedRewards2 = safetyModule.rewardsAccruedByUser(
+        accruedRewards2 = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
         );
         cumRewardsPerLpToken =
-            safetyModule.cumulativeRewardPerLpToken(
+            rewardDistributor.cumulativeRewardPerLpToken(
                 address(rewardsToken),
                 address(stakedToken1)
             ) -
@@ -1191,36 +1201,36 @@ contract SafetyModuleTest is PerpetualUtils {
         safetyModule.setMaxPercentUserLoss(highMaxUserLoss);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "SafetyModule_InvalidMaxMultiplierTooLow(uint256,uint256)",
+                "SMRD_InvalidMaxMultiplierTooLow(uint256,uint256)",
                 lowMaxMultiplier,
                 1e18
             )
         );
-        safetyModule.setMaxRewardMultiplier(lowMaxMultiplier);
+        rewardDistributor.setMaxRewardMultiplier(lowMaxMultiplier);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "SafetyModule_InvalidMaxMultiplierTooHigh(uint256,uint256)",
+                "SMRD_InvalidMaxMultiplierTooHigh(uint256,uint256)",
                 highMaxMultiplier,
                 10e18
             )
         );
-        safetyModule.setMaxRewardMultiplier(highMaxMultiplier);
+        rewardDistributor.setMaxRewardMultiplier(highMaxMultiplier);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "SafetyModule_InvalidSmoothingValueTooLow(uint256,uint256)",
+                "SMRD_InvalidSmoothingValueTooLow(uint256,uint256)",
                 lowSmoothingValue,
                 10e18
             )
         );
-        safetyModule.setSmoothingValue(lowSmoothingValue);
+        rewardDistributor.setSmoothingValue(lowSmoothingValue);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "SafetyModule_InvalidSmoothingValueTooHigh(uint256,uint256)",
+                "SMRD_InvalidSmoothingValueTooHigh(uint256,uint256)",
                 highSmoothingValue,
                 100e18
             )
         );
-        safetyModule.setSmoothingValue(highSmoothingValue);
+        rewardDistributor.setSmoothingValue(highSmoothingValue);
 
         // test staking token already registered
         vm.expectRevert(
@@ -1246,7 +1256,10 @@ contract SafetyModuleTest is PerpetualUtils {
                 address(rewardsToken)
             )
         );
-        safetyModule.getMarketWeightIdx(address(rewardsToken), invalidMarket);
+        rewardDistributor.getMarketWeightIdx(
+            address(rewardsToken),
+            invalidMarket
+        );
         vm.startPrank(address(stakedToken1));
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1273,7 +1286,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 1
             )
         );
-        safetyModule.getMarketAddress(invalidMarketIdx);
+        rewardDistributor.getMarketAddress(invalidMarketIdx);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
@@ -1281,7 +1294,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 1
             )
         );
-        safetyModule.getMarketIdx(invalidMarketIdx);
+        rewardDistributor.getMarketIdx(invalidMarketIdx);
 
         // test invalid reward token
         vm.expectRevert(
@@ -1291,7 +1304,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 invalidRewardToken
             )
         );
-        safetyModule.getMarketWeightIdx(
+        rewardDistributor.getMarketWeightIdx(
             invalidRewardToken,
             address(stakedToken1)
         );
@@ -1535,5 +1548,57 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         vm.stopPrank();
+    }
+
+    function _viewNewRewardAccrual(
+        address market,
+        address user
+    ) public view returns (uint256[] memory) {
+        uint256 numTokens = rewardDistributor.getRewardTokenCount();
+        uint256[] memory newRewards = new uint256[](numTokens);
+        for (uint i; i < numTokens; ++i) {
+            newRewards[i] = _viewNewRewardAccrual(
+                market,
+                user,
+                rewardDistributor.rewardTokens(i)
+            );
+        }
+        return newRewards;
+    }
+
+    function _viewNewRewardAccrual(
+        address market,
+        address user,
+        address token
+    ) internal view returns (uint256) {
+        uint256 timeOfLastCumRewardUpdate = rewardDistributor
+            .timeOfLastCumRewardUpdate(market);
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate;
+        if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
+        // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
+        (, uint16[] memory marketWeights) = rewardDistributor.getRewardWeights(
+            token
+        );
+        uint256 newMarketRewards = (((rewardDistributor.getInflationRate(
+            token
+        ) *
+            marketWeights[
+                rewardDistributor.getMarketWeightIdx(token, market)
+            ]) / 10000) * deltaTime) / 365 days;
+        uint256 newCumRewardPerLpToken = rewardDistributor
+            .cumulativeRewardPerLpToken(token, market) +
+            (newMarketRewards * 1e18) /
+            rewardDistributor.totalLiquidityPerMarket(market);
+        uint256 newUserRewards = rewardDistributor
+            .lpPositionsPerUser(user, market)
+            .wadMul(
+                (newCumRewardPerLpToken -
+                    rewardDistributor.cumulativeRewardPerLpTokenPerUser(
+                        user,
+                        token,
+                        market
+                    ))
+            );
+        return newUserRewards;
     }
 }
