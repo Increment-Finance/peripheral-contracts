@@ -347,11 +347,12 @@ abstract contract RewardDistributor is
         }
         for (uint256 i; i < numTokens; ++i) {
             address token = rewardTokens[i];
-            uint256 weightIdx = getMarketWeightIdx(token, market);
+            int256 weightIdx = getMarketWeightIdx(token, market);
             if (
+                weightIdx < 0 ||
                 rewardInfoByToken[token].paused ||
                 rewardInfoByToken[token].initialInflationRate == 0 ||
-                rewardInfoByToken[token].marketWeights[weightIdx] == 0
+                rewardInfoByToken[token].marketWeights[uint256(weightIdx)] == 0
             ) continue;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
@@ -365,8 +366,8 @@ abstract contract RewardDistributor is
                 )
             );
             uint256 newRewards = (((((inflationRate *
-                rewardInfoByToken[token].marketWeights[weightIdx]) / 10000) *
-                deltaTime) / 365 days) * 1e18) /
+                rewardInfoByToken[token].marketWeights[uint256(weightIdx)]) /
+                10000) * deltaTime) / 365 days) * 1e18) /
                 totalLiquidityPerMarket[market];
             if (newRewards > 0) {
                 cumulativeRewardPerLpToken[token][market] += newRewards;

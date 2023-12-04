@@ -80,18 +80,6 @@ abstract contract RewardController is
     function getMarketIdx(uint256 i) public view virtual returns (uint256);
 
     /// @inheritdoc IRewardController
-    function getMarketWeightIdx(
-        address token,
-        address market
-    ) public view virtual returns (uint256) {
-        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
-        for (uint i; i < numMarkets; ++i) {
-            if (rewardInfoByToken[token].marketAddresses[i] == market) return i;
-        }
-        revert RewardController_MarketHasNoRewardWeight(market, token);
-    }
-
-    /// @inheritdoc IRewardController
     function getCurrentPosition(
         address user,
         address market
@@ -149,6 +137,19 @@ abstract contract RewardController is
             rewardInfoByToken[rewardToken].marketAddresses,
             rewardInfoByToken[rewardToken].marketWeights
         );
+    }
+
+    /// @inheritdoc IRewardController
+    function getMarketWeightIdx(
+        address token,
+        address market
+    ) public view virtual returns (int256) {
+        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
+        for (uint i; i < numMarkets; ++i) {
+            if (rewardInfoByToken[token].marketAddresses[i] == market)
+                return int256(i);
+        }
+        return -1;
     }
 
     /// @inheritdoc IRewardController

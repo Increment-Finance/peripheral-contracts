@@ -1331,18 +1331,6 @@ contract RewardsTest is PerpetualUtils {
             2,
             "Incorrect market index"
         );
-        // expect a revert from getMarketWeightIdx, since the market hasn't been added to rewards yet
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                address(perpetual3),
-                address(rewardsToken)
-            )
-        );
-        rewardDistributor.getMarketWeightIdx(
-            address(rewardsToken),
-            address(perpetual3)
-        );
 
         rewardDistributor.initMarketStartTime(address(perpetual3));
         assertEq(
@@ -1547,17 +1535,6 @@ contract RewardsTest is PerpetualUtils {
             )
         );
         rewardDistributor.getMarketAddress(9);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                invalidMarket,
-                address(rewardsToken)
-            )
-        );
-        rewardDistributor.getMarketWeightIdx(
-            address(rewardsToken),
-            invalidMarket
-        );
 
         // updateStakingPosition
         vm.expectRevert(
@@ -1981,7 +1958,7 @@ contract RewardsTest is PerpetualUtils {
             token
         ) *
             marketWeights[
-                rewardDistributor.getMarketWeightIdx(token, market)
+                rewardDistributor.getMarketWeightIdx(token, market).toUint256()
             ]) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor
             .cumulativeRewardPerLpToken(token, market) +

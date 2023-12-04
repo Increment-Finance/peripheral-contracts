@@ -79,14 +79,6 @@ interface IRewardController {
     /// @param invalidAddress The address that was passed
     error RewardController_InvalidRewardTokenAddress(address invalidAddress);
 
-    /// @notice Error returned when a given market address has no reward weight stored in the RewardInfo for a given reward token
-    /// @param market The market address
-    /// @param rewardToken The reward token address
-    error RewardController_MarketHasNoRewardWeight(
-        address market,
-        address rewardToken
-    );
-
     /// @notice Error returned when trying to set the reward weights with markets and weights arrays of different lengths
     /// @param actual The length of the weights array provided
     /// @param expected The length of the markets array provided
@@ -130,16 +122,6 @@ interface IRewardController {
     /// @param i Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule)
     /// @return Index of the market in the market list
     function getMarketIdx(uint256 i) external view returns (uint256);
-
-    /// @notice Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
-    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param token Address of the reward token
-    /// @param market Address of the market
-    /// @return Index of the market in the `rewardInfo.marketWeights` array
-    function getMarketWeightIdx(
-        address token,
-        address market
-    ) external view returns (uint256);
 
     /// @notice Returns the current position of the user in the market (i.e., perpetual market or staked token)
     /// @param user Address of the user
@@ -189,6 +171,16 @@ interface IRewardController {
     function getRewardWeights(
         address rewardToken
     ) external view returns (address[] memory, uint16[] memory);
+
+    /// @notice Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
+    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
+    /// @param token Address of the reward token
+    /// @param market Address of the market
+    /// @return Index of the market in the `rewardInfo.marketWeights` array, or -1 if the market is not found
+    function getMarketWeightIdx(
+        address token,
+        address market
+    ) external view returns (int256);
 
     /// @notice Gets whether a reward token is paused
     /// @param rewardToken Address of the reward token
