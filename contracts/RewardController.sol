@@ -180,21 +180,31 @@ abstract contract RewardController is
                 markets.length
             );
         // Update rewards for all currently rewarded markets before changing weights
-        uint256 numMarkets = rewardInfoByToken[rewardToken]
+        uint256 numOldMarkets = rewardInfoByToken[rewardToken]
             .marketAddresses
             .length;
-        for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
-                rewardInfoByToken[rewardToken].marketAddresses[i]
-            );
+        uint256 numNewMarkets = markets.length;
+        for (uint i; i < numOldMarkets; ++i) {
+            address market = rewardInfoByToken[rewardToken].marketAddresses[i];
+            _updateMarketRewards(market);
+            // Check if market is being removed from rewards
+            bool found;
+            for (uint j; j < numNewMarkets; ++j) {
+                if (markets[j] == market) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                emit MarketRemovedFromRewards(market, rewardToken);
+            }
         }
         // Replace stored lists of market addresses and weights
         rewardInfoByToken[rewardToken].marketAddresses = markets;
         rewardInfoByToken[rewardToken].marketWeights = weights;
         // Validate weights
         uint16 totalWeight;
-        numMarkets = markets.length;
-        for (uint i; i < numMarkets; ++i) {
+        for (uint i; i < numNewMarkets; ++i) {
             if (weights[i] > 10000)
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             totalWeight += weights[i];
