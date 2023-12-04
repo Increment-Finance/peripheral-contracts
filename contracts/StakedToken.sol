@@ -297,9 +297,10 @@ contract StakedToken is
      * @dev Only callable by governance
      */
     function setSafetyModule(
-        address _safetyModule
+        address _newSafetyModule
     ) external onlyRole(GOVERNANCE) {
-        safetyModule = ISafetyModule(_safetyModule);
+        emit SafetyModuleUpdated(address(safetyModule), _newSafetyModule);
+        safetyModule = ISafetyModule(_newSafetyModule);
     }
 
     /**
@@ -307,9 +308,10 @@ contract StakedToken is
      * @dev Only callable by governance
      */
     function setMaxStakeAmount(
-        uint256 _maxStakeAmount
+        uint256 _newMaxStakeAmount
     ) external onlyRole(GOVERNANCE) {
-        maxStakeAmount = _maxStakeAmount;
+        emit MaxStakeAmountUpdated(maxStakeAmount, _newMaxStakeAmount);
+        maxStakeAmount = _newMaxStakeAmount;
     }
 
     /* ****************** */
