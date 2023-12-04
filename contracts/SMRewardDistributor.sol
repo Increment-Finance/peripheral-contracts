@@ -265,6 +265,24 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 smoothingValue);
     }
 
+    /* ******************* */
+    /*    Safety Module    */
+    /* ******************* */
+
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by the SafetyModule
+    function initMarketStartTime(
+        address _market
+    )
+        external
+        override(IRewardDistributor, RewardDistributor)
+        onlySafetyModule
+    {
+        if (timeOfLastCumRewardUpdate[_market] != 0)
+            revert RewardDistributor_AlreadyInitializedStartTime(_market);
+        timeOfLastCumRewardUpdate[_market] = block.timestamp;
+    }
+
     /* ****************** */
     /*     Governance     */
     /* ****************** */

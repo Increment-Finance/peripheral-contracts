@@ -164,7 +164,7 @@ abstract contract RewardDistributor is
     /// @dev Can only be called by governance
     function initMarketStartTime(
         address _market
-    ) external onlyRole(GOVERNANCE) {
+    ) external virtual onlyRole(GOVERNANCE) {
         if (timeOfLastCumRewardUpdate[_market] != 0)
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
         timeOfLastCumRewardUpdate[_market] = block.timestamp;
