@@ -113,9 +113,9 @@ interface IRewardDistributor {
         uint256 actualPosition
     );
 
-    /// @notice Error returned if governance tries to set the ecosystem reserve to the zero address
-    /// @param invalidAddress Address that was passed (i.e., `address(0)`)
-    error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
+    /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
+    /// @param argIndex Index of the invalid argument
+    error RewardDistributor_InvalidZeroAddress(uint256 argIndex);
 
     /// @notice Gets the address of the reward token vault
     /// @return Address of the EcosystemReserve contract which serves as the reward token vault

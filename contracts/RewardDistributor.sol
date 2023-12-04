@@ -250,9 +250,7 @@ abstract contract RewardDistributor is
         address _newEcosystemReserve
     ) external onlyRole(GOVERNANCE) {
         if (_newEcosystemReserve == address(0))
-            revert RewardDistributor_InvalidEcosystemReserve(
-                _newEcosystemReserve
-            );
+            revert RewardDistributor_InvalidZeroAddress(0);
         emit EcosystemReserveUpdated(ecosystemReserve, _newEcosystemReserve);
         ecosystemReserve = _newEcosystemReserve;
     }

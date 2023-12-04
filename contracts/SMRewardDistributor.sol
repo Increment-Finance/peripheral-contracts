@@ -292,6 +292,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     function setSafetyModule(
         ISafetyModule _newSafetyModule
     ) external onlyRole(GOVERNANCE) {
+        if (address(_newSafetyModule) == address(0))
+            revert RewardDistributor_InvalidZeroAddress(0);
         emit SafetyModuleUpdated(
             address(safetyModule),
             address(_newSafetyModule)
