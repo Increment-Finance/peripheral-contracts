@@ -260,8 +260,9 @@ contract SafetyModuleTest is PerpetualUtils {
         assertEq(
             safetyModule.getNumStakingTokens(),
             2,
-            "Market count mismatch"
+            "Staking token count mismatch"
         );
+        assertEq(rewardDistributor.getNumMarkets(), 2, "Market count mismatch");
         assertEq(
             rewardDistributor.getMaxMarketIdx(),
             1,
@@ -335,6 +336,10 @@ contract SafetyModuleTest is PerpetualUtils {
             "Unstake window mismatch"
         );
     }
+
+    /* ******************* */
+    /*   Staking Rewards   */
+    /* ******************* */
 
     function testRewardMultiplier() public {
         // Test with smoothing value of 30 and max multiplier of 4
@@ -514,28 +519,6 @@ contract SafetyModuleTest is PerpetualUtils {
             ),
             accruedRewards,
             "Accrued more rewards after full redeem"
-        );
-    }
-
-    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
-        /* bounds */
-        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
-
-        // Get initial balances
-        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
-        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
-
-        // Set new max percent user loss and check auctionable balances
-        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
-        assertEq(
-            safetyModule.getAuctionableTotal(address(stakedToken1)),
-            balance1.wadMul(maxPercentUserLoss),
-            "Auctionable total 1 mismatch"
-        );
-        assertEq(
-            safetyModule.getAuctionableTotal(address(stakedToken2)),
-            balance2.wadMul(maxPercentUserLoss),
-            "Auctionable total 2 mismatch"
         );
     }
 
@@ -1142,6 +1125,36 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    /* ******************* */
+    /*  Slashing/Auctions  */
+    /* ******************* */
+
+    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
+        /* bounds */
+        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
+
+        // Get initial balances
+        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
+        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
+
+        // Set new max percent user loss and check auctionable balances
+        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
+        assertEq(
+            safetyModule.getAuctionableTotal(address(stakedToken1)),
+            balance1.wadMul(maxPercentUserLoss),
+            "Auctionable total 1 mismatch"
+        );
+        assertEq(
+            safetyModule.getAuctionableTotal(address(stakedToken2)),
+            balance2.wadMul(maxPercentUserLoss),
+            "Auctionable total 2 mismatch"
+        );
+    }
+
+    /* ******************* */
+    /*    Custom Errors    */
+    /* ******************* */
+
     function testSafetyModuleErrors(
         uint256 highMaxUserLoss,
         uint256 lowMaxMultiplier,
@@ -1254,6 +1267,14 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_AlreadyInitializedStartTime(address)",
+                address(stakedToken1)
+            )
+        );
+        rewardDistributor.initMarketStartTime(address(stakedToken1));
         vm.stopPrank();
 
         // test invalid market index
@@ -1350,6 +1371,13 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.withdrawFundsRaisedFromAuction(0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
     }
 
     function testStakedTokenErrors(

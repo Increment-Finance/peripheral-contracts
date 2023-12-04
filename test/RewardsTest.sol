@@ -246,6 +246,22 @@ contract RewardsTest is PerpetualUtils {
         assertEq(weights[0], 7500, "Market weight mismatch");
         assertEq(weights[1], 2500, "Market weight mismatch");
         assertEq(
+            rewardDistributor.getMarketWeightIdx(
+                address(rewardsToken),
+                address(perpetual)
+            ),
+            0,
+            "Market weight index mismatch"
+        );
+        assertEq(
+            rewardDistributor.getMarketWeightIdx(
+                address(rewardsToken2),
+                address(perpetual)
+            ),
+            -1,
+            "Missing market weight should be -1"
+        );
+        assertEq(
             rewardDistributor.earlyWithdrawalThreshold(),
             10 days,
             "Early withdrawal threshold mismatch"
@@ -462,6 +478,38 @@ contract RewardsTest is PerpetualUtils {
         }
         rewardDistributor.updateRewardWeights(
             address(rewardsToken),
+            markets2,
+            marketWeights2
+        );
+        if (marketWeights2[0] > 10000) {
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "RewardController_WeightExceedsMax(uint16,uint16)",
+                    marketWeights2[0],
+                    10000
+                )
+            );
+        } else if (marketWeights[1] > 10000) {
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "RewardController_WeightExceedsMax(uint16,uint16)",
+                    marketWeights2[1],
+                    10000
+                )
+            );
+        } else {
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "RewardController_IncorrectWeightsSum(uint16,uint16)",
+                    marketWeights2[0] + marketWeights2[1],
+                    10000
+                )
+            );
+        }
+        rewardDistributor.addRewardToken(
+            address(rewardsToken2),
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
             markets2,
             marketWeights2
         );
@@ -1740,8 +1788,8 @@ contract RewardsTest is PerpetualUtils {
         ecosystemReserve.transferAdmin(address(0));
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_InvalidEcosystemReserve(address)",
-                address(0)
+                "RewardDistributor_InvalidZeroAddress(uint256)",
+                0
             )
         );
         rewardDistributor.setEcosystemReserve(address(0));
