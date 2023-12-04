@@ -1087,10 +1087,6 @@ contract RewardsTest is PerpetualUtils {
         // skip some time
         skip(10 days);
 
-        // call updateMarketRewards because Foundry doesn't think it's being covered
-        // (even though it gets called so frequently by other functions called here)
-        rewardDistributor.updateMarketRewards(address(perpetual3));
-
         // set new market weights
         {
             address[] memory markets = new address[](3);

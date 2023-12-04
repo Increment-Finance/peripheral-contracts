@@ -130,7 +130,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address market,
         address user
     ) external virtual override nonReentrant onlyClearingHouse {
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = getCurrentPosition(user, market);
         uint256 numTokens = rewardTokens.length;
@@ -222,7 +222,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 numTokens = rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
             address token = rewardTokens[i];

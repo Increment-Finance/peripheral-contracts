@@ -195,11 +195,6 @@ interface IRewardController {
     /// @return True if the reward token is paused, false otherwise
     function isTokenPaused(address rewardToken) external view returns (bool);
 
-    /// @notice Updates the reward accumulator for a given market
-    /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
-    /// @param market Address of the market
-    function updateMarketRewards(address market) external;
-
     /// @notice Sets the market addresses and reward weights for a reward token
     /// @param rewardToken Address of the reward token
     /// @param markets List of market addresses to receive rewards

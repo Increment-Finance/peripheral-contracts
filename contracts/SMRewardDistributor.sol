@@ -121,7 +121,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         nonReentrant
         onlySafetyModule
     {
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
         uint256 newPosition = getCurrentPosition(user, market);
         totalLiquidityPerMarket[market] =
@@ -210,7 +210,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint i; i < numTokens; ++i) {

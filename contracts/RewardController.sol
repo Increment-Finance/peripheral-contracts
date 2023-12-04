@@ -66,9 +66,6 @@ abstract contract RewardController is
     /* ****************** */
 
     /// @inheritdoc IRewardController
-    function updateMarketRewards(address market) public virtual;
-
-    /// @inheritdoc IRewardController
     function getNumMarkets() public view virtual returns (uint256);
 
     /// @inheritdoc IRewardController
@@ -233,7 +230,7 @@ abstract contract RewardController is
             .marketAddresses
             .length;
         for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
+            _updateMarketRewards(
                 rewardInfoByToken[rewardToken].marketAddresses[i]
             );
         }
@@ -281,11 +278,20 @@ abstract contract RewardController is
                 .marketAddresses
                 .length;
             for (uint i; i < numMarkets; ++i) {
-                updateMarketRewards(
+                _updateMarketRewards(
                     rewardInfoByToken[rewardToken].marketAddresses[i]
                 );
             }
         }
         rewardInfoByToken[rewardToken].paused = paused;
     }
+
+    /* **************** */
+    /*     Internal     */
+    /* **************** */
+
+    /// @notice Updates the reward accumulator for a given market
+    /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
+    /// @param market Address of the market
+    function _updateMarketRewards(address market) internal virtual;
 }
