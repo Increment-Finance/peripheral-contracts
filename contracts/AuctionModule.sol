@@ -328,6 +328,20 @@ contract AuctionModule is
         emit PaymentTokenChanged(address(_paymentToken), previousPaymentToken);
     }
 
+    /// @inheritdoc IAuctionModule
+    /// @dev Only callable by governance
+    function setSafetyModule(
+        ISafetyModule _newSafetyModule
+    ) external onlyRole(GOVERNANCE) {
+        if (address(_newSafetyModule) == address(0))
+            revert AuctionModule_InvalidZeroAddress(0);
+        emit SafetyModuleUpdated(
+            address(safetyModule),
+            address(_newSafetyModule)
+        );
+        safetyModule = _newSafetyModule;
+    }
+
     /* ****************** */
     /*      Internal      */
     /* ****************** */

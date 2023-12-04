@@ -62,6 +62,11 @@ interface IAuctionModule {
         address oldPaymentToken
     );
 
+    /// @notice Emitted when the SafetyModule contract is updated by governance
+    /// @param oldSafetyModule Address of the old SafetyModule contract
+    /// @param newSafetyModule Address of the new SafetyModule contract
+    event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
+
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
     error AuctionModule_CallerIsNotSafetyModule(address caller);
@@ -187,6 +192,10 @@ interface IAuctionModule {
     /// Sets the token required for payments in all auctions
     /// @param _paymentToken ERC20 token to use for payment
     function setPaymentToken(IERC20 _paymentToken) external;
+
+    /// @notice Replaces the SafetyModule contract
+    /// @param _newSafetyModule Address of the new SafetyModule contract
+    function setSafetyModule(ISafetyModule _newSafetyModule) external;
 
     /// @notice Starts a new auction
     /// @dev First the SafetyModule slashes the StakedToken, sending the underlying slashed tokens here
