@@ -104,49 +104,6 @@ abstract contract RewardDistributor is
     /*   Reward Accrual   */
     /* ****************** */
 
-    /// @inheritdoc IRewardController
-    function updateMarketRewards(address market) public override {
-        uint256 numTokens = rewardTokens.length;
-        if (numTokens == 0) return;
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
-        if (deltaTime == 0) return;
-        if (totalLiquidityPerMarket[market] == 0) {
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
-            return;
-        }
-        for (uint256 i; i < numTokens; ++i) {
-            address token = rewardTokens[i];
-            uint256 weightIdx = getMarketWeightIdx(token, market);
-            if (
-                rewardInfoByToken[token].paused ||
-                rewardInfoByToken[token].initialInflationRate == 0 ||
-                rewardInfoByToken[token].marketWeights[weightIdx] == 0
-            ) continue;
-            uint16 marketWeight = rewardInfoByToken[token].marketWeights[
-                weightIdx
-            ];
-            uint256 totalTimeElapsed = block.timestamp -
-                rewardInfoByToken[token].initialTimestamp;
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-            uint256 inflationRate = (
-                rewardInfoByToken[token].initialInflationRate.div(
-                    rewardInfoByToken[token].reductionFactor.pow(
-                        totalTimeElapsed.div(365 days)
-                    )
-                )
-            );
-            uint256 newRewards = (((((inflationRate * marketWeight) / 10000) *
-                deltaTime) / 365 days) * 1e18) /
-                totalLiquidityPerMarket[market];
-            if (newRewards > 0) {
-                cumulativeRewardPerLpToken[token][market] += newRewards;
-                emit RewardAccruedToMarket(market, token, newRewards);
-            }
-        }
-        // Set timeOfLastCumRewardUpdate to the currentTime
-        timeOfLastCumRewardUpdate[market] = block.timestamp;
-    }
-
     /// @notice Accrues rewards and updates the stored position of a user and the total liquidity of a market
     /// @dev Executes whenever a user's position is updated for any reason
     /// @param market Address of the market (i.e., perpetual market or staking token)
@@ -164,7 +121,7 @@ abstract contract RewardDistributor is
     /// @dev Can only be called by governance
     function initMarketStartTime(
         address _market
-    ) external onlyRole(GOVERNANCE) {
+    ) external virtual onlyRole(GOVERNANCE) {
         if (timeOfLastCumRewardUpdate[_market] != 0)
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
         timeOfLastCumRewardUpdate[_market] = block.timestamp;
@@ -200,7 +157,7 @@ abstract contract RewardDistributor is
         uint16 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(_markets[i]);
+            _updateMarketRewards(_markets[i]);
             if (_marketWeights[i] == 0) continue;
             if (_marketWeights[i] > 10000)
                 revert RewardController_WeightExceedsMax(
@@ -247,7 +204,7 @@ abstract contract RewardDistributor is
             .marketAddresses
             .length;
         for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
+            _updateMarketRewards(
                 rewardInfoByToken[_rewardToken].marketAddresses[i]
             );
         }
@@ -378,6 +335,48 @@ abstract contract RewardDistributor is
     /* ****************** */
     /*      Internal      */
     /* ****************** */
+
+    /// @inheritdoc RewardController
+    function _updateMarketRewards(address market) internal override {
+        uint256 numTokens = rewardTokens.length;
+        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
+        if (deltaTime == 0 || numTokens == 0) return;
+        if (totalLiquidityPerMarket[market] == 0) {
+            timeOfLastCumRewardUpdate[market] = block.timestamp;
+            return;
+        }
+        for (uint256 i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
+            int256 weightIdx = getMarketWeightIdx(token, market);
+            if (
+                weightIdx < 0 ||
+                rewardInfoByToken[token].paused ||
+                rewardInfoByToken[token].initialInflationRate == 0 ||
+                rewardInfoByToken[token].marketWeights[uint256(weightIdx)] == 0
+            ) continue;
+            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
+            uint256 inflationRate = (
+                rewardInfoByToken[token].initialInflationRate.div(
+                    rewardInfoByToken[token].reductionFactor.pow(
+                        (block.timestamp -
+                            rewardInfoByToken[token].initialTimestamp).div(
+                                365 days
+                            )
+                    )
+                )
+            );
+            uint256 newRewards = (((((inflationRate *
+                rewardInfoByToken[token].marketWeights[uint256(weightIdx)]) /
+                10000) * deltaTime) / 365 days) * 1e18) /
+                totalLiquidityPerMarket[market];
+            if (newRewards > 0) {
+                cumulativeRewardPerLpToken[token][market] += newRewards;
+                emit RewardAccruedToMarket(market, token, newRewards);
+            }
+        }
+        // Set timeOfLastCumRewardUpdate to the currentTime
+        timeOfLastCumRewardUpdate[market] = block.timestamp;
+    }
 
     /// @notice Distributes accrued rewards from the ecosystem reserve to a user for a given reward token
     /// @dev Checks if there are enough rewards remaining in the ecosystem reserve to distribute, updates

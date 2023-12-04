@@ -121,7 +121,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         nonReentrant
         onlySafetyModule
     {
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
         uint256 newPosition = getCurrentPosition(user, market);
         totalLiquidityPerMarket[market] =
@@ -210,7 +210,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
-        updateMarketRewards(market);
+        _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
@@ -263,6 +263,24 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             ((deltaDays * (maxRewardMultiplier - 1e18)) /
                 1e18 +
                 smoothingValue);
+    }
+
+    /* ******************* */
+    /*    Safety Module    */
+    /* ******************* */
+
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by the SafetyModule
+    function initMarketStartTime(
+        address _market
+    )
+        external
+        override(IRewardDistributor, RewardDistributor)
+        onlySafetyModule
+    {
+        if (timeOfLastCumRewardUpdate[_market] != 0)
+            revert RewardDistributor_AlreadyInitializedStartTime(_market);
+        timeOfLastCumRewardUpdate[_market] = block.timestamp;
     }
 
     /* ****************** */

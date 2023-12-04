@@ -68,7 +68,7 @@ interface IRewardDistributor {
 
     /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
     /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
-    /// `updateMarketRewards(market)` is called, which is quite often.
+    /// `_updateMarketRewards(market)` is called, which is quite often.
     /// @param market Address of the market
     error RewardDistributor_UninitializedStartTime(address market);
 

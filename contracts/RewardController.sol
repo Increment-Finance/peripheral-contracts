@@ -66,9 +66,6 @@ abstract contract RewardController is
     /* ****************** */
 
     /// @inheritdoc IRewardController
-    function updateMarketRewards(address market) public virtual;
-
-    /// @inheritdoc IRewardController
     function getNumMarkets() public view virtual returns (uint256);
 
     /// @inheritdoc IRewardController
@@ -81,18 +78,6 @@ abstract contract RewardController is
 
     /// @inheritdoc IRewardController
     function getMarketIdx(uint256 i) public view virtual returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMarketWeightIdx(
-        address token,
-        address market
-    ) public view virtual returns (uint256) {
-        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
-        for (uint i; i < numMarkets; ++i) {
-            if (rewardInfoByToken[token].marketAddresses[i] == market) return i;
-        }
-        revert RewardController_MarketHasNoRewardWeight(market, token);
-    }
 
     /// @inheritdoc IRewardController
     function getCurrentPosition(
@@ -155,6 +140,19 @@ abstract contract RewardController is
     }
 
     /// @inheritdoc IRewardController
+    function getMarketWeightIdx(
+        address token,
+        address market
+    ) public view virtual returns (int256) {
+        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
+        for (uint i; i < numMarkets; ++i) {
+            if (rewardInfoByToken[token].marketAddresses[i] == market)
+                return int256(i);
+        }
+        return -1;
+    }
+
+    /// @inheritdoc IRewardController
     function isTokenPaused(address rewardToken) external view returns (bool) {
         return rewardInfoByToken[rewardToken].paused;
     }
@@ -180,21 +178,31 @@ abstract contract RewardController is
                 markets.length
             );
         // Update rewards for all currently rewarded markets before changing weights
-        uint256 numMarkets = rewardInfoByToken[rewardToken]
+        uint256 numOldMarkets = rewardInfoByToken[rewardToken]
             .marketAddresses
             .length;
-        for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
-                rewardInfoByToken[rewardToken].marketAddresses[i]
-            );
+        uint256 numNewMarkets = markets.length;
+        for (uint i; i < numOldMarkets; ++i) {
+            address market = rewardInfoByToken[rewardToken].marketAddresses[i];
+            _updateMarketRewards(market);
+            // Check if market is being removed from rewards
+            bool found;
+            for (uint j; j < numNewMarkets; ++j) {
+                if (markets[j] == market) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                emit MarketRemovedFromRewards(market, rewardToken);
+            }
         }
         // Replace stored lists of market addresses and weights
         rewardInfoByToken[rewardToken].marketAddresses = markets;
         rewardInfoByToken[rewardToken].marketWeights = weights;
         // Validate weights
         uint16 totalWeight;
-        numMarkets = markets.length;
-        for (uint i; i < numMarkets; ++i) {
+        for (uint i; i < numNewMarkets; ++i) {
             if (weights[i] > 10000)
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             totalWeight += weights[i];
@@ -223,7 +231,7 @@ abstract contract RewardController is
             .marketAddresses
             .length;
         for (uint i; i < numMarkets; ++i) {
-            updateMarketRewards(
+            _updateMarketRewards(
                 rewardInfoByToken[rewardToken].marketAddresses[i]
             );
         }
@@ -271,11 +279,20 @@ abstract contract RewardController is
                 .marketAddresses
                 .length;
             for (uint i; i < numMarkets; ++i) {
-                updateMarketRewards(
+                _updateMarketRewards(
                     rewardInfoByToken[rewardToken].marketAddresses[i]
                 );
             }
         }
         rewardInfoByToken[rewardToken].paused = paused;
     }
+
+    /* **************** */
+    /*     Internal     */
+    /* **************** */
+
+    /// @notice Updates the reward accumulator for a given market
+    /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
+    /// @param market Address of the market
+    function _updateMarketRewards(address market) internal virtual;
 }

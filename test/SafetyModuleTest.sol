@@ -122,7 +122,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         rewardVault.approve(
             AaveIERC20(address(rewardsToken)),
-            address(safetyModule),
+            address(rewardDistributor),
             type(uint256).max
         );
 
@@ -650,17 +650,6 @@ contract SafetyModuleTest is PerpetualUtils {
         skip(10 days);
 
         // before registering positions, expect accruing rewards to fail
-        console.log("expecting viewNewRewardAccrual to fail");
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                liquidityProviderTwo,
-                address(stakedToken1),
-                0,
-                stakedToken1.balanceOf(liquidityProviderTwo)
-            )
-        );
-        _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo);
         console.log("expecting accrueRewards to fail");
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1249,17 +1238,6 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.getStakingTokenIdx(invalidMarket);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                invalidMarket,
-                address(rewardsToken)
-            )
-        );
-        rewardDistributor.getMarketWeightIdx(
-            address(rewardsToken),
-            invalidMarket
-        );
         vm.startPrank(address(stakedToken1));
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1295,19 +1273,6 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         rewardDistributor.getMarketIdx(invalidMarketIdx);
-
-        // test invalid reward token
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_MarketHasNoRewardWeight(address,address)",
-                address(stakedToken1),
-                invalidRewardToken
-            )
-        );
-        rewardDistributor.getMarketWeightIdx(
-            invalidRewardToken,
-            address(stakedToken1)
-        );
 
         // test invalid auction ID
         // (auction exists but corresponding StakedToken is not stored in SafetyModule)
@@ -1571,9 +1536,8 @@ contract SafetyModuleTest is PerpetualUtils {
         address user,
         address token
     ) internal view returns (uint256) {
-        uint256 timeOfLastCumRewardUpdate = rewardDistributor
-            .timeOfLastCumRewardUpdate(market);
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate;
+        uint256 deltaTime = block.timestamp -
+            rewardDistributor.timeOfLastCumRewardUpdate(market);
         if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
         (, uint16[] memory marketWeights) = rewardDistributor.getRewardWeights(
@@ -1583,7 +1547,7 @@ contract SafetyModuleTest is PerpetualUtils {
             token
         ) *
             marketWeights[
-                rewardDistributor.getMarketWeightIdx(token, market)
+                rewardDistributor.getMarketWeightIdx(token, market).toUint256()
             ]) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor
             .cumulativeRewardPerLpToken(token, market) +
@@ -1598,7 +1562,8 @@ contract SafetyModuleTest is PerpetualUtils {
                         token,
                         market
                     ))
-            );
+            )
+            .wadMul(rewardDistributor.computeRewardMultiplier(user, market));
         return newUserRewards;
     }
 }
