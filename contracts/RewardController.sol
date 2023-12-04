@@ -197,12 +197,10 @@ abstract contract RewardController is
                 emit MarketRemovedFromRewards(market, rewardToken);
             }
         }
-        // Replace stored lists of market addresses and weights
-        rewardInfoByToken[rewardToken].marketAddresses = markets;
-        rewardInfoByToken[rewardToken].marketWeights = weights;
-        // Validate weights
+        // Validate weights and update rewards for any newly added markets
         uint16 totalWeight;
         for (uint i; i < numNewMarkets; ++i) {
+            _updateMarketRewards(markets[i]);
             if (weights[i] > 10000)
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             totalWeight += weights[i];
@@ -210,6 +208,9 @@ abstract contract RewardController is
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
+        // Replace stored lists of market addresses and weights
+        rewardInfoByToken[rewardToken].marketAddresses = markets;
+        rewardInfoByToken[rewardToken].marketWeights = weights;
     }
 
     /// @inheritdoc IRewardController
