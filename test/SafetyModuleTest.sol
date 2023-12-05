@@ -841,134 +841,6 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
-    function testStakedTokenExchangeRate(
-        uint256 donatePercent,
-        uint256 slashPercent,
-        uint256 stakeAmount
-    ) public {
-        /* bounds */
-        donatePercent = bound(donatePercent, 1e16, 1e18);
-        slashPercent = bound(slashPercent, 1e16, 1e18);
-        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
-
-        safetyModule.setMaxPercentUserLoss(1e18);
-
-        // Check initial conditions
-        uint256 initialSupply = stakedToken1.totalSupply();
-        assertEq(
-            initialSupply,
-            rewardsToken.balanceOf(address(stakedToken1)),
-            "Initial supply mismatch"
-        );
-        assertEq(
-            stakedToken1.exchangeRate(),
-            1e18,
-            "Initial exchange rate mismatch"
-        );
-        assertEq(
-            stakedToken1.previewStake(stakeAmount),
-            stakeAmount,
-            "Preview stake mismatch"
-        );
-        assertEq(
-            stakedToken1.previewRedeem(stakeAmount),
-            stakeAmount,
-            "Preview redeem mismatch"
-        );
-
-        // Get amounts from percents
-        uint256 donateAmount = initialSupply.wadMul(donatePercent);
-        uint256 slashAmount = initialSupply.wadMul(slashPercent);
-
-        // Donate some tokens to the staked token and check the resulting exchange rate
-        rewardsToken.approve(address(stakedToken1), donateAmount);
-        safetyModule.returnFunds(
-            address(stakedToken1),
-            address(this),
-            donateAmount
-        );
-        assertEq(
-            stakedToken1.exchangeRate(),
-            1e18 + donatePercent,
-            "Exchange rate mismatch after donation"
-        );
-        assertEq(
-            stakedToken1.previewStake(stakeAmount),
-            stakeAmount.wadDiv(1e18 + donatePercent),
-            "Preview stake mismatch after donation"
-        );
-        assertEq(
-            stakedToken1.previewRedeem(stakeAmount),
-            stakeAmount.wadMul(1e18 + donatePercent),
-            "Preview redeem mismatch after donation"
-        );
-
-        // Slash the donated tokens and check the resulting exchange rate
-        vm.startPrank(address(safetyModule));
-        uint256 slashedDonation = stakedToken1.slash(
-            address(this),
-            stakedToken1.previewStake(donateAmount)
-        );
-        assertApproxEqAbs(
-            slashedDonation,
-            donateAmount,
-            10, // 10 wei tolerance for rounding error
-            "Slashed donation mismatch"
-        );
-        assertEq(
-            stakedToken1.exchangeRate(),
-            1e18,
-            "Exchange rate mismatch after donating then slashing the same amount"
-        );
-        stakedToken1.settleSlashing();
-
-        // Slash some more tokens and check the resulting exchange rate
-        uint256 slashedAmount = stakedToken1.slash(address(this), slashAmount);
-        assertApproxEqAbs(
-            slashedAmount,
-            slashAmount,
-            10, // 10 wei tolerance for rounding error
-            "Slashed amount mismatch"
-        );
-        assertEq(
-            stakedToken1.exchangeRate(),
-            1e18 - slashPercent,
-            "Exchange rate mismatch after slashing"
-        );
-        if (slashPercent == 1e18) {
-            assertEq(
-                stakedToken1.previewStake(stakeAmount),
-                0,
-                "Preview stake mismatch after slashing"
-            );
-        } else {
-            assertEq(
-                stakedToken1.previewStake(stakeAmount),
-                stakeAmount.wadDiv(1e18 - slashPercent),
-                "Preview stake mismatch after slashing"
-            );
-        }
-        assertEq(
-            stakedToken1.previewRedeem(stakeAmount),
-            stakeAmount.wadMul(1e18 - slashPercent),
-            "Preview redeem mismatch after slashing"
-        );
-
-        // Return the slashed tokens to the staked token and check the resulting exchange rate
-        vm.stopPrank();
-        rewardsToken.approve(address(stakedToken1), slashedAmount);
-        safetyModule.returnFunds(
-            address(stakedToken1),
-            address(this),
-            slashedAmount
-        );
-        assertEq(
-            stakedToken1.exchangeRate(),
-            1e18,
-            "Exchange rate mismatch after returning slashed amount"
-        );
-    }
-
     function testStakedTokenTransfer(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -1276,6 +1148,134 @@ contract SafetyModuleTest is PerpetualUtils {
             safetyModule.getAuctionableTotal(address(stakedToken2)),
             balance2.wadMul(maxPercentUserLoss),
             "Auctionable total 2 mismatch"
+        );
+    }
+
+    function testStakedTokenExchangeRate(
+        uint256 donatePercent,
+        uint256 slashPercent,
+        uint256 stakeAmount
+    ) public {
+        /* bounds */
+        donatePercent = bound(donatePercent, 1e16, 1e18);
+        slashPercent = bound(slashPercent, 1e16, 1e18);
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        safetyModule.setMaxPercentUserLoss(1e18);
+
+        // Check initial conditions
+        uint256 initialSupply = stakedToken1.totalSupply();
+        assertEq(
+            initialSupply,
+            rewardsToken.balanceOf(address(stakedToken1)),
+            "Initial supply mismatch"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Initial exchange rate mismatch"
+        );
+        assertEq(
+            stakedToken1.previewStake(stakeAmount),
+            stakeAmount,
+            "Preview stake mismatch"
+        );
+        assertEq(
+            stakedToken1.previewRedeem(stakeAmount),
+            stakeAmount,
+            "Preview redeem mismatch"
+        );
+
+        // Get amounts from percents
+        uint256 donateAmount = initialSupply.wadMul(donatePercent);
+        uint256 slashAmount = initialSupply.wadMul(slashPercent);
+
+        // Donate some tokens to the staked token and check the resulting exchange rate
+        rewardsToken.approve(address(stakedToken1), donateAmount);
+        safetyModule.returnFunds(
+            address(stakedToken1),
+            address(this),
+            donateAmount
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18 + donatePercent,
+            "Exchange rate mismatch after donation"
+        );
+        assertEq(
+            stakedToken1.previewStake(stakeAmount),
+            stakeAmount.wadDiv(1e18 + donatePercent),
+            "Preview stake mismatch after donation"
+        );
+        assertEq(
+            stakedToken1.previewRedeem(stakeAmount),
+            stakeAmount.wadMul(1e18 + donatePercent),
+            "Preview redeem mismatch after donation"
+        );
+
+        // Slash the donated tokens and check the resulting exchange rate
+        vm.startPrank(address(safetyModule));
+        uint256 slashedDonation = stakedToken1.slash(
+            address(this),
+            stakedToken1.previewStake(donateAmount)
+        );
+        assertApproxEqAbs(
+            slashedDonation,
+            donateAmount,
+            10, // 10 wei tolerance for rounding error
+            "Slashed donation mismatch"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Exchange rate mismatch after donating then slashing the same amount"
+        );
+        stakedToken1.settleSlashing();
+
+        // Slash some more tokens and check the resulting exchange rate
+        uint256 slashedAmount = stakedToken1.slash(address(this), slashAmount);
+        assertApproxEqAbs(
+            slashedAmount,
+            slashAmount,
+            10, // 10 wei tolerance for rounding error
+            "Slashed amount mismatch"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18 - slashPercent,
+            "Exchange rate mismatch after slashing"
+        );
+        if (slashPercent == 1e18) {
+            assertEq(
+                stakedToken1.previewStake(stakeAmount),
+                0,
+                "Preview stake mismatch after slashing"
+            );
+        } else {
+            assertEq(
+                stakedToken1.previewStake(stakeAmount),
+                stakeAmount.wadDiv(1e18 - slashPercent),
+                "Preview stake mismatch after slashing"
+            );
+        }
+        assertEq(
+            stakedToken1.previewRedeem(stakeAmount),
+            stakeAmount.wadMul(1e18 - slashPercent),
+            "Preview redeem mismatch after slashing"
+        );
+
+        // Return the slashed tokens to the staked token and check the resulting exchange rate
+        vm.stopPrank();
+        rewardsToken.approve(address(stakedToken1), slashedAmount);
+        safetyModule.returnFunds(
+            address(stakedToken1),
+            address(this),
+            slashedAmount
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Exchange rate mismatch after returning slashed amount"
         );
     }
 
