@@ -335,12 +335,7 @@ contract StakedToken is
         uint256 totalAssets,
         uint256 totalShares
     ) internal {
-        if (totalShares == 0) {
-            // If there are no staked tokens, reset the exchange rate to 1:1
-            exchangeRate = 1e18;
-        } else {
-            exchangeRate = totalAssets.wadDiv(totalShares);
-        }
+        exchangeRate = totalAssets.wadDiv(totalShares);
         emit ExchangeRateUpdated(exchangeRate);
     }
 
