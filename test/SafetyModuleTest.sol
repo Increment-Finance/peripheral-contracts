@@ -1547,6 +1547,92 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         stakedToken1.settleSlashing();
+
+        // test zero exchange rate
+        safetyModule.setMaxPercentUserLoss(1e18); // set max user loss to 100%
+        vm.startPrank(address(safetyModule));
+        // slash 100% of staked tokens, resulting in zero exchange rate
+        uint256 maxAuctionableTotal = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        uint256 slashedTokens = stakedToken1.slash(
+            address(this),
+            maxAuctionableTotal
+        );
+        vm.stopPrank();
+        assertEq(
+            stakedToken1.exchangeRate(),
+            0,
+            "Exchange rate should be 0 after slashing 100% of staked tokens"
+        );
+        assertEq(
+            stakedToken1.previewStake(1e18),
+            0,
+            "Preview stake should be 0 when exchange rate is 0"
+        );
+        assertEq(
+            stakedToken1.previewRedeem(1e18),
+            0,
+            "Preview redeem should be 0 when exchange rate is 0"
+        );
+        // staking and redeeming should fail due to zero exchange rate
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_ZeroExchangeRate()")
+        );
+        stakedToken1.stake(1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_ZeroExchangeRate()")
+        );
+        stakedToken1.redeem(1);
+
+        // test features disabled in post-slashing state
+        stakedToken1.getUnderlyingToken().approve(
+            address(stakedToken1),
+            type(uint256).max
+        );
+        vm.startPrank(address(safetyModule));
+        // return all slashed funds, but do not settle slashing yet
+        stakedToken1.returnFunds(address(this), slashedTokens);
+        // slashing, staking and cooldown should fail due to post-slashing state
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_SlashingDisabledInPostSlashingState()"
+            )
+        );
+        stakedToken1.slash(address(this), slashedTokens);
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_StakingDisabledInPostSlashingState()"
+            )
+        );
+        stakedToken1.stake(1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CooldownDisabledInPostSlashingState()"
+            )
+        );
+        stakedToken1.cooldown();
+        vm.stopPrank();
+
+        // test above max slash amount
+        safetyModule.setMaxPercentUserLoss(0.3e18); // set max user loss to 30%
+        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        vm.startPrank(address(safetyModule));
+        // end post-slashing state, which re-enables slashing
+        stakedToken1.settleSlashing();
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxSlashAmount(uint256,uint256)",
+                maxAuctionableTotal,
+                maxSlashAmount
+            )
+        );
+        // try slashing 100% of staked tokens, when only 30% is allowed
+        stakedToken1.slash(address(this), maxAuctionableTotal);
+        vm.stopPrank();
     }
 
     /* ****************** */
