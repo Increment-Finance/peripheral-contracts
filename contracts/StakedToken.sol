@@ -223,6 +223,14 @@ contract StakedToken is
     ) external onlySafetyModule {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (from == address(0)) revert StakedToken_InvalidZeroAddress();
+
+        // Update the exchange rate
+        _updateExchangeRate(
+            UNDERLYING_TOKEN.balanceOf(address(this)) + amount,
+            totalSupply()
+        );
+
+        // Transfer the underlying tokens back to this contract
         UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
         emit FundsReturned(from, amount);
     }
