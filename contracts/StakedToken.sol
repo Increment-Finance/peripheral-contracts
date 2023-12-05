@@ -117,6 +117,7 @@ contract StakedToken is
      * @inheritdoc IStakedToken
      */
     function previewStake(uint256 amountToStake) public view returns (uint256) {
+        if (exchangeRate == 0) return 0;
         return amountToStake.wadDiv(exchangeRate);
     }
 
