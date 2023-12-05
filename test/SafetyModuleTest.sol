@@ -1506,6 +1506,15 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
+
+        // test invalid caller not auction module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_CallerIsNotAuctionModule(address)",
+                address(this)
+            )
+        );
+        safetyModule.auctionEnded(0, 0);
     }
 
     function testStakedTokenErrors(
