@@ -62,7 +62,7 @@ interface IStakedToken is IERC20Metadata {
         uint256 newMaxStakeAmount
     );
 
-    /// @notice Error returned when 0 amount is passed to stake or redeem functions
+    /// @notice Error returned when 0 amount is passed to a function that expects a non-zero amount
     error StakedToken_InvalidZeroAmount();
 
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address

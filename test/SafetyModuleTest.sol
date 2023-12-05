@@ -1409,6 +1409,34 @@ contract SafetyModuleTest is PerpetualUtils {
             abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
         );
         stakedToken1.redeemTo(liquidityProviderOne, 0);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.slash(address(safetyModule), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.returnFunds(address(safetyModule), 0);
+
+        // test zero address
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.stakeOnBehalfOf(address(0), 1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.redeemTo(address(0), 1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.slash(address(0), 1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.returnFunds(address(0), 1);
+        vm.stopPrank();
 
         // test zero balance
         vm.expectRevert(
@@ -1495,6 +1523,30 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         stakedToken1.redeem(stakedBalance);
+        vm.stopPrank();
+
+        // test invalid caller not safety module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        stakedToken1.slash(address(this), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        stakedToken1.returnFunds(address(this), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        stakedToken1.settleSlashing();
     }
 
     /* ****************** */
