@@ -1756,6 +1756,22 @@ contract RewardsTest is PerpetualUtils {
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
         rewardDistributor.claimRewards();
+        vm.stopPrank();
+        clearingHouse.unpause();
+        rewardDistributor.pause();
+        assertTrue(
+            rewardDistributor.paused(),
+            "Reward distributor not paused directly"
+        );
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(bytes("Pausable: paused"));
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
+        rewardDistributor.unpause();
+        assertTrue(
+            !rewardDistributor.paused(),
+            "Reward distributor not unpaused directly"
+        );
     }
 
     function testEcosystemReserve() public {
