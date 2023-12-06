@@ -96,7 +96,10 @@ contract AuctionModule is
     ) public view returns (uint256) {
         if (auctions[_auctionId].startTime == 0)
             revert AuctionModule_InvalidAuctionId(_auctionId);
-        if (auctions[_auctionId].endTime >= block.timestamp) return 0;
+        if (
+            !auctions[_auctionId].active ||
+            auctions[_auctionId].endTime <= block.timestamp
+        ) return 0;
         uint256 incrementPeriods = (block.timestamp -
             auctions[_auctionId].startTime) /
             auctions[_auctionId].lotIncreasePeriod;
