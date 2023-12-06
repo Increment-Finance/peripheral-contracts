@@ -1833,6 +1833,39 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.stopPrank();
     }
 
+    function _dealAndBuyLots(
+        address buyer,
+        uint256 auctionId,
+        uint8 numLots,
+        uint128 lotPrice
+    ) internal {
+        IERC20 paymentToken = auctionModule.paymentToken();
+        deal(address(paymentToken), buyer, lotPrice * numLots);
+        vm.startPrank(buyer);
+        paymentToken.approve(address(auctionModule), lotPrice * numLots);
+        uint256 lotSize = auctionModule.getCurrentLotSize(auctionId);
+        uint256 tokensAlreadySold = auctionModule.tokensSoldPerAuction(
+            auctionId
+        );
+        uint256 fundsAlreadyRaised = auctionModule.fundsRaisedPerAuction(
+            auctionId
+        );
+        vm.expectEmit(true, true, false, true);
+        emit LotsSold(auctionId, buyer, numLots, lotSize, lotPrice);
+        if (numLots == auctionModule.getRemainingLots(auctionId)) {
+            vm.expectEmit(true, false, false, true);
+            emit AuctionEnded(
+                auctionId,
+                0,
+                lotSize,
+                tokensAlreadySold + lotSize * numLots,
+                fundsAlreadyRaised + lotPrice * numLots
+            );
+        }
+        auctionModule.buyLots(auctionId, numLots);
+        vm.stopPrank();
+    }
+
     function _joinBalancerPool(
         address staker,
         uint256[] memory maxAmountsIn
