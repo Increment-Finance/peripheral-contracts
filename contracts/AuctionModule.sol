@@ -93,27 +93,12 @@ contract AuctionModule is
     /// @inheritdoc IAuctionModule
     function getCurrentLotSize(
         uint256 _auctionId
-    ) public view returns (uint256) {
-        if (auctions[_auctionId].startTime == 0)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
+    ) external view returns (uint256) {
         if (
             !auctions[_auctionId].active ||
             auctions[_auctionId].endTime <= block.timestamp
         ) return 0;
-        uint256 incrementPeriods = (block.timestamp -
-            auctions[_auctionId].startTime) /
-            auctions[_auctionId].lotIncreasePeriod;
-        uint256 lotSize = auctions[_auctionId].initialLotSize +
-            incrementPeriods *
-            auctions[_auctionId].lotIncreaseIncrement;
-        uint256 tokenBalance = auctions[_auctionId].token.balanceOf(
-            address(this)
-        );
-        uint256 remainingLots = auctions[_auctionId].remainingLots;
-        if (lotSize * remainingLots > tokenBalance) {
-            lotSize = tokenBalance / remainingLots;
-        }
-        return lotSize;
+        return _getCurrentLotSize(_auctionId);
     }
 
     /// @inheritdoc IAuctionModule
@@ -190,7 +175,7 @@ contract AuctionModule is
 
         // Calculate payment and purchase amounts
         uint256 paymentAmount = _numLotsToBuy * auctions[_auctionId].lotPrice;
-        uint256 currentLotSize = getCurrentLotSize(_auctionId);
+        uint256 currentLotSize = _getCurrentLotSize(_auctionId);
         uint256 purchaseAmount = _numLotsToBuy * currentLotSize;
 
         // Update auction in storage
@@ -358,6 +343,27 @@ contract AuctionModule is
     /*      Internal      */
     /* ****************** */
 
+    function _getCurrentLotSize(
+        uint256 _auctionId
+    ) internal view returns (uint256) {
+        if (auctions[_auctionId].startTime == 0)
+            revert AuctionModule_InvalidAuctionId(_auctionId);
+        uint256 incrementPeriods = (block.timestamp -
+            auctions[_auctionId].startTime) /
+            auctions[_auctionId].lotIncreasePeriod;
+        uint256 lotSize = auctions[_auctionId].initialLotSize +
+            incrementPeriods *
+            auctions[_auctionId].lotIncreaseIncrement;
+        uint256 tokenBalance = auctions[_auctionId].token.balanceOf(
+            address(this)
+        );
+        uint256 remainingLots = auctions[_auctionId].remainingLots;
+        if (lotSize * remainingLots > tokenBalance) {
+            lotSize = tokenBalance / remainingLots;
+        }
+        return lotSize;
+    }
+
     function _completeAuction(
         uint256 _auctionId,
         bool _terminatedEarly
@@ -383,7 +389,7 @@ contract AuctionModule is
         emit AuctionEnded(
             _auctionId,
             auctions[_auctionId].remainingLots,
-            getCurrentLotSize(_auctionId),
+            _getCurrentLotSize(_auctionId),
             tokensSoldPerAuction[_auctionId],
             fundsRaised
         );
