@@ -145,7 +145,7 @@ contract AuctionModule is
     }
 
     /// @inheritdoc IAuctionModule
-    function isAuctionActive(uint256 _auctionId) public view returns (bool) {
+    function isAuctionActive(uint256 _auctionId) external view returns (bool) {
         return auctions[_auctionId].active;
     }
 
@@ -164,7 +164,7 @@ contract AuctionModule is
         if (_numLotsToBuy == 0) revert AuctionModule_InvalidZeroArgument(1);
         if (block.timestamp >= auctions[_auctionId].endTime)
             auctions[_auctionId].active = false;
-        if (!isAuctionActive(_auctionId))
+        if (!auctions[_auctionId].active)
             revert AuctionModule_AuctionNotActive(_auctionId);
         uint256 remainingLots = auctions[_auctionId].remainingLots;
         if (_numLotsToBuy > remainingLots)
@@ -214,7 +214,7 @@ contract AuctionModule is
             revert AuctionModule_InvalidAuctionId(_auctionId);
         if (block.timestamp >= auctions[_auctionId].endTime)
             auctions[_auctionId].active = false;
-        if (isAuctionActive(_auctionId))
+        if (auctions[_auctionId].active)
             revert AuctionModule_AuctionStillActive(
                 _auctionId,
                 auctions[_auctionId].endTime
@@ -300,7 +300,7 @@ contract AuctionModule is
         // Safety checks
         if (_auctionId >= nextAuctionId)
             revert AuctionModule_InvalidAuctionId(_auctionId);
-        if (!isAuctionActive(_auctionId))
+        if (!auctions[_auctionId].active)
             revert AuctionModule_AuctionNotActive(_auctionId);
         if (auctions[_auctionId].completed)
             revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
