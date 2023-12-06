@@ -30,7 +30,6 @@ contract AuctionModule is
     /// @notice Struct representing an auction
     /// @param token Address of the token being auctioned
     /// @param active Whether the auction is still active
-    /// @param completed Whether the auction has been completed and tokens approved for transfer
     /// @param lotPrice Price of each lot of tokens, denominated in payment tokens
     /// @param initialLotSize Initial size of each lot
     /// @param numLots Total number of lots in the auction
@@ -42,7 +41,6 @@ contract AuctionModule is
     struct Auction {
         IERC20 token;
         bool active;
-        bool completed;
         uint128 lotPrice;
         uint128 initialLotSize;
         uint8 numLots;
@@ -146,7 +144,9 @@ contract AuctionModule is
 
     /// @inheritdoc IAuctionModule
     function isAuctionActive(uint256 _auctionId) external view returns (bool) {
-        return auctions[_auctionId].active;
+        return
+            auctions[_auctionId].active &&
+            block.timestamp < auctions[_auctionId].endTime;
     }
 
     /* ***************** */
@@ -162,10 +162,10 @@ contract AuctionModule is
         if (_auctionId >= nextAuctionId)
             revert AuctionModule_InvalidAuctionId(_auctionId);
         if (_numLotsToBuy == 0) revert AuctionModule_InvalidZeroArgument(1);
-        if (block.timestamp >= auctions[_auctionId].endTime)
-            auctions[_auctionId].active = false;
-        if (!auctions[_auctionId].active)
-            revert AuctionModule_AuctionNotActive(_auctionId);
+        if (
+            !auctions[_auctionId].active ||
+            block.timestamp >= auctions[_auctionId].endTime
+        ) revert AuctionModule_AuctionNotActive(_auctionId);
         uint256 remainingLots = auctions[_auctionId].remainingLots;
         if (_numLotsToBuy > remainingLots)
             revert AuctionModule_NotEnoughLotsRemaining(
@@ -211,15 +211,18 @@ contract AuctionModule is
         // Safety checks
         if (_auctionId >= nextAuctionId)
             revert AuctionModule_InvalidAuctionId(_auctionId);
+        // Active flag must still be true, otherwise it has already been completed
+        if (!auctions[_auctionId].active)
+            revert AuctionModule_AuctionNotActive(_auctionId);
+        // Auction timelimit must have passed to complete the auction
         if (block.timestamp >= auctions[_auctionId].endTime)
             auctions[_auctionId].active = false;
-        if (auctions[_auctionId].active)
+            // If the active flag is still true after checking the timelimit, the auction cannot be completed yet
+        else
             revert AuctionModule_AuctionStillActive(
                 _auctionId,
                 auctions[_auctionId].endTime
             );
-        if (auctions[_auctionId].completed)
-            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
 
         _completeAuction(_auctionId, false);
     }
@@ -249,8 +252,8 @@ contract AuctionModule is
         // Safety checks
         if (_token == IERC20(address(0)))
             revert AuctionModule_InvalidZeroAddress(0);
-        if (_lotPrice == 0) revert AuctionModule_InvalidZeroArgument(1);
-        if (_numLots == 0) revert AuctionModule_InvalidZeroArgument(2);
+        if (_numLots == 0) revert AuctionModule_InvalidZeroArgument(1);
+        if (_lotPrice == 0) revert AuctionModule_InvalidZeroArgument(2);
         if (_initialLotSize == 0) revert AuctionModule_InvalidZeroArgument(3);
         if (_lotIncreaseIncrement == 0)
             revert AuctionModule_InvalidZeroArgument(4);
@@ -265,7 +268,6 @@ contract AuctionModule is
         auctions[auctionId] = Auction({
             token: _token,
             active: true,
-            completed: false,
             lotPrice: _lotPrice,
             initialLotSize: _initialLotSize,
             numLots: _numLots,
@@ -301,8 +303,6 @@ contract AuctionModule is
             revert AuctionModule_InvalidAuctionId(_auctionId);
         if (!auctions[_auctionId].active)
             revert AuctionModule_AuctionNotActive(_auctionId);
-        if (auctions[_auctionId].completed)
-            revert AuctionModule_AuctionAlreadyCompleted(_auctionId);
 
         auctions[_auctionId].active = false;
         _completeAuction(_auctionId, true);
@@ -369,9 +369,6 @@ contract AuctionModule is
         uint256 _auctionId,
         bool _terminatedEarly
     ) internal {
-        // Complete auction
-        auctions[_auctionId].completed = true;
-
         // Approvals
         IERC20 auctionToken = auctions[_auctionId].token;
         IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(

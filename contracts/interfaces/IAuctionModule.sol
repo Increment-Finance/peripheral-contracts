@@ -82,8 +82,7 @@ interface IAuctionModule {
     /// @param argIndex Index of the argument where a zero address was passed
     error AuctionModule_InvalidZeroAddress(uint256 argIndex);
 
-    /// @notice Error returned when a user calls `buyLots` or the SafetyModule calls `terminateAuction`
-    /// after the auction has ended
+    /// @notice Error returned when a caller calls a function that requires the auction to be active
     /// @param auctionId ID of the auction
     error AuctionModule_AuctionNotActive(uint256 auctionId);
 
@@ -91,10 +90,6 @@ interface IAuctionModule {
     /// @param auctionId ID of the auction
     /// @param endTime Timestamp when the auction ends
     error AuctionModule_AuctionStillActive(uint256 auctionId, uint256 endTime);
-
-    /// @notice Error returned when a caller tries to complete an auction that has already been completed
-    /// @param auctionId ID of the auction
-    error AuctionModule_AuctionAlreadyCompleted(uint256 auctionId);
 
     /// @notice Error returned when a user tries to buy more than the number of lots remaining
     /// @param auctionId ID of the auction
