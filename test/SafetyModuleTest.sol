@@ -41,12 +41,38 @@ contract SafetyModuleTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
 
+    event Staked(
+        address indexed from,
+        address indexed onBehalfOf,
+        uint256 amount
+    );
+
+    event Redeemed(address indexed from, address indexed to, uint256 amount);
+
+    event Cooldown(address indexed user);
+
     event RewardTokenShortfall(
         address indexed rewardToken,
         uint256 shortfallAmount
     );
 
     event Transfer(address indexed from, address indexed to, uint256 value);
+
+    event LotsSold(
+        uint256 indexed auctionId,
+        address indexed buyer,
+        uint8 numLots,
+        uint256 lotSize,
+        uint128 lotPrice
+    );
+
+    event AuctionEnded(
+        uint256 indexed auctionId,
+        uint8 remainingLots,
+        uint256 finalLotSize,
+        uint256 totalTokensSold,
+        uint256 totalFundsRaised
+    );
 
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
@@ -1784,6 +1810,8 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 amount
     ) internal {
         vm.startPrank(staker);
+        vm.expectEmit(false, false, false, true);
+        emit Staked(staker, staker, amount);
         stakedToken.stake(amount);
         vm.stopPrank();
     }
@@ -1795,8 +1823,12 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 cooldown
     ) internal {
         vm.startPrank(staker);
+        vm.expectEmit(false, false, false, true);
+        emit Cooldown(staker);
         stakedToken.cooldown();
         skip(cooldown);
+        vm.expectEmit(false, false, false, true);
+        emit Redeemed(staker, staker, amount);
         stakedToken.redeem(amount);
         vm.stopPrank();
     }
