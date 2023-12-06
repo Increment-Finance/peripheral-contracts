@@ -587,17 +587,19 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_MAX_USER_LOSS
         );
         AuctionModule newAuctionModule = new AuctionModule(
-            newSafetyModule,
+            ISafetyModule(address(0)),
             usdc
         );
         newSafetyModule.setAuctionModule(newAuctionModule);
+        newAuctionModule.setSafetyModule(newSafetyModule);
         SMRewardDistributor newRewardDistributor = new SMRewardDistributor(
-            newSafetyModule,
+            ISafetyModule(address(0)),
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
             address(rewardVault)
         );
         newSafetyModule.setRewardDistributor(newRewardDistributor);
+        newRewardDistributor.setSafetyModule(newSafetyModule);
 
         rewardVault.approve(
             AaveIERC20(address(rewardsToken)),
