@@ -202,6 +202,15 @@ contract AuctionModule is
         IERC20 auctionToken = auctions[_auctionId].token;
         auctionToken.safeTransfer(msg.sender, purchaseAmount);
 
+        // Emit event
+        emit LotsSold(
+            _auctionId,
+            msg.sender,
+            _numLotsToBuy,
+            currentLotSize,
+            auctions[_auctionId].lotPrice
+        );
+
         // Check if auction is over
         if (remainingLots - _numLotsToBuy == 0) {
             auctions[_auctionId].active = false;

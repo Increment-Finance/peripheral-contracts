@@ -45,11 +45,13 @@ interface IAuctionModule {
     /// @notice Emitted when a lot is sold
     /// @param auctionId ID of the auction
     /// @param buyer Address of the buyer
+    /// @param numLots Number of lots sold
     /// @param lotSize Size of the lot sold
     /// @param lotPrice Price of the lot sold
-    event LotSold(
+    event LotsSold(
         uint256 indexed auctionId,
         address indexed buyer,
+        uint8 numLots,
         uint256 lotSize,
         uint128 lotPrice
     );
