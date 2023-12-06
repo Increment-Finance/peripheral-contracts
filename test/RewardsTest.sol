@@ -198,19 +198,9 @@ contract RewardsTest is PerpetualUtils {
     // run tests via source .env && forge test --match <TEST_NAME> --fork-url $ETH_NODE_URI_MAINNET -vv
 
     function testDeployment() public {
-        assertEq(rewardDistributor.getNumMarkets(), 2, "Market count mismatch");
-        address marketAddress1 = rewardDistributor.getMarketAddress(0);
-        assertEq(
-            rewardDistributor.getMaxMarketIdx(),
-            1,
-            "Max market index mismatch"
-        );
-        assertEq(marketAddress1, address(perpetual), "Market address mismatch");
+        assertEq(clearingHouse.getNumMarkets(), 2, "Market count mismatch");
         assertApproxEqRel(
-            rewardDistributor.getCurrentPosition(
-                liquidityProviderOne,
-                address(perpetual)
-            ),
+            perpetual.getLpLiquidity(liquidityProviderOne),
             4867996525552487585967, // position from initial tests after providing liquidity in setUp()
             5e16, // 5% tolerance to account for fluctuation in oracle price
             "Position mismatch"
@@ -598,14 +588,8 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect cumulative rewards"
         );
 
-        uint256 lpBalance1 = rewardDistributor.getCurrentPosition(
-            liquidityProviderOne,
-            address(perpetual)
-        );
-        uint256 lpBalance2 = rewardDistributor.getCurrentPosition(
-            liquidityProviderOne,
-            address(perpetual2)
-        );
+        uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderOne);
+        uint256 lpBalance2 = perpetual2.getLpLiquidity(liquidityProviderOne);
 
         uint256 expectedAccruedRewards1 = (cumulativeRewards1 * lpBalance1) /
             1e18;
@@ -1365,19 +1349,9 @@ contract RewardsTest is PerpetualUtils {
         clearingHouse.allowListPerpetual(perpetual3);
         console.log("Added new perpetual: %s", address(perpetual3));
         assertEq(
-            rewardDistributor.getMarketAddress(2),
-            address(perpetual3),
-            "Incorrect market address"
-        );
-        assertEq(
-            rewardDistributor.getNumMarkets(),
+            clearingHouse.getNumMarkets(),
             2,
             "Incorrect number of markets"
-        );
-        assertEq(
-            rewardDistributor.getMarketIdx(1),
-            2,
-            "Incorrect market index"
         );
 
         rewardDistributor.initMarketStartTime(address(perpetual3));
@@ -1575,14 +1549,14 @@ contract RewardsTest is PerpetualUtils {
                 invalidMarket != address(perpetual2)
         );
         // getters
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                9,
-                1
-            )
-        );
-        rewardDistributor.getMarketAddress(9);
+        // vm.expectRevert(
+        //     abi.encodeWithSignature(
+        //         "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+        //         9,
+        //         1
+        //     )
+        // );
+        // rewardDistributor.getMarketAddress(9);
 
         // updateStakingPosition
         vm.expectRevert(

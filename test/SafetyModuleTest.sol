@@ -288,18 +288,11 @@ contract SafetyModuleTest is PerpetualUtils {
             2,
             "Staking token count mismatch"
         );
-        assertEq(rewardDistributor.getNumMarkets(), 2, "Market count mismatch");
         assertEq(
-            rewardDistributor.getMaxMarketIdx(),
-            1,
-            "Max market index mismatch"
-        );
-        assertEq(
-            rewardDistributor.getMarketAddress(0),
+            address(safetyModule.stakingTokens(0)),
             address(stakedToken1),
             "Market address mismatch"
         );
-        assertEq(rewardDistributor.getMarketIdx(0), 0, "Market index mismatch");
         assertEq(
             safetyModule.getStakingTokenIdx(address(stakedToken2)),
             1,
@@ -314,10 +307,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Market reward weight index mismatch"
         );
         assertEq(
-            rewardDistributor.getCurrentPosition(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            ),
+            stakedToken1.balanceOf(liquidityProviderTwo),
             0,
             "Current position mismatch"
         );
@@ -331,10 +321,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
-            rewardDistributor.getCurrentPosition(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            ),
+            stakedToken1.balanceOf(liquidityProviderTwo),
             100 ether,
             "Current position mismatch"
         );
@@ -1583,22 +1570,22 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.stopPrank();
 
         // test invalid market index
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
-        );
-        rewardDistributor.getMarketAddress(invalidMarketIdx);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
-        );
-        rewardDistributor.getMarketIdx(invalidMarketIdx);
+        // vm.expectRevert(
+        //     abi.encodeWithSignature(
+        //         "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+        //         invalidMarketIdx,
+        //         1
+        //     )
+        // );
+        // rewardDistributor.getMarketAddress(invalidMarketIdx);
+        // vm.expectRevert(
+        //     abi.encodeWithSignature(
+        //         "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
+        //         invalidMarketIdx,
+        //         1
+        //     )
+        // );
+        // rewardDistributor.getMarketIdx(invalidMarketIdx);
 
         // test invalid auction ID
         // (auction exists but corresponding StakedToken is not stored in SafetyModule)
@@ -1946,6 +1933,265 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         // try slashing 100% of staked tokens, when only 30% is allowed
         stakedToken1.slash(address(this), maxAuctionableTotal);
+        vm.stopPrank();
+    }
+
+    function testAuctionModuleErrors() public {
+        // start an auction
+        vm.startPrank(address(safetyModule));
+        uint256 auctionId = auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            1,
+            1 ether,
+            1e18,
+            0.1 ether,
+            1 hours,
+            10 days
+        );
+
+        // test invalid zero arguments
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                1
+            )
+        );
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                2
+            )
+        );
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                3
+            )
+        );
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                4
+            )
+        );
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            1,
+            1,
+            1,
+            0,
+            0,
+            0
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                5
+            )
+        );
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            1,
+            1,
+            1,
+            1,
+            0,
+            0
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                6
+            )
+        );
+        auctionModule.startAuction(
+            stakedToken1.getUnderlyingToken(),
+            1,
+            1,
+            1,
+            1,
+            1,
+            0
+        );
+        vm.stopPrank();
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        auctionModule.setPaymentToken(IERC20(address(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        auctionModule.setSafetyModule(ISafetyModule(address(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                1
+            )
+        );
+        auctionModule.buyLots(auctionId, 0);
+
+        // test invalid auction ID
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.buyLots(1, 1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.completeAuction(1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.getCurrentLotSize(1);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.terminateAuction(1);
+        vm.stopPrank();
+
+        // test paused
+        auctionModule.pause();
+        assertTrue(auctionModule.paused(), "Auction module should be paused");
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.stopPrank();
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.buyLots(auctionId, 1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.completeAuction(auctionId);
+        auctionModule.unpause();
+        safetyModule.pause();
+        assertTrue(
+            auctionModule.paused(),
+            "Auction module should be paused when Safety Module is"
+        );
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.stopPrank();
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.buyLots(auctionId, 1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.completeAuction(auctionId);
+        safetyModule.unpause();
+
+        // test not enough lots remaining
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_NotEnoughLotsRemaining(uint256,uint256)",
+                auctionId,
+                1
+            )
+        );
+        auctionModule.buyLots(auctionId, 2);
+
+        // test invalid caller not safety module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        auctionModule.terminateAuction(auctionId);
+
+        // test auction still active
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionStillActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.completeAuction(auctionId);
+
+        // skip to auction end time
+        skip(10 days);
+
+        // test auction not active
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.buyLots(auctionId, 1); // reverts due to timestamp check, not active flag
+        // complete auction manually, setting active flag to false
+        auctionModule.completeAuction(auctionId);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.completeAuction(auctionId);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.terminateAuction(auctionId);
         vm.stopPrank();
     }
 
