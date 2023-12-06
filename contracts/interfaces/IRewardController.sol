@@ -102,36 +102,6 @@ interface IRewardController {
     /// @return The address of the reward token
     function rewardTokens(uint256 i) external view returns (address);
 
-    /// @notice Gets the number of markets to be used for reward distribution
-    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @return Number of markets
-    function getNumMarkets() external view returns (uint256);
-
-    /// @notice Gets the highest valid market index
-    /// @return Highest valid market index
-    function getMaxMarketIdx() external view returns (uint256);
-
-    /// @notice Gets the address of a market at a given index
-    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param idx Index of the market
-    /// @return Address of the market
-    function getMarketAddress(uint256 idx) external view returns (address);
-
-    /// @notice Gets the index of an allowlisted market
-    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param i Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule)
-    /// @return Index of the market in the market list
-    function getMarketIdx(uint256 i) external view returns (uint256);
-
-    /// @notice Returns the current position of the user in the market (i.e., perpetual market or staked token)
-    /// @param user Address of the user
-    /// @param market Address of the market
-    /// @return Current position of the user in the market
-    function getCurrentPosition(
-        address user,
-        address market
-    ) external view returns (uint256);
-
     /// @notice Gets the number of reward tokens
     /// @return Number of reward tokens
     function getRewardTokenCount() external view returns (uint256);

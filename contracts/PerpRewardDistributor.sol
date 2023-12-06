@@ -83,42 +83,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     }
 
     /* ****************** */
-    /*   Market Getters   */
-    /* ****************** */
-
-    /// @inheritdoc IRewardController
-    function getNumMarkets() public view override returns (uint256) {
-        return clearingHouse.getNumMarkets();
-    }
-
-    /// @inheritdoc IRewardController
-    function getMaxMarketIdx() public view override returns (uint256) {
-        return clearingHouse.marketIds() - 1;
-    }
-
-    /// @inheritdoc IRewardController
-    function getMarketAddress(
-        uint256 idx
-    ) public view override returns (address) {
-        if (idx > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(idx, getMaxMarketIdx());
-        return address(clearingHouse.perpetuals(idx));
-    }
-
-    /// @inheritdoc IRewardController
-    function getMarketIdx(uint256 i) public view override returns (uint256) {
-        return clearingHouse.id(i);
-    }
-
-    /// @inheritdoc IRewardController
-    function getCurrentPosition(
-        address user,
-        address market
-    ) public view override returns (uint256) {
-        return IPerpetual(market).getLpLiquidity(user);
-    }
-
-    /* ****************** */
     /*   Reward Accrual   */
     /* ****************** */
 
@@ -244,5 +208,39 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @return True if paused, false otherwise
     function paused() public view override returns (bool) {
         return super.paused() || Pausable(address(clearingHouse)).paused();
+    }
+
+    /* ****************** */
+    /*      Internal      */
+    /* ****************** */
+
+    /// @inheritdoc RewardController
+    function getNumMarkets() internal view override returns (uint256) {
+        return clearingHouse.getNumMarkets();
+    }
+
+    /// @inheritdoc RewardController
+    function getMaxMarketIdx() internal view override returns (uint256) {
+        return clearingHouse.marketIds() - 1;
+    }
+
+    /// @inheritdoc RewardController
+    function getMarketAddress(
+        uint256 idx
+    ) internal view override returns (address) {
+        return address(clearingHouse.perpetuals(idx));
+    }
+
+    /// @inheritdoc RewardController
+    function getMarketIdx(uint256 i) internal view override returns (uint256) {
+        return clearingHouse.id(i);
+    }
+
+    /// @inheritdoc RewardController
+    function getCurrentPosition(
+        address user,
+        address market
+    ) internal view override returns (uint256) {
+        return IPerpetual(market).getLpLiquidity(user);
     }
 }

@@ -75,32 +75,6 @@ abstract contract RewardDistributor is
     }
 
     /* ****************** */
-    /*   Market Getters   */
-    /* ****************** */
-
-    /// @inheritdoc IRewardController
-    function getNumMarkets() public view virtual override returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMaxMarketIdx() public view virtual override returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMarketAddress(
-        uint256 idx
-    ) public view virtual override returns (address);
-
-    /// @inheritdoc IRewardController
-    function getMarketIdx(
-        uint256 i
-    ) public view virtual override returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getCurrentPosition(
-        address user,
-        address market
-    ) public view virtual override returns (uint256);
-
-    /* ****************** */
     /*   Reward Accrual   */
     /* ****************** */
 
@@ -135,7 +109,7 @@ abstract contract RewardDistributor is
         uint256 _initialReductionFactor,
         address[] calldata _markets,
         uint16[] calldata _marketWeights
-    ) external nonReentrant onlyRole(GOVERNANCE) {
+    ) external onlyRole(GOVERNANCE) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
                 _initialInflationRate,
@@ -192,7 +166,7 @@ abstract contract RewardDistributor is
     /// @dev Can only be called by governance
     function removeRewardToken(
         address _rewardToken
-    ) external nonReentrant onlyRole(GOVERNANCE) {
+    ) external onlyRole(GOVERNANCE) {
         if (
             _rewardToken == address(0) ||
             rewardInfoByToken[_rewardToken].token !=
@@ -260,7 +234,7 @@ abstract contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc IRewardDistributor
-    function registerPositions() external nonReentrant {
+    function registerPositions() external {
         uint256 numMarkets = getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
             address market = getMarketAddress(getMarketIdx(i));
@@ -269,9 +243,7 @@ abstract contract RewardDistributor is
     }
 
     /// @inheritdoc IRewardDistributor
-    function registerPositions(
-        address[] calldata _markets
-    ) external nonReentrant {
+    function registerPositions(address[] calldata _markets) external {
         for (uint i; i < _markets.length; ++i) {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
@@ -429,4 +401,26 @@ abstract contract RewardDistributor is
         lpPositionsPerUser[_user][_market] = lpPosition;
         totalLiquidityPerMarket[_market] += lpPosition;
     }
+
+    /// @inheritdoc RewardController
+    function getNumMarkets() internal view virtual override returns (uint256);
+
+    /// @inheritdoc RewardController
+    function getMaxMarketIdx() internal view virtual override returns (uint256);
+
+    /// @inheritdoc RewardController
+    function getMarketAddress(
+        uint256 idx
+    ) internal view virtual override returns (address);
+
+    /// @inheritdoc RewardController
+    function getMarketIdx(
+        uint256 i
+    ) internal view virtual override returns (uint256);
+
+    /// @inheritdoc RewardController
+    function getCurrentPosition(
+        address user,
+        address market
+    ) internal view virtual override returns (uint256);
 }

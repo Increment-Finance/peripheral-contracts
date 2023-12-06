@@ -61,11 +61,6 @@ interface IRewardDistributor {
         address newEcosystemReserve
     );
 
-    /// @notice Error returned when an invalid index is passed into `getMarketAddress`
-    /// @param index Index that was passed
-    /// @param maxIndex Maximum allowed index
-    error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
-
     /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
     /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
     /// `_updateMarketRewards(market)` is called, which is quite often.

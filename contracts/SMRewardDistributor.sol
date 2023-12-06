@@ -13,7 +13,6 @@ import "./interfaces/IRewardController.sol";
 /// @author webthethird
 /// @notice Reward distributor for the Safety Module
 contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
-    using SafeERC20 for IERC20Metadata;
     using PRBMathUD60x18 for uint256;
 
     /// @notice The SafetyModule contract which stores the list of StakedTokens and can call `updateStakingPosition`
@@ -55,52 +54,6 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         emit SafetyModuleUpdated(address(0), address(_safetyModule));
         emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
         emit SmoothingValueUpdated(_smoothingValue);
-    }
-
-    /* ****************** */
-    /*      Markets       */
-    /* ****************** */
-
-    /// @inheritdoc RewardDistributor
-    function getNumMarkets() public view virtual override returns (uint256) {
-        return safetyModule.getNumStakingTokens();
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getMaxMarketIdx() public view override returns (uint256) {
-        return safetyModule.getNumStakingTokens() - 1;
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getMarketAddress(
-        uint256 index
-    ) public view virtual override returns (address) {
-        if (index > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(
-                index,
-                getMaxMarketIdx()
-            );
-        return address(safetyModule.stakingTokens(index));
-    }
-
-    /// @inheritdoc RewardDistributor
-    function getMarketIdx(
-        uint256 i
-    ) public view virtual override returns (uint256) {
-        if (i > getMaxMarketIdx())
-            revert RewardDistributor_InvalidMarketIndex(i, getMaxMarketIdx());
-        return i;
-    }
-
-    /// @notice Returns the user's staking token balance
-    /// @param staker Address of the user
-    /// @param token Address of the staking token
-    /// @return Current balance of the user in the staking token
-    function getCurrentPosition(
-        address staker,
-        address token
-    ) public view virtual override returns (uint256) {
-        return IStakedToken(token).balanceOf(staker);
     }
 
     /* ****************** */
@@ -169,14 +122,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             // and then staking a large amount once their multiplier is very high in order to claim a large
             // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
             // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
-            uint256 timeDelta = block.timestamp -
-                multiplierStartTimeByUser[user][market];
-            uint256 increaseRatio = (newPosition - prevPosition).div(
-                newPosition
-            );
-            multiplierStartTimeByUser[user][market] += timeDelta.mul(
-                increaseRatio
-            );
+            multiplierStartTimeByUser[user][market] += (block.timestamp -
+                multiplierStartTimeByUser[user][market]).mul(
+                    (newPosition - prevPosition).div(newPosition)
+                );
         }
         lpPositionsPerUser[user][market] = newPosition;
     }
@@ -328,5 +277,44 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             revert SMRD_InvalidSmoothingValueTooHigh(_smoothingValue, 100e18);
         smoothingValue = _smoothingValue;
         emit SmoothingValueUpdated(_smoothingValue);
+    }
+
+    /* **************** */
+    /*     Internal     */
+    /* **************** */
+
+    /// @inheritdoc RewardDistributor
+    function getNumMarkets() internal view virtual override returns (uint256) {
+        return safetyModule.getNumStakingTokens();
+    }
+
+    /// @inheritdoc RewardDistributor
+    function getMaxMarketIdx() internal view override returns (uint256) {
+        return safetyModule.getNumStakingTokens() - 1;
+    }
+
+    /// @inheritdoc RewardDistributor
+    function getMarketAddress(
+        uint256 index
+    ) internal view virtual override returns (address) {
+        return address(safetyModule.stakingTokens(index));
+    }
+
+    /// @inheritdoc RewardDistributor
+    function getMarketIdx(
+        uint256 i
+    ) internal view virtual override returns (uint256) {
+        return i;
+    }
+
+    /// @notice Returns the user's staking token balance
+    /// @param staker Address of the user
+    /// @param token Address of the staking token
+    /// @return Current balance of the user in the staking token
+    function getCurrentPosition(
+        address staker,
+        address token
+    ) internal view virtual override returns (uint256) {
+        return IStakedToken(token).balanceOf(staker);
     }
 }
