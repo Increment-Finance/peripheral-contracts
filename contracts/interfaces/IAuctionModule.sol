@@ -57,12 +57,9 @@ interface IAuctionModule {
     );
 
     /// @notice Emitted when the payment token is changed
-    /// @param newPaymentToken Address of the new payment token
     /// @param oldPaymentToken Address of the old payment token
-    event PaymentTokenChanged(
-        address indexed newPaymentToken,
-        address oldPaymentToken
-    );
+    /// @param newPaymentToken Address of the new payment token
+    event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
 
     /// @notice Emitted when the SafetyModule contract is updated by governance
     /// @param oldSafetyModule Address of the old SafetyModule contract
@@ -192,8 +189,8 @@ interface IAuctionModule {
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
     /// Sets the token required for payments in all auctions
-    /// @param _paymentToken ERC20 token to use for payment
-    function setPaymentToken(IERC20 _paymentToken) external;
+    /// @param _newPaymentToken ERC20 token to use for payment
+    function setPaymentToken(IERC20 _newPaymentToken) external;
 
     /// @notice Replaces the SafetyModule contract
     /// @param _newSafetyModule Address of the new SafetyModule contract

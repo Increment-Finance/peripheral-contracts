@@ -187,8 +187,7 @@ contract AuctionModule is
         paymentToken.safeTransferFrom(msg.sender, address(this), paymentAmount);
 
         // Transfer tokens
-        IERC20 auctionToken = auctions[_auctionId].token;
-        auctionToken.safeTransfer(msg.sender, purchaseAmount);
+        auctions[_auctionId].token.safeTransfer(msg.sender, purchaseAmount);
 
         // Emit event
         emit LotsSold(
@@ -316,13 +315,15 @@ contract AuctionModule is
     /// @inheritdoc IAuctionModule
     /// @dev Only callable by governance
     function setPaymentToken(
-        IERC20 _paymentToken
+        IERC20 _newPaymentToken
     ) external onlyRole(GOVERNANCE) {
-        if (address(_paymentToken) == address(0))
+        if (address(_newPaymentToken) == address(0))
             revert AuctionModule_InvalidZeroAddress(0);
-        address previousPaymentToken = address(paymentToken);
-        paymentToken = _paymentToken;
-        emit PaymentTokenChanged(address(_paymentToken), previousPaymentToken);
+        emit PaymentTokenChanged(
+            address(paymentToken),
+            address(_newPaymentToken)
+        );
+        paymentToken = _newPaymentToken;
     }
 
     /// @inheritdoc IAuctionModule
