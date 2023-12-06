@@ -341,6 +341,22 @@ contract AuctionModule is
     }
 
     /* ****************** */
+    /*   Emergency Admin  */
+    /* ****************** */
+
+    /// @inheritdoc IAuctionModule
+    /// @dev Can only be called by Emergency Admin
+    function pause() external override onlyRole(EMERGENCY_ADMIN) {
+        _pause();
+    }
+
+    /// @inheritdoc IAuctionModule
+    /// @dev Can only be called by Emergency Admin
+    function unpause() external override onlyRole(EMERGENCY_ADMIN) {
+        _unpause();
+    }
+
+    /* ****************** */
     /*      Internal      */
     /* ****************** */
 

@@ -183,6 +183,18 @@ interface IAuctionModule {
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
+    /// @notice Ends an auction after the time limit has been reached and approves the transfer of
+    /// unsold tokens and funds raised
+    /// @dev This function can be called by anyone, but only after the auction's end time has passed
+    /// @param _auctionId ID of the auction
+    function completeAuction(uint256 _auctionId) external;
+
+    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
+    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
+    /// @param _auctionId ID of the auction
+    /// @param _numLotsToBuy Number of lots to buy
+    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+
     /// Sets the token required for payments in all auctions
     /// @param _newPaymentToken ERC20 token to use for payment
     function setPaymentToken(IERC20 _newPaymentToken) external;
@@ -215,15 +227,9 @@ interface IAuctionModule {
     /// @param _auctionId ID of the auction
     function terminateAuction(uint256 _auctionId) external;
 
-    /// @notice Ends an auction after the time limit has been reached and approves the transfer of
-    /// unsold tokens and funds raised
-    /// @dev This function can be called by anyone, but only after the auction's end time has passed
-    /// @param _auctionId ID of the auction
-    function completeAuction(uint256 _auctionId) external;
+    /// @notice Pause the contract
+    function pause() external;
 
-    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
-    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
-    /// @param _auctionId ID of the auction
-    /// @param _numLotsToBuy Number of lots to buy
-    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+    /// @notice Unpause the contract
+    function unpause() external;
 }

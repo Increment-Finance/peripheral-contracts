@@ -214,7 +214,13 @@ interface IRewardController {
         uint256 newReductionFactor
     ) external;
 
-    /// @notice Pauses/unpauses the reward accrual for a reward token
+    /// @notice Pause the contract
+    function pause() external;
+
+    /// @notice Unpause the contract
+    function unpause() external;
+
+    /// @notice Pauses/unpauses the reward accrual for a particular reward token
     /// @dev Does not pause gradual reduction of inflation rate over time due to reduction factor
     /// @param rewardToken Address of the reward token
     /// @param paused Whether to pause or unpause the reward token
