@@ -92,6 +92,8 @@ contract AuctionModule is
     function getCurrentLotSize(
         uint256 _auctionId
     ) external view returns (uint256) {
+        if (_auctionId >= nextAuctionId)
+            revert AuctionModule_InvalidAuctionId(_auctionId);
         if (
             !auctions[_auctionId].active ||
             auctions[_auctionId].endTime <= block.timestamp
@@ -363,8 +365,6 @@ contract AuctionModule is
     function _getCurrentLotSize(
         uint256 _auctionId
     ) internal view returns (uint256) {
-        if (auctions[_auctionId].startTime == 0)
-            revert AuctionModule_InvalidAuctionId(_auctionId);
         uint256 incrementPeriods = (block.timestamp -
             auctions[_auctionId].startTime) /
             auctions[_auctionId].lotIncreasePeriod;
