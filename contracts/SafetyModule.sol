@@ -91,13 +91,7 @@ contract SafetyModule is
     /* ****************** */
 
     /// @inheritdoc ISafetyModule
-    function getNumStakingTokens()
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function getNumStakingTokens() public view returns (uint256) {
         return stakingTokens.length;
     }
 
@@ -111,9 +105,7 @@ contract SafetyModule is
     }
 
     /// @inheritdoc ISafetyModule
-    function getAuctionableTotal(
-        address token
-    ) public view virtual returns (uint256) {
+    function getAuctionableTotal(address token) public view returns (uint256) {
         getStakingTokenIdx(token); // Called to make sure the staking token is registered
         return IStakedToken(token).totalSupply().mul(maxPercentUserLoss);
     }
@@ -129,7 +121,7 @@ contract SafetyModule is
     function updateStakingPosition(
         address market,
         address user
-    ) external virtual override nonReentrant onlyStakingToken {
+    ) external override nonReentrant onlyStakingToken {
         getStakingTokenIdx(market); // Called to make sure the staking token is registered
         smRewardDistributor.updateStakingPosition(market, user);
     }
