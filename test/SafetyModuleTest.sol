@@ -1937,10 +1937,9 @@ contract SafetyModuleTest is PerpetualUtils {
     }
 
     function testAuctionModuleErrors() public {
-        // start an auction
-        vm.startPrank(address(safetyModule));
-        uint256 auctionId = auctionModule.startAuction(
-            rewardsToken,
+        // start an auction successfully for later tests
+        uint256 auctionId = safetyModule.slashAndStartAuction(
+            address(stakedToken1),
             1,
             1 ether,
             1e18,
@@ -1950,6 +1949,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // test invalid zero arguments
+        vm.startPrank(address(safetyModule));
         vm.expectRevert(
             abi.encodeWithSignature(
                 "AuctionModule_InvalidZeroAddress(uint256)",
@@ -2110,8 +2110,9 @@ contract SafetyModuleTest is PerpetualUtils {
         // test auction still active
         vm.expectRevert(
             abi.encodeWithSignature(
-                "AuctionModule_AuctionStillActive(uint256)",
-                auctionId
+                "AuctionModule_AuctionStillActive(uint256,uint256)",
+                auctionId,
+                block.timestamp + 10 days
             )
         );
         auctionModule.completeAuction(auctionId);
