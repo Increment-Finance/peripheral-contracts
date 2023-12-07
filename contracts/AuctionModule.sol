@@ -392,24 +392,25 @@ contract AuctionModule is
         );
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
         uint256 fundsRaised = fundsRaisedPerAuction[_auctionId];
+        uint256 finalLotSize = _getCurrentLotSize(_auctionId);
+
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         if (remainingBalance > 0)
             auctionToken.approve(address(stakedToken), remainingBalance);
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
         if (fundsRaised > 0)
             paymentToken.approve(address(safetyModule), fundsRaised);
+        // Notify SafetyModule if necessary
+        if (!_terminatedEarly)
+            safetyModule.auctionEnded(_auctionId, remainingBalance);
 
         // Emit event
         emit AuctionEnded(
             _auctionId,
             auctions[_auctionId].remainingLots,
-            _getCurrentLotSize(_auctionId),
+            finalLotSize,
             tokensSoldPerAuction[_auctionId],
             fundsRaised
         );
-
-        // Notify SafetyModule if necessary
-        if (!_terminatedEarly)
-            safetyModule.auctionEnded(_auctionId, remainingBalance);
     }
 }
