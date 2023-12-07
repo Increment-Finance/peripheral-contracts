@@ -227,7 +227,12 @@ contract SafetyModule is
         uint256 remainingBalance = auctionToken.balanceOf(
             address(auctionModule)
         );
-        _returnFunds(stakingToken, address(auctionModule), remainingBalance);
+        if (remainingBalance > 0)
+            _returnFunds(
+                stakingToken,
+                address(auctionModule),
+                remainingBalance
+            );
         _settleSlashing(stakingToken);
         emit AuctionTerminated(
             _auctionId,
