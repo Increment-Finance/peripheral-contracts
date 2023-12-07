@@ -220,11 +220,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     }
 
     /// @inheritdoc RewardController
-    function getMaxMarketIdx() internal view override returns (uint256) {
-        return clearingHouse.marketIds() - 1;
-    }
-
-    /// @inheritdoc RewardController
     function getMarketAddress(
         uint256 idx
     ) internal view override returns (address) {

@@ -290,10 +290,6 @@ abstract contract RewardController is
     /// @return Number of markets
     function getNumMarkets() internal view virtual returns (uint256);
 
-    /// @notice Gets the highest valid market index
-    /// @return Highest valid market index
-    function getMaxMarketIdx() internal view virtual returns (uint256);
-
     /// @notice Returns the current position of the user in the market (i.e., perpetual market or staked token)
     /// @param user Address of the user
     /// @param market Address of the market

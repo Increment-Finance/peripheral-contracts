@@ -289,11 +289,6 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     }
 
     /// @inheritdoc RewardDistributor
-    function getMaxMarketIdx() internal view override returns (uint256) {
-        return safetyModule.getNumStakingTokens() - 1;
-    }
-
-    /// @inheritdoc RewardDistributor
     function getMarketAddress(
         uint256 index
     ) internal view virtual override returns (address) {

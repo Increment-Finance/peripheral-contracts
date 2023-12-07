@@ -406,9 +406,6 @@ abstract contract RewardDistributor is
     function getNumMarkets() internal view virtual override returns (uint256);
 
     /// @inheritdoc RewardController
-    function getMaxMarketIdx() internal view virtual override returns (uint256);
-
-    /// @inheritdoc RewardController
     function getMarketAddress(
         uint256 idx
     ) internal view virtual override returns (address);
