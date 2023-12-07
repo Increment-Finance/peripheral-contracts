@@ -1940,7 +1940,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // start an auction
         vm.startPrank(address(safetyModule));
         uint256 auctionId = auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
+            rewardsToken,
             1,
             1 ether,
             1e18,
@@ -1963,90 +1963,42 @@ contract SafetyModuleTest is PerpetualUtils {
                 1
             )
         );
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        );
+        auctionModule.startAuction(rewardsToken, 0, 0, 0, 0, 0, 0);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "AuctionModule_InvalidZeroArgument(uint256)",
                 2
             )
         );
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            1,
-            0,
-            0,
-            0,
-            0,
-            0
-        );
+        auctionModule.startAuction(rewardsToken, 1, 0, 0, 0, 0, 0);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "AuctionModule_InvalidZeroArgument(uint256)",
                 3
             )
         );
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            1,
-            1,
-            0,
-            0,
-            0,
-            0
-        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 0, 0, 0, 0);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "AuctionModule_InvalidZeroArgument(uint256)",
                 4
             )
         );
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            1,
-            1,
-            1,
-            0,
-            0,
-            0
-        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 0, 0, 0);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "AuctionModule_InvalidZeroArgument(uint256)",
                 5
             )
         );
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            1,
-            1,
-            1,
-            1,
-            0,
-            0
-        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 0, 0);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "AuctionModule_InvalidZeroArgument(uint256)",
                 6
             )
         );
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            1,
-            1,
-            1,
-            1,
-            1,
-            0
-        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 1, 0);
         vm.stopPrank();
         vm.expectRevert(
             abi.encodeWithSignature(
