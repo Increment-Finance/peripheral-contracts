@@ -139,7 +139,12 @@ contract SafetyModule is
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (address(stakingToken) == address(0))
             revert SafetyModule_InvalidAuctionId(_auctionId);
-        _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
+        if (_remainingBalance > 0)
+            _returnFunds(
+                stakingToken,
+                address(auctionModule),
+                _remainingBalance
+            );
         _settleSlashing(stakingToken);
         emit AuctionEnded(
             _auctionId,
