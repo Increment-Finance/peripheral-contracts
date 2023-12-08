@@ -76,7 +76,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     {
         _updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
-        uint256 newPosition = getCurrentPosition(user, market);
+        uint256 newPosition = _getCurrentPosition(user, market);
         totalLiquidityPerMarket[market] =
             totalLiquidityPerMarket[market] +
             newPosition -
@@ -149,14 +149,14 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         nonReentrant
     {
         uint256 userPosition = lpPositionsPerUser[user][market];
-        if (userPosition != getCurrentPosition(user, market))
+        if (userPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,
                 userPosition,
-                getCurrentPosition(user, market)
+                _getCurrentPosition(user, market)
             );
         if (totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
@@ -284,19 +284,19 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /* **************** */
 
     /// @inheritdoc RewardDistributor
-    function getNumMarkets() internal view virtual override returns (uint256) {
+    function _getNumMarkets() internal view virtual override returns (uint256) {
         return safetyModule.getNumStakingTokens();
     }
 
     /// @inheritdoc RewardDistributor
-    function getMarketAddress(
+    function _getMarketAddress(
         uint256 index
     ) internal view virtual override returns (address) {
         return address(safetyModule.stakingTokens(index));
     }
 
     /// @inheritdoc RewardDistributor
-    function getMarketIdx(
+    function _getMarketIdx(
         uint256 i
     ) internal view virtual override returns (uint256) {
         return i;
@@ -306,7 +306,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @param staker Address of the user
     /// @param token Address of the staking token
     /// @return Current balance of the user in the staking token
-    function getCurrentPosition(
+    function _getCurrentPosition(
         address staker,
         address token
     ) internal view virtual override returns (uint256) {

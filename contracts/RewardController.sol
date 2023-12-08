@@ -288,13 +288,13 @@ abstract contract RewardController is
     /// @notice Gets the number of markets to be used for reward distribution
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @return Number of markets
-    function getNumMarkets() internal view virtual returns (uint256);
+    function _getNumMarkets() internal view virtual returns (uint256);
 
     /// @notice Returns the current position of the user in the market (i.e., perpetual market or staked token)
     /// @param user Address of the user
     /// @param market Address of the market
     /// @return Current position of the user in the market
-    function getCurrentPosition(
+    function _getCurrentPosition(
         address user,
         address market
     ) internal view virtual returns (uint256);
@@ -303,7 +303,7 @@ abstract contract RewardController is
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the market
     /// @return Address of the market
-    function getMarketAddress(
+    function _getMarketAddress(
         uint256 idx
     ) internal view virtual returns (address);
 
@@ -311,5 +311,5 @@ abstract contract RewardController is
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param i Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule)
     /// @return Index of the market in the market list
-    function getMarketIdx(uint256 i) internal view virtual returns (uint256);
+    function _getMarketIdx(uint256 i) internal view virtual returns (uint256);
 }

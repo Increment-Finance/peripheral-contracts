@@ -235,9 +235,9 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function registerPositions() external {
-        uint256 numMarkets = getNumMarkets();
+        uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            address market = getMarketAddress(getMarketIdx(i));
+            address market = _getMarketAddress(_getMarketIdx(i));
             _registerPosition(msg.sender, market);
         }
     }
@@ -265,9 +265,9 @@ abstract contract RewardDistributor is
         address _user,
         address[] memory _rewardTokens
     ) public override whenNotPaused {
-        uint256 numMarkets = getNumMarkets();
+        uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            accrueRewards(getMarketAddress(getMarketIdx(i)), _user);
+            accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
         }
         uint256 numTokens = _rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
@@ -293,9 +293,9 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function accrueRewards(address user) external override {
-        uint256 numMarkets = getNumMarkets();
+        uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            accrueRewards(getMarketAddress(getMarketIdx(i)), user);
+            accrueRewards(_getMarketAddress(_getMarketIdx(i)), user);
         }
     }
 
@@ -397,26 +397,26 @@ abstract contract RewardDistributor is
                 _market,
                 lpPositionsPerUser[_user][_market]
             );
-        uint256 lpPosition = getCurrentPosition(_user, _market);
+        uint256 lpPosition = _getCurrentPosition(_user, _market);
         lpPositionsPerUser[_user][_market] = lpPosition;
         totalLiquidityPerMarket[_market] += lpPosition;
     }
 
     /// @inheritdoc RewardController
-    function getNumMarkets() internal view virtual override returns (uint256);
+    function _getNumMarkets() internal view virtual override returns (uint256);
 
     /// @inheritdoc RewardController
-    function getMarketAddress(
+    function _getMarketAddress(
         uint256 idx
     ) internal view virtual override returns (address);
 
     /// @inheritdoc RewardController
-    function getMarketIdx(
+    function _getMarketIdx(
         uint256 i
     ) internal view virtual override returns (uint256);
 
     /// @inheritdoc RewardController
-    function getCurrentPosition(
+    function _getCurrentPosition(
         address user,
         address market
     ) internal view virtual override returns (uint256);

@@ -1562,7 +1562,7 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.startPrank(address(clearingHouse));
         // invalidMarket is not a Perpetual contract, so calling IPerpetual(invalidMarket).getLpLiquidity()
-        // in getCurrentPosition (called by updateStakingPosition), will revert due to missing function
+        // in _getCurrentPosition (called by updateStakingPosition), will revert due to missing function
         vm.expectRevert();
         rewardDistributor.updateStakingPosition(
             invalidMarket,
