@@ -117,6 +117,7 @@ contract StakedToken is
      * @inheritdoc IStakedToken
      */
     function previewStake(uint256 amountToStake) public view returns (uint256) {
+        if (exchangeRate == 0) return 0;
         return amountToStake.wadDiv(exchangeRate);
     }
 
@@ -223,6 +224,14 @@ contract StakedToken is
     ) external onlySafetyModule {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (from == address(0)) revert StakedToken_InvalidZeroAddress();
+
+        // Update the exchange rate
+        _updateExchangeRate(
+            UNDERLYING_TOKEN.balanceOf(address(this)) + amount,
+            totalSupply()
+        );
+
+        // Transfer the underlying tokens back to this contract
         UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
         emit FundsReturned(from, amount);
     }
@@ -297,9 +306,10 @@ contract StakedToken is
      * @dev Only callable by governance
      */
     function setSafetyModule(
-        address _safetyModule
+        address _newSafetyModule
     ) external onlyRole(GOVERNANCE) {
-        safetyModule = ISafetyModule(_safetyModule);
+        emit SafetyModuleUpdated(address(safetyModule), _newSafetyModule);
+        safetyModule = ISafetyModule(_newSafetyModule);
     }
 
     /**
@@ -307,9 +317,10 @@ contract StakedToken is
      * @dev Only callable by governance
      */
     function setMaxStakeAmount(
-        uint256 _maxStakeAmount
+        uint256 _newMaxStakeAmount
     ) external onlyRole(GOVERNANCE) {
-        maxStakeAmount = _maxStakeAmount;
+        emit MaxStakeAmountUpdated(maxStakeAmount, _newMaxStakeAmount);
+        maxStakeAmount = _newMaxStakeAmount;
     }
 
     /* ****************** */
@@ -324,12 +335,7 @@ contract StakedToken is
         uint256 totalAssets,
         uint256 totalShares
     ) internal {
-        if (totalShares == 0) {
-            // If there are no staked tokens, reset the exchange rate to 1:1
-            exchangeRate = 1e18;
-        } else {
-            exchangeRate = totalAssets.wadDiv(totalShares);
-        }
+        exchangeRate = totalAssets.wadDiv(totalShares);
         emit ExchangeRateUpdated(exchangeRate);
     }
 

@@ -45,22 +45,26 @@ interface IAuctionModule {
     /// @notice Emitted when a lot is sold
     /// @param auctionId ID of the auction
     /// @param buyer Address of the buyer
+    /// @param numLots Number of lots sold
     /// @param lotSize Size of the lot sold
     /// @param lotPrice Price of the lot sold
-    event LotSold(
+    event LotsSold(
         uint256 indexed auctionId,
         address indexed buyer,
+        uint8 numLots,
         uint256 lotSize,
         uint128 lotPrice
     );
 
     /// @notice Emitted when the payment token is changed
-    /// @param newPaymentToken Address of the new payment token
     /// @param oldPaymentToken Address of the old payment token
-    event PaymentTokenChanged(
-        address indexed newPaymentToken,
-        address oldPaymentToken
-    );
+    /// @param newPaymentToken Address of the new payment token
+    event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
+
+    /// @notice Emitted when the SafetyModule contract is updated by governance
+    /// @param oldSafetyModule Address of the old SafetyModule contract
+    /// @param newSafetyModule Address of the new SafetyModule contract
+    event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
 
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
@@ -78,8 +82,7 @@ interface IAuctionModule {
     /// @param argIndex Index of the argument where a zero address was passed
     error AuctionModule_InvalidZeroAddress(uint256 argIndex);
 
-    /// @notice Error returned when a user calls `buyLots` or the SafetyModule calls `terminateAuction`
-    /// after the auction has ended
+    /// @notice Error returned when a caller calls a function that requires the auction to be active
     /// @param auctionId ID of the auction
     error AuctionModule_AuctionNotActive(uint256 auctionId);
 
@@ -87,10 +90,6 @@ interface IAuctionModule {
     /// @param auctionId ID of the auction
     /// @param endTime Timestamp when the auction ends
     error AuctionModule_AuctionStillActive(uint256 auctionId, uint256 endTime);
-
-    /// @notice Error returned when a caller tries to complete an auction that has already been completed
-    /// @param auctionId ID of the auction
-    error AuctionModule_AuctionAlreadyCompleted(uint256 auctionId);
 
     /// @notice Error returned when a user tries to buy more than the number of lots remaining
     /// @param auctionId ID of the auction
@@ -184,9 +183,25 @@ interface IAuctionModule {
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
+    /// @notice Ends an auction after the time limit has been reached and approves the transfer of
+    /// unsold tokens and funds raised
+    /// @dev This function can be called by anyone, but only after the auction's end time has passed
+    /// @param _auctionId ID of the auction
+    function completeAuction(uint256 _auctionId) external;
+
+    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
+    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
+    /// @param _auctionId ID of the auction
+    /// @param _numLotsToBuy Number of lots to buy
+    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+
     /// Sets the token required for payments in all auctions
-    /// @param _paymentToken ERC20 token to use for payment
-    function setPaymentToken(IERC20 _paymentToken) external;
+    /// @param _newPaymentToken ERC20 token to use for payment
+    function setPaymentToken(IERC20 _newPaymentToken) external;
+
+    /// @notice Replaces the SafetyModule contract
+    /// @param _newSafetyModule Address of the new SafetyModule contract
+    function setSafetyModule(ISafetyModule _newSafetyModule) external;
 
     /// @notice Starts a new auction
     /// @dev First the SafetyModule slashes the StakedToken, sending the underlying slashed tokens here
@@ -212,15 +227,9 @@ interface IAuctionModule {
     /// @param _auctionId ID of the auction
     function terminateAuction(uint256 _auctionId) external;
 
-    /// @notice Ends an auction after the time limit has been reached and approves the transfer of
-    /// unsold tokens and funds raised
-    /// @dev This function can be called by anyone, but only after the auction's end time has passed
-    /// @param _auctionId ID of the auction
-    function completeAuction(uint256 _auctionId) external;
+    /// @notice Pause the contract
+    function pause() external;
 
-    /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
-    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
-    /// @param _auctionId ID of the auction
-    /// @param _numLotsToBuy Number of lots to buy
-    function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+    /// @notice Unpause the contract
+    function unpause() external;
 }

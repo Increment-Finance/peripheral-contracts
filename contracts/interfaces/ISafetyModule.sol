@@ -232,4 +232,10 @@ interface ISafetyModule is IStakingContract {
     /// @notice Adds a new staking token to the SafetyModule's stakingTokens array
     /// @param _stakingToken Address of the new staking token
     function addStakingToken(IStakedToken _stakingToken) external;
+
+    /// @notice Pause the contract
+    function pause() external;
+
+    /// @notice Unpause the contract
+    function unpause() external;
 }

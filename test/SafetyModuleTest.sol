@@ -41,12 +41,59 @@ contract SafetyModuleTest is PerpetualUtils {
     using LibMath for int256;
     using LibMath for uint256;
 
+    event Staked(
+        address indexed from,
+        address indexed onBehalfOf,
+        uint256 amount
+    );
+
+    event Redeemed(address indexed from, address indexed to, uint256 amount);
+
+    event Cooldown(address indexed user);
+
     event RewardTokenShortfall(
         address indexed rewardToken,
         uint256 shortfallAmount
     );
 
     event Transfer(address indexed from, address indexed to, uint256 value);
+
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+
+    event LotsSold(
+        uint256 indexed auctionId,
+        address indexed buyer,
+        uint8 numLots,
+        uint256 lotSize,
+        uint128 lotPrice
+    );
+
+    event AuctionEnded(
+        uint256 indexed auctionId,
+        uint8 remainingLots,
+        uint256 finalLotSize,
+        uint256 totalTokensSold,
+        uint256 totalFundsRaised
+    );
+
+    event AuctionTerminated(
+        uint256 indexed auctionId,
+        address stakingToken,
+        address underlyingToken,
+        uint256 underlyingBalanceReturned
+    );
+
+    event SlashingSettled();
+
+    event FundsReturned(address indexed from, uint256 amount);
+
+    event ExchangeRateUpdated(uint256 exchangeRate);
+
+    event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
 
     uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
@@ -260,19 +307,13 @@ contract SafetyModuleTest is PerpetualUtils {
         assertEq(
             safetyModule.getNumStakingTokens(),
             2,
-            "Market count mismatch"
+            "Staking token count mismatch"
         );
         assertEq(
-            rewardDistributor.getMaxMarketIdx(),
-            1,
-            "Max market index mismatch"
-        );
-        assertEq(
-            rewardDistributor.getMarketAddress(0),
+            address(safetyModule.stakingTokens(0)),
             address(stakedToken1),
             "Market address mismatch"
         );
-        assertEq(rewardDistributor.getMarketIdx(0), 0, "Market index mismatch");
         assertEq(
             safetyModule.getStakingTokenIdx(address(stakedToken2)),
             1,
@@ -287,10 +328,7 @@ contract SafetyModuleTest is PerpetualUtils {
             "Market reward weight index mismatch"
         );
         assertEq(
-            rewardDistributor.getCurrentPosition(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            ),
+            stakedToken1.balanceOf(liquidityProviderTwo),
             0,
             "Current position mismatch"
         );
@@ -304,10 +342,7 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
-            rewardDistributor.getCurrentPosition(
-                liquidityProviderTwo,
-                address(stakedToken1)
-            ),
+            stakedToken1.balanceOf(liquidityProviderTwo),
             100 ether,
             "Current position mismatch"
         );
@@ -335,6 +370,10 @@ contract SafetyModuleTest is PerpetualUtils {
             "Unstake window mismatch"
         );
     }
+
+    /* ******************* */
+    /*   Staking Rewards   */
+    /* ******************* */
 
     function testRewardMultiplier() public {
         // Test with smoothing value of 30 and max multiplier of 4
@@ -517,28 +556,6 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
-    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
-        /* bounds */
-        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
-
-        // Get initial balances
-        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
-        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
-
-        // Set new max percent user loss and check auctionable balances
-        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
-        assertEq(
-            safetyModule.getAuctionableTotal(address(stakedToken1)),
-            balance1.wadMul(maxPercentUserLoss),
-            "Auctionable total 1 mismatch"
-        );
-        assertEq(
-            safetyModule.getAuctionableTotal(address(stakedToken2)),
-            balance2.wadMul(maxPercentUserLoss),
-            "Auctionable total 2 mismatch"
-        );
-    }
-
     function testPreExistingBalances(
         uint256 maxTokenAmountIntoBalancer
     ) public {
@@ -604,17 +621,19 @@ contract SafetyModuleTest is PerpetualUtils {
             INITIAL_MAX_USER_LOSS
         );
         AuctionModule newAuctionModule = new AuctionModule(
-            newSafetyModule,
+            ISafetyModule(address(0)),
             usdc
         );
         newSafetyModule.setAuctionModule(newAuctionModule);
+        newAuctionModule.setSafetyModule(newSafetyModule);
         SMRewardDistributor newRewardDistributor = new SMRewardDistributor(
-            newSafetyModule,
+            ISafetyModule(address(0)),
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
             address(rewardVault)
         );
         newSafetyModule.setRewardDistributor(newRewardDistributor);
+        newRewardDistributor.setSafetyModule(newSafetyModule);
 
         rewardVault.approve(
             AaveIERC20(address(rewardsToken)),
@@ -1142,6 +1161,527 @@ contract SafetyModuleTest is PerpetualUtils {
         );
     }
 
+    /* ******************* */
+    /*  Slashing/Auctions  */
+    /* ******************* */
+
+    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
+        /* bounds */
+        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
+
+        // Get initial balances
+        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
+        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
+
+        // Set new max percent user loss and check auctionable balances
+        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
+        assertEq(
+            safetyModule.getAuctionableTotal(address(stakedToken1)),
+            balance1.wadMul(maxPercentUserLoss),
+            "Auctionable total 1 mismatch"
+        );
+        assertEq(
+            safetyModule.getAuctionableTotal(address(stakedToken2)),
+            balance2.wadMul(maxPercentUserLoss),
+            "Auctionable total 2 mismatch"
+        );
+    }
+
+    function testStakedTokenExchangeRate(
+        uint256 donatePercent,
+        uint256 slashPercent,
+        uint256 stakeAmount
+    ) public {
+        /* bounds */
+        donatePercent = bound(donatePercent, 1e16, 1e18);
+        slashPercent = bound(slashPercent, 1e16, 1e18);
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        safetyModule.setMaxPercentUserLoss(1e18);
+
+        // Check initial conditions
+        uint256 initialSupply = stakedToken1.totalSupply();
+        assertEq(
+            initialSupply,
+            rewardsToken.balanceOf(address(stakedToken1)),
+            "Initial supply mismatch"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Initial exchange rate mismatch"
+        );
+        assertEq(
+            stakedToken1.previewStake(stakeAmount),
+            stakeAmount,
+            "Preview stake mismatch"
+        );
+        assertEq(
+            stakedToken1.previewRedeem(stakeAmount),
+            stakeAmount,
+            "Preview redeem mismatch"
+        );
+
+        // Get amounts from percents
+        uint256 donateAmount = initialSupply.wadMul(donatePercent);
+        uint256 slashAmount = initialSupply.wadMul(slashPercent);
+
+        // Donate some tokens to the staked token and check the resulting exchange rate
+        rewardsToken.approve(address(stakedToken1), donateAmount);
+        safetyModule.returnFunds(
+            address(stakedToken1),
+            address(this),
+            donateAmount
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18 + donatePercent,
+            "Exchange rate mismatch after donation"
+        );
+        assertEq(
+            stakedToken1.previewStake(stakeAmount),
+            stakeAmount.wadDiv(1e18 + donatePercent),
+            "Preview stake mismatch after donation"
+        );
+        assertEq(
+            stakedToken1.previewRedeem(stakeAmount),
+            stakeAmount.wadMul(1e18 + donatePercent),
+            "Preview redeem mismatch after donation"
+        );
+
+        // Slash the donated tokens and check the resulting exchange rate
+        vm.startPrank(address(safetyModule));
+        uint256 slashedDonation = stakedToken1.slash(
+            address(this),
+            stakedToken1.previewStake(donateAmount)
+        );
+        assertApproxEqAbs(
+            slashedDonation,
+            donateAmount,
+            10, // 10 wei tolerance for rounding error
+            "Slashed donation mismatch"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Exchange rate mismatch after donating then slashing the same amount"
+        );
+        stakedToken1.settleSlashing();
+
+        // Slash some more tokens and check the resulting exchange rate
+        uint256 slashedAmount = stakedToken1.slash(address(this), slashAmount);
+        assertApproxEqAbs(
+            slashedAmount,
+            slashAmount,
+            10, // 10 wei tolerance for rounding error
+            "Slashed amount mismatch"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18 - slashPercent,
+            "Exchange rate mismatch after slashing"
+        );
+        if (slashPercent == 1e18) {
+            assertEq(
+                stakedToken1.previewStake(stakeAmount),
+                0,
+                "Preview stake mismatch after slashing"
+            );
+        } else {
+            assertEq(
+                stakedToken1.previewStake(stakeAmount),
+                stakeAmount.wadDiv(1e18 - slashPercent),
+                "Preview stake mismatch after slashing"
+            );
+        }
+        assertEq(
+            stakedToken1.previewRedeem(stakeAmount),
+            stakeAmount.wadMul(1e18 - slashPercent),
+            "Preview redeem mismatch after slashing"
+        );
+
+        // Return the slashed tokens to the staked token and check the resulting exchange rate
+        vm.stopPrank();
+        rewardsToken.approve(address(stakedToken1), slashedAmount);
+        safetyModule.returnFunds(
+            address(stakedToken1),
+            address(this),
+            slashedAmount
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Exchange rate mismatch after returning slashed amount"
+        );
+    }
+
+    function testAuctionSoldOut(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        initialLotSize = uint128(
+            bound(initialLotSize, 1e18, auctionableBalance / numLots)
+        );
+        uint96 lotIncreaseIncrement = uint96(
+            bound(initialLotSize / 50, 2e16, type(uint96).max)
+        );
+        uint16 lotIncreasePeriod = uint16(2 hours);
+        uint32 timeLimit = uint32(10 days);
+
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            numLots,
+            lotPrice,
+            initialLotSize,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
+        );
+        assertEq(
+            auctionModule.getCurrentLotSize(auctionId),
+            initialLotSize,
+            "Initial lot size mismatch"
+        );
+        assertEq(
+            auctionModule.getRemainingLots(auctionId),
+            numLots,
+            "Initial lots mismatch"
+        );
+        assertEq(
+            auctionModule.getLotPrice(auctionId),
+            lotPrice,
+            "Lot price mismatch"
+        );
+        assertEq(
+            auctionModule.getLotIncreaseIncrement(auctionId),
+            lotIncreaseIncrement,
+            "Lot increase increment mismatch"
+        );
+        assertEq(
+            auctionModule.getLotIncreasePeriod(auctionId),
+            lotIncreasePeriod,
+            "Lot increase period mismatch"
+        );
+        assertEq(
+            address(auctionModule.getAuctionToken(auctionId)),
+            address(stakedToken1.getUnderlyingToken()),
+            "Auction token mismatch"
+        );
+        assertEq(
+            auctionModule.getStartTime(auctionId),
+            block.timestamp,
+            "Start time mismatch"
+        );
+        assertEq(
+            auctionModule.getEndTime(auctionId),
+            block.timestamp + timeLimit,
+            "End time mismatch"
+        );
+        assertTrue(
+            auctionModule.isAuctionActive(auctionId),
+            "Auction should be active"
+        );
+
+        // Check the state of the StakedToken after slashing
+        assertTrue(
+            stakedToken1.isInPostSlashingState(),
+            "Staked token should be in post slashing state"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18 - INITIAL_MAX_USER_LOSS,
+            "Exchange rate mismatch after slashing"
+        );
+
+        // Buy all the lots at once and check the buyer's resulting balance
+        uint256 balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(
+            liquidityProviderTwo
+        );
+        _dealAndBuyLots(liquidityProviderTwo, auctionId, numLots, lotPrice);
+        uint256 balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(
+            liquidityProviderTwo
+        );
+        assertEq(
+            balanceAfter,
+            balanceBefore + initialLotSize * numLots,
+            "Balance mismatch after buying all lots"
+        );
+
+        // Check that the auction is no longer active and unsold tokens have been returned
+        assertTrue(
+            !auctionModule.isAuctionActive(auctionId),
+            "Auction should not be active after selling out"
+        );
+        assertEq(
+            auctionModule.getAuctionToken(auctionId).balanceOf(
+                address(auctionModule)
+            ),
+            0,
+            "Unsold tokens should be returned from the auction module"
+        );
+
+        // Check the state of the StakedToken after slashing is settled and unsold tokens are returned
+        assertTrue(
+            !stakedToken1.isInPostSlashingState(),
+            "Staked token should not be in post slashing state after selling out"
+        );
+        assertApproxEqAbs(
+            stakedToken1.exchangeRate(),
+            1e18 -
+                uint256(initialLotSize * numLots).wadDiv(
+                    stakedToken1.totalSupply()
+                ),
+            10, // 10 wei tolerance for rounding error
+            "Exchange rate mismatch after returning unsold tokens"
+        );
+
+        // Withdraw the funds raised from the auction and check the resulting balance
+        uint256 fundsRaised = auctionModule.fundsRaisedPerAuction(auctionId);
+        assertEq(
+            fundsRaised,
+            lotPrice * numLots,
+            "Funds raised mismatch after selling out"
+        );
+        safetyModule.withdrawFundsRaisedFromAuction(fundsRaised);
+        assertEq(
+            usdc.balanceOf(address(this)),
+            fundsRaised,
+            "Balance mismatch after withdrawing funds raised from auction"
+        );
+        assertEq(
+            usdc.balanceOf(address(auctionModule)),
+            0,
+            "Auction module should have no remaining funds after withdrawing"
+        );
+    }
+
+    function testAuctionTimeOut(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
+        // initialLotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        initialLotSize = uint128(
+            bound(initialLotSize, 1e18, auctionableBalance / numLots)
+        );
+        uint96 lotIncreaseIncrement = uint96(
+            bound(initialLotSize / 50, 2e16, type(uint96).max)
+        );
+        uint16 lotIncreasePeriod = uint16(2 hours);
+        uint32 timeLimit = uint32(10 days);
+
+        // Change the payment token to UA
+        vm.expectEmit(false, false, false, true);
+        emit PaymentTokenChanged(address(usdc), address(ua));
+        auctionModule.setPaymentToken(ua);
+
+        // Start an auction and check the end time
+        uint256 auctionId = safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            numLots,
+            lotPrice,
+            initialLotSize,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
+        );
+        uint256 endTime = auctionModule.getEndTime(auctionId);
+        assertEq(
+            endTime,
+            block.timestamp + timeLimit,
+            "End time mismatch after starting auction"
+        );
+
+        // Skip one day at a time until the end of the auction without buying any lots,
+        // checking that the currentLotSize x numLots does not exceed auctionable balance
+        for (uint i; i < 10; i++) {
+            skip(1 days);
+            uint256 currentLotSize = auctionModule.getCurrentLotSize(auctionId);
+            assertLe(
+                currentLotSize * numLots,
+                auctionableBalance,
+                "Current lot size x num lots should not exceed auctionable balance"
+            );
+        }
+        assertEq(
+            auctionModule.fundsRaisedPerAuction(auctionId),
+            0,
+            "Funds raised should be 0 after auction times out"
+        );
+
+        // Check that the auction is no longer active
+        assertTrue(
+            !auctionModule.isAuctionActive(auctionId),
+            "Auction should not be active after timing out"
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.buyLots(auctionId, 1);
+
+        // Complete the auction and check that all tokens were returned
+        vm.startPrank(liquidityProviderOne); // Anyone can complete the auction after it times out
+        uint256 finalLotSize = uint256(initialLotSize) +
+            lotIncreaseIncrement *
+            (10 days / 2 hours);
+        if (finalLotSize > auctionableBalance / numLots) {
+            finalLotSize = auctionableBalance / numLots;
+        }
+        vm.expectEmit(false, false, false, true);
+        emit Approval(
+            address(auctionModule),
+            address(stakedToken1),
+            auctionableBalance
+        );
+        vm.expectEmit(false, false, false, true);
+        emit AuctionEnded(auctionId, numLots, finalLotSize, 0, 0);
+        auctionModule.completeAuction(auctionId);
+        assertEq(
+            auctionModule.getAuctionToken(auctionId).balanceOf(
+                address(auctionModule)
+            ),
+            0,
+            "Unsold tokens should be returned from the auction module"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Exchange rate mismatch after returning unsold tokens"
+        );
+    }
+
+    function testTerminateAuctionEarly(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        initialLotSize = uint128(
+            bound(initialLotSize, 1e18, auctionableBalance / numLots)
+        );
+        uint96 lotIncreaseIncrement = uint96(
+            bound(initialLotSize / 50, 2e16, type(uint96).max)
+        );
+        uint16 lotIncreasePeriod = uint16(2 hours);
+        uint32 timeLimit = uint32(10 days);
+
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            numLots,
+            lotPrice,
+            initialLotSize,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
+        );
+        assertTrue(
+            auctionModule.isAuctionActive(auctionId),
+            "Auction should be active"
+        );
+
+        // Check the state of the StakedToken after slashing
+        assertTrue(
+            stakedToken1.isInPostSlashingState(),
+            "Staked token should be in post slashing state"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18 - INITIAL_MAX_USER_LOSS,
+            "Exchange rate mismatch after slashing"
+        );
+
+        // Terminate the auction early and check events
+        vm.expectEmit(false, false, false, true);
+        emit Approval(
+            address(auctionModule),
+            address(stakedToken1),
+            auctionableBalance
+        );
+        vm.expectEmit(false, false, false, true);
+        emit AuctionEnded(auctionId, numLots, initialLotSize, 0, 0);
+        vm.expectEmit(false, false, false, true);
+        emit ExchangeRateUpdated(1e18);
+        vm.expectEmit(false, false, false, true);
+        emit FundsReturned(address(auctionModule), auctionableBalance);
+        vm.expectEmit(false, false, false, true);
+        emit SlashingSettled();
+        vm.expectEmit(false, false, false, true);
+        emit AuctionTerminated(
+            auctionId,
+            address(stakedToken1),
+            address(rewardsToken),
+            auctionableBalance
+        );
+        safetyModule.terminateAuction(auctionId);
+
+        // Check that the auction is no longer active and unsold tokens have been returned
+        assertTrue(
+            !auctionModule.isAuctionActive(auctionId),
+            "Auction should not be active after terminating early"
+        );
+        assertEq(
+            auctionModule.getAuctionToken(auctionId).balanceOf(
+                address(auctionModule)
+            ),
+            0,
+            "Unsold tokens should be returned from the auction module"
+        );
+        assertEq(
+            stakedToken1.exchangeRate(),
+            1e18,
+            "Exchange rate mismatch after returning unsold tokens"
+        );
+        assertTrue(
+            !stakedToken1.isInPostSlashingState(),
+            "Staked token should not be in post slashing state after settling slashing"
+        );
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.buyLots(auctionId, 1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.completeAuction(auctionId);
+        vm.stopPrank();
+    }
+
+    /* ******************* */
+    /*    Custom Errors    */
+    /* ******************* */
+
     function testSafetyModuleErrors(
         uint256 highMaxUserLoss,
         uint256 lowMaxMultiplier,
@@ -1254,25 +1794,15 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_AlreadyInitializedStartTime(address)",
+                address(stakedToken1)
+            )
+        );
+        rewardDistributor.initMarketStartTime(address(stakedToken1));
         vm.stopPrank();
-
-        // test invalid market index
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
-        );
-        rewardDistributor.getMarketAddress(invalidMarketIdx);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-                invalidMarketIdx,
-                1
-            )
-        );
-        rewardDistributor.getMarketIdx(invalidMarketIdx);
 
         // test invalid auction ID
         // (auction exists but corresponding StakedToken is not stored in SafetyModule)
@@ -1350,6 +1880,22 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         safetyModule.withdrawFundsRaisedFromAuction(0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
+
+        // test invalid caller not auction module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_CallerIsNotAuctionModule(address)",
+                address(this)
+            )
+        );
+        safetyModule.auctionEnded(0, 0);
     }
 
     function testStakedTokenErrors(
@@ -1381,6 +1927,34 @@ contract SafetyModuleTest is PerpetualUtils {
             abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
         );
         stakedToken1.redeemTo(liquidityProviderOne, 0);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.slash(address(safetyModule), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
+        );
+        stakedToken1.returnFunds(address(safetyModule), 0);
+
+        // test zero address
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.stakeOnBehalfOf(address(0), 1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.redeemTo(address(0), 1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.slash(address(0), 1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_InvalidZeroAddress()")
+        );
+        stakedToken1.returnFunds(address(0), 1);
+        vm.stopPrank();
 
         // test zero balance
         vm.expectRevert(
@@ -1467,6 +2041,328 @@ contract SafetyModuleTest is PerpetualUtils {
             )
         );
         stakedToken1.redeem(stakedBalance);
+        vm.stopPrank();
+
+        // test invalid caller not safety module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        stakedToken1.slash(address(this), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        stakedToken1.returnFunds(address(this), 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        stakedToken1.settleSlashing();
+
+        // test zero exchange rate
+        safetyModule.setMaxPercentUserLoss(1e18); // set max user loss to 100%
+        vm.startPrank(address(safetyModule));
+        // slash 100% of staked tokens, resulting in zero exchange rate
+        uint256 maxAuctionableTotal = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        uint256 slashedTokens = stakedToken1.slash(
+            address(this),
+            maxAuctionableTotal
+        );
+        vm.stopPrank();
+        assertEq(
+            stakedToken1.exchangeRate(),
+            0,
+            "Exchange rate should be 0 after slashing 100% of staked tokens"
+        );
+        assertEq(
+            stakedToken1.previewStake(1e18),
+            0,
+            "Preview stake should be 0 when exchange rate is 0"
+        );
+        assertEq(
+            stakedToken1.previewRedeem(1e18),
+            0,
+            "Preview redeem should be 0 when exchange rate is 0"
+        );
+        // staking and redeeming should fail due to zero exchange rate
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_ZeroExchangeRate()")
+        );
+        stakedToken1.stake(1);
+        vm.expectRevert(
+            abi.encodeWithSignature("StakedToken_ZeroExchangeRate()")
+        );
+        stakedToken1.redeem(1);
+
+        // test features disabled in post-slashing state
+        stakedToken1.getUnderlyingToken().approve(
+            address(stakedToken1),
+            type(uint256).max
+        );
+        vm.startPrank(address(safetyModule));
+        // return all slashed funds, but do not settle slashing yet
+        stakedToken1.returnFunds(address(this), slashedTokens);
+        // slashing, staking and cooldown should fail due to post-slashing state
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_SlashingDisabledInPostSlashingState()"
+            )
+        );
+        stakedToken1.slash(address(this), slashedTokens);
+        vm.startPrank(liquidityProviderOne);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_StakingDisabledInPostSlashingState()"
+            )
+        );
+        stakedToken1.stake(1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_CooldownDisabledInPostSlashingState()"
+            )
+        );
+        stakedToken1.cooldown();
+        vm.stopPrank();
+
+        // test above max slash amount
+        safetyModule.setMaxPercentUserLoss(0.3e18); // set max user loss to 30%
+        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
+            address(stakedToken1)
+        );
+        vm.startPrank(address(safetyModule));
+        // end post-slashing state, which re-enables slashing
+        stakedToken1.settleSlashing();
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "StakedToken_AboveMaxSlashAmount(uint256,uint256)",
+                maxAuctionableTotal,
+                maxSlashAmount
+            )
+        );
+        // try slashing 100% of staked tokens, when only 30% is allowed
+        stakedToken1.slash(address(this), maxAuctionableTotal);
+        vm.stopPrank();
+    }
+
+    function testAuctionModuleErrors() public {
+        // start an auction successfully for later tests
+        uint256 auctionId = safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            1,
+            1 ether,
+            1e18,
+            0.1 ether,
+            1 hours,
+            10 days
+        );
+
+        // test invalid zero arguments
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                1
+            )
+        );
+        auctionModule.startAuction(rewardsToken, 0, 0, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                2
+            )
+        );
+        auctionModule.startAuction(rewardsToken, 1, 0, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                3
+            )
+        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                4
+            )
+        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                5
+            )
+        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                6
+            )
+        );
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 1, 0);
+        vm.stopPrank();
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        auctionModule.setPaymentToken(IERC20(address(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        auctionModule.setSafetyModule(ISafetyModule(address(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidZeroArgument(uint256)",
+                1
+            )
+        );
+        auctionModule.buyLots(auctionId, 0);
+
+        // test invalid auction ID
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.buyLots(1, 1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.completeAuction(1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.getCurrentLotSize(1);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_InvalidAuctionId(uint256)",
+                1
+            )
+        );
+        auctionModule.terminateAuction(1);
+        vm.stopPrank();
+
+        // test paused
+        auctionModule.pause();
+        assertTrue(auctionModule.paused(), "Auction module should be paused");
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.stopPrank();
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.buyLots(auctionId, 1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.completeAuction(auctionId);
+        auctionModule.unpause();
+        safetyModule.pause();
+        assertTrue(
+            auctionModule.paused(),
+            "Auction module should be paused when Safety Module is"
+        );
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.stopPrank();
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.buyLots(auctionId, 1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        auctionModule.completeAuction(auctionId);
+        safetyModule.unpause();
+
+        // test not enough lots remaining
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_NotEnoughLotsRemaining(uint256,uint256)",
+                auctionId,
+                1
+            )
+        );
+        auctionModule.buyLots(auctionId, 2);
+
+        // test invalid caller not safety module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_CallerIsNotSafetyModule(address)",
+                address(this)
+            )
+        );
+        auctionModule.terminateAuction(auctionId);
+
+        // test auction still active
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionStillActive(uint256,uint256)",
+                auctionId,
+                block.timestamp + 10 days
+            )
+        );
+        auctionModule.completeAuction(auctionId);
+
+        // skip to auction end time
+        skip(10 days);
+
+        // test auction not active
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.buyLots(auctionId, 1); // reverts due to timestamp check, not active flag
+        // complete auction manually, setting active flag to false
+        auctionModule.completeAuction(auctionId);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.completeAuction(auctionId);
+        vm.startPrank(address(safetyModule));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AuctionModule_AuctionNotActive(uint256)",
+                auctionId
+            )
+        );
+        auctionModule.terminateAuction(auctionId);
+        vm.stopPrank();
     }
 
     /* ****************** */
@@ -1479,6 +2375,8 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 amount
     ) internal {
         vm.startPrank(staker);
+        vm.expectEmit(false, false, false, true);
+        emit Staked(staker, staker, amount);
         stakedToken.stake(amount);
         vm.stopPrank();
     }
@@ -1490,9 +2388,66 @@ contract SafetyModuleTest is PerpetualUtils {
         uint256 cooldown
     ) internal {
         vm.startPrank(staker);
+        vm.expectEmit(false, false, false, true);
+        emit Cooldown(staker);
         stakedToken.cooldown();
         skip(cooldown);
+        vm.expectEmit(false, false, false, true);
+        emit Redeemed(staker, staker, amount);
         stakedToken.redeem(amount);
+        vm.stopPrank();
+    }
+
+    function _dealAndBuyLots(
+        address buyer,
+        uint256 auctionId,
+        uint8 numLots,
+        uint128 lotPrice
+    ) internal {
+        IERC20 paymentToken = auctionModule.paymentToken();
+        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(
+            auctionId
+        );
+        deal(address(paymentToken), buyer, lotPrice * numLots);
+        vm.startPrank(buyer);
+        paymentToken.approve(address(auctionModule), lotPrice * numLots);
+        uint256 lotSize = auctionModule.getCurrentLotSize(auctionId);
+        uint256 tokensAlreadySold = auctionModule.tokensSoldPerAuction(
+            auctionId
+        );
+        uint256 fundsAlreadyRaised = auctionModule.fundsRaisedPerAuction(
+            auctionId
+        );
+        uint256 remainingBalance = auctionModule
+            .getAuctionToken(auctionId)
+            .balanceOf(address(auctionModule)) - lotSize * numLots;
+        vm.expectEmit(true, true, false, true);
+        emit LotsSold(auctionId, buyer, numLots, lotSize, lotPrice);
+        if (numLots == auctionModule.getRemainingLots(auctionId)) {
+            if (remainingBalance > 0) {
+                vm.expectEmit(false, false, false, true);
+                emit Approval(
+                    address(auctionModule),
+                    address(stakedToken),
+                    remainingBalance
+                );
+            }
+            vm.expectEmit(false, false, false, true);
+            emit Approval(
+                address(auctionModule),
+                address(safetyModule),
+                fundsAlreadyRaised + lotPrice * numLots
+            );
+            vm.expectEmit(true, false, false, true);
+            emit AuctionEnded(
+                auctionId,
+                0,
+                lotSize,
+                tokensAlreadySold + lotSize * numLots,
+                fundsAlreadyRaised + lotPrice * numLots
+            );
+        }
+        auctionModule.buyLots(auctionId, numLots);
         vm.stopPrank();
     }
 

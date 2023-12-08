@@ -75,32 +75,6 @@ abstract contract RewardDistributor is
     }
 
     /* ****************** */
-    /*   Market Getters   */
-    /* ****************** */
-
-    /// @inheritdoc IRewardController
-    function getNumMarkets() public view virtual override returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMaxMarketIdx() public view virtual override returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getMarketAddress(
-        uint256 idx
-    ) public view virtual override returns (address);
-
-    /// @inheritdoc IRewardController
-    function getMarketIdx(
-        uint256 i
-    ) public view virtual override returns (uint256);
-
-    /// @inheritdoc IRewardController
-    function getCurrentPosition(
-        address user,
-        address market
-    ) public view virtual override returns (uint256);
-
-    /* ****************** */
     /*   Reward Accrual   */
     /* ****************** */
 
@@ -135,7 +109,7 @@ abstract contract RewardDistributor is
         uint256 _initialReductionFactor,
         address[] calldata _markets,
         uint16[] calldata _marketWeights
-    ) external nonReentrant onlyRole(GOVERNANCE) {
+    ) external onlyRole(GOVERNANCE) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
                 _initialInflationRate,
@@ -192,7 +166,7 @@ abstract contract RewardDistributor is
     /// @dev Can only be called by governance
     function removeRewardToken(
         address _rewardToken
-    ) external nonReentrant onlyRole(GOVERNANCE) {
+    ) external onlyRole(GOVERNANCE) {
         if (
             _rewardToken == address(0) ||
             rewardInfoByToken[_rewardToken].token !=
@@ -250,9 +224,7 @@ abstract contract RewardDistributor is
         address _newEcosystemReserve
     ) external onlyRole(GOVERNANCE) {
         if (_newEcosystemReserve == address(0))
-            revert RewardDistributor_InvalidEcosystemReserve(
-                _newEcosystemReserve
-            );
+            revert RewardDistributor_InvalidZeroAddress(0);
         emit EcosystemReserveUpdated(ecosystemReserve, _newEcosystemReserve);
         ecosystemReserve = _newEcosystemReserve;
     }
@@ -262,18 +234,16 @@ abstract contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc IRewardDistributor
-    function registerPositions() external nonReentrant {
-        uint256 numMarkets = getNumMarkets();
+    function registerPositions() external {
+        uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            address market = getMarketAddress(getMarketIdx(i));
+            address market = _getMarketAddress(_getMarketIdx(i));
             _registerPosition(msg.sender, market);
         }
     }
 
     /// @inheritdoc IRewardDistributor
-    function registerPositions(
-        address[] calldata _markets
-    ) external nonReentrant {
+    function registerPositions(address[] calldata _markets) external {
         for (uint i; i < _markets.length; ++i) {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
@@ -295,9 +265,9 @@ abstract contract RewardDistributor is
         address _user,
         address[] memory _rewardTokens
     ) public override whenNotPaused {
-        uint256 numMarkets = getNumMarkets();
+        uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            accrueRewards(getMarketAddress(getMarketIdx(i)), _user);
+            accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
         }
         uint256 numTokens = _rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
@@ -323,9 +293,9 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function accrueRewards(address user) external override {
-        uint256 numMarkets = getNumMarkets();
+        uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            accrueRewards(getMarketAddress(getMarketIdx(i)), user);
+            accrueRewards(_getMarketAddress(_getMarketIdx(i)), user);
         }
     }
 
@@ -427,8 +397,27 @@ abstract contract RewardDistributor is
                 _market,
                 lpPositionsPerUser[_user][_market]
             );
-        uint256 lpPosition = getCurrentPosition(_user, _market);
+        uint256 lpPosition = _getCurrentPosition(_user, _market);
         lpPositionsPerUser[_user][_market] = lpPosition;
         totalLiquidityPerMarket[_market] += lpPosition;
     }
+
+    /// @inheritdoc RewardController
+    function _getNumMarkets() internal view virtual override returns (uint256);
+
+    /// @inheritdoc RewardController
+    function _getMarketAddress(
+        uint256 idx
+    ) internal view virtual override returns (address);
+
+    /// @inheritdoc RewardController
+    function _getMarketIdx(
+        uint256 i
+    ) internal view virtual override returns (uint256);
+
+    /// @inheritdoc RewardController
+    function _getCurrentPosition(
+        address user,
+        address market
+    ) internal view virtual override returns (uint256);
 }

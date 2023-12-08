@@ -91,13 +91,7 @@ contract SafetyModule is
     /* ****************** */
 
     /// @inheritdoc ISafetyModule
-    function getNumStakingTokens()
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function getNumStakingTokens() public view returns (uint256) {
         return stakingTokens.length;
     }
 
@@ -111,9 +105,7 @@ contract SafetyModule is
     }
 
     /// @inheritdoc ISafetyModule
-    function getAuctionableTotal(
-        address token
-    ) public view virtual returns (uint256) {
+    function getAuctionableTotal(address token) public view returns (uint256) {
         getStakingTokenIdx(token); // Called to make sure the staking token is registered
         return IStakedToken(token).totalSupply().mul(maxPercentUserLoss);
     }
@@ -129,7 +121,7 @@ contract SafetyModule is
     function updateStakingPosition(
         address market,
         address user
-    ) external virtual override nonReentrant onlyStakingToken {
+    ) external override nonReentrant onlyStakingToken {
         getStakingTokenIdx(market); // Called to make sure the staking token is registered
         smRewardDistributor.updateStakingPosition(market, user);
     }
@@ -147,7 +139,12 @@ contract SafetyModule is
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (address(stakingToken) == address(0))
             revert SafetyModule_InvalidAuctionId(_auctionId);
-        _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
+        if (_remainingBalance > 0)
+            _returnFunds(
+                stakingToken,
+                address(auctionModule),
+                _remainingBalance
+            );
         _settleSlashing(stakingToken);
         emit AuctionEnded(
             _auctionId,
@@ -230,7 +227,15 @@ contract SafetyModule is
         uint256 remainingBalance = auctionToken.balanceOf(
             address(auctionModule)
         );
-        _returnFunds(stakingToken, address(auctionModule), remainingBalance);
+        // Remaining balance should always be non-zero, since the only way the auction module could run out
+        // of auction tokens is if they are all sold, in which case the auction would have ended on its own
+        // But just in case, check to avoid reverting
+        if (remainingBalance > 0)
+            _returnFunds(
+                stakingToken,
+                address(auctionModule),
+                remainingBalance
+            );
         _settleSlashing(stakingToken);
         emit AuctionTerminated(
             _auctionId,
@@ -324,6 +329,22 @@ contract SafetyModule is
         stakingTokens.push(_stakingToken);
         smRewardDistributor.initMarketStartTime(address(_stakingToken));
         emit StakingTokenAdded(address(_stakingToken));
+    }
+
+    /* ****************** */
+    /*   Emergency Admin  */
+    /* ****************** */
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Can only be called by Emergency Admin
+    function pause() external override onlyRole(EMERGENCY_ADMIN) {
+        _pause();
+    }
+
+    /// @inheritdoc ISafetyModule
+    /// @dev Can only be called by Emergency Admin
+    function unpause() external override onlyRole(EMERGENCY_ADMIN) {
+        _unpause();
     }
 
     /* ****************** */

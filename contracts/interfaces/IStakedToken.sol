@@ -49,7 +49,20 @@ interface IStakedToken is IERC20Metadata {
     /// @param exchangeRate New exchange rate, denominated in underlying per staked token, normalized to 1e18
     event ExchangeRateUpdated(uint256 exchangeRate);
 
-    /// @notice Error returned when 0 amount is passed to stake or redeem functions
+    /// @notice Emitted when the SafetyModule contract is updated by governance
+    /// @param oldSafetyModule Address of the old SafetyModule contract
+    /// @param newSafetyModule Address of the new SafetyModule contract
+    event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
+
+    /// @notice Emitted when the max amount of staked tokens allowed per user is updated by governance
+    /// @param oldMaxStakeAmount Old max stake amount
+    /// @param newMaxStakeAmount New max stake amount
+    event MaxStakeAmountUpdated(
+        uint256 oldMaxStakeAmount,
+        uint256 newMaxStakeAmount
+    );
+
+    /// @notice Error returned when 0 amount is passed to a function that expects a non-zero amount
     error StakedToken_InvalidZeroAmount();
 
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
@@ -179,10 +192,10 @@ interface IStakedToken is IERC20Metadata {
     function settleSlashing() external;
 
     /// @notice Changes the SafetyModule contract used for reward management
-    /// @param _safetyModule Address of the new SafetyModule contract
-    function setSafetyModule(address _safetyModule) external;
+    /// @param _newSafetyModule Address of the new SafetyModule contract
+    function setSafetyModule(address _newSafetyModule) external;
 
     /// @notice Sets the max amount of staked tokens allowed per user
-    /// @param _maxStakeAmount New max amount of staked tokens allowed per user
-    function setMaxStakeAmount(uint256 _maxStakeAmount) external;
+    /// @param _newMaxStakeAmount New max amount of staked tokens allowed per user
+    function setMaxStakeAmount(uint256 _newMaxStakeAmount) external;
 }
