@@ -1,6 +1,6 @@
 # PerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/PerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/PerpRewardDistributor.sol)
 
 **Inherits:**
 [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [IPerpRewardDistributor](/contracts/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
@@ -66,101 +66,6 @@ constructor(
 | `_earlyWithdrawalThreshold` | `uint256`  | The amount of time after which LPs can remove liquidity without penalties      |
 | `_initialRewardWeights`     | `uint16[]` | The initial reward weights for the first reward token, as basis points         |
 
-### getNumMarkets
-
-Gets the number of markets to be used for reward distribution
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getNumMarkets() public view override returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description       |
-| -------- | --------- | ----------------- |
-| `<none>` | `uint256` | Number of markets |
-
-### getMaxMarketIdx
-
-Gets the highest valid market index
-
-```solidity
-function getMaxMarketIdx() public view override returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description                |
-| -------- | --------- | -------------------------- |
-| `<none>` | `uint256` | Highest valid market index |
-
-### getMarketAddress
-
-Gets the address of a market at a given index
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketAddress(uint256 idx) public view override returns (address);
-```
-
-**Parameters**
-
-| Name  | Type      | Description         |
-| ----- | --------- | ------------------- |
-| `idx` | `uint256` | Index of the market |
-
-**Returns**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `<none>` | `address` | Address of the market |
-
-### getMarketIdx
-
-Gets the index of an allowlisted market
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketIdx(uint256 i) public view override returns (uint256);
-```
-
-**Parameters**
-
-| Name | Type      | Description                                                                                                                        |
-| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
-
-**Returns**
-
-| Name     | Type      | Description                            |
-| -------- | --------- | -------------------------------------- |
-| `<none>` | `uint256` | Index of the market in the market list |
-
-### getCurrentPosition
-
-Returns the current position of the user in the market (i.e., perpetual market or staked token)
-
-```solidity
-function getCurrentPosition(address user, address market) public view override returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `user`   | `address` | Address of the user   |
-| `market` | `address` | Address of the market |
-
-**Returns**
-
-| Name     | Type      | Description                                |
-| -------- | --------- | ------------------------------------------ |
-| `<none>` | `uint256` | Current position of the user in the market |
-
 ### updateStakingPosition
 
 Accrues rewards and updates the stored LP position of a user and the total LP of a market
@@ -196,28 +101,6 @@ function accrueRewards(address market, address user) public virtual override non
 | `market` | `address` | Address of the market in `ClearingHouse.perpetuals` |
 | `user`   | `address` | Address of the user                                 |
 
-### viewNewRewardAccrual
-
-Returns the amount of rewards that would be accrued to a user for a given market and reward token
-
-```solidity
-function viewNewRewardAccrual(address market, address user, address token) public view override returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                                                                 |
-| -------- | --------- | --------------------------------------------------------------------------- |
-| `market` | `address` | Address of the market in `ClearingHouse.perpetuals` to view new rewards for |
-| `user`   | `address` | Address of the user                                                         |
-| `token`  | `address` | Address of the reward token to view new rewards for                         |
-
-**Returns**
-
-| Name     | Type      | Description                                             |
-| -------- | --------- | ------------------------------------------------------- |
-| `<none>` | `uint256` | Amount of new rewards that would be accrued to the user |
-
 ### paused
 
 Indicates whether claiming rewards is currently paused
@@ -233,3 +116,84 @@ function paused() public view override returns (bool);
 | Name     | Type   | Description                     |
 | -------- | ------ | ------------------------------- |
 | `<none>` | `bool` | True if paused, false otherwise |
+
+### \_getNumMarkets
+
+Gets the number of markets to be used for reward distribution
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getNumMarkets() internal view override returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description       |
+| -------- | --------- | ----------------- |
+| `<none>` | `uint256` | Number of markets |
+
+### \_getMarketAddress
+
+Gets the address of a market at a given index
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getMarketAddress(uint256 idx) internal view override returns (address);
+```
+
+**Parameters**
+
+| Name  | Type      | Description         |
+| ----- | --------- | ------------------- |
+| `idx` | `uint256` | Index of the market |
+
+**Returns**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `<none>` | `address` | Address of the market |
+
+### \_getMarketIdx
+
+Gets the index of an allowlisted market
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getMarketIdx(uint256 i) internal view override returns (uint256);
+```
+
+**Parameters**
+
+| Name | Type      | Description                                                                                                                        |
+| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
+
+**Returns**
+
+| Name     | Type      | Description                            |
+| -------- | --------- | -------------------------------------- |
+| `<none>` | `uint256` | Index of the market in the market list |
+
+### \_getCurrentPosition
+
+Returns the current position of the user in the market (i.e., perpetual market or staked token)
+
+```solidity
+function _getCurrentPosition(address user, address market) internal view override returns (uint256);
+```
+
+**Parameters**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `user`   | `address` | Address of the user   |
+| `market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                                |
+| -------- | --------- | ------------------------------------------ |
+| `<none>` | `uint256` | Current position of the user in the market |

@@ -1,6 +1,6 @@
 # RewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/RewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/RewardController.sol)
 
 **Inherits:**
 [IRewardController](/contracts/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -34,20 +34,20 @@ uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
 
 ### MAX_REWARD_TOKENS
 
-Maximum number of reward tokens allowed for each market
+Maximum number of reward tokens allowed
 
 ```solidity
 uint256 public constant MAX_REWARD_TOKENS = 10;
 ```
 
-### rewardTokensPerMarket
+### rewardTokens
 
-List of reward token addresses for each market
+List of reward token addresses
 
-_Length must be <= MAX_REWARD_TOKENS_
+_Length must be <= `MAX_REWARD_TOKENS`_
 
 ```solidity
-mapping(address => address[]) public rewardTokensPerMarket;
+address[] public rewardTokens;
 ```
 
 ### rewardInfoByToken
@@ -55,164 +55,24 @@ mapping(address => address[]) public rewardTokensPerMarket;
 Info for each registered reward token
 
 ```solidity
-mapping(address => RewardInfo) public rewardInfoByToken;
+mapping(address => RewardInfo) internal rewardInfoByToken;
 ```
 
 ## Functions
 
-### updateMarketRewards
-
-Updates the reward accumulator for a given market
-
-_Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`_
-
-```solidity
-function updateMarketRewards(address market) public virtual;
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `market` | `address` | Address of the market |
-
-### getNumMarkets
-
-Gets the number of markets to be used for reward distribution
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getNumMarkets() public view virtual returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description       |
-| -------- | --------- | ----------------- |
-| `<none>` | `uint256` | Number of markets |
-
-### getMaxMarketIdx
-
-Gets the highest valid market index
-
-```solidity
-function getMaxMarketIdx() public view virtual returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description                |
-| -------- | --------- | -------------------------- |
-| `<none>` | `uint256` | Highest valid market index |
-
-### getMarketAddress
-
-Gets the address of a market at a given index
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketAddress(uint256 idx) public view virtual returns (address);
-```
-
-**Parameters**
-
-| Name  | Type      | Description         |
-| ----- | --------- | ------------------- |
-| `idx` | `uint256` | Index of the market |
-
-**Returns**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `<none>` | `address` | Address of the market |
-
-### getMarketIdx
-
-Gets the index of an allowlisted market
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketIdx(uint256 i) public view virtual returns (uint256);
-```
-
-**Parameters**
-
-| Name | Type      | Description                                                                                                                        |
-| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
-
-**Returns**
-
-| Name     | Type      | Description                            |
-| -------- | --------- | -------------------------------------- |
-| `<none>` | `uint256` | Index of the market in the market list |
-
-### getMarketWeightIdx
-
-Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketWeightIdx(address token, address market) public view virtual returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                 |
-| -------- | --------- | --------------------------- |
-| `token`  | `address` | Address of the reward token |
-| `market` | `address` | Address of the market       |
-
-**Returns**
-
-| Name     | Type      | Description                                                 |
-| -------- | --------- | ----------------------------------------------------------- |
-| `<none>` | `uint256` | Index of the market in the `rewardInfo.marketWeights` array |
-
-### getCurrentPosition
-
-Returns the current position of the user in the market (i.e., perpetual market or staked token)
-
-```solidity
-function getCurrentPosition(address user, address market) public view virtual returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `user`   | `address` | Address of the user   |
-| `market` | `address` | Address of the market |
-
-**Returns**
-
-| Name     | Type      | Description                                |
-| -------- | --------- | ------------------------------------------ |
-| `<none>` | `uint256` | Current position of the user in the market |
-
 ### getRewardTokenCount
 
-Gets the number of reward tokens for a given market
+Gets the number of reward tokens
 
 ```solidity
-function getRewardTokenCount(address market) external view returns (uint256);
+function getRewardTokenCount() external view returns (uint256);
 ```
-
-**Parameters**
-
-| Name     | Type      | Description        |
-| -------- | --------- | ------------------ |
-| `market` | `address` | The market address |
 
 **Returns**
 
-| Name     | Type      | Description                            |
-| -------- | --------- | -------------------------------------- |
-| `<none>` | `uint256` | Number of reward tokens for the market |
+| Name     | Type      | Description             |
+| -------- | --------- | ----------------------- |
+| `<none>` | `uint256` | Number of reward tokens |
 
 ### getInitialTimestamp
 
@@ -312,10 +172,53 @@ function getRewardWeights(address rewardToken) external view returns (address[] 
 
 **Returns**
 
-| Name     | Type        | Description                                          |
-| -------- | ----------- | ---------------------------------------------------- |
-| `<none>` | `address[]` | List of market addresses receiving this reward token |
-| `<none>` | `uint16[]`  | The corresponding weights for each market            |
+| Name     | Type        | Description                                              |
+| -------- | ----------- | -------------------------------------------------------- |
+| `<none>` | `address[]` | List of market addresses and their corresponding weights |
+| `<none>` | `uint16[]`  | The corresponding weights for each market                |
+
+### getMarketWeightIdx
+
+Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function getMarketWeightIdx(address token, address market) public view virtual returns (int256);
+```
+
+**Parameters**
+
+| Name     | Type      | Description                 |
+| -------- | --------- | --------------------------- |
+| `token`  | `address` | Address of the reward token |
+| `market` | `address` | Address of the market       |
+
+**Returns**
+
+| Name     | Type     | Description                                                                                   |
+| -------- | -------- | --------------------------------------------------------------------------------------------- |
+| `<none>` | `int256` | Index of the market in the `rewardInfo.marketWeights` array, or -1 if the market is not found |
+
+### isTokenPaused
+
+Gets whether a reward token is paused
+
+```solidity
+function isTokenPaused(address rewardToken) external view returns (bool);
+```
+
+**Parameters**
+
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `rewardToken` | `address` | Address of the reward token |
+
+**Returns**
+
+| Name     | Type   | Description                                         |
+| -------- | ------ | --------------------------------------------------- |
+| `<none>` | `bool` | True if the reward token is paused, false otherwise |
 
 ### updateRewardWeights
 
@@ -374,9 +277,29 @@ function updateReductionFactor(address rewardToken, uint256 newReductionFactor) 
 | `rewardToken`        | `address` | Address of the reward token              |
 | `newReductionFactor` | `uint256` | The new reduction factor, scaled by 1e18 |
 
+### pause
+
+Pause the contract
+
+_Can only be called by Emergency Admin_
+
+```solidity
+function pause() external override onlyRole(EMERGENCY_ADMIN);
+```
+
+### unpause
+
+Unpause the contract
+
+_Can only be called by Emergency Admin_
+
+```solidity
+function unpause() external override onlyRole(EMERGENCY_ADMIN);
+```
+
 ### setPaused
 
-Pauses/unpauses the reward accrual for a reward token
+Pauses/unpauses the reward accrual for a particular reward token
 
 _Only callable by Emergency Admin_
 
@@ -390,6 +313,103 @@ function setPaused(address rewardToken, bool paused) external onlyRole(EMERGENCY
 | ------------- | --------- | -------------------------------------------- |
 | `rewardToken` | `address` | Address of the reward token                  |
 | `paused`      | `bool`    | Whether to pause or unpause the reward token |
+
+### \_updateMarketRewards
+
+Updates the reward accumulator for a given market
+
+_Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`_
+
+```solidity
+function _updateMarketRewards(address market) internal virtual;
+```
+
+**Parameters**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `market` | `address` | Address of the market |
+
+### \_getNumMarkets
+
+Gets the number of markets to be used for reward distribution
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getNumMarkets() internal view virtual returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description       |
+| -------- | --------- | ----------------- |
+| `<none>` | `uint256` | Number of markets |
+
+### \_getCurrentPosition
+
+Returns the current position of the user in the market (i.e., perpetual market or staked token)
+
+```solidity
+function _getCurrentPosition(address user, address market) internal view virtual returns (uint256);
+```
+
+**Parameters**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `user`   | `address` | Address of the user   |
+| `market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                                |
+| -------- | --------- | ------------------------------------------ |
+| `<none>` | `uint256` | Current position of the user in the market |
+
+### \_getMarketAddress
+
+Gets the address of a market at a given index
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getMarketAddress(uint256 idx) internal view virtual returns (address);
+```
+
+**Parameters**
+
+| Name  | Type      | Description         |
+| ----- | --------- | ------------------- |
+| `idx` | `uint256` | Index of the market |
+
+**Returns**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `<none>` | `address` | Address of the market |
+
+### \_getMarketIdx
+
+Gets the index of an allowlisted market
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getMarketIdx(uint256 i) internal view virtual returns (uint256);
+```
+
+**Parameters**
+
+| Name | Type      | Description                                                                                                                        |
+| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
+
+**Returns**
+
+| Name     | Type      | Description                            |
+| -------- | --------- | -------------------------------------- |
+| `<none>` | `uint256` | Index of the market in the market list |
 
 ## Structs
 
