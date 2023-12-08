@@ -1,6 +1,6 @@
 # IRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/interfaces/IRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/IRewardDistributor.sol)
 
 **Author:**
 webthethird
@@ -239,14 +239,14 @@ function removeRewardToken(address _rewardToken) external;
 Updates the address of the ecosystem reserve for storing reward tokens
 
 ```solidity
-function setEcosystemReserve(address _ecosystemReserve) external;
+function setEcosystemReserve(address _newEcosystemReserve) external;
 ```
 
 **Parameters**
 
-| Name                | Type      | Description                          |
-| ------------------- | --------- | ------------------------------------ |
-| `_ecosystemReserve` | `address` | Address of the new ecosystem reserve |
+| Name                   | Type      | Description                          |
+| ---------------------- | --------- | ------------------------------------ |
+| `_newEcosystemReserve` | `address` | Address of the new ecosystem reserve |
 
 ### initMarketStartTime
 
@@ -314,22 +314,6 @@ function claimRewardsFor(address _user) external;
 
 ### claimRewardsFor
 
-Accrues and then distributes rewards for a single market and all of its registered reward tokens
-to the given user
-
-```solidity
-function claimRewardsFor(address _user, address _market) external;
-```
-
-**Parameters**
-
-| Name      | Type      | Description                                |
-| --------- | --------- | ------------------------------------------ |
-| `_user`   | `address` | Address of the user to claim rewards for   |
-| `_market` | `address` | Address of the market to claim rewards for |
-
-### claimRewardsFor
-
 Accrues and then distributes rewards for all markets that receive any of the provided reward tokens
 to the given user
 
@@ -378,51 +362,6 @@ function accrueRewards(address market, address user) external;
 | -------- | --------- | ------------------------------------------- |
 | `market` | `address` | Address of the market to accrue rewards for |
 | `user`   | `address` | Address of the user                         |
-
-### viewNewRewardAccrual
-
-Returns the amount of rewards that would be accrued to a user for a given market
-
-_Serves as a static version of `accrueRewards(address market, address user)`_
-
-```solidity
-function viewNewRewardAccrual(address market, address user) external view returns (uint256[] memory);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                                   |
-| -------- | --------- | --------------------------------------------- |
-| `market` | `address` | Address of the market to view new rewards for |
-| `user`   | `address` | Address of the user                           |
-
-**Returns**
-
-| Name     | Type        | Description                                                                                             |
-| -------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `<none>` | `uint256[]` | Amount of new rewards that would be accrued to the user for each reward token the given market receives |
-
-### viewNewRewardAccrual
-
-Returns the amount of rewards that would be accrued to a user for a given market and reward token
-
-```solidity
-function viewNewRewardAccrual(address market, address user, address rewardToken) external view returns (uint256);
-```
-
-**Parameters**
-
-| Name          | Type      | Description                                         |
-| ------------- | --------- | --------------------------------------------------- |
-| `market`      | `address` | Address of the market to view new rewards for       |
-| `user`        | `address` | Address of the user                                 |
-| `rewardToken` | `address` | Address of the reward token to view new rewards for |
-
-**Returns**
-
-| Name     | Type      | Description                                             |
-| -------- | --------- | ------------------------------------------------------- |
-| `<none>` | `uint256` | Amount of new rewards that would be accrued to the user |
 
 ## Events
 
@@ -509,27 +448,12 @@ event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystem
 
 ## Errors
 
-### RewardDistributor_InvalidMarketIndex
-
-Error returned when an invalid index is passed into `getMarketAddress`
-
-```solidity
-error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
-```
-
-**Parameters**
-
-| Name       | Type      | Description           |
-| ---------- | --------- | --------------------- |
-| `index`    | `uint256` | Index that was passed |
-| `maxIndex` | `uint256` | Maximum allowed index |
-
 ### RewardDistributor_UninitializedStartTime
 
 Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
 
 _Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
-`updateMarketRewards(market)` is called, which is quite often._
+`_updateMarketRewards(market)` is called, which is quite often._
 
 ```solidity
 error RewardDistributor_UninitializedStartTime(address market);
@@ -612,16 +536,16 @@ error RewardDistributor_UserPositionMismatch(
 | `storedPosition` | `uint256` | Position stored in the RewardDistributor |
 | `actualPosition` | `uint256` | Current position of the user             |
 
-### RewardDistributor_InvalidEcosystemReserve
+### RewardDistributor_InvalidZeroAddress
 
-Error returned if governance tries to set the ecosystem reserve to the zero address
+Error returned when the zero address is passed to a function that expects a non-zero address
 
 ```solidity
-error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
+error RewardDistributor_InvalidZeroAddress(uint256 argIndex);
 ```
 
 **Parameters**
 
-| Name             | Type      | Description                                  |
-| ---------------- | --------- | -------------------------------------------- |
-| `invalidAddress` | `address` | Address that was passed (i.e., `address(0)`) |
+| Name       | Type      | Description                   |
+| ---------- | --------- | ----------------------------- |
+| `argIndex` | `uint256` | Index of the invalid argument |

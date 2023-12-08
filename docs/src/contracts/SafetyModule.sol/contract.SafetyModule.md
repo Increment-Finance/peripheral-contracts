@@ -1,9 +1,9 @@
 # SafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/SafetyModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/SafetyModule.sol)
 
 **Inherits:**
-[ISafetyModule](/contracts/interfaces/ISafetyModule.sol/interface.ISafetyModule.md), [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md)
+[ISafetyModule](/contracts/interfaces/ISafetyModule.sol/interface.ISafetyModule.md), IncreAccessControl, Pausable, ReentrancyGuard
 
 **Author:**
 webthethird
@@ -15,20 +15,20 @@ _Auction module and related logic is not yet implemented_
 
 ## State Variables
 
-### vault
-
-Address of the Increment vault contract, where funds are sent in the event of an auction
-
-```solidity
-address public vault;
-```
-
 ### auctionModule
 
 Address of the auction module, which sells user funds in the event of an insolvency
 
 ```solidity
-address public auctionModule;
+IAuctionModule public auctionModule;
+```
+
+### smRewardDistributor
+
+Address of the SMRewardDistributor contract, which distributes rewards to stakers
+
+```solidity
+ISMRewardDistributor public smRewardDistributor;
 ```
 
 ### stakingTokens
@@ -39,40 +39,20 @@ Array of staking tokens that are registered with the SafetyModule
 IStakedToken[] public stakingTokens;
 ```
 
+### stakingTokenByAuctionId
+
+Mapping from auction ID to staking token that was slashed for the auction
+
+```solidity
+mapping(uint256 => IStakedToken) public stakingTokenByAuctionId;
+```
+
 ### maxPercentUserLoss
 
 The maximum percentage of user funds that can be sold at auction, normalized to 1e18
 
 ```solidity
 uint256 public maxPercentUserLoss;
-```
-
-### maxRewardMultiplier
-
-The maximum reward multiplier, scaled by 1e18
-
-```solidity
-uint256 public maxRewardMultiplier;
-```
-
-### smoothingValue
-
-The smoothing value, scaled by 1e18
-
-_The higher the value, the slower the multiplier approaches its max_
-
-```solidity
-uint256 public smoothingValue;
-```
-
-### multiplierStartTimeByUser
-
-Stores the timestamp of the first deposit or most recent withdrawal
-
-_First address is user, second is staking token_
-
-```solidity
-mapping(address => mapping(address => uint256)) public multiplierStartTimeByUser;
 ```
 
 ## Functions
@@ -86,105 +66,44 @@ i.e., `updateStakingPosition`
 modifier onlyStakingToken();
 ```
 
+### onlyAuctionModule
+
+Modifier for functions that can only be called by the AuctionModule contract,
+i.e., `auctionEnded`
+
+```solidity
+modifier onlyAuctionModule();
+```
+
 ### constructor
 
 SafetyModule constructor
 
 ```solidity
-constructor(
-    address _vault,
-    address _auctionModule,
-    uint256 _maxPercentUserLoss,
-    uint256 _maxRewardMultiplier,
-    uint256 _smoothingValue,
-    address _ecosystemReserve
-) RewardDistributor(_ecosystemReserve);
+constructor(address _auctionModule, address _smRewardDistributor, uint256 _maxPercentUserLoss);
 ```
 
 **Parameters**
 
-| Name                   | Type      | Description                                                                              |
-| ---------------------- | --------- | ---------------------------------------------------------------------------------------- |
-| `_vault`               | `address` | Address of the Increment vault contract, where funds are sent in the event of an auction |
-| `_auctionModule`       | `address` | Address of the auction module, which sells user funds in the event of an insolvency      |
-| `_maxPercentUserLoss`  | `uint256` | The max percentage of user funds that can be sold at auction, normalized to 1e18         |
-| `_maxRewardMultiplier` | `uint256` | The maximum reward multiplier, scaled by 1e18                                            |
-| `_smoothingValue`      | `uint256` | The smoothing value, scaled by 1e18                                                      |
-| `_ecosystemReserve`    | `address` | The address of the EcosystemReserve contract, where reward tokens are stored             |
+| Name                   | Type      | Description                                                                         |
+| ---------------------- | --------- | ----------------------------------------------------------------------------------- |
+| `_auctionModule`       | `address` | Address of the auction module, which sells user funds in the event of an insolvency |
+| `_smRewardDistributor` | `address` | Address of the SMRewardDistributor contract, which distributes rewards to stakers   |
+| `_maxPercentUserLoss`  | `uint256` | The max percentage of user funds that can be sold at auction, normalized to 1e18    |
 
-### getNumMarkets
+### getNumStakingTokens
 
-Gets the number of markets to be used for reward distribution
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+Gets the number of staking tokens registered in the SafetyModule
 
 ```solidity
-function getNumMarkets() public view virtual override returns (uint256);
+function getNumStakingTokens() public view returns (uint256);
 ```
 
 **Returns**
 
-| Name     | Type      | Description       |
-| -------- | --------- | ----------------- |
-| `<none>` | `uint256` | Number of markets |
-
-### getMaxMarketIdx
-
-Gets the highest valid market index
-
-```solidity
-function getMaxMarketIdx() public view virtual override returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description                |
-| -------- | --------- | -------------------------- |
-| `<none>` | `uint256` | Highest valid market index |
-
-### getMarketAddress
-
-Gets the address of a market at a given index
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketAddress(uint256 idx) public view virtual override returns (address);
-```
-
-**Parameters**
-
-| Name  | Type      | Description         |
-| ----- | --------- | ------------------- |
-| `idx` | `uint256` | Index of the market |
-
-**Returns**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `<none>` | `address` | Address of the market |
-
-### getMarketIdx
-
-Gets the index of an allowlisted market
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketIdx(uint256 i) public view virtual override returns (uint256);
-```
-
-**Parameters**
-
-| Name | Type      | Description                                                                                                                        |
-| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
-
-**Returns**
-
-| Name     | Type      | Description                            |
-| -------- | --------- | -------------------------------------- |
-| `<none>` | `uint256` | Index of the market in the market list |
+| Name     | Type      | Description              |
+| -------- | --------- | ------------------------ |
+| `<none>` | `uint256` | Number of staking tokens |
 
 ### getStakingTokenIdx
 
@@ -208,48 +127,26 @@ function getStakingTokenIdx(address token) public view returns (uint256);
 | -------- | --------- | ------------------------------------------------------- |
 | `<none>` | `uint256` | Index of the staking token in the `stakingTokens` array |
 
-### getCurrentPosition
+### getAuctionableTotal
 
-Returns the user's staking token balance
-
-```solidity
-function getCurrentPosition(address staker, address token) public view virtual override returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                  |
-| -------- | --------- | ---------------------------- |
-| `staker` | `address` | Address of the user          |
-| `token`  | `address` | Address of the staking token |
-
-**Returns**
-
-| Name     | Type      | Description                                      |
-| -------- | --------- | ------------------------------------------------ |
-| `<none>` | `uint256` | Current balance of the user in the staking token |
-
-### getAuctionableBalance
-
-Returns the amount of the user's staking tokens that can be sold at auction in the event of
+Returns the total amount of staked tokens that can be sold at auction in the event of
 an insolvency in the vault that cannot be covered by the insurance fund
 
 ```solidity
-function getAuctionableBalance(address staker, address token) public view virtual returns (uint256);
+function getAuctionableTotal(address token) public view returns (uint256);
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                  |
-| -------- | --------- | ---------------------------- |
-| `staker` | `address` | Address of the user          |
-| `token`  | `address` | Address of the staking token |
+| Name    | Type      | Description                  |
+| ------- | --------- | ---------------------------- |
+| `token` | `address` | Address of the staking token |
 
 **Returns**
 
-| Name     | Type      | Description                                              |
-| -------- | --------- | -------------------------------------------------------- |
-| `<none>` | `uint256` | Balance of the user multiplied by the maxPercentUserLoss |
+| Name     | Type      | Description                                                        |
+| -------- | --------- | ------------------------------------------------------------------ |
+| `<none>` | `uint256` | Total amount of staked tokens multiplied by the maxPercentUserLoss |
 
 ### updateStakingPosition
 
@@ -258,12 +155,7 @@ Accrues rewards and updates the stored stake position of a user and the total to
 _Executes whenever a user's stake is updated for any reason_
 
 ```solidity
-function updateStakingPosition(address market, address user)
-    external
-    virtual
-    override(IStakingContract, RewardDistributor)
-    nonReentrant
-    onlyStakingToken;
+function updateStakingPosition(address market, address user) external override nonReentrant onlyStakingToken;
 ```
 
 **Parameters**
@@ -273,71 +165,142 @@ function updateStakingPosition(address market, address user)
 | `market` | `address` | Address of the staking token in `stakingTokens` |
 | `user`   | `address` | Address of the staker                           |
 
-### accrueRewards
+### auctionEnded
 
-newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
+Called by the AuctionModule when an auction ends, and returns the remaining balance of
+underlying tokens from the auction to the StakedToken
 
-Accrues rewards to a user for a given staking token
-
-_Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
-stake position is handled by `updateStakingPosition`_
+_Only callable by the auction module_
 
 ```solidity
-function accrueRewards(address market, address user) public virtual override nonReentrant;
+function auctionEnded(uint256 _auctionId, uint256 _remainingBalance) external onlyAuctionModule;
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                             |
-| -------- | --------- | --------------------------------------- |
-| `market` | `address` | Address of the token in `stakingTokens` |
-| `user`   | `address` | Address of the user                     |
+| Name                | Type      | Description                                            |
+| ------------------- | --------- | ------------------------------------------------------ |
+| `_auctionId`        | `uint256` | ID of the auction                                      |
+| `_remainingBalance` | `uint256` | Amount of underlying tokens remaining from the auction |
 
-### viewNewRewardAccrual
+### slashAndStartAuction
 
-Returns the amount of new rewards that would be accrued to a user by calling `accrueRewards`
-for a given market and reward token
+Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
+transfers the underlying tokens to the AuctionModule and starts an auction to sell them
+
+_Only callable by governance_
 
 ```solidity
-function viewNewRewardAccrual(address market, address user, address token) public view override returns (uint256);
+function slashAndStartAuction(
+    address _stakedToken,
+    uint8 _numLots,
+    uint128 _lotPrice,
+    uint128 _initialLotSize,
+    uint96 _lotIncreaseIncrement,
+    uint16 _lotIncreasePeriod,
+    uint32 _timeLimit
+) external onlyRole(GOVERNANCE) returns (uint256);
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                                     |
-| -------- | --------- | ----------------------------------------------- |
-| `market` | `address` | Address of the staking token in `stakingTokens` |
-| `user`   | `address` | Address of the user                             |
-| `token`  | `address` | Address of the reward token                     |
+| Name                    | Type      | Description                                                        |
+| ----------------------- | --------- | ------------------------------------------------------------------ |
+| `_stakedToken`          | `address` | Address of the staked token to slash                               |
+| `_numLots`              | `uint8`   | Number of lots in the auction                                      |
+| `_lotPrice`             | `uint128` | Fixed price of each lot in the auction                             |
+| `_initialLotSize`       | `uint128` | Initial number of underlying tokens in each lot                    |
+| `_lotIncreaseIncrement` | `uint96`  | Amount of tokens by which the lot size increases each period       |
+| `_lotIncreasePeriod`    | `uint16`  | Number of seconds between each lot size increase                   |
+| `_timeLimit`            | `uint32`  | Number of seconds before the auction ends if all lots are not sold |
 
 **Returns**
 
-| Name     | Type      | Description                                             |
-| -------- | --------- | ------------------------------------------------------- |
-| `<none>` | `uint256` | Amount of new rewards that would be accrued to the user |
+| Name     | Type      | Description       |
+| -------- | --------- | ----------------- |
+| `<none>` | `uint256` | ID of the auction |
 
-### computeRewardMultiplier
+### terminateAuction
 
-Computes the user's reward multiplier for the given staking token
+Terminates an auction early and returns any remaining underlying tokens to the StakedToken
 
-_Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)_
+_Only callable by governance_
 
 ```solidity
-function computeRewardMultiplier(address _user, address _stakingToken) public view returns (uint256);
+function terminateAuction(uint256 _auctionId) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
 
-| Name            | Type      | Description                              |
-| --------------- | --------- | ---------------------------------------- |
-| `_user`         | `address` | Address of the staker                    |
-| `_stakingToken` | `address` | Address of staking token earning rewards |
+| Name         | Type      | Description       |
+| ------------ | --------- | ----------------- |
+| `_auctionId` | `uint256` | ID of the auction |
 
-**Returns**
+### returnFunds
 
-| Name     | Type      | Description                              |
-| -------- | --------- | ---------------------------------------- |
-| `<none>` | `uint256` | User's reward multiplier, scaled by 1e18 |
+Donates underlying tokens to a StakedToken contract, raising its exchange rate
+
+_Only callable by governance_
+
+```solidity
+function returnFunds(address _stakingToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name            | Type      | Description                                                        |
+| --------------- | --------- | ------------------------------------------------------------------ |
+| `_stakingToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
+| `_from`         | `address` | Address of the account to transfer funds from                      |
+| `_amount`       | `uint256` | Amount of underlying tokens to return                              |
+
+### withdrawFundsRaisedFromAuction
+
+Sends payment tokens raised in auctions from the AuctionModule to the governance treasury
+
+_Only callable by governance_
+
+```solidity
+function withdrawFundsRaisedFromAuction(uint256 _amount) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name      | Type      | Description                          |
+| --------- | --------- | ------------------------------------ |
+| `_amount` | `uint256` | Amount of payment tokens to withdraw |
+
+### setAuctionModule
+
+Sets the address of the AuctionModule contract
+
+_Only callable by governance_
+
+```solidity
+function setAuctionModule(IAuctionModule _newAuctionModule) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name                | Type             | Description                           |
+| ------------------- | ---------------- | ------------------------------------- |
+| `_newAuctionModule` | `IAuctionModule` | Address of the AuctionModule contract |
+
+### setRewardDistributor
+
+Sets the address of the SMRewardDistributor contract
+
+_Only callable by governance_
+
+```solidity
+function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name                    | Type                   | Description                                 |
+| ----------------------- | ---------------------- | ------------------------------------------- |
+| `_newRewardDistributor` | `ISMRewardDistributor` | Address of the SMRewardDistributor contract |
 
 ### setMaxPercentUserLoss
 
@@ -355,38 +318,6 @@ function setMaxPercentUserLoss(uint256 _maxPercentUserLoss) external onlyRole(GO
 | --------------------- | --------- | ------------------------------------------------------------------------------------ |
 | `_maxPercentUserLoss` | `uint256` | New maximum percentage of user funds that can be sold at auction, normalized to 1e18 |
 
-### setMaxRewardMultiplier
-
-Sets the maximum reward multiplier, normalized to 1e18
-
-_Only callable by governance, reverts if the new value is less than 1e18 (100%) or greater than 10e18 (1000%)_
-
-```solidity
-function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external onlyRole(GOVERNANCE);
-```
-
-**Parameters**
-
-| Name                   | Type      | Description                                       |
-| ---------------------- | --------- | ------------------------------------------------- |
-| `_maxRewardMultiplier` | `uint256` | New maximum reward multiplier, normalized to 1e18 |
-
-### setSmoothingValue
-
-Sets the smoothing value used in calculating the reward multiplier, normalized to 1e18
-
-_Only callable by governance, reverts if the new value is less than 10e18 or greater than 100e18_
-
-```solidity
-function setSmoothingValue(uint256 _smoothingValue) external onlyRole(GOVERNANCE);
-```
-
-**Parameters**
-
-| Name              | Type      | Description                             |
-| ----------------- | --------- | --------------------------------------- |
-| `_smoothingValue` | `uint256` | New smoothing value, normalized to 1e18 |
-
 ### addStakingToken
 
 Adds a new staking token to the SafetyModule's stakingTokens array
@@ -402,3 +333,35 @@ function addStakingToken(IStakedToken _stakingToken) external onlyRole(GOVERNANC
 | Name            | Type           | Description                      |
 | --------------- | -------------- | -------------------------------- |
 | `_stakingToken` | `IStakedToken` | Address of the new staking token |
+
+### pause
+
+Pause the contract
+
+_Can only be called by Emergency Admin_
+
+```solidity
+function pause() external override onlyRole(EMERGENCY_ADMIN);
+```
+
+### unpause
+
+Unpause the contract
+
+_Can only be called by Emergency Admin_
+
+```solidity
+function unpause() external override onlyRole(EMERGENCY_ADMIN);
+```
+
+### \_returnFunds
+
+```solidity
+function _returnFunds(IStakedToken _stakingToken, address _from, uint256 _amount) internal;
+```
+
+### \_settleSlashing
+
+```solidity
+function _settleSlashing(IStakedToken _stakingToken) internal;
+```

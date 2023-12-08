@@ -1,6 +1,6 @@
 # RewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/45559668fd9e29384d52be9948eb4e35f7e92b00/contracts/RewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/RewardDistributor.sol)
 
 **Inherits:**
 [IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IStakingContract, [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
@@ -118,117 +118,6 @@ constructor(address _ecosystemReserve);
 | ------------------- | --------- | ----------------------------------------------------------------------- |
 | `_ecosystemReserve` | `address` | Address of the EcosystemReserve contract, which holds the reward tokens |
 
-### getNumMarkets
-
-Gets the number of markets to be used for reward distribution
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getNumMarkets() public view virtual override returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description       |
-| -------- | --------- | ----------------- |
-| `<none>` | `uint256` | Number of markets |
-
-### getMaxMarketIdx
-
-Gets the highest valid market index
-
-```solidity
-function getMaxMarketIdx() public view virtual override returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description                |
-| -------- | --------- | -------------------------- |
-| `<none>` | `uint256` | Highest valid market index |
-
-### getMarketAddress
-
-Gets the address of a market at a given index
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketAddress(uint256 idx) public view virtual override returns (address);
-```
-
-**Parameters**
-
-| Name  | Type      | Description         |
-| ----- | --------- | ------------------- |
-| `idx` | `uint256` | Index of the market |
-
-**Returns**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `<none>` | `address` | Address of the market |
-
-### getMarketIdx
-
-Gets the index of an allowlisted market
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketIdx(uint256 i) public view virtual override returns (uint256);
-```
-
-**Parameters**
-
-| Name | Type      | Description                                                                                                                        |
-| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
-
-**Returns**
-
-| Name     | Type      | Description                            |
-| -------- | --------- | -------------------------------------- |
-| `<none>` | `uint256` | Index of the market in the market list |
-
-### getCurrentPosition
-
-Returns the current position of the user in the market (i.e., perpetual market or staked token)
-
-```solidity
-function getCurrentPosition(address user, address market) public view virtual override returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `user`   | `address` | Address of the user   |
-| `market` | `address` | Address of the market |
-
-**Returns**
-
-| Name     | Type      | Description                                |
-| -------- | --------- | ------------------------------------------ |
-| `<none>` | `uint256` | Current position of the user in the market |
-
-### updateMarketRewards
-
-Updates the reward accumulator for a given market
-
-_Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`_
-
-```solidity
-function updateMarketRewards(address market) public override;
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `market` | `address` | Address of the market |
-
 ### updateStakingPosition
 
 Accrues rewards and updates the stored position of a user and the total liquidity of a market
@@ -253,7 +142,7 @@ Sets the start time for accruing rewards to a market which has not been initiali
 _Can only be called by governance_
 
 ```solidity
-function initMarketStartTime(address _market) external onlyRole(GOVERNANCE);
+function initMarketStartTime(address _market) external virtual onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
@@ -275,7 +164,7 @@ function addRewardToken(
     uint256 _initialReductionFactor,
     address[] calldata _markets,
     uint16[] calldata _marketWeights
-) external nonReentrant onlyRole(GOVERNANCE);
+) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
@@ -295,7 +184,7 @@ Removes a reward token from all markets for which it is registered
 _Can only be called by governance_
 
 ```solidity
-function removeRewardToken(address _rewardToken) external nonReentrant onlyRole(GOVERNANCE);
+function removeRewardToken(address _rewardToken) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
@@ -311,14 +200,14 @@ Updates the address of the ecosystem reserve for storing reward tokens
 _Can only be called by governance_
 
 ```solidity
-function setEcosystemReserve(address _ecosystemReserve) external onlyRole(GOVERNANCE);
+function setEcosystemReserve(address _newEcosystemReserve) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
 
-| Name                | Type      | Description                          |
-| ------------------- | --------- | ------------------------------------ |
-| `_ecosystemReserve` | `address` | Address of the new ecosystem reserve |
+| Name                   | Type      | Description                          |
+| ---------------------- | --------- | ------------------------------------ |
+| `_newEcosystemReserve` | `address` | Address of the new ecosystem reserve |
 
 ### registerPositions
 
@@ -327,7 +216,7 @@ Fetches and stores the caller's LP/stake positions and updates the total liquidi
 _Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment_
 
 ```solidity
-function registerPositions() external nonReentrant;
+function registerPositions() external;
 ```
 
 ### registerPositions
@@ -337,14 +226,8 @@ Fetches and stores the caller's LP/stake positions and updates the total liquidi
 _Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment_
 
 ```solidity
-function registerPositions(address[] calldata _markets) external nonReentrant;
+function registerPositions(address[] calldata _markets) external;
 ```
-
-**Parameters**
-
-| Name       | Type         | Description                      |
-| ---------- | ------------ | -------------------------------- |
-| `_markets` | `address []` | Addresses of the markets to sync |
 
 ### claimRewards
 
@@ -368,22 +251,6 @@ function claimRewardsFor(address _user) public override;
 | Name    | Type      | Description                              |
 | ------- | --------- | ---------------------------------------- |
 | `_user` | `address` | Address of the user to claim rewards for |
-
-### claimRewardsFor
-
-Accrues and then distributes rewards for all markets and reward tokens
-and returns the amount of rewards that were not distributed to the given user
-
-```solidity
-function claimRewardsFor(address _user, address _market) public override;
-```
-
-**Parameters**
-
-| Name      | Type      | Description                                |
-| --------- | --------- | ------------------------------------------ |
-| `_user`   | `address` | Address of the user to claim rewards for   |
-| `_market` | `address` | Address of the market to claim rewards for |
 
 ### claimRewardsFor
 
@@ -436,56 +303,21 @@ function accrueRewards(address market, address user) public virtual;
 | `market` | `address` | Address of the market to accrue rewards for |
 | `user`   | `address` | Address of the user to accrue rewards for   |
 
-### viewNewRewardAccrual
+### \_updateMarketRewards
 
-Returns the amount of rewards that would be accrued to a user for a given market
+Updates the reward accumulator for a given market
 
-_Serves as a static version of `accrueRewards(address market, address user)`_
+_Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`_
 
 ```solidity
-function viewNewRewardAccrual(address market, address user) public view returns (uint256[] memory);
+function _updateMarketRewards(address market) internal override;
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                                   |
-| -------- | --------- | --------------------------------------------- |
-| `market` | `address` | Address of the market to view new rewards for |
-| `user`   | `address` | Address of the user                           |
-
-**Returns**
-
-| Name     | Type        | Description                                                                                             |
-| -------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `<none>` | `uint256[]` | Amount of new rewards that would be accrued to the user for each reward token the given market receives |
-
-### viewNewRewardAccrual
-
-Returns the amount of rewards that would be accrued to a user for a given market
-
-_Serves as a static version of `accrueRewards(address market, address user)`_
-
-```solidity
-function viewNewRewardAccrual(address market, address user, address rewardToken)
-    public
-    view
-    virtual
-    returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                                         |
-| -------- | --------- | --------------------------------------------------- |
-| `market` | `address` | Address of the market to view new rewards for       |
-| `user`   | `address` | Address of the user                                 |
-| `token`  | `address` | Address of the reward token to view new rewards for |
-
-**Returns**
-
-| Name     | Type      | Description                                                                                             |
-| -------- | --------- | ------------------------------------------------------------------------------------------------------- |
-| `<none>` | `uint256` | Amount of new rewards that would be accrued to the user for each reward token the given market receives |
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `market` | `address` | Address of the market |
 
 ### \_distributeReward
 
@@ -531,3 +363,90 @@ function _rewardTokenBalance(address _token) internal view returns (uint256);
 | Name     | Type      | Description                                          |
 | -------- | --------- | ---------------------------------------------------- |
 | `<none>` | `uint256` | Balance of the reward token in the ecosystem reserve |
+
+### \_registerPosition
+
+```solidity
+function _registerPosition(address _user, address _market) internal;
+```
+
+### \_getNumMarkets
+
+Gets the number of markets to be used for reward distribution
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getNumMarkets() internal view virtual override returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description       |
+| -------- | --------- | ----------------- |
+| `<none>` | `uint256` | Number of markets |
+
+### \_getMarketAddress
+
+Gets the address of a market at a given index
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getMarketAddress(uint256 idx) internal view virtual override returns (address);
+```
+
+**Parameters**
+
+| Name  | Type      | Description         |
+| ----- | --------- | ------------------- |
+| `idx` | `uint256` | Index of the market |
+
+**Returns**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `<none>` | `address` | Address of the market |
+
+### \_getMarketIdx
+
+Gets the index of an allowlisted market
+
+_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
+
+```solidity
+function _getMarketIdx(uint256 i) internal view virtual override returns (uint256);
+```
+
+**Parameters**
+
+| Name | Type      | Description                                                                                                                        |
+| ---- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `i`  | `uint256` | Index of the market in the allowlist `ClearingHouse.ids` (for the PerpRewardDistributor) or `stakingTokens` (for the SafetyModule) |
+
+**Returns**
+
+| Name     | Type      | Description                            |
+| -------- | --------- | -------------------------------------- |
+| `<none>` | `uint256` | Index of the market in the market list |
+
+### \_getCurrentPosition
+
+Returns the current position of the user in the market (i.e., perpetual market or staked token)
+
+```solidity
+function _getCurrentPosition(address user, address market) internal view virtual override returns (uint256);
+```
+
+**Parameters**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `user`   | `address` | Address of the user   |
+| `market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                                |
+| -------- | --------- | ------------------------------------------ |
+| `<none>` | `uint256` | Current position of the user in the market |
