@@ -300,7 +300,7 @@ function completeAuction(uint256 _auctionId) external;
 
 Buys one or more lots at the current lot size, and ends the auction if all lots are sold
 
-_The caller must approve this contract to transfer the lotPrice _ numLotsToBuy in payment tokens\*
+_The caller must first approve this contract to transfer the `lotPrice * numLotsToBuy` in payment tokens_
 
 ```solidity
 function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
