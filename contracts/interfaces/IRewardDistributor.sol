@@ -61,14 +61,9 @@ interface IRewardDistributor {
         address newEcosystemReserve
     );
 
-    /// @notice Error returned when an invalid index is passed into `getMarketAddress`
-    /// @param index Index that was passed
-    /// @param maxIndex Maximum allowed index
-    error RewardDistributor_InvalidMarketIndex(uint256 index, uint256 maxIndex);
-
     /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
     /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
-    /// `updateMarketRewards(market)` is called, which is quite often.
+    /// `_updateMarketRewards(market)` is called, which is quite often.
     /// @param market Address of the market
     error RewardDistributor_UninitializedStartTime(address market);
 
@@ -113,9 +108,9 @@ interface IRewardDistributor {
         uint256 actualPosition
     );
 
-    /// @notice Error returned if governance tries to set the ecosystem reserve to the zero address
-    /// @param invalidAddress Address that was passed (i.e., `address(0)`)
-    error RewardDistributor_InvalidEcosystemReserve(address invalidAddress);
+    /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
+    /// @param argIndex Index of the invalid argument
+    error RewardDistributor_InvalidZeroAddress(uint256 argIndex);
 
     /// @notice Gets the address of the reward token vault
     /// @return Address of the EcosystemReserve contract which serves as the reward token vault
@@ -211,8 +206,8 @@ interface IRewardDistributor {
     function removeRewardToken(address _rewardToken) external;
 
     /// @notice Updates the address of the ecosystem reserve for storing reward tokens
-    /// @param _ecosystemReserve Address of the new ecosystem reserve
-    function setEcosystemReserve(address _ecosystemReserve) external;
+    /// @param _newEcosystemReserve Address of the new ecosystem reserve
+    function setEcosystemReserve(address _newEcosystemReserve) external;
 
     /// @notice Sets the start time for accruing rewards to a market which has not been initialized yet
     /// @param _market Address of the market (i.e., perpetual market or staking token)
@@ -236,12 +231,6 @@ interface IRewardDistributor {
     /// @param _user Address of the user to claim rewards for
     function claimRewardsFor(address _user) external;
 
-    /// @notice Accrues and then distributes rewards for a single market and all of its registered reward tokens
-    /// to the given user
-    /// @param _user Address of the user to claim rewards for
-    /// @param _market Address of the market to claim rewards for
-    function claimRewardsFor(address _user, address _market) external;
-
     /// @notice Accrues and then distributes rewards for all markets that receive any of the provided reward tokens
     /// to the given user
     /// @param _user Address of the user to claim rewards for
@@ -263,25 +252,4 @@ interface IRewardDistributor {
     /// @param market Address of the market to accrue rewards for
     /// @param user Address of the user
     function accrueRewards(address market, address user) external;
-
-    /// @notice Returns the amount of rewards that would be accrued to a user for a given market
-    /// @dev Serves as a static version of `accrueRewards(address market, address user)`
-    /// @param market Address of the market to view new rewards for
-    /// @param user Address of the user
-    /// @return Amount of new rewards that would be accrued to the user for each reward token the given market receives
-    function viewNewRewardAccrual(
-        address market,
-        address user
-    ) external view returns (uint256[] memory);
-
-    /// @notice Returns the amount of rewards that would be accrued to a user for a given market and reward token
-    /// @param market Address of the market to view new rewards for
-    /// @param user Address of the user
-    /// @param rewardToken Address of the reward token to view new rewards for
-    /// @return Amount of new rewards that would be accrued to the user
-    function viewNewRewardAccrual(
-        address market,
-        address user,
-        address rewardToken
-    ) external view returns (uint256);
 }

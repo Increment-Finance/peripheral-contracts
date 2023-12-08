@@ -2,15 +2,14 @@
 pragma solidity 0.8.16;
 
 // interfaces
-import {IRewardDistributor} from "./IRewardDistributor.sol";
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 
 interface IPerpRewardDistributor {
-    /// @notice Error returned when the caller of updateStakingPosition is not the ClearingHouse
+    /// @notice Error returned when the caller of `updateStakingPosition` is not the ClearingHouse
     /// @param caller Address of the caller
     error PerpRewardDistributor_CallerIsNotClearingHouse(address caller);
 
-    /// @notice Gets the address of the ClearingHouse contract which stores the list of Perpetuals and can call updateStakingPosition
+    /// @notice Gets the address of the ClearingHouse contract which stores the list of Perpetuals and can call `updateStakingPosition`
     /// @return Address of the ClearingHouse contract
     function clearingHouse() external view returns (IClearingHouse);
 

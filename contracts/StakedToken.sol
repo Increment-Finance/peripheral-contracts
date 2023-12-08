@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
+// contracts
 import {ERC20, ERC20Permit, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.sol";
+
+// interfaces
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
 import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
+
+// libraries
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LibMath} from "@increment/lib/LibMath.sol";
 
 /**
  * @title StakedToken
@@ -22,9 +28,10 @@ contract StakedToken is
     ReentrancyGuard
 {
     using SafeERC20 for IERC20;
+    using LibMath for uint256;
 
     /// @notice Address of the underlying token to stake
-    IERC20 public immutable STAKED_TOKEN;
+    IERC20 public immutable UNDERLYING_TOKEN;
 
     /// @notice Seconds that user must wait between calling cooldown and redeem
     uint256 public immutable COOLDOWN_SECONDS;
@@ -38,11 +45,29 @@ contract StakedToken is
     /// @notice Max amount of staked tokens allowed per user
     uint256 public maxStakeAmount;
 
+    /// @notice Exchange rate between the underlying token and the staked token, normalized to 1e18
+    /// @dev Rate is the amount of underlying tokens held in this contract per staked token issued, so
+    /// it should be 1e18 in normal conditions, when all staked tokens are backed 1:1 by underlying tokens,
+    /// but it can be lower if users' stakes have been slashed for an auction by the SafetyModule
+    uint256 public exchangeRate;
+
+    /// @notice Whether the StakedToken is in a post-slashing state
+    /// @dev Post-slashing state disables staking and further slashing, and allows users to redeem their
+    /// staked tokens without waiting for the cooldown period
+    bool public isInPostSlashingState;
+
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) public stakersCooldowns;
 
+    /// @notice Modifier for functions that can only be called by the SafetyModule contract
+    modifier onlySafetyModule() {
+        if (msg.sender != address(safetyModule))
+            revert StakedToken_CallerIsNotSafetyModule(msg.sender);
+        _;
+    }
+
     /// @notice StakedToken constructor
-    /// @param _stakedToken The underlying token to stake
+    /// @param _underlyingToken The underlying token to stake
     /// @param _safetyModule The SafetyModule contract to use for reward management
     /// @param _cooldownSeconds The number of seconds that users must wait between calling `cooldown` and `redeem`
     /// @param _unstakeWindow The number of seconds available to redeem once the cooldown period is fullfilled
@@ -50,7 +75,7 @@ contract StakedToken is
     /// @param _name The name of the token
     /// @param _symbol The symbol of the token
     constructor(
-        IERC20 _stakedToken,
+        IERC20 _underlyingToken,
         ISafetyModule _safetyModule,
         uint256 _cooldownSeconds,
         uint256 _unstakeWindow,
@@ -58,79 +83,84 @@ contract StakedToken is
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) ERC20Permit(_name) {
-        STAKED_TOKEN = _stakedToken;
+        UNDERLYING_TOKEN = _underlyingToken;
         COOLDOWN_SECONDS = _cooldownSeconds;
         UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
         maxStakeAmount = _maxStakeAmount;
+        exchangeRate = 1e18;
+        isInPostSlashingState = false;
     }
 
     /**
      * @inheritdoc IStakedToken
      */
-    function stake(address onBehalfOf, uint256 amount) external override {
-        if (amount == 0) revert StakedToken_InvalidZeroAmount();
-        uint256 balanceOfUser = balanceOf(onBehalfOf);
-        if (balanceOfUser + amount > maxStakeAmount)
-            revert StakedToken_AboveMaxStakeAmount(
-                maxStakeAmount,
-                maxStakeAmount - balanceOfUser
-            );
-
-        stakersCooldowns[onBehalfOf] = getNextCooldownTimestamp(
-            0,
-            amount,
-            onBehalfOf,
-            balanceOfUser
-        );
-
-        _mint(onBehalfOf, amount);
-        IERC20(STAKED_TOKEN).safeTransferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        safetyModule.updateStakingPosition(address(this), onBehalfOf);
-
-        emit Staked(msg.sender, onBehalfOf, amount);
+    function getUnderlyingToken() external view returns (IERC20) {
+        return UNDERLYING_TOKEN;
     }
 
     /**
      * @inheritdoc IStakedToken
      */
-    function redeem(address to, uint256 amount) external override {
-        if (amount == 0) revert StakedToken_InvalidZeroAmount();
-        //solium-disable-next-line
-        uint256 cooldownStartTimestamp = stakersCooldowns[msg.sender];
-        if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
-            revert StakedToken_InsufficientCooldown(
-                cooldownStartTimestamp + COOLDOWN_SECONDS
-            );
-        if (
-            block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
-            UNSTAKE_WINDOW
-        )
-            revert StakedToken_UnstakeWindowFinished(
-                cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
-            );
-        uint256 balanceOfMessageSender = balanceOf(msg.sender);
+    function getCooldownSeconds() external view returns (uint256) {
+        return COOLDOWN_SECONDS;
+    }
 
-        uint256 amountToRedeem = (amount > balanceOfMessageSender)
-            ? balanceOfMessageSender
-            : amount;
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function getUnstakeWindowSeconds() external view returns (uint256) {
+        return UNSTAKE_WINDOW;
+    }
 
-        _burn(msg.sender, amountToRedeem);
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function previewStake(uint256 amountToStake) public view returns (uint256) {
+        if (exchangeRate == 0) return 0;
+        return amountToStake.wadDiv(exchangeRate);
+    }
 
-        if (balanceOfMessageSender - amountToRedeem == 0) {
-            stakersCooldowns[msg.sender] = 0;
-        }
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function previewRedeem(
+        uint256 amountToRedeem
+    ) public view returns (uint256) {
+        return amountToRedeem.wadMul(exchangeRate);
+    }
 
-        IERC20(STAKED_TOKEN).safeTransfer(to, amountToRedeem);
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function stake(uint256 amount) external override {
+        _stake(msg.sender, msg.sender, amount);
+    }
 
-        safetyModule.updateStakingPosition(address(this), msg.sender);
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function stakeOnBehalfOf(
+        address onBehalfOf,
+        uint256 amount
+    ) external override {
+        if (onBehalfOf == address(0)) revert StakedToken_InvalidZeroAddress();
+        _stake(msg.sender, onBehalfOf, amount);
+    }
 
-        emit Redeem(msg.sender, to, amountToRedeem);
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function redeem(uint256 amount) external override {
+        _redeem(msg.sender, msg.sender, amount);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
+    function redeemTo(address to, uint256 amount) external override {
+        if (to == address(0)) revert StakedToken_InvalidZeroAddress();
+        _redeem(msg.sender, to, amount);
     }
 
     /**
@@ -139,10 +169,80 @@ contract StakedToken is
     function cooldown() external override {
         if (balanceOf(msg.sender) == 0)
             revert StakedToken_ZeroBalanceAtCooldown();
+        if (isInPostSlashingState)
+            revert StakedToken_CooldownDisabledInPostSlashingState();
         //solium-disable-next-line
         stakersCooldowns[msg.sender] = block.timestamp;
 
         emit Cooldown(msg.sender);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the SafetyModule contract
+     */
+    function slash(
+        address destination,
+        uint256 amount
+    ) external onlySafetyModule returns (uint256) {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (destination == address(0)) revert StakedToken_InvalidZeroAddress();
+        if (isInPostSlashingState)
+            revert StakedToken_SlashingDisabledInPostSlashingState();
+        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
+            address(this)
+        );
+        if (amount > maxSlashAmount)
+            revert StakedToken_AboveMaxSlashAmount(amount, maxSlashAmount);
+
+        // Change state to post-slashing
+        isInPostSlashingState = true;
+
+        // Determine the amount of underlying tokens to transfer, given the current exchange rate
+        uint256 underlyingAmount = previewRedeem(amount);
+
+        // Update the exchange rate
+        _updateExchangeRate(
+            UNDERLYING_TOKEN.balanceOf(address(this)) - underlyingAmount,
+            totalSupply()
+        );
+
+        // Send the slashed underlying tokens to the destination
+        UNDERLYING_TOKEN.safeTransfer(destination, underlyingAmount);
+
+        emit Slashed(destination, amount, underlyingAmount);
+        return underlyingAmount;
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the SafetyModule contract
+     */
+    function returnFunds(
+        address from,
+        uint256 amount
+    ) external onlySafetyModule {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (from == address(0)) revert StakedToken_InvalidZeroAddress();
+
+        // Update the exchange rate
+        _updateExchangeRate(
+            UNDERLYING_TOKEN.balanceOf(address(this)) + amount,
+            totalSupply()
+        );
+
+        // Transfer the underlying tokens back to this contract
+        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
+        emit FundsReturned(from, amount);
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by the SafetyModule contract
+     */
+    function settleSlashing() external onlySafetyModule {
+        isInPostSlashingState = false;
+        emit SlashingSettled();
     }
 
     /**
@@ -155,7 +255,7 @@ contract StakedToken is
      *    - The sender has a "worse" timestamp
      *  - If the receiver's cooldown timestamp expired (too old), the next is 0
      * @param fromCooldownTimestamp Cooldown timestamp of the sender
-     * @param amountToReceive Amount
+     * @param amountToReceive Amount of staked tokens to receive
      * @param toAddress Address of the recipient
      * @param toBalance Current balance of the receiver
      * @return The new cooldown timestamp
@@ -203,24 +303,41 @@ contract StakedToken is
 
     /**
      * @inheritdoc IStakedToken
+     * @dev Only callable by governance
      */
     function setSafetyModule(
-        address _safetyModule
+        address _newSafetyModule
     ) external onlyRole(GOVERNANCE) {
-        safetyModule = ISafetyModule(_safetyModule);
+        emit SafetyModuleUpdated(address(safetyModule), _newSafetyModule);
+        safetyModule = ISafetyModule(_newSafetyModule);
     }
 
-    /// @notice Sets the max amount of staked tokens allowed per user, callable only by governance
-    /// @param _maxStakeAmount New max amount of staked tokens allowed per user
+    /**
+     * @inheritdoc IStakedToken
+     * @dev Only callable by governance
+     */
     function setMaxStakeAmount(
-        uint256 _maxStakeAmount
+        uint256 _newMaxStakeAmount
     ) external onlyRole(GOVERNANCE) {
-        maxStakeAmount = _maxStakeAmount;
+        emit MaxStakeAmountUpdated(maxStakeAmount, _newMaxStakeAmount);
+        maxStakeAmount = _newMaxStakeAmount;
     }
 
     /* ****************** */
     /*      Internal      */
     /* ****************** */
+
+    /**
+     * @notice Updates the exchange rate of the staked token, based on the current underlying token balance
+     * held by this contract and the total supply of the staked token
+     */
+    function _updateExchangeRate(
+        uint256 totalAssets,
+        uint256 totalShares
+    ) internal {
+        exchangeRate = totalAssets.wadDiv(totalShares);
+        emit ExchangeRateUpdated(exchangeRate);
+    }
 
     /**
      * @notice Internal ERC20 `_transfer` of the tokenized staked tokens
@@ -264,5 +381,85 @@ contract StakedToken is
         // Update SafetyModule
         safetyModule.updateStakingPosition(address(this), from);
         safetyModule.updateStakingPosition(address(this), to);
+    }
+
+    function _stake(address from, address to, uint256 amount) internal {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+        if (isInPostSlashingState)
+            revert StakedToken_StakingDisabledInPostSlashingState();
+
+        // Make sure the user's stake balance doesn't exceed the max stake amount
+        uint256 stakeAmount = previewStake(amount);
+        uint256 balanceOfUser = balanceOf(to);
+        if (balanceOfUser + stakeAmount > maxStakeAmount)
+            revert StakedToken_AboveMaxStakeAmount(
+                maxStakeAmount,
+                maxStakeAmount - balanceOfUser
+            );
+
+        // Update cooldown timestamp
+        stakersCooldowns[to] = getNextCooldownTimestamp(
+            0,
+            stakeAmount,
+            to,
+            balanceOfUser
+        );
+
+        // Mint staked tokens
+        _mint(to, stakeAmount);
+
+        // Transfer underlying tokens from the sender
+        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
+
+        // Update user's position and rewards in the SafetyModule
+        safetyModule.updateStakingPosition(address(this), to);
+
+        emit Staked(from, to, amount);
+    }
+
+    function _redeem(address from, address to, uint256 amount) internal {
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+        if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
+
+        // Users can redeem without waiting for the cooldown period in a post-slashing state
+        if (!isInPostSlashingState) {
+            // Make sure the user's cooldown period is over and the unstake window didn't pass
+            uint256 cooldownStartTimestamp = stakersCooldowns[from];
+            if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS)
+                revert StakedToken_InsufficientCooldown(
+                    cooldownStartTimestamp + COOLDOWN_SECONDS
+                );
+            if (
+                block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS >
+                UNSTAKE_WINDOW
+            )
+                revert StakedToken_UnstakeWindowFinished(
+                    cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW
+                );
+        }
+
+        // Check the sender's balance and adjust the redeem amount if necessary
+        uint256 balanceOfFrom = balanceOf(from);
+        uint256 amountToRedeem = (amount > balanceOfFrom)
+            ? balanceOfFrom
+            : amount;
+
+        // Burn staked tokens
+        _burn(from, amountToRedeem);
+
+        // Reset cooldown to zero if the user redeemed their whole balance
+        if (balanceOfFrom - amountToRedeem == 0) {
+            stakersCooldowns[from] = 0;
+        }
+
+        // Transfer underlying tokens to the recipient
+        uint256 underlyingAmount = previewRedeem(amountToRedeem);
+        UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
+
+        // Update user's position and rewards in the SafetyModule
+        safetyModule.updateStakingPosition(address(this), from);
+
+        emit Redeemed(from, to, amountToRedeem);
     }
 }

@@ -14,9 +14,6 @@
 	path = lib/prb-math
 	url = https://github.com/PaulRBerg/prb-math
 [submodule "lib/governance"]
-	path = lib/governance
-	url = https://github.com/Increment-Finance/governance.git
-[submodule "increment-governance"]
 	path = lib/increment-governance
 	url = https://github.com/Increment-Finance/governance.git
 [submodule "lib/aave-v3-periphery"]
