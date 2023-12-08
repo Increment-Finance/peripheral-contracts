@@ -1548,15 +1548,6 @@ contract RewardsTest is PerpetualUtils {
             invalidMarket != address(perpetual) &&
                 invalidMarket != address(perpetual2)
         );
-        // getters
-        // vm.expectRevert(
-        //     abi.encodeWithSignature(
-        //         "RewardDistributor_InvalidMarketIndex(uint256,uint256)",
-        //         9,
-        //         1
-        //     )
-        // );
-        // rewardDistributor.getMarketAddress(9);
 
         // updateStakingPosition
         vm.expectRevert(
