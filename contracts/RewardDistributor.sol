@@ -30,6 +30,7 @@ abstract contract RewardDistributor is
 {
     using SafeERC20 for IERC20Metadata;
     using PRBMathUD60x18 for uint256;
+    using PRBMathUD60x18 for uint88;
 
     /// @notice Address of the reward token vault
     address public ecosystemReserve;
@@ -105,8 +106,8 @@ abstract contract RewardDistributor is
     /// @dev Can only be called by governance
     function addRewardToken(
         address _rewardToken,
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
+        uint88 _initialInflationRate,
+        uint88 _initialReductionFactor,
         address[] calldata _markets,
         uint16[] calldata _marketWeights
     ) external onlyRole(GOVERNANCE) {

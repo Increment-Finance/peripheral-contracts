@@ -193,8 +193,8 @@ interface IRewardDistributor {
     /// @param _marketWeights Initial weights per market for the new token
     function addRewardToken(
         address _rewardToken,
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
+        uint88 _initialInflationRate,
+        uint88 _initialReductionFactor,
         address[] calldata _markets,
         uint16[] calldata _marketWeights
     ) external;

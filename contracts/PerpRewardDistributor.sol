@@ -37,8 +37,8 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param _earlyWithdrawalThreshold The amount of time after which LPs can remove liquidity without penalties
     /// @param _initialRewardWeights The initial reward weights for the first reward token, as basis points
     constructor(
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
+        uint88 _initialInflationRate,
+        uint88 _initialReductionFactor,
         address _rewardToken,
         address _clearingHouse,
         address _ecosystemReserve,

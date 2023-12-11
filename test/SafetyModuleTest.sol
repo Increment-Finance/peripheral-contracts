@@ -95,8 +95,8 @@ contract SafetyModuleTest is PerpetualUtils {
 
     event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
 
-    uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
-    uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;

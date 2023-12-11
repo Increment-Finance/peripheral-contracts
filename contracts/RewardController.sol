@@ -26,6 +26,7 @@ abstract contract RewardController is
     ReentrancyGuard
 {
     using PRBMathUD60x18 for uint256;
+    using PRBMathUD60x18 for uint88;
 
     /// @notice Data structure containing essential info for each reward token
     /// @param token Address of the reward token
@@ -38,9 +39,9 @@ abstract contract RewardController is
     struct RewardInfo {
         IERC20Metadata token;
         bool paused;
-        uint256 initialTimestamp;
-        uint256 initialInflationRate;
-        uint256 reductionFactor;
+        uint80 initialTimestamp;
+        uint88 initialInflationRate;
+        uint88 reductionFactor;
         address[] marketAddresses;
         uint16[] marketWeights;
     }
@@ -193,7 +194,7 @@ abstract contract RewardController is
     /// @dev Only callable by Governance
     function updateInitialInflationRate(
         address rewardToken,
-        uint256 newInitialInflationRate
+        uint88 newInitialInflationRate
     ) external onlyRole(GOVERNANCE) {
         if (
             rewardToken == address(0) ||
@@ -221,7 +222,7 @@ abstract contract RewardController is
     /// @dev Only callable by Governance
     function updateReductionFactor(
         address rewardToken,
-        uint256 newReductionFactor
+        uint88 newReductionFactor
     ) external onlyRole(GOVERNANCE) {
         if (
             rewardToken == address(0) ||

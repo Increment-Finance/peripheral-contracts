@@ -48,8 +48,8 @@ contract RewardsTest is PerpetualUtils {
         address newEcosystemReserve
     );
 
-    uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
-    uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
 
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
@@ -260,12 +260,14 @@ contract RewardsTest is PerpetualUtils {
 
     function testInflationAndReduction(
         uint256 timeIncrement,
-        uint256 initialInflationRate,
-        uint256 initialReductionFactor
+        uint88 initialInflationRate,
+        uint88 initialReductionFactor
     ) public {
         /* bounds */
-        initialInflationRate = bound(initialInflationRate, 1e18, 5e24);
-        initialReductionFactor = bound(initialReductionFactor, 1e18, 2e18);
+        initialInflationRate = uint88(bound(initialInflationRate, 1e18, 5e24));
+        initialReductionFactor = uint88(
+            bound(initialReductionFactor, 1e18, 2e18)
+        );
 
         // Update inflation rate and reduction factor
         rewardDistributor.updateInitialInflationRate(
@@ -317,8 +319,8 @@ contract RewardsTest is PerpetualUtils {
     }
 
     function testRewardControllerErrors(
-        uint256 inflationRate,
-        uint256 reductionFactor,
+        uint88 inflationRate,
+        uint88 reductionFactor,
         address[] memory markets,
         uint16[] memory marketWeights,
         address token
@@ -335,8 +337,10 @@ contract RewardsTest is PerpetualUtils {
             uint256(marketWeights[0]) + marketWeights[1] <= type(uint16).max
         );
         vm.assume(marketWeights[0] + marketWeights[1] != 10000);
-        inflationRate = bound(inflationRate, 5e24 + 1, 1e36);
-        reductionFactor = bound(reductionFactor, 0, 1e18 - 1);
+        inflationRate = uint88(
+            bound(inflationRate, 5e24 + 1, type(uint88).max)
+        );
+        reductionFactor = uint88(bound(reductionFactor, 0, 1e18 - 1));
 
         vm.startPrank(address(this));
 
@@ -606,15 +610,15 @@ contract RewardsTest is PerpetualUtils {
     function testMultipleRewardScenario(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
-        uint256 inflationRate2,
-        uint256 reductionFactor2,
         uint16 marketWeight1
+        uint88 inflationRate2,
+        uint88 reductionFactor2,
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
-        inflationRate2 = bound(inflationRate2, 1e20, 5e24);
-        reductionFactor2 = bound(reductionFactor2, 1e18, 5e18);
+        inflationRate2 = uint88(bound(inflationRate2, 1e20, 5e24));
+        reductionFactor2 = uint88(bound(reductionFactor2, 1e18, 5e18));
         marketWeight1 = marketWeight1 % 10000;
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
@@ -740,9 +744,9 @@ contract RewardsTest is PerpetualUtils {
     function testMultipleRewardShortfallScenario(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
-        uint256 inflationRate2,
-        uint256 reductionFactor2,
         uint16 marketWeight1
+        uint88 inflationRate2,
+        uint88 reductionFactor2,
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);

@@ -173,7 +173,7 @@ interface IRewardController {
     /// @param newInitialInflationRate The new inflation rate in tokens/year, scaled by 1e18
     function updateInitialInflationRate(
         address rewardToken,
-        uint256 newInitialInflationRate
+        uint88 newInitialInflationRate
     ) external;
 
     /// @notice Sets the reduction factor used to reduce emissions over time for a given reward token
@@ -181,7 +181,7 @@ interface IRewardController {
     /// @param newReductionFactor The new reduction factor, scaled by 1e18
     function updateReductionFactor(
         address rewardToken,
-        uint256 newReductionFactor
+        uint88 newReductionFactor
     ) external;
 
     /// @notice Pause the contract
