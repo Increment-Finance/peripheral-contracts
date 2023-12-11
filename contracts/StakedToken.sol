@@ -89,7 +89,6 @@ contract StakedToken is
         safetyModule = _safetyModule;
         maxStakeAmount = _maxStakeAmount;
         exchangeRate = 1e18;
-        isInPostSlashingState = false;
     }
 
     /**
@@ -352,10 +351,6 @@ contract StakedToken is
         address to,
         uint256 amount
     ) internal override {
-        // Sender
-        uint256 balanceOfFrom = balanceOf(from);
-
-        // Recipient
         if (from != to) {
             uint256 balanceOfTo = balanceOf(to);
             if (balanceOfTo + amount > maxStakeAmount)
@@ -371,8 +366,8 @@ contract StakedToken is
                 balanceOfTo
             );
             // if cooldown was set and whole balance of sender was transferred - clear cooldown
-            if (balanceOfFrom == amount && previousSenderCooldown != 0) {
-                stakersCooldowns[from] = 0;
+            if (previousSenderCooldown != 0) {
+                if (balanceOf(from) == amount) stakersCooldowns[from] = 0;
             }
         }
 
