@@ -186,7 +186,7 @@ abstract contract RewardDistributor is
         // Remove reward token address from list
         // The `delete` keyword applied to arrays does not reduce array length
         uint256 numRewards = rewardTokens.length;
-        for (uint i = 0; i < numRewards; ++i) {
+        for (uint i; i < numRewards; ++i) {
             if (rewardTokens[i] != _rewardToken) continue;
             // Find the token in the array and swap it with the last element
             rewardTokens[i] = rewardTokens[numRewards - 1];

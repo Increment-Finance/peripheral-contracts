@@ -49,7 +49,7 @@ contract SafetyModule is
     /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
     /// i.e., `updateStakingPosition`
     modifier onlyStakingToken() {
-        bool isStakingToken = false;
+        bool isStakingToken;
         for (uint i; i < stakingTokens.length; ++i) {
             if (msg.sender == address(stakingTokens[i])) {
                 isStakingToken = true;
