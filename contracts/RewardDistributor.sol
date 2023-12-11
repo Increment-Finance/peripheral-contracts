@@ -251,7 +251,7 @@ abstract contract RewardDistributor is
     }
 
     /// @inheritdoc IRewardDistributor
-    function claimRewards() public override {
+    function claimRewards() external override {
         claimRewardsFor(msg.sender);
     }
 
