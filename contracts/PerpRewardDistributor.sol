@@ -43,7 +43,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address _clearingHouse,
         address _ecosystemReserve,
         uint256 _earlyWithdrawalThreshold,
-        uint16[] memory _initialRewardWeights
+        uint256[] memory _initialRewardWeights
     ) payable RewardDistributor(_ecosystemReserve) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
@@ -59,18 +59,23 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            paused: false,
-            initialTimestamp: block.timestamp,
-            initialInflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            marketAddresses: new address[](numMarkets),
-            marketWeights: _initialRewardWeights
-        });
+        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(
+            block.timestamp
+        );
+        rewardInfoByToken[_rewardToken]
+            .initialInflationRate = _initialInflationRate;
+        rewardInfoByToken[_rewardToken]
+            .reductionFactor = _initialReductionFactor;
+        rewardInfoByToken[_rewardToken].marketAddresses = new address[](
+            numMarkets
+        );
         for (uint256 i; i < numMarkets; ++i) {
             address market = _getMarketAddress(_getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
+            rewardInfoByToken[_rewardToken].marketWeights[
+                    market
+                ] = _initialRewardWeights[i];
             timeOfLastCumRewardUpdate[market] = block.timestamp;
         }
         rewardTokens.push(_rewardToken);

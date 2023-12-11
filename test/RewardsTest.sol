@@ -130,7 +130,7 @@ contract RewardsTest is PerpetualUtils {
         rewardsToken.unpause();
         rewardsToken2.unpause();
 
-        uint16[] memory weights = new uint16[](2);
+        uint256[] memory weights = new uint256[](2);
         weights[0] = 7500;
         weights[1] = 2500;
 
@@ -232,24 +232,21 @@ contract RewardsTest is PerpetualUtils {
             INITIAL_REDUCTION_FACTOR,
             "Reduction factor mismatch"
         );
-        (, uint16[] memory weights) = rewardDistributor.getRewardWeights(token);
-        assertEq(weights[0], 7500, "Market weight mismatch");
-        assertEq(weights[1], 2500, "Market weight mismatch");
         assertEq(
-            rewardDistributor.getMarketWeightIdx(
-                address(rewardsToken),
+            rewardDistributor.getRewardWeight(
+                address(token),
                 address(perpetual)
             ),
-            0,
-            "Market weight index mismatch"
+            7500,
+            "Market weight mismatch"
         );
         assertEq(
-            rewardDistributor.getMarketWeightIdx(
-                address(rewardsToken2),
-                address(perpetual)
+            rewardDistributor.getRewardWeight(
+                address(token),
+                address(perpetual2)
             ),
-            -1,
-            "Missing market weight should be -1"
+            2500,
+            "Market weight mismatch"
         );
         assertEq(
             rewardDistributor.earlyWithdrawalThreshold(),
@@ -322,7 +319,7 @@ contract RewardsTest is PerpetualUtils {
         uint88 inflationRate,
         uint88 reductionFactor,
         address[] memory markets,
-        uint16[] memory marketWeights,
+        uint256[] memory marketWeights,
         address token
     ) public {
         vm.assume(
@@ -334,7 +331,7 @@ contract RewardsTest is PerpetualUtils {
         vm.assume(marketWeights.length > 2);
         vm.assume(markets.length != marketWeights.length);
         vm.assume(
-            uint256(marketWeights[0]) + marketWeights[1] <= type(uint16).max
+            uint256(marketWeights[0]) + marketWeights[1] <= type(uint256).max
         );
         vm.assume(marketWeights[0] + marketWeights[1] != 10000);
         inflationRate = uint88(
@@ -442,13 +439,13 @@ contract RewardsTest is PerpetualUtils {
         address[] memory markets2 = new address[](2);
         markets2[0] = markets[0];
         markets2[1] = markets[1];
-        uint16[] memory marketWeights2 = new uint16[](2);
+        uint256[] memory marketWeights2 = new uint256[](2);
         marketWeights2[0] = marketWeights[0];
         marketWeights2[1] = marketWeights[1];
         if (marketWeights2[0] > 10000) {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint16,uint16)",
+                    "RewardController_WeightExceedsMax(uint256,uint256)",
                     marketWeights2[0],
                     10000
                 )
@@ -456,7 +453,7 @@ contract RewardsTest is PerpetualUtils {
         } else if (marketWeights[1] > 10000) {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint16,uint16)",
+                    "RewardController_WeightExceedsMax(uint256,uint256)",
                     marketWeights2[1],
                     10000
                 )
@@ -464,7 +461,7 @@ contract RewardsTest is PerpetualUtils {
         } else {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "RewardController_IncorrectWeightsSum(uint16,uint16)",
+                    "RewardController_IncorrectWeightsSum(uint256,uint256)",
                     marketWeights2[0] + marketWeights2[1],
                     10000
                 )
@@ -478,7 +475,7 @@ contract RewardsTest is PerpetualUtils {
         if (marketWeights2[0] > 10000) {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint16,uint16)",
+                    "RewardController_WeightExceedsMax(uint256,uint256)",
                     marketWeights2[0],
                     10000
                 )
@@ -486,7 +483,7 @@ contract RewardsTest is PerpetualUtils {
         } else if (marketWeights[1] > 10000) {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint16,uint16)",
+                    "RewardController_WeightExceedsMax(uint256,uint256)",
                     marketWeights2[1],
                     10000
                 )
@@ -494,7 +491,7 @@ contract RewardsTest is PerpetualUtils {
         } else {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "RewardController_IncorrectWeightsSum(uint16,uint16)",
+                    "RewardController_IncorrectWeightsSum(uint256,uint256)",
                     marketWeights2[0] + marketWeights2[1],
                     10000
                 )
@@ -610,9 +607,9 @@ contract RewardsTest is PerpetualUtils {
     function testMultipleRewardScenario(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
-        uint16 marketWeight1
         uint88 inflationRate2,
         uint88 reductionFactor2,
+        uint256 marketWeight1
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
@@ -637,7 +634,7 @@ contract RewardsTest is PerpetualUtils {
         address[] memory markets = new address[](2);
         markets[0] = address(perpetual);
         markets[1] = address(perpetual2);
-        uint16[] memory marketWeights = new uint16[](2);
+        uint256[] memory marketWeights = new uint256[](2);
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
         rewardDistributor.addRewardToken(
@@ -744,15 +741,15 @@ contract RewardsTest is PerpetualUtils {
     function testMultipleRewardShortfallScenario(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
-        uint16 marketWeight1
         uint88 inflationRate2,
         uint88 reductionFactor2,
+        uint256 marketWeight1
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
-        inflationRate2 = bound(inflationRate2, 1e24, 5e24);
-        reductionFactor2 = bound(reductionFactor2, 1e18, 5e18);
+        inflationRate2 = uint88(bound(inflationRate2, 1e24, 5e24));
+        reductionFactor2 = uint88(bound(reductionFactor2, 1e18, 5e18));
         marketWeight1 = marketWeight1 % 10000;
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
@@ -768,7 +765,7 @@ contract RewardsTest is PerpetualUtils {
         address[] memory markets = new address[](2);
         markets[0] = address(perpetual);
         markets[1] = address(perpetual2);
-        uint16[] memory marketWeights = new uint16[](2);
+        uint256[] memory marketWeights = new uint256[](2);
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
         rewardsToken2 = new IncrementToken(10e18, address(this));
@@ -1123,7 +1120,7 @@ contract RewardsTest is PerpetualUtils {
             markets[0] = address(perpetual);
             markets[1] = address(perpetual2);
             markets[2] = address(perpetual3);
-            uint16[] memory marketWeights = new uint16[](3);
+            uint256[] memory marketWeights = new uint256[](3);
             marketWeights[0] = 5000;
             marketWeights[1] = 3000;
             marketWeights[2] = 2000;
@@ -1371,7 +1368,7 @@ contract RewardsTest is PerpetualUtils {
 
         // set new market weights
         address[] memory markets = new address[](2);
-        uint16[] memory marketWeights = new uint16[](2);
+        uint256[] memory marketWeights = new uint256[](2);
         markets[0] = address(perpetual);
         markets[1] = address(perpetual3);
         marketWeights[0] = 7500;
@@ -1451,7 +1448,7 @@ contract RewardsTest is PerpetualUtils {
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // redeploy rewards distributor
-        uint16[] memory weights = new uint16[](2);
+        uint256[] memory weights = new uint256[](2);
         weights[0] = 7500;
         weights[1] = 2500;
 
@@ -1644,7 +1641,7 @@ contract RewardsTest is PerpetualUtils {
         address[] memory markets2 = new address[](2);
         markets2[0] = address(perpetual);
         markets2[1] = address(perpetual2);
-        uint16[] memory weights1 = new uint16[](1);
+        uint256[] memory weights1 = new uint256[](1);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardController_IncorrectWeightsCount(uint256,uint256)",
@@ -1659,12 +1656,12 @@ contract RewardsTest is PerpetualUtils {
             markets2,
             weights1
         );
-        uint16[] memory weights2 = new uint16[](2);
-        weights2[0] = type(uint16).max;
+        uint256[] memory weights2 = new uint256[](2);
+        weights2[0] = type(uint256).max;
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardController_WeightExceedsMax(uint16,uint16)",
-                type(uint16).max,
+                "RewardController_WeightExceedsMax(uint256,uint256)",
+                type(uint256).max,
                 10000
             )
         );
@@ -1678,7 +1675,7 @@ contract RewardsTest is PerpetualUtils {
         weights2[0] = 0;
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardController_IncorrectWeightsSum(uint16,uint16)",
+                "RewardController_IncorrectWeightsSum(uint256,uint256)",
                 0,
                 10000
             )
@@ -1801,8 +1798,8 @@ contract RewardsTest is PerpetualUtils {
     function _checkRewards(
         address token,
         address user,
-        uint16 marketWeight1,
-        uint16 marketWeight2,
+        uint256 marketWeight1,
+        uint256 marketWeight2,
         uint256 numDays
     ) internal returns (uint256) {
         uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
@@ -1984,15 +1981,10 @@ contract RewardsTest is PerpetualUtils {
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate;
         if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        (, uint16[] memory marketWeights) = rewardDistributor.getRewardWeights(
-            token
-        );
+        uint256 marketWeight = rewardDistributor.getRewardWeight(token, market);
         uint256 newMarketRewards = (((rewardDistributor.getInflationRate(
             token
-        ) *
-            marketWeights[
-                rewardDistributor.getMarketWeightIdx(token, market).toUint256()
-            ]) / 10000) * deltaTime) / 365 days;
+        ) * marketWeight) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor
             .cumulativeRewardPerLpToken(token, market) +
             (newMarketRewards * 1e18) /

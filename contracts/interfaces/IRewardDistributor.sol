@@ -196,7 +196,7 @@ interface IRewardDistributor {
         uint88 _initialInflationRate,
         uint88 _initialReductionFactor,
         address[] calldata _markets,
-        uint16[] calldata _marketWeights
+        uint256[] calldata _marketWeights
     ) external;
 
     /// @notice Removes a reward token from all markets for which it is registered

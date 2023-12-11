@@ -109,7 +109,7 @@ abstract contract RewardDistributor is
         uint88 _initialInflationRate,
         uint88 _initialReductionFactor,
         address[] calldata _markets,
-        uint16[] calldata _marketWeights
+        uint256[] calldata _marketWeights
     ) external onlyRole(GOVERNANCE) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
@@ -129,7 +129,7 @@ abstract contract RewardDistributor is
         if (rewardTokens.length >= MAX_REWARD_TOKENS)
             revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         // Validate weights
-        uint16 totalWeight;
+        uint256 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint i; i < numMarkets; ++i) {
             _updateMarketRewards(_markets[i]);
@@ -146,15 +146,21 @@ abstract contract RewardDistributor is
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
         rewardTokens.push(_rewardToken);
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            paused: false,
-            initialTimestamp: block.timestamp,
-            initialInflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            marketAddresses: _markets,
-            marketWeights: _marketWeights
-        });
+        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(
+            block.timestamp
+        );
+        rewardInfoByToken[_rewardToken]
+            .initialInflationRate = _initialInflationRate;
+        rewardInfoByToken[_rewardToken]
+            .reductionFactor = _initialReductionFactor;
+        rewardInfoByToken[_rewardToken].marketAddresses = _markets;
+        for (uint i; i < numMarkets; ++i) {
+            rewardInfoByToken[_rewardToken].marketWeights[
+                _markets[i]
+            ] = _marketWeights[i];
+            timeOfLastCumRewardUpdate[_markets[i]] = block.timestamp;
+        }
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -318,12 +324,10 @@ abstract contract RewardDistributor is
         }
         for (uint256 i; i < numTokens; ++i) {
             address token = rewardTokens[i];
-            int256 weightIdx = getMarketWeightIdx(token, market);
             if (
-                weightIdx < 0 ||
                 rewardInfoByToken[token].paused ||
                 rewardInfoByToken[token].initialInflationRate == 0 ||
-                rewardInfoByToken[token].marketWeights[uint256(weightIdx)] == 0
+                rewardInfoByToken[token].marketWeights[market] == 0
             ) continue;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
@@ -337,8 +341,8 @@ abstract contract RewardDistributor is
                 )
             );
             uint256 newRewards = (((((inflationRate *
-                rewardInfoByToken[token].marketWeights[uint256(weightIdx)]) /
-                10000) * deltaTime) / 365 days) * 1e18) /
+                rewardInfoByToken[token].marketWeights[market]) / 10000) *
+                deltaTime) / 365 days) * 1e18) /
                 totalLiquidityPerMarket[market];
             if (newRewards > 0) {
                 cumulativeRewardPerLpToken[token][market] += newRewards;

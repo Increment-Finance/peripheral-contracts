@@ -254,7 +254,7 @@ contract SafetyModuleTest is PerpetualUtils {
         address[] memory stakingTokens = new address[](2);
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
-        uint16[] memory rewardWeights = new uint16[](2);
+        uint256[] memory rewardWeights = new uint256[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         rewardDistributor.addRewardToken(
@@ -318,14 +318,6 @@ contract SafetyModuleTest is PerpetualUtils {
             safetyModule.getStakingTokenIdx(address(stakedToken2)),
             1,
             "Staking token index mismatch"
-        );
-        assertEq(
-            rewardDistributor.getMarketWeightIdx(
-                address(rewardsToken),
-                address(stakedToken1)
-            ),
-            0,
-            "Market reward weight index mismatch"
         );
         assertEq(
             stakedToken1.balanceOf(liquidityProviderTwo),
@@ -648,7 +640,7 @@ contract SafetyModuleTest is PerpetualUtils {
         address[] memory stakingTokens = new address[](2);
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
-        uint16[] memory rewardWeights = new uint16[](2);
+        uint256[] memory rewardWeights = new uint256[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         newRewardDistributor.addRewardToken(
@@ -844,7 +836,7 @@ contract SafetyModuleTest is PerpetualUtils {
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
         stakingTokens[2] = address(stakedToken3);
-        uint16[] memory rewardWeights = new uint16[](3);
+        uint256[] memory rewardWeights = new uint256[](3);
         rewardWeights[0] = 3333;
         rewardWeights[1] = 3334;
         rewardWeights[2] = 3333;
@@ -2534,15 +2526,10 @@ contract SafetyModuleTest is PerpetualUtils {
             rewardDistributor.timeOfLastCumRewardUpdate(market);
         if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        (, uint16[] memory marketWeights) = rewardDistributor.getRewardWeights(
-            token
-        );
         uint256 newMarketRewards = (((rewardDistributor.getInflationRate(
             token
-        ) *
-            marketWeights[
-                rewardDistributor.getMarketWeightIdx(token, market).toUint256()
-            ]) / 10000) * deltaTime) / 365 days;
+        ) * rewardDistributor.getRewardWeight(token, market)) / 10000) *
+            deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor
             .cumulativeRewardPerLpToken(token, market) +
             (newMarketRewards * 1e18) /

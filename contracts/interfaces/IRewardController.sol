@@ -50,7 +50,7 @@ interface IRewardController {
     event NewWeight(
         address indexed market,
         address indexed rewardToken,
-        uint16 newWeight
+        uint256 newWeight
     );
 
     /// @notice Emitted when a new inflation rate is set by governance
@@ -90,12 +90,15 @@ interface IRewardController {
     /// @notice Error returned when the sum of the weights provided is not equal to 100% (in basis points)
     /// @param actual The sum of the weights provided
     /// @param expected The expected sum of the weights (i.e., 10000)
-    error RewardController_IncorrectWeightsSum(uint16 actual, uint16 expected);
+    error RewardController_IncorrectWeightsSum(
+        uint256 actual,
+        uint256 expected
+    );
 
     /// @notice Error returned when one of the weights provided is greater than the maximum allowed weight (i.e., 100% in basis points)
     /// @param weight The weight that was passed
     /// @param max The maximum allowed weight (i.e., 10000)
-    error RewardController_WeightExceedsMax(uint16 weight, uint16 max);
+    error RewardController_WeightExceedsMax(uint256 weight, uint256 max);
 
     /// @notice Gets the address of the reward token at the specified index in the array of reward tokens
     /// @param i The index of the reward token
@@ -135,22 +138,13 @@ interface IRewardController {
         address rewardToken
     ) external view returns (uint256);
 
-    /// @notice Gets the addresses and weights of all markets for a reward token
+    /// @notice Gets the reward weight of a given market for a reward token
     /// @param rewardToken Address of the reward token
-    /// @return List of market addresses and their corresponding weights
-    function getRewardWeights(
-        address rewardToken
-    ) external view returns (address[] memory, uint16[] memory);
-
-    /// @notice Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
-    /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
-    /// @param token Address of the reward token
-    /// @param market Address of the market
-    /// @return Index of the market in the `rewardInfo.marketWeights` array, or -1 if the market is not found
-    function getMarketWeightIdx(
-        address token,
+    /// @return The reward weight of the market in basis points
+    function getRewardWeight(
+        address rewardToken,
         address market
-    ) external view returns (int256);
+    ) external view returns (uint256);
 
     /// @notice Gets whether a reward token is paused
     /// @param rewardToken Address of the reward token
@@ -164,7 +158,7 @@ interface IRewardController {
     function updateRewardWeights(
         address rewardToken,
         address[] calldata markets,
-        uint16[] calldata weights
+        uint256[] calldata weights
     ) external;
 
     /// @notice Sets the initial inflation rate used to calculate emissions over time for a given reward token
