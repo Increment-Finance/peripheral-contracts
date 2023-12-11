@@ -264,7 +264,7 @@ abstract contract RewardDistributor is
     function claimRewardsFor(
         address _user,
         address[] memory _rewardTokens
-    ) public override whenNotPaused {
+    ) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
             accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
@@ -359,7 +359,7 @@ abstract contract RewardDistributor is
         address _token,
         address _to,
         uint256 _amount
-    ) internal nonReentrant returns (uint256) {
+    ) internal returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         if (rewardsRemaining == 0) return _amount;
         if (_amount <= rewardsRemaining) {
