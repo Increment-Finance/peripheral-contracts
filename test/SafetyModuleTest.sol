@@ -728,6 +728,16 @@ contract SafetyModuleTest is PerpetualUtils {
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
         );
+
+        // redeem all staked tokens and claim rewards (for gas measurement)
+        IStakedToken[] memory stakedTokens = new IStakedToken[](2);
+        stakedTokens[0] = stakedToken1;
+        stakedTokens[1] = stakedToken2;
+        _claimAndRedeemAll(
+            stakedTokens,
+            newRewardDistributor,
+            liquidityProviderTwo
+        );
     }
 
     function testRewardTokenShortfall(uint256 stakeAmount) public {
@@ -1041,6 +1051,16 @@ contract SafetyModuleTest is PerpetualUtils {
                 .wadMul(2.5e18),
             "Accrued rewards mismatch after 10 days: user 2"
         );
+
+        // redeem all staked tokens and claim rewards (for gas measurement)
+        IStakedToken[] memory stakedTokens = new IStakedToken[](1);
+        stakedTokens[0] = stakedToken1;
+        _claimAndRedeemAll(
+            stakedTokens,
+            rewardDistributor,
+            liquidityProviderTwo
+        );
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
     }
 
     function testNextCooldownTimestamp() public {
@@ -2395,6 +2415,25 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.expectEmit(false, false, false, true);
         emit Redeemed(staker, staker, amount);
         stakedToken.redeem(amount);
+        vm.stopPrank();
+    }
+
+    function _claimAndRedeemAll(
+        IStakedToken[] memory stakedTokens,
+        IRewardDistributor distributor,
+        address staker
+    ) internal {
+        for (uint256 i; i < stakedTokens.length; i++) {
+            IStakedToken stakedToken = stakedTokens[i];
+            _redeem(
+                stakedToken,
+                staker,
+                stakedToken.balanceOf(staker),
+                stakedToken.getCooldownSeconds()
+            );
+        }
+        vm.startPrank(staker);
+        distributor.claimRewards();
         vm.stopPrank();
     }
 
