@@ -266,31 +266,22 @@ contract StakedToken is
         uint256 toBalance
     ) public view returns (uint256) {
         uint256 toCooldownTimestamp = stakersCooldowns[toAddress];
-        if (toCooldownTimestamp == 0) {
-            return 0;
-        }
+        if (toCooldownTimestamp == 0) return 0;
 
         uint256 minimalValidCooldownTimestamp = block.timestamp -
             COOLDOWN_SECONDS -
             UNSTAKE_WINDOW;
 
-        if (minimalValidCooldownTimestamp > toCooldownTimestamp) {
-            toCooldownTimestamp = 0;
-        } else {
-            fromCooldownTimestamp = (minimalValidCooldownTimestamp >
-                fromCooldownTimestamp)
-                ? block.timestamp
-                : fromCooldownTimestamp;
+        if (minimalValidCooldownTimestamp > toCooldownTimestamp) return 0;
+        if (minimalValidCooldownTimestamp > fromCooldownTimestamp)
+            fromCooldownTimestamp = block.timestamp;
 
-            if (fromCooldownTimestamp < toCooldownTimestamp) {
-                return toCooldownTimestamp;
-            } else {
-                toCooldownTimestamp =
-                    (amountToReceive *
-                        fromCooldownTimestamp +
-                        (toBalance * toCooldownTimestamp)) /
-                    (amountToReceive + toBalance);
-            }
+        if (fromCooldownTimestamp >= toCooldownTimestamp) {
+            toCooldownTimestamp =
+                (amountToReceive *
+                    fromCooldownTimestamp +
+                    (toBalance * toCooldownTimestamp)) /
+                (amountToReceive + toBalance);
         }
 
         return toCooldownTimestamp;
