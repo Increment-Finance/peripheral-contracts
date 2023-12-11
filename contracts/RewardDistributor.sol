@@ -70,7 +70,7 @@ abstract contract RewardDistributor is
 
     /// @notice RewardDistributor constructor
     /// @param _ecosystemReserve Address of the EcosystemReserve contract, which holds the reward tokens
-    constructor(address _ecosystemReserve) {
+    constructor(address _ecosystemReserve) payable {
         ecosystemReserve = _ecosystemReserve;
     }
 

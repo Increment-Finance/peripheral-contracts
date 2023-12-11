@@ -47,7 +47,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
         address _ecosystemReserve
-    ) RewardDistributor(_ecosystemReserve) {
+    ) payable RewardDistributor(_ecosystemReserve) {
         safetyModule = _safetyModule;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;

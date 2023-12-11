@@ -77,7 +77,7 @@ contract SafetyModule is
         address _auctionModule,
         address _smRewardDistributor,
         uint256 _maxPercentUserLoss
-    ) {
+    ) payable {
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
         maxPercentUserLoss = _maxPercentUserLoss;

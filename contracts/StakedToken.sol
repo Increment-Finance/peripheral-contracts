@@ -82,7 +82,7 @@ contract StakedToken is
         uint256 _maxStakeAmount,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) ERC20Permit(_name) {
+    ) payable ERC20(_name, _symbol) ERC20Permit(_name) {
         UNDERLYING_TOKEN = _underlyingToken;
         COOLDOWN_SECONDS = _cooldownSeconds;
         UNSTAKE_WINDOW = _unstakeWindow;

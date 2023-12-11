@@ -79,7 +79,7 @@ contract AuctionModule is
     /// @notice AuctionModule constructor
     /// @param _safetyModule SafetyModule contract to manage this contract
     /// @param _paymentToken ERC20 token used to purchase lots in auctions
-    constructor(ISafetyModule _safetyModule, IERC20 _paymentToken) {
+    constructor(ISafetyModule _safetyModule, IERC20 _paymentToken) payable {
         safetyModule = _safetyModule;
         paymentToken = _paymentToken;
     }
