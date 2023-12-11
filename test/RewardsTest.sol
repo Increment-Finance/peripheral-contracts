@@ -334,7 +334,8 @@ contract RewardsTest is PerpetualUtils {
         vm.assume(marketWeights.length > 2);
         vm.assume(markets.length != marketWeights.length);
         vm.assume(
-            uint256(marketWeights[0]) + marketWeights[1] <= type(uint256).max
+            marketWeights[0] <= type(uint256).max / 2 &&
+                marketWeights[1] <= type(uint256).max / 2
         );
         vm.assume(marketWeights[0] + marketWeights[1] != 10000);
         inflationRate = uint88(
