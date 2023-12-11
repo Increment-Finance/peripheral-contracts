@@ -241,25 +241,11 @@ abstract contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc IRewardDistributor
-    function registerPositions() external {
-        uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets; ++i) {
-            address market = _getMarketAddress(_getMarketIdx(i));
-            _registerPosition(msg.sender, market);
-        }
-    }
-
-    /// @inheritdoc IRewardDistributor
     function registerPositions(address[] calldata _markets) external {
         for (uint i; i < _markets.length; ++i) {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
         }
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function claimRewards() external override {
-        claimRewardsFor(msg.sender);
     }
 
     /// @inheritdoc IRewardDistributor

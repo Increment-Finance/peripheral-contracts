@@ -168,7 +168,10 @@ contract RewardsTest is PerpetualUtils {
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual);
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual2);
-        rewardDistributor.registerPositions();
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(perpetual2);
+        rewardDistributor.registerPositions(markets);
 
         // Connect ClearingHouse to RewardsDistributor
         vm.startPrank(address(this));
@@ -1494,11 +1497,11 @@ contract RewardsTest is PerpetualUtils {
         newRewardsDistributor.accrueRewards(liquidityProviderTwo);
 
         // register user positions
-        vm.startPrank(liquidityProviderOne);
-        newRewardsDistributor.registerPositions();
         address[] memory markets = new address[](2);
         markets[0] = address(perpetual);
         markets[1] = address(perpetual2);
+        vm.startPrank(liquidityProviderOne);
+        newRewardsDistributor.registerPositions(markets);
         vm.startPrank(liquidityProviderTwo);
         newRewardsDistributor.registerPositions(markets);
 
@@ -1592,19 +1595,6 @@ contract RewardsTest is PerpetualUtils {
         // registerPositions
         vm.startPrank(liquidityProviderOne);
         // use try-catch to avoid comparing error parameters, which depend on rpc fork block
-        try rewardDistributor.registerPositions() {
-            assertTrue(false, "Register positions should have reverted");
-        } catch (bytes memory reason) {
-            bytes4 expectedSelector = IRewardDistributor
-                .RewardDistributor_PositionAlreadyRegistered
-                .selector;
-            bytes4 receivedSelector = bytes4(reason);
-            assertEq(
-                receivedSelector,
-                expectedSelector,
-                "Incorrect revert error selector"
-            );
-        }
         address[] memory markets = new address[](1);
         markets[0] = address(perpetual2);
         try rewardDistributor.registerPositions(markets) {
@@ -1721,7 +1711,7 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewards();
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
         vm.stopPrank();
         clearingHouse.unpause();
         rewardDistributor.pause();
@@ -1731,7 +1721,7 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewards();
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
         vm.stopPrank();
         rewardDistributor.unpause();
         assertTrue(

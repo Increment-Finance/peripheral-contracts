@@ -675,7 +675,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // register user positions
         vm.startPrank(liquidityProviderOne);
-        newRewardDistributor.registerPositions();
+        newRewardDistributor.registerPositions(stakingTokens);
         vm.startPrank(liquidityProviderTwo);
         newRewardDistributor.registerPositions(stakingTokens);
 
@@ -796,7 +796,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             rewardPreview + rewardPreview2
         );
-        rewardDistributor.claimRewards();
+        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18,
@@ -2424,9 +2424,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 stakedToken.getCooldownSeconds()
             );
         }
-        vm.startPrank(staker);
-        distributor.claimRewards();
-        vm.stopPrank();
+        distributor.claimRewardsFor(staker);
     }
 
     function _dealAndBuyLots(
