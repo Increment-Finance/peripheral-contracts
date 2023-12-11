@@ -359,7 +359,7 @@ abstract contract RewardDistributor is
         address _token,
         address _to,
         uint256 _amount
-    ) internal returns (uint256) {
+    ) internal nonReentrant returns (uint256) {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         if (rewardsRemaining == 0) return _amount;
         if (_amount <= rewardsRemaining) {

@@ -93,7 +93,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     function updateStakingPosition(
         address market,
         address user
-    ) external virtual override nonReentrant onlyClearingHouse {
+    ) external virtual override onlyClearingHouse {
         _updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = _getCurrentPosition(user, market);
@@ -163,7 +163,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     function accrueRewards(
         address market,
         address user
-    ) public virtual override nonReentrant {
+    ) public virtual override {
         if (
             block.timestamp <
             lastDepositTimeByUserByMarket[user][market] +

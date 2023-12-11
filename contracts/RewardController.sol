@@ -143,7 +143,7 @@ abstract contract RewardController is
         address rewardToken,
         address[] calldata markets,
         uint16[] calldata weights
-    ) external nonReentrant onlyRole(GOVERNANCE) {
+    ) external onlyRole(GOVERNANCE) {
         if (
             rewardToken == address(0) ||
             rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
