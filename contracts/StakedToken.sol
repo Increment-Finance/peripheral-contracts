@@ -427,25 +427,22 @@ contract StakedToken is
 
         // Check the sender's balance and adjust the redeem amount if necessary
         uint256 balanceOfFrom = balanceOf(from);
-        uint256 amountToRedeem = (amount > balanceOfFrom)
-            ? balanceOfFrom
-            : amount;
+        if (amount > balanceOfFrom) amount = balanceOfFrom;
 
         // Burn staked tokens
-        _burn(from, amountToRedeem);
+        _burn(from, amount);
 
         // Reset cooldown to zero if the user redeemed their whole balance
-        if (balanceOfFrom - amountToRedeem == 0) {
+        if (balanceOfFrom - amount == 0) {
             stakersCooldowns[from] = 0;
         }
 
         // Transfer underlying tokens to the recipient
-        uint256 underlyingAmount = previewRedeem(amountToRedeem);
-        UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
+        UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
 
         // Update user's position and rewards in the SafetyModule
         safetyModule.updateStakingPosition(address(this), from);
 
-        emit Redeemed(from, to, amountToRedeem);
+        emit Redeemed(from, to, amount);
     }
 }
