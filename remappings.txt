@@ -1,4 +1,4 @@
-@openzeppelin/=lib/openzeppelin-contracts/
+@openzeppelin/=lib/increment-protocol/lib/openzeppelin-contracts/
 @chainlink/=lib/chainlink
 prb-math/=lib/increment-protocol/node_modules/prb-math
 @increment/=lib/increment-protocol/contracts/
