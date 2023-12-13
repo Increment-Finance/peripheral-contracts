@@ -287,6 +287,13 @@ contract StakedToken is
         return toCooldownTimestamp;
     }
 
+    /// @notice Indicates whether staking, redeeming and transferring are currently paused
+    /// @dev Contract is paused if either this contract or the SafetyModule has been paused
+    /// @return True if paused, false otherwise
+    function paused() public view override returns (bool) {
+        return super.paused() || Pausable(address(safetyModule)).paused();
+    }
+
     /* ****************** */
     /*     Governance     */
     /* ****************** */
@@ -311,6 +318,22 @@ contract StakedToken is
     ) external onlyRole(GOVERNANCE) {
         emit MaxStakeAmountUpdated(maxStakeAmount, _newMaxStakeAmount);
         maxStakeAmount = _newMaxStakeAmount;
+    }
+
+    /* ****************** */
+    /*   Emergency Admin  */
+    /* ****************** */
+
+    /// @inheritdoc IStakedToken
+    /// @dev Can only be called by Emergency Admin
+    function pause() external onlyRole(EMERGENCY_ADMIN) {
+        _pause();
+    }
+
+    /// @inheritdoc IStakedToken
+    /// @dev Can only be called by Emergency Admin
+    function unpause() external onlyRole(EMERGENCY_ADMIN) {
+        _unpause();
     }
 
     /* ****************** */
@@ -341,7 +364,7 @@ contract StakedToken is
         address from,
         address to,
         uint256 amount
-    ) internal override {
+    ) internal override whenNotPaused {
         if (from != to) {
             uint256 balanceOfTo = balanceOf(to);
             if (balanceOfTo + amount > maxStakeAmount)
@@ -369,7 +392,7 @@ contract StakedToken is
         safetyModule.updateStakingPosition(address(this), to);
     }
 
-    function _stake(address from, address to, uint256 amount) internal {
+    function _stake(address from, address to, uint256 amount) internal whenNotPaused {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
         if (isInPostSlashingState)
@@ -404,7 +427,7 @@ contract StakedToken is
         emit Staked(from, to, amount);
     }
 
-    function _redeem(address from, address to, uint256 amount) internal {
+    function _redeem(address from, address to, uint256 amount) internal whenNotPaused {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 
