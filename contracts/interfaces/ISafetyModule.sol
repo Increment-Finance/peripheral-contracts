@@ -4,12 +4,12 @@ pragma solidity 0.8.16;
 import {IStakedToken, IERC20} from "./IStakedToken.sol";
 import {IAuctionModule} from "./IAuctionModule.sol";
 import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
-import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
+import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 
 /// @title ISafetyModule
 /// @author webthethird
 /// @notice Interface for the SafetyModule contract
-interface ISafetyModule is IStakingContract {
+interface ISafetyModule is IRewardContract {
     /// @notice Emitted when a staking token is added
     /// @param stakingToken Address of the staking token
     event StakingTokenAdded(address indexed stakingToken);

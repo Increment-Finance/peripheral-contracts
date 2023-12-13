@@ -1797,7 +1797,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 invalidMarket
             )
         );
-        safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.startPrank(invalidMarket);
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1805,7 +1805,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 invalidMarket
             )
         );
-        safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.startPrank(address(safetyModule));
         vm.expectRevert(
             abi.encodeWithSignature(

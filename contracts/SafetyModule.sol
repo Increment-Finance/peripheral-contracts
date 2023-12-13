@@ -9,7 +9,7 @@ import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ISafetyModule, ISMRewardDistributor, IStakingContract} from "./interfaces/ISafetyModule.sol";
+import {ISafetyModule, ISMRewardDistributor, IRewardContract} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 
@@ -47,7 +47,7 @@ contract SafetyModule is
     uint256 public maxPercentUserLoss;
 
     /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
-    /// i.e., `updateStakingPosition`
+    /// i.e., `updatePosition`
     modifier onlyStakingToken() {
         bool isStakingToken;
         for (uint i; i < stakingTokens.length; ++i) {
@@ -118,12 +118,12 @@ contract SafetyModule is
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
-    function updateStakingPosition(
+    function updatePosition(
         address market,
         address user
     ) external override nonReentrant onlyStakingToken {
         getStakingTokenIdx(market); // Called to make sure the staking token is registered
-        smRewardDistributor.updateStakingPosition(market, user);
+        smRewardDistributor.updatePosition(market, user);
     }
 
     /* ****************** */

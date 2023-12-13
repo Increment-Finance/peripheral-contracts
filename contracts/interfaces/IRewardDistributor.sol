@@ -235,13 +235,13 @@ interface IRewardDistributor {
 
     /// @notice Accrues rewards to a user for all markets
     /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes
-    /// in position is handled by `updateStakingPosition`
+    /// in position is handled by `updatePosition`
     /// @param user Address of the user to accrue rewards for
     function accrueRewards(address user) external;
 
     /// @notice Accrues rewards to a user for a given market
     /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
-    /// position is handled by `updateStakingPosition`
+    /// position is handled by `updatePosition`
     /// @param market Address of the market to accrue rewards for
     /// @param user Address of the user
     function accrueRewards(address market, address user) external;

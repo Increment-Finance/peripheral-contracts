@@ -10,7 +10,7 @@ import {RewardController, IRewardController} from "./RewardController.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
-import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
+import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // libraries
@@ -21,11 +21,11 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 /// @notice Abstract contract responsible for accruing and distributing rewards to users for providing
 /// liquidity to perpetual markets (handled by PerpRewardDistributor) or staking tokens (with the SafetyModule)
 /// @dev Inherits from RewardController, which defines the RewardInfo data structure and functions allowing
-/// governance to add/remove reward tokens or update their parameters, and implements IStakingContract, the
+/// governance to add/remove reward tokens or update their parameters, and implements IRewardContract, the
 /// interface used by the ClearingHouse to update user rewards any time a user's position is updated
 abstract contract RewardDistributor is
     IRewardDistributor,
-    IStakingContract,
+    IRewardContract,
     RewardController
 {
     using SafeERC20 for IERC20Metadata;
@@ -83,7 +83,7 @@ abstract contract RewardDistributor is
     /// @dev Executes whenever a user's position is updated for any reason
     /// @param market Address of the market (i.e., perpetual market or staking token)
     /// @param user Address of the user
-    function updateStakingPosition(
+    function updatePosition(
         address market,
         address user
     ) external virtual;
