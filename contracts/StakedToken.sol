@@ -82,14 +82,13 @@ contract StakedToken is
         uint256 _maxStakeAmount,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) ERC20Permit(_name) {
+    ) payable ERC20(_name, _symbol) ERC20Permit(_name) {
         UNDERLYING_TOKEN = _underlyingToken;
         COOLDOWN_SECONDS = _cooldownSeconds;
         UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
         maxStakeAmount = _maxStakeAmount;
         exchangeRate = 1e18;
-        isInPostSlashingState = false;
     }
 
     /**
@@ -267,34 +266,32 @@ contract StakedToken is
         uint256 toBalance
     ) public view returns (uint256) {
         uint256 toCooldownTimestamp = stakersCooldowns[toAddress];
-        if (toCooldownTimestamp == 0) {
-            return 0;
-        }
+        if (toCooldownTimestamp == 0) return 0;
 
         uint256 minimalValidCooldownTimestamp = block.timestamp -
             COOLDOWN_SECONDS -
             UNSTAKE_WINDOW;
 
-        if (minimalValidCooldownTimestamp > toCooldownTimestamp) {
-            toCooldownTimestamp = 0;
-        } else {
-            fromCooldownTimestamp = (minimalValidCooldownTimestamp >
-                fromCooldownTimestamp)
-                ? block.timestamp
-                : fromCooldownTimestamp;
+        if (minimalValidCooldownTimestamp > toCooldownTimestamp) return 0;
+        if (minimalValidCooldownTimestamp > fromCooldownTimestamp)
+            fromCooldownTimestamp = block.timestamp;
 
-            if (fromCooldownTimestamp < toCooldownTimestamp) {
-                return toCooldownTimestamp;
-            } else {
-                toCooldownTimestamp =
-                    (amountToReceive *
-                        fromCooldownTimestamp +
-                        (toBalance * toCooldownTimestamp)) /
-                    (amountToReceive + toBalance);
-            }
+        if (fromCooldownTimestamp >= toCooldownTimestamp) {
+            toCooldownTimestamp =
+                (amountToReceive *
+                    fromCooldownTimestamp +
+                    (toBalance * toCooldownTimestamp)) /
+                (amountToReceive + toBalance);
         }
 
         return toCooldownTimestamp;
+    }
+
+    /// @notice Indicates whether staking, redeeming and transferring are currently paused
+    /// @dev Contract is paused if either this contract or the SafetyModule has been paused
+    /// @return True if paused, false otherwise
+    function paused() public view override returns (bool) {
+        return super.paused() || Pausable(address(safetyModule)).paused();
     }
 
     /* ****************** */
@@ -321,6 +318,22 @@ contract StakedToken is
     ) external onlyRole(GOVERNANCE) {
         emit MaxStakeAmountUpdated(maxStakeAmount, _newMaxStakeAmount);
         maxStakeAmount = _newMaxStakeAmount;
+    }
+
+    /* ****************** */
+    /*   Emergency Admin  */
+    /* ****************** */
+
+    /// @inheritdoc IStakedToken
+    /// @dev Can only be called by Emergency Admin
+    function pause() external onlyRole(EMERGENCY_ADMIN) {
+        _pause();
+    }
+
+    /// @inheritdoc IStakedToken
+    /// @dev Can only be called by Emergency Admin
+    function unpause() external onlyRole(EMERGENCY_ADMIN) {
+        _unpause();
     }
 
     /* ****************** */
@@ -351,11 +364,7 @@ contract StakedToken is
         address from,
         address to,
         uint256 amount
-    ) internal override {
-        // Sender
-        uint256 balanceOfFrom = balanceOf(from);
-
-        // Recipient
+    ) internal override whenNotPaused {
         if (from != to) {
             uint256 balanceOfTo = balanceOf(to);
             if (balanceOfTo + amount > maxStakeAmount)
@@ -371,8 +380,8 @@ contract StakedToken is
                 balanceOfTo
             );
             // if cooldown was set and whole balance of sender was transferred - clear cooldown
-            if (balanceOfFrom == amount && previousSenderCooldown != 0) {
-                stakersCooldowns[from] = 0;
+            if (previousSenderCooldown != 0) {
+                if (balanceOf(from) == amount) stakersCooldowns[from] = 0;
             }
         }
 
@@ -383,7 +392,7 @@ contract StakedToken is
         safetyModule.updateStakingPosition(address(this), to);
     }
 
-    function _stake(address from, address to, uint256 amount) internal {
+    function _stake(address from, address to, uint256 amount) internal whenNotPaused {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
         if (isInPostSlashingState)
@@ -418,7 +427,7 @@ contract StakedToken is
         emit Staked(from, to, amount);
     }
 
-    function _redeem(address from, address to, uint256 amount) internal {
+    function _redeem(address from, address to, uint256 amount) internal whenNotPaused {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 
@@ -441,25 +450,22 @@ contract StakedToken is
 
         // Check the sender's balance and adjust the redeem amount if necessary
         uint256 balanceOfFrom = balanceOf(from);
-        uint256 amountToRedeem = (amount > balanceOfFrom)
-            ? balanceOfFrom
-            : amount;
+        if (amount > balanceOfFrom) amount = balanceOfFrom;
 
         // Burn staked tokens
-        _burn(from, amountToRedeem);
+        _burn(from, amount);
 
         // Reset cooldown to zero if the user redeemed their whole balance
-        if (balanceOfFrom - amountToRedeem == 0) {
+        if (balanceOfFrom - amount == 0) {
             stakersCooldowns[from] = 0;
         }
 
         // Transfer underlying tokens to the recipient
-        uint256 underlyingAmount = previewRedeem(amountToRedeem);
-        UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
+        UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
 
         // Update user's position and rewards in the SafetyModule
         safetyModule.updateStakingPosition(address(this), from);
 
-        emit Redeemed(from, to, amountToRedeem);
+        emit Redeemed(from, to, amount);
     }
 }

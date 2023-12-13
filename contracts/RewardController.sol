@@ -26,6 +26,7 @@ abstract contract RewardController is
     ReentrancyGuard
 {
     using PRBMathUD60x18 for uint256;
+    using PRBMathUD60x18 for uint88;
 
     /// @notice Data structure containing essential info for each reward token
     /// @param token Address of the reward token
@@ -38,11 +39,11 @@ abstract contract RewardController is
     struct RewardInfo {
         IERC20Metadata token;
         bool paused;
-        uint256 initialTimestamp;
-        uint256 initialInflationRate;
-        uint256 reductionFactor;
+        uint80 initialTimestamp;
+        uint88 initialInflationRate;
+        uint88 reductionFactor;
         address[] marketAddresses;
-        uint16[] marketWeights;
+        mapping(address => uint256) marketWeights;
     }
 
     /// @notice Maximum inflation rate, applies to all reward tokens
@@ -106,26 +107,11 @@ abstract contract RewardController is
     }
 
     /// @inheritdoc IRewardController
-    function getRewardWeights(
-        address rewardToken
-    ) external view returns (address[] memory, uint16[] memory) {
-        return (
-            rewardInfoByToken[rewardToken].marketAddresses,
-            rewardInfoByToken[rewardToken].marketWeights
-        );
-    }
-
-    /// @inheritdoc IRewardController
-    function getMarketWeightIdx(
-        address token,
+    function getRewardWeight(
+        address rewardToken,
         address market
-    ) public view virtual returns (int256) {
-        uint256 numMarkets = rewardInfoByToken[token].marketAddresses.length;
-        for (uint i; i < numMarkets; ++i) {
-            if (rewardInfoByToken[token].marketAddresses[i] == market)
-                return int256(i);
-        }
-        return -1;
+    ) external view returns (uint256) {
+        return rewardInfoByToken[rewardToken].marketWeights[market];
     }
 
     /// @inheritdoc IRewardController
@@ -142,8 +128,8 @@ abstract contract RewardController is
     function updateRewardWeights(
         address rewardToken,
         address[] calldata markets,
-        uint16[] calldata weights
-    ) external nonReentrant onlyRole(GOVERNANCE) {
+        uint256[] calldata weights
+    ) external onlyRole(GOVERNANCE) {
         if (
             rewardToken == address(0) ||
             rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
@@ -170,30 +156,33 @@ abstract contract RewardController is
                 }
             }
             if (!found) {
+                delete rewardInfoByToken[rewardToken].marketWeights[market];
                 emit MarketRemovedFromRewards(market, rewardToken);
             }
         }
         // Validate weights and update rewards for any newly added markets
-        uint16 totalWeight;
+        uint256 totalWeight;
         for (uint i; i < numNewMarkets; ++i) {
             _updateMarketRewards(markets[i]);
             if (weights[i] > 10000)
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             totalWeight += weights[i];
+            rewardInfoByToken[rewardToken].marketWeights[markets[i]] = weights[
+                i
+            ];
             emit NewWeight(markets[i], rewardToken, weights[i]);
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
         // Replace stored lists of market addresses and weights
         rewardInfoByToken[rewardToken].marketAddresses = markets;
-        rewardInfoByToken[rewardToken].marketWeights = weights;
     }
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Governance
     function updateInitialInflationRate(
         address rewardToken,
-        uint256 newInitialInflationRate
+        uint88 newInitialInflationRate
     ) external onlyRole(GOVERNANCE) {
         if (
             rewardToken == address(0) ||
@@ -221,7 +210,7 @@ abstract contract RewardController is
     /// @dev Only callable by Governance
     function updateReductionFactor(
         address rewardToken,
-        uint256 newReductionFactor
+        uint88 newReductionFactor
     ) external onlyRole(GOVERNANCE) {
         if (
             rewardToken == address(0) ||

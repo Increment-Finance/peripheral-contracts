@@ -37,14 +37,14 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param _earlyWithdrawalThreshold The amount of time after which LPs can remove liquidity without penalties
     /// @param _initialRewardWeights The initial reward weights for the first reward token, as basis points
     constructor(
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
+        uint88 _initialInflationRate,
+        uint88 _initialReductionFactor,
         address _rewardToken,
         address _clearingHouse,
         address _ecosystemReserve,
         uint256 _earlyWithdrawalThreshold,
-        uint16[] memory _initialRewardWeights
-    ) RewardDistributor(_ecosystemReserve) {
+        uint256[] memory _initialRewardWeights
+    ) payable RewardDistributor(_ecosystemReserve) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
                 _initialInflationRate,
@@ -59,18 +59,23 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            paused: false,
-            initialTimestamp: block.timestamp,
-            initialInflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            marketAddresses: new address[](numMarkets),
-            marketWeights: _initialRewardWeights
-        });
+        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(
+            block.timestamp
+        );
+        rewardInfoByToken[_rewardToken]
+            .initialInflationRate = _initialInflationRate;
+        rewardInfoByToken[_rewardToken]
+            .reductionFactor = _initialReductionFactor;
+        rewardInfoByToken[_rewardToken].marketAddresses = new address[](
+            numMarkets
+        );
         for (uint256 i; i < numMarkets; ++i) {
             address market = _getMarketAddress(_getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
+            rewardInfoByToken[_rewardToken].marketWeights[
+                    market
+                ] = _initialRewardWeights[i];
             timeOfLastCumRewardUpdate[market] = block.timestamp;
         }
         rewardTokens.push(_rewardToken);
@@ -93,7 +98,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     function updateStakingPosition(
         address market,
         address user
-    ) external virtual override nonReentrant onlyClearingHouse {
+    ) external virtual override onlyClearingHouse {
         _updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = _getCurrentPosition(user, market);
@@ -163,7 +168,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     function accrueRewards(
         address market,
         address user
-    ) public virtual override nonReentrant {
+    ) public virtual override {
         if (
             block.timestamp <
             lastDepositTimeByUserByMarket[user][market] +
@@ -208,6 +213,33 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @return True if paused, false otherwise
     function paused() public view override returns (bool) {
         return super.paused() || Pausable(address(clearingHouse)).paused();
+    }
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
+    /// @inheritdoc IPerpRewardDistributor
+    /// @dev Only callable by governance
+    function setClearingHouse(IClearingHouse _newClearingHouse)
+        external
+        onlyRole(GOVERNANCE)
+    {
+        emit ClearingHouseUpdated(address(clearingHouse), address(_newClearingHouse));
+        clearingHouse = _newClearingHouse;
+    }
+
+    /// @inheritdoc IPerpRewardDistributor
+    /// @dev Only callable by governance
+    function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold)
+        external
+        onlyRole(GOVERNANCE)
+    {
+        emit EarlyWithdrawalThresholdUpdated(
+            earlyWithdrawalThreshold,
+            _newEarlyWithdrawalThreshold
+        );
+        earlyWithdrawalThreshold = _newEarlyWithdrawalThreshold;
     }
 
     /* ****************** */

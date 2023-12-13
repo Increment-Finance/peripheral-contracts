@@ -47,7 +47,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         uint256 _maxRewardMultiplier,
         uint256 _smoothingValue,
         address _ecosystemReserve
-    ) RewardDistributor(_ecosystemReserve) {
+    ) payable RewardDistributor(_ecosystemReserve) {
         safetyModule = _safetyModule;
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
@@ -71,7 +71,6 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         external
         virtual
         override(IStakingContract, RewardDistributor)
-        nonReentrant
         onlySafetyModule
     {
         _updateMarketRewards(market);
@@ -142,12 +141,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     function accrueRewards(
         address market,
         address user
-    )
-        public
-        virtual
-        override(IRewardDistributor, RewardDistributor)
-        nonReentrant
-    {
+    ) public virtual override(IRewardDistributor, RewardDistributor) {
         uint256 userPosition = lpPositionsPerUser[user][market];
         if (userPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing balance and has not registered for rewards,

@@ -30,6 +30,7 @@ abstract contract RewardDistributor is
 {
     using SafeERC20 for IERC20Metadata;
     using PRBMathUD60x18 for uint256;
+    using PRBMathUD60x18 for uint88;
 
     /// @notice Address of the reward token vault
     address public ecosystemReserve;
@@ -70,7 +71,7 @@ abstract contract RewardDistributor is
 
     /// @notice RewardDistributor constructor
     /// @param _ecosystemReserve Address of the EcosystemReserve contract, which holds the reward tokens
-    constructor(address _ecosystemReserve) {
+    constructor(address _ecosystemReserve) payable {
         ecosystemReserve = _ecosystemReserve;
     }
 
@@ -105,10 +106,10 @@ abstract contract RewardDistributor is
     /// @dev Can only be called by governance
     function addRewardToken(
         address _rewardToken,
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
+        uint88 _initialInflationRate,
+        uint88 _initialReductionFactor,
         address[] calldata _markets,
-        uint16[] calldata _marketWeights
+        uint256[] calldata _marketWeights
     ) external onlyRole(GOVERNANCE) {
         if (_initialInflationRate > MAX_INFLATION_RATE)
             revert RewardController_AboveMaxInflationRate(
@@ -128,7 +129,7 @@ abstract contract RewardDistributor is
         if (rewardTokens.length >= MAX_REWARD_TOKENS)
             revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         // Validate weights
-        uint16 totalWeight;
+        uint256 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint i; i < numMarkets; ++i) {
             _updateMarketRewards(_markets[i]);
@@ -145,15 +146,21 @@ abstract contract RewardDistributor is
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
         // Add reward token info
         rewardTokens.push(_rewardToken);
-        rewardInfoByToken[_rewardToken] = RewardInfo({
-            token: IERC20Metadata(_rewardToken),
-            paused: false,
-            initialTimestamp: block.timestamp,
-            initialInflationRate: _initialInflationRate,
-            reductionFactor: _initialReductionFactor,
-            marketAddresses: _markets,
-            marketWeights: _marketWeights
-        });
+        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(
+            block.timestamp
+        );
+        rewardInfoByToken[_rewardToken]
+            .initialInflationRate = _initialInflationRate;
+        rewardInfoByToken[_rewardToken]
+            .reductionFactor = _initialReductionFactor;
+        rewardInfoByToken[_rewardToken].marketAddresses = _markets;
+        for (uint i; i < numMarkets; ++i) {
+            rewardInfoByToken[_rewardToken].marketWeights[
+                _markets[i]
+            ] = _marketWeights[i];
+            timeOfLastCumRewardUpdate[_markets[i]] = block.timestamp;
+        }
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -186,7 +193,7 @@ abstract contract RewardDistributor is
         // Remove reward token address from list
         // The `delete` keyword applied to arrays does not reduce array length
         uint256 numRewards = rewardTokens.length;
-        for (uint i = 0; i < numRewards; ++i) {
+        for (uint i; i < numRewards; ++i) {
             if (rewardTokens[i] != _rewardToken) continue;
             // Find the token in the array and swap it with the last element
             rewardTokens[i] = rewardTokens[numRewards - 1];
@@ -234,25 +241,11 @@ abstract contract RewardDistributor is
     /* ****************** */
 
     /// @inheritdoc IRewardDistributor
-    function registerPositions() external {
-        uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets; ++i) {
-            address market = _getMarketAddress(_getMarketIdx(i));
-            _registerPosition(msg.sender, market);
-        }
-    }
-
-    /// @inheritdoc IRewardDistributor
     function registerPositions(address[] calldata _markets) external {
         for (uint i; i < _markets.length; ++i) {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
         }
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function claimRewards() public override {
-        claimRewardsFor(msg.sender);
     }
 
     /// @inheritdoc IRewardDistributor
@@ -264,7 +257,7 @@ abstract contract RewardDistributor is
     function claimRewardsFor(
         address _user,
         address[] memory _rewardTokens
-    ) public override whenNotPaused {
+    ) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
             accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
@@ -317,12 +310,10 @@ abstract contract RewardDistributor is
         }
         for (uint256 i; i < numTokens; ++i) {
             address token = rewardTokens[i];
-            int256 weightIdx = getMarketWeightIdx(token, market);
             if (
-                weightIdx < 0 ||
                 rewardInfoByToken[token].paused ||
                 rewardInfoByToken[token].initialInflationRate == 0 ||
-                rewardInfoByToken[token].marketWeights[uint256(weightIdx)] == 0
+                rewardInfoByToken[token].marketWeights[market] == 0
             ) continue;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
@@ -336,8 +327,8 @@ abstract contract RewardDistributor is
                 )
             );
             uint256 newRewards = (((((inflationRate *
-                rewardInfoByToken[token].marketWeights[uint256(weightIdx)]) /
-                10000) * deltaTime) / 365 days) * 1e18) /
+                rewardInfoByToken[token].marketWeights[market]) / 10000) *
+                deltaTime) / 365 days) * 1e18) /
                 totalLiquidityPerMarket[market];
             if (newRewards > 0) {
                 cumulativeRewardPerLpToken[token][market] += newRewards;

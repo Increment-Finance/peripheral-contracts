@@ -95,8 +95,8 @@ contract SafetyModuleTest is PerpetualUtils {
 
     event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
 
-    uint256 constant INITIAL_INFLATION_RATE = 1463753e18;
-    uint256 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
@@ -254,7 +254,7 @@ contract SafetyModuleTest is PerpetualUtils {
         address[] memory stakingTokens = new address[](2);
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
-        uint16[] memory rewardWeights = new uint16[](2);
+        uint256[] memory rewardWeights = new uint256[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         rewardDistributor.addRewardToken(
@@ -318,14 +318,6 @@ contract SafetyModuleTest is PerpetualUtils {
             safetyModule.getStakingTokenIdx(address(stakedToken2)),
             1,
             "Staking token index mismatch"
-        );
-        assertEq(
-            rewardDistributor.getMarketWeightIdx(
-                address(rewardsToken),
-                address(stakedToken1)
-            ),
-            0,
-            "Market reward weight index mismatch"
         );
         assertEq(
             stakedToken1.balanceOf(liquidityProviderTwo),
@@ -648,7 +640,7 @@ contract SafetyModuleTest is PerpetualUtils {
         address[] memory stakingTokens = new address[](2);
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
-        uint16[] memory rewardWeights = new uint16[](2);
+        uint256[] memory rewardWeights = new uint256[](2);
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         newRewardDistributor.addRewardToken(
@@ -683,7 +675,7 @@ contract SafetyModuleTest is PerpetualUtils {
 
         // register user positions
         vm.startPrank(liquidityProviderOne);
-        newRewardDistributor.registerPositions();
+        newRewardDistributor.registerPositions(stakingTokens);
         vm.startPrank(liquidityProviderTwo);
         newRewardDistributor.registerPositions(stakingTokens);
 
@@ -727,6 +719,16 @@ contract SafetyModuleTest is PerpetualUtils {
             expectedCumulativeRewards2,
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
+        );
+
+        // redeem all staked tokens and claim rewards (for gas measurement)
+        IStakedToken[] memory stakedTokens = new IStakedToken[](2);
+        stakedTokens[0] = stakedToken1;
+        stakedTokens[1] = stakedToken2;
+        _claimAndRedeemAll(
+            stakedTokens,
+            newRewardDistributor,
+            liquidityProviderTwo
         );
     }
 
@@ -794,7 +796,7 @@ contract SafetyModuleTest is PerpetualUtils {
             address(rewardsToken),
             rewardPreview + rewardPreview2
         );
-        rewardDistributor.claimRewards();
+        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18,
@@ -834,7 +836,7 @@ contract SafetyModuleTest is PerpetualUtils {
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
         stakingTokens[2] = address(stakedToken3);
-        uint16[] memory rewardWeights = new uint16[](3);
+        uint256[] memory rewardWeights = new uint256[](3);
         rewardWeights[0] = 3333;
         rewardWeights[1] = 3334;
         rewardWeights[2] = 3333;
@@ -1041,6 +1043,16 @@ contract SafetyModuleTest is PerpetualUtils {
                 .wadMul(2.5e18),
             "Accrued rewards mismatch after 10 days: user 2"
         );
+
+        // redeem all staked tokens and claim rewards (for gas measurement)
+        IStakedToken[] memory stakedTokens = new IStakedToken[](1);
+        stakedTokens[0] = stakedToken1;
+        _claimAndRedeemAll(
+            stakedTokens,
+            rewardDistributor,
+            liquidityProviderTwo
+        );
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
     }
 
     function testNextCooldownTimestamp() public {
@@ -2398,6 +2410,23 @@ contract SafetyModuleTest is PerpetualUtils {
         vm.stopPrank();
     }
 
+    function _claimAndRedeemAll(
+        IStakedToken[] memory stakedTokens,
+        IRewardDistributor distributor,
+        address staker
+    ) internal {
+        for (uint256 i; i < stakedTokens.length; i++) {
+            IStakedToken stakedToken = stakedTokens[i];
+            _redeem(
+                stakedToken,
+                staker,
+                stakedToken.balanceOf(staker),
+                stakedToken.getCooldownSeconds()
+            );
+        }
+        distributor.claimRewardsFor(staker);
+    }
+
     function _dealAndBuyLots(
         address buyer,
         uint256 auctionId,
@@ -2495,15 +2524,10 @@ contract SafetyModuleTest is PerpetualUtils {
             rewardDistributor.timeOfLastCumRewardUpdate(market);
         if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
-        (, uint16[] memory marketWeights) = rewardDistributor.getRewardWeights(
-            token
-        );
         uint256 newMarketRewards = (((rewardDistributor.getInflationRate(
             token
-        ) *
-            marketWeights[
-                rewardDistributor.getMarketWeightIdx(token, market).toUint256()
-            ]) / 10000) * deltaTime) / 365 days;
+        ) * rewardDistributor.getRewardWeight(token, market)) / 10000) *
+            deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor
             .cumulativeRewardPerLpToken(token, market) +
             (newMarketRewards * 1e18) /

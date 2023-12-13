@@ -193,10 +193,10 @@ interface IRewardDistributor {
     /// @param _marketWeights Initial weights per market for the new token
     function addRewardToken(
         address _rewardToken,
-        uint256 _initialInflationRate,
-        uint256 _initialReductionFactor,
+        uint88 _initialInflationRate,
+        uint88 _initialReductionFactor,
         address[] calldata _markets,
-        uint16[] calldata _marketWeights
+        uint256[] calldata _marketWeights
     ) external;
 
     /// @notice Removes a reward token from all markets for which it is registered
@@ -213,18 +213,11 @@ interface IRewardDistributor {
     /// @param _market Address of the market (i.e., perpetual market or staking token)
     function initMarketStartTime(address _market) external;
 
-    /// @notice Fetches and stores the caller's LP/stake positions and updates the total liquidity in each market
-    /// @dev Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment
-    function registerPositions() external;
-
     /// @notice Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the
     /// provided markets
     /// @dev Can only be called once per user, only necessary if user was an LP prior to this contract's deployment
     /// @param _markets Addresses of the markets to sync with
     function registerPositions(address[] calldata _markets) external;
-
-    /// @notice Accrues and then distributes rewards for all markets to the caller
-    function claimRewards() external;
 
     /// @notice Accrues and then distributes rewards for all markets and reward tokens
     /// and returns the amount of rewards that were not distributed to the given user
