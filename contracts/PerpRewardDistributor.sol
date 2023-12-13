@@ -216,6 +216,33 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     }
 
     /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
+    /// @inheritdoc IPerpRewardDistributor
+    /// @dev Only callable by governance
+    function setClearingHouse(IClearingHouse _newClearingHouse)
+        external
+        onlyRole(GOVERNANCE)
+    {
+        emit ClearingHouseUpdated(address(clearingHouse), address(_newClearingHouse));
+        clearingHouse = _newClearingHouse;
+    }
+
+    /// @inheritdoc IPerpRewardDistributor
+    /// @dev Only callable by governance
+    function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold)
+        external
+        onlyRole(GOVERNANCE)
+    {
+        emit EarlyWithdrawalThresholdUpdated(
+            earlyWithdrawalThreshold,
+            _newEarlyWithdrawalThreshold
+        );
+        earlyWithdrawalThreshold = _newEarlyWithdrawalThreshold;
+    }
+
+    /* ****************** */
     /*      Internal      */
     /* ****************** */
 
