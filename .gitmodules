@@ -13,6 +13,3 @@
 [submodule "lib/governance"]
 	path = lib/increment-governance
 	url = https://github.com/Increment-Finance/governance.git
-[submodule "lib/aave-v3-periphery"]
-	path = lib/aave-v3-periphery
-	url = https://github.com/aave/aave-v3-periphery
