@@ -14,7 +14,7 @@ import {SafetyModule, ISafetyModule} from "../contracts/SafetyModule.sol";
 import {StakedToken, IStakedToken} from "../contracts/StakedToken.sol";
 import {AuctionModule, IAuctionModule} from "../contracts/AuctionModule.sol";
 import {SMRewardDistributor, IRewardDistributor} from "../contracts/SMRewardDistributor.sol";
-import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
+import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
 import {ICryptoSwap} from "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -165,7 +165,7 @@ contract SafetyModuleTest is Deployment, Utils {
             rewardsToken.totalSupply() / 2
         );
         rewardVault.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(rewardDistributor),
             type(uint256).max
         );
@@ -625,7 +625,7 @@ contract SafetyModuleTest is Deployment, Utils {
         newRewardDistributor.setSafetyModule(newSafetyModule);
 
         rewardVault.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(newSafetyModule),
             type(uint256).max
         );
@@ -739,7 +739,7 @@ contract SafetyModuleTest is Deployment, Utils {
         // Remove all reward tokens from EcosystemReserve
         uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
         rewardVault.transfer(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(this),
             rewardBalance
         );

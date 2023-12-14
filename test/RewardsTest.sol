@@ -11,7 +11,7 @@ import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import {IncrementToken} from "@increment-governance/IncrementToken.sol";
 import {PerpRewardDistributor, IRewardDistributor} from "../contracts/PerpRewardDistributor.sol";
-import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
+import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -163,12 +163,12 @@ contract RewardsTest is Deployment, Utils {
             rewardsToken2.totalSupply()
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(rewardDistributor),
             type(uint256).max
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken2)),
+            rewardsToken2,
             address(rewardDistributor),
             type(uint256).max
         );
@@ -794,7 +794,7 @@ contract RewardsTest is Deployment, Utils {
             rewardsToken2.totalSupply()
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken2)),
+            rewardsToken2,
             address(rewardDistributor),
             type(uint256).max
         );
@@ -1396,12 +1396,12 @@ contract RewardsTest is Deployment, Utils {
         );
         vm.startPrank(address(this));
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(newRewardsDistributor),
             type(uint256).max
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken2)),
+            rewardsToken2,
             address(newRewardsDistributor),
             type(uint256).max
         );
