@@ -21,7 +21,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
 
-    /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., `updateStakingPosition`
+    /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., `updatePosition`
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse))
             revert PerpRewardDistributor_CallerIsNotClearingHouse(msg.sender);
@@ -32,7 +32,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param _initialInflationRate The initial inflation rate for the first reward token, scaled by 1e18
     /// @param _initialReductionFactor The initial reduction factor for the first reward token, scaled by 1e18
     /// @param _rewardToken The address of the first reward token
-    /// @param _clearingHouse The address of the ClearingHouse contract, which calls `updateStakingPosition`
+    /// @param _clearingHouse The address of the ClearingHouse contract, which calls `updatePosition`
     /// @param _ecosystemReserve The address of the EcosystemReserve contract, which stores reward tokens
     /// @param _earlyWithdrawalThreshold The amount of time after which LPs can remove liquidity without penalties
     /// @param _initialRewardWeights The initial reward weights for the first reward token, as basis points
@@ -95,7 +95,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @dev Executes whenever a user's liquidity is updated for any reason
     /// @param market Address of the perpetual market
     /// @param user Address of the liquidity provier
-    function updateStakingPosition(
+    function updatePosition(
         address market,
         address user
     ) external virtual override onlyClearingHouse {
@@ -162,7 +162,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @notice Accrues rewards to a user for a given market
     /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
-    /// LP position is handled by `updateStakingPosition`
+    /// LP position is handled by `updatePosition`
     /// @param market Address of the market in `ClearingHouse.perpetuals`
     /// @param user Address of the user
     function accrueRewards(
@@ -183,7 +183,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 lpPosition = lpPositionsPerUser[user][market];
         if (lpPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since updating LP position calls updateStakingPosition which updates lpPositionsPerUser
+            // since updating LP position calls updatePosition which updates lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,

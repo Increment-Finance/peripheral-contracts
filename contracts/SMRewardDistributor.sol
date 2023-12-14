@@ -15,7 +15,7 @@ import "./interfaces/IRewardController.sol";
 contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     using PRBMathUD60x18 for uint256;
 
-    /// @notice The SafetyModule contract which stores the list of StakedTokens and can call `updateStakingPosition`
+    /// @notice The SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
     ISafetyModule public safetyModule;
 
     /// @notice The maximum reward multiplier, scaled by 1e18
@@ -64,13 +64,13 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
-    function updateStakingPosition(
+    function updatePosition(
         address market,
         address user
     )
         external
         virtual
-        override(IStakingContract, RewardDistributor)
+        override(IRewardContract, RewardDistributor)
         onlySafetyModule
     {
         _updateMarketRewards(market);
@@ -135,7 +135,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @notice Accrues rewards to a user for a given staking token
     /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
-    /// stake position is handled by `updateStakingPosition`
+    /// stake position is handled by `updatePosition`
     /// @param market Address of the token in `stakingTokens`
     /// @param user Address of the user
     function accrueRewards(
@@ -145,7 +145,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         uint256 userPosition = lpPositionsPerUser[user][market];
         if (userPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
-            // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
+            // since updating stake position calls updatePosition which updates lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(
                 user,
                 market,

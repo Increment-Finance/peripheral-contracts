@@ -388,8 +388,8 @@ contract StakedToken is
         super._transfer(from, to, amount);
 
         // Update SafetyModule
-        safetyModule.updateStakingPosition(address(this), from);
-        safetyModule.updateStakingPosition(address(this), to);
+        safetyModule.updatePosition(address(this), from);
+        safetyModule.updatePosition(address(this), to);
     }
 
     function _stake(address from, address to, uint256 amount) internal whenNotPaused {
@@ -422,7 +422,7 @@ contract StakedToken is
         UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
 
         // Update user's position and rewards in the SafetyModule
-        safetyModule.updateStakingPosition(address(this), to);
+        safetyModule.updatePosition(address(this), to);
 
         emit Staked(from, to, amount);
     }
@@ -464,7 +464,7 @@ contract StakedToken is
         UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
 
         // Update user's position and rewards in the SafetyModule
-        safetyModule.updateStakingPosition(address(this), from);
+        safetyModule.updatePosition(address(this), from);
 
         emit Redeemed(from, to, amount);
     }
