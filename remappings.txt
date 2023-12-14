@@ -1,5 +1,4 @@
 @openzeppelin/=lib/increment-protocol/lib/openzeppelin-contracts/
-@chainlink/=lib/chainlink
 prb-math/=lib/increment-protocol/lib/prb-math
 @increment/=lib/increment-protocol/contracts/
 @increment-governance/=lib/increment-governance/src/
