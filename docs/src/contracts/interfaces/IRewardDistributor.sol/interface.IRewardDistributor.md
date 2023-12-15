@@ -64,12 +64,12 @@ function totalUnclaimedRewards(address rewardToken) external view returns (uint2
 | -------- | --------- | -------------------------------------------------- |
 | `<none>` | `uint256` | Total rewards accrued and not claimed by all users |
 
-### lastDepositTimeByUserByMarket
+### withdrawTimerStartByUserByMarket
 
 Last timestamp when user withdrew liquidity from a market
 
 ```solidity
-function lastDepositTimeByUserByMarket(address user, address market) external view returns (uint256);
+function withdrawTimerStartByUserByMarket(address user, address market) external view returns (uint256);
 ```
 
 **Parameters**

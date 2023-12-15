@@ -991,7 +991,7 @@ contract RewardsTest is Deployment, Utils {
             "Incorrect rewards"
         );
         assertEq(
-            rewardDistributor.lastDepositTimeByUserByMarket(
+            rewardDistributor.withdrawTimerStartByUserByMarket(
                 liquidityProviderTwo,
                 address(perpetual)
             ),
@@ -999,7 +999,7 @@ contract RewardsTest is Deployment, Utils {
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
-            rewardDistributor.lastDepositTimeByUserByMarket(
+            rewardDistributor.withdrawTimerStartByUserByMarket(
                 liquidityProviderTwo,
                 address(perpetual2)
             ),

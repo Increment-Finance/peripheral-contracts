@@ -45,14 +45,14 @@ _Address is reward token_
 mapping(address => uint256) public totalUnclaimedRewards;
 ```
 
-### lastDepositTimeByUserByMarket
+### withdrawTimerStartByUserByMarket
 
 Last timestamp when user withdrew liquidity from a market
 
 _First address is user, second is the market_
 
 ```solidity
-mapping(address => mapping(address => uint256)) public lastDepositTimeByUserByMarket;
+mapping(address => mapping(address => uint256)) public withdrawTimerStartByUserByMarket;
 ```
 
 ### lpPositionsPerUser

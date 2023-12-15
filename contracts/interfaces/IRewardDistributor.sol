@@ -136,7 +136,7 @@ interface IRewardDistributor {
     /// @param user Address of the user
     /// @param market Address of the market
     /// @return Timestamp when user last withdrew liquidity from the market
-    function lastDepositTimeByUserByMarket(
+    function withdrawTimerStartByUserByMarket(
         address user,
         address market
     ) external view returns (uint256);
