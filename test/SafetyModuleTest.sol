@@ -13,7 +13,7 @@ import {IncrementToken} from "@increment-governance/IncrementToken.sol";
 import {SafetyModule, ISafetyModule} from "../contracts/SafetyModule.sol";
 import {StakedToken, IStakedToken} from "../contracts/StakedToken.sol";
 import {AuctionModule, IAuctionModule} from "../contracts/AuctionModule.sol";
-import {SMRewardDistributor, IRewardDistributor} from "../contracts/SMRewardDistributor.sol";
+import {TestSMRewardDistributor, IRewardDistributor} from "./mocks/TestSMRewardDistributor.sol";
 import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
@@ -113,7 +113,7 @@ contract SafetyModuleTest is Deployment, Utils {
     EcosystemReserve public rewardVault;
     SafetyModule public safetyModule;
     AuctionModule public auctionModule;
-    SMRewardDistributor public rewardDistributor;
+    TestSMRewardDistributor public rewardDistributor;
     IWeightedPoolFactory public weightedPoolFactory;
     IWeightedPool public balancerPool;
     IBalancerVault public balancerVault;
@@ -151,7 +151,7 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.setAuctionModule(auctionModule);
 
         // Deploy reward distributor
-        rewardDistributor = new SMRewardDistributor(
+        rewardDistributor = new TestSMRewardDistributor(
             safetyModule,
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
@@ -615,7 +615,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
         newSafetyModule.setAuctionModule(newAuctionModule);
         newAuctionModule.setSafetyModule(newSafetyModule);
-        SMRewardDistributor newRewardDistributor = new SMRewardDistributor(
+        TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
             ISafetyModule(address(0)),
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
