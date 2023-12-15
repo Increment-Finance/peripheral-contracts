@@ -112,14 +112,14 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 1e18;
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
-                if (lastDepositTimeByUserByMarket[user][market] == 0) {
-                    lastDepositTimeByUserByMarket[user][market] = block
+                if (withdrawTimerStartByUserByMarket[user][market] == 0) {
+                    withdrawTimerStartByUserByMarket[user][market] = block
                         .timestamp;
                 }
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
                 uint256 deltaTime = block.timestamp -
-                    lastDepositTimeByUserByMarket[user][market];
+                    withdrawTimerStartByUserByMarket[user][market];
                 if (deltaTime < earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
                     newRewards -=
@@ -128,11 +128,11 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 }
                 if (newLpPosition > 0) {
                     // Reset timer
-                    lastDepositTimeByUserByMarket[user][market] = block
+                    withdrawTimerStartByUserByMarket[user][market] = block
                         .timestamp;
                 } else {
                     // Full withdrawal, so next deposit is an initial deposit
-                    lastDepositTimeByUserByMarket[user][market] = 0;
+                    withdrawTimerStartByUserByMarket[user][market] = 0;
                 }
             }
             cumulativeRewardPerLpTokenPerUser[user][token][
@@ -171,13 +171,13 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     ) public virtual override {
         if (
             block.timestamp <
-            lastDepositTimeByUserByMarket[user][market] +
+            withdrawTimerStartByUserByMarket[user][market] +
                 earlyWithdrawalThreshold
         )
             revert RewardDistributor_EarlyRewardAccrual(
                 user,
                 market,
-                lastDepositTimeByUserByMarket[user][market] +
+                withdrawTimerStartByUserByMarket[user][market] +
                     earlyWithdrawalThreshold
             );
         uint256 lpPosition = lpPositionsPerUser[user][market];
