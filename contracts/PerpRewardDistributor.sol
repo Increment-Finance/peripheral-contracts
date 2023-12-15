@@ -105,11 +105,11 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens; ++i) {
             address token = rewardTokens[i];
-            // newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-            uint256 newRewards = (prevLpPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
-                1e18;
+            // newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            uint256 newRewards = prevLpPosition.mul(
+                cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market]
+            );
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity
                 if (withdrawTimerStartByUserByMarket[user][market] == 0) {
@@ -159,54 +159,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /* ****************** */
     /*    External User   */
     /* ****************** */
-
-    /// @notice Accrues rewards to a user for a given market
-    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
-    /// LP position is handled by `updatePosition`
-    /// @param market Address of the market in `ClearingHouse.perpetuals`
-    /// @param user Address of the user
-    function accrueRewards(
-        address market,
-        address user
-    ) public virtual override {
-        if (
-            block.timestamp <
-            withdrawTimerStartByUserByMarket[user][market] +
-                earlyWithdrawalThreshold
-        )
-            revert RewardDistributor_EarlyRewardAccrual(
-                user,
-                market,
-                withdrawTimerStartByUserByMarket[user][market] +
-                    earlyWithdrawalThreshold
-            );
-        uint256 lpPosition = lpPositionsPerUser[user][market];
-        if (lpPosition != _getCurrentPosition(user, market))
-            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since updating LP position calls updatePosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                lpPosition,
-                _getCurrentPosition(user, market)
-            );
-        if (totalLiquidityPerMarket[market] == 0) return;
-        _updateMarketRewards(market);
-        uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ++i) {
-            address token = rewardTokens[i];
-            uint256 newRewards = (lpPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
-                1e18;
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
-            emit RewardAccruedToUser(user, token, market, newRewards);
-        }
-    }
 
     /// @notice Indicates whether claiming rewards is currently paused
     /// @dev Contract is paused if either this contract or the ClearingHouse has been paused
@@ -269,5 +221,53 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address market
     ) internal view override returns (uint256) {
         return IPerpetual(market).getLpLiquidity(user);
+    }
+
+    /// @notice Accrues rewards to a user for a given market
+    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
+    /// LP position is handled by `updatePosition`
+    /// @param market Address of the market in `ClearingHouse.perpetuals`
+    /// @param user Address of the user
+    function _accrueRewards(
+        address market,
+        address user
+    ) internal virtual override {
+        if (
+            block.timestamp <
+            withdrawTimerStartByUserByMarket[user][market] +
+                earlyWithdrawalThreshold
+        )
+            revert RewardDistributor_EarlyRewardAccrual(
+                user,
+                market,
+                withdrawTimerStartByUserByMarket[user][market] +
+                    earlyWithdrawalThreshold
+            );
+        uint256 lpPosition = lpPositionsPerUser[user][market];
+        if (lpPosition != _getCurrentPosition(user, market))
+            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
+            // since updating LP position calls updatePosition which updates lpPositionsPerUser
+            revert RewardDistributor_UserPositionMismatch(
+                user,
+                market,
+                lpPosition,
+                _getCurrentPosition(user, market)
+            );
+        if (totalLiquidityPerMarket[market] == 0) return;
+        _updateMarketRewards(market);
+        uint256 numTokens = rewardTokens.length;
+        for (uint i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
+            uint256 newRewards = (lpPosition *
+                (cumulativeRewardPerLpToken[token][market] -
+                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
+                1e18;
+            rewardsAccruedByUser[user][token] += newRewards;
+            totalUnclaimedRewards[token] += newRewards;
+            cumulativeRewardPerLpTokenPerUser[user][token][
+                market
+            ] = cumulativeRewardPerLpToken[token][market];
+            emit RewardAccruedToUser(user, token, market, newRewards);
+        }
     }
 }

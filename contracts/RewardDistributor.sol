@@ -260,7 +260,7 @@ abstract contract RewardDistributor is
     ) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
+            _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
         }
         uint256 numTokens = _rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
@@ -283,17 +283,6 @@ abstract contract RewardDistributor is
             }
         }
     }
-
-    /// @inheritdoc IRewardDistributor
-    function accrueRewards(address user) external override {
-        uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets; ++i) {
-            accrueRewards(_getMarketAddress(_getMarketIdx(i)), user);
-        }
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function accrueRewards(address market, address user) public virtual;
 
     /* ****************** */
     /*      Internal      */
@@ -338,6 +327,13 @@ abstract contract RewardDistributor is
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[market] = block.timestamp;
     }
+
+    /// @notice Accrues rewards to a user for a given market
+    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
+    /// position is handled by `updatePosition`
+    /// @param market Address of the market to accrue rewards for
+    /// @param user Address of the user
+    function _accrueRewards(address market, address user) internal virtual;
 
     /// @notice Distributes accrued rewards from the ecosystem reserve to a user for a given reward token
     /// @dev Checks if there are enough rewards remaining in the ecosystem reserve to distribute, updates
