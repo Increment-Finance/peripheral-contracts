@@ -10,7 +10,7 @@ import "increment-protocol/tokens/UA.sol";
 import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import {IncrementToken} from "@increment-governance/IncrementToken.sol";
-import {PerpRewardDistributor, IRewardDistributor} from "../contracts/PerpRewardDistributor.sol";
+import {TestPerpRewardDistributor, IRewardDistributor} from "./mocks/TestPerpRewardDistributor.sol";
 import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
@@ -63,7 +63,7 @@ contract RewardsTest is Deployment, Utils {
     IncrementToken public rewardsToken2;
 
     EcosystemReserve public ecosystemReserve;
-    PerpRewardDistributor public rewardDistributor;
+    TestPerpRewardDistributor public rewardDistributor;
 
     function setUp() public virtual override {
         deal(liquidityProviderOne, 100 ether);
@@ -143,7 +143,7 @@ contract RewardsTest is Deployment, Utils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        rewardDistributor = new PerpRewardDistributor(
+        rewardDistributor = new TestPerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
@@ -1385,7 +1385,7 @@ contract RewardsTest is Deployment, Utils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        PerpRewardDistributor newRewardsDistributor = new PerpRewardDistributor(
+        TestPerpRewardDistributor newRewardsDistributor = new TestPerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
