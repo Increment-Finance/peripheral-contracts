@@ -105,7 +105,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens; ++i) {
             address token = rewardTokens[i];
-            // newRewards = user.lpBalance / global.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            // newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevLpPosition.mul(
                 cumulativeRewardPerLpToken[token][market] -
                     cumulativeRewardPerLpTokenPerUser[user][token][market]
