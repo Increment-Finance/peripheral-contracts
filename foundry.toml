@@ -6,6 +6,6 @@ optimizer_runs = 999999
 src = 'contracts'
 out = 'out'
 libs = ['lib']
-gas_reports = ["StakedToken", "SafetyModule", "AuctionModule", "SMRewardDistributor", "PerpRewardDistributor"]
+gas_reports = ["StakedToken", "SafetyModule", "AuctionModule", "TestSMRewardDistributor", "TestPerpRewardDistributor"]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
