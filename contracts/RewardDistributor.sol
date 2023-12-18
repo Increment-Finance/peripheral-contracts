@@ -140,6 +140,10 @@ abstract contract RewardDistributor is
                     10000
                 );
             totalWeight += _marketWeights[i];
+            marketWeightsByToken[_rewardToken][
+                _markets[i]
+            ] = _marketWeights[i];
+            timeOfLastCumRewardUpdate[_markets[i]] = block.timestamp;
             emit NewWeight(_markets[i], _rewardToken, _marketWeights[i]);
         }
         if (totalWeight != 10000)
@@ -155,12 +159,7 @@ abstract contract RewardDistributor is
         rewardInfoByToken[_rewardToken]
             .reductionFactor = _initialReductionFactor;
         rewardInfoByToken[_rewardToken].marketAddresses = _markets;
-        for (uint i; i < numMarkets; ++i) {
-            rewardInfoByToken[_rewardToken].marketWeights[
-                _markets[i]
-            ] = _marketWeights[i];
-            timeOfLastCumRewardUpdate[_markets[i]] = block.timestamp;
-        }
+
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -207,17 +206,17 @@ abstract contract RewardDistributor is
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = _rewardTokenBalance(_rewardToken);
         uint256 unclaimedAccruals = totalUnclaimedRewards[_rewardToken];
-        uint256 unaccruedBalance = balance >= unclaimedAccruals
-            ? balance - unclaimedAccruals
-            : 0;
-
-        // Transfer remaining tokens to governance (which is the sender)
-        if (unaccruedBalance > 0)
+        uint256 unaccruedBalance;
+        if (balance >= unclaimedAccruals) {
+            unaccruedBalance = balance - unclaimedAccruals;
+            // Transfer remaining tokens to governance (which is the sender)
             IERC20Metadata(_rewardToken).safeTransferFrom(
                 ecosystemReserve,
                 msg.sender,
                 unaccruedBalance
             );
+        }
+
         emit RewardTokenRemoved(
             _rewardToken,
             unclaimedAccruals,
@@ -302,7 +301,7 @@ abstract contract RewardDistributor is
             if (
                 rewardInfoByToken[token].paused ||
                 rewardInfoByToken[token].initialInflationRate == 0 ||
-                rewardInfoByToken[token].marketWeights[market] == 0
+                marketWeightsByToken[token][market] == 0
             ) continue;
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
@@ -316,7 +315,7 @@ abstract contract RewardDistributor is
                 )
             );
             uint256 newRewards = (((((inflationRate *
-                rewardInfoByToken[token].marketWeights[market]) / 10000) *
+                marketWeightsByToken[token][market]) / 10000) *
                 deltaTime) / 365 days) * 1e18) /
                 totalLiquidityPerMarket[market];
             if (newRewards > 0) {
