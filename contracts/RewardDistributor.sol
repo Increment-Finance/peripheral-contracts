@@ -132,19 +132,19 @@ abstract contract RewardDistributor is
         uint256 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint i; i < numMarkets; ++i) {
-            _updateMarketRewards(_markets[i]);
-            if (_marketWeights[i] == 0) continue;
-            if (_marketWeights[i] > 10000)
+            address market = _markets[i];
+            _updateMarketRewards(market);
+            uint256 weight = _marketWeights[i];
+            if (weight == 0) continue;
+            if (weight > 10000)
                 revert RewardController_WeightExceedsMax(
-                    _marketWeights[i],
+                    weight,
                     10000
                 );
-            totalWeight += _marketWeights[i];
-            marketWeightsByToken[_rewardToken][
-                _markets[i]
-            ] = _marketWeights[i];
-            timeOfLastCumRewardUpdate[_markets[i]] = block.timestamp;
-            emit NewWeight(_markets[i], _rewardToken, _marketWeights[i]);
+            totalWeight += weight;
+            marketWeightsByToken[_rewardToken][market] = weight;
+            timeOfLastCumRewardUpdate[market] = block.timestamp;
+            emit NewWeight(market, _rewardToken, weight);
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
