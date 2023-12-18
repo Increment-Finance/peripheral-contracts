@@ -2,42 +2,39 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {PerpetualUtils} from "../lib/increment-protocol/test/foundry/helpers/PerpetualUtils.sol";
-import {Test} from "forge-std/Test.sol";
-import "increment-protocol/ClearingHouse.sol";
-import "increment-protocol/test/TestPerpetual.sol";
-import "increment-protocol/tokens/UA.sol";
-import "increment-protocol/tokens/VBase.sol";
-import "increment-protocol/tokens/VQuote.sol";
-import "increment-protocol/mocks/MockAggregator.sol";
-import "@increment-governance/IncrementToken.sol";
-import "../contracts/SafetyModule.sol";
-import "../contracts/StakedToken.sol";
-import "../contracts/AuctionModule.sol";
-import "../contracts/SMRewardDistributor.sol";
-import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
+import {Deployment} from "../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
+import {Utils} from "../lib/increment-protocol/test/helpers/Utils.sol";
+import {ClearingHouse} from "increment-protocol/ClearingHouse.sol";
+import {TestPerpetual} from "../lib/increment-protocol/test/mocks/TestPerpetual.sol";
+import {UA} from "increment-protocol/tokens/UA.sol";
+import {VBase} from "increment-protocol/tokens/VBase.sol";
+import {VQuote} from "increment-protocol/tokens/VQuote.sol";
+import {IncrementToken} from "@increment-governance/IncrementToken.sol";
+import {SafetyModule, ISafetyModule} from "../contracts/SafetyModule.sol";
+import {StakedToken, IStakedToken} from "../contracts/StakedToken.sol";
+import {AuctionModule, IAuctionModule} from "../contracts/AuctionModule.sol";
+import {TestSMRewardDistributor, IRewardDistributor} from "./mocks/TestSMRewardDistributor.sol";
+import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
-import "increment-protocol/interfaces/ICryptoSwap.sol";
-import "increment-protocol/interfaces/IPerpetual.sol";
-import "increment-protocol/interfaces/IClearingHouse.sol";
-import "increment-protocol/interfaces/ICurveCryptoFactory.sol";
-import "increment-protocol/interfaces/IVault.sol";
-import "increment-protocol/interfaces/IVBase.sol";
-import "increment-protocol/interfaces/IVQuote.sol";
-import "increment-protocol/interfaces/IInsurance.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ICryptoSwap} from "increment-protocol/interfaces/ICryptoSwap.sol";
+import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
+import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
+import {ICurveCryptoFactory} from "increment-protocol/interfaces/ICurveCryptoFactory.sol";
+import {IVault} from "increment-protocol/interfaces/IVault.sol";
+import {IVBase} from "increment-protocol/interfaces/IVBase.sol";
+import {IVQuote} from "increment-protocol/interfaces/IVQuote.sol";
+import {IInsurance} from "increment-protocol/interfaces/IInsurance.sol";
+import {ERC20PresetFixedSupply, IERC20} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "./balancer/IWeightedPool.sol";
 import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "./balancer/IWeightedPoolFactory.sol";
 
 // libraries
-import "increment-protocol/lib/LibMath.sol";
+import {LibMath} from "increment-protocol/lib/LibMath.sol";
 import "increment-protocol/lib/LibPerpetual.sol";
 import {console2 as console} from "forge/console2.sol";
 
-contract SafetyModuleTest is PerpetualUtils {
+contract SafetyModuleTest is Deployment, Utils {
     using LibMath for int256;
     using LibMath for uint256;
 
@@ -116,7 +113,7 @@ contract SafetyModuleTest is PerpetualUtils {
     EcosystemReserve public rewardVault;
     SafetyModule public safetyModule;
     AuctionModule public auctionModule;
-    SMRewardDistributor public rewardDistributor;
+    TestSMRewardDistributor public rewardDistributor;
     IWeightedPoolFactory public weightedPoolFactory;
     IWeightedPool public balancerPool;
     IBalancerVault public balancerVault;
@@ -150,11 +147,11 @@ contract SafetyModuleTest is PerpetualUtils {
         );
 
         // Deploy auction module
-        auctionModule = new AuctionModule(safetyModule, usdc);
+        auctionModule = new AuctionModule(safetyModule, IERC20(address(usdc)));
         safetyModule.setAuctionModule(auctionModule);
 
         // Deploy reward distributor
-        rewardDistributor = new SMRewardDistributor(
+        rewardDistributor = new TestSMRewardDistributor(
             safetyModule,
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
@@ -168,7 +165,7 @@ contract SafetyModuleTest is PerpetualUtils {
             rewardsToken.totalSupply() / 2
         );
         rewardVault.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(rewardDistributor),
             type(uint256).max
         );
@@ -614,11 +611,11 @@ contract SafetyModuleTest is PerpetualUtils {
         );
         AuctionModule newAuctionModule = new AuctionModule(
             ISafetyModule(address(0)),
-            usdc
+            IERC20(address(usdc))
         );
         newSafetyModule.setAuctionModule(newAuctionModule);
         newAuctionModule.setSafetyModule(newSafetyModule);
-        SMRewardDistributor newRewardDistributor = new SMRewardDistributor(
+        TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
             ISafetyModule(address(0)),
             INITIAL_MAX_MULTIPLIER,
             INITIAL_SMOOTHING_VALUE,
@@ -628,7 +625,7 @@ contract SafetyModuleTest is PerpetualUtils {
         newRewardDistributor.setSafetyModule(newSafetyModule);
 
         rewardVault.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(newSafetyModule),
             type(uint256).max
         );
@@ -742,7 +739,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // Remove all reward tokens from EcosystemReserve
         uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
         rewardVault.transfer(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(this),
             rewardBalance
         );
@@ -1500,7 +1497,7 @@ contract SafetyModuleTest is PerpetualUtils {
         // Change the payment token to UA
         vm.expectEmit(false, false, false, true);
         emit PaymentTokenChanged(address(usdc), address(ua));
-        auctionModule.setPaymentToken(ua);
+        auctionModule.setPaymentToken(IERC20(address(ua)));
 
         // Start an auction and check the end time
         uint256 auctionId = safetyModule.slashAndStartAuction(
@@ -1797,7 +1794,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 invalidMarket
             )
         );
-        safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.startPrank(invalidMarket);
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1805,7 +1802,7 @@ contract SafetyModuleTest is PerpetualUtils {
                 invalidMarket
             )
         );
-        safetyModule.updateStakingPosition(invalidMarket, liquidityProviderOne);
+        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.startPrank(address(safetyModule));
         vm.expectRevert(
             abi.encodeWithSignature(

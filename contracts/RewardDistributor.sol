@@ -10,7 +10,7 @@ import {RewardController, IRewardController} from "./RewardController.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
-import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
+import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // libraries
@@ -21,11 +21,11 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 /// @notice Abstract contract responsible for accruing and distributing rewards to users for providing
 /// liquidity to perpetual markets (handled by PerpRewardDistributor) or staking tokens (with the SafetyModule)
 /// @dev Inherits from RewardController, which defines the RewardInfo data structure and functions allowing
-/// governance to add/remove reward tokens or update their parameters, and implements IStakingContract, the
+/// governance to add/remove reward tokens or update their parameters, and implements IRewardContract, the
 /// interface used by the ClearingHouse to update user rewards any time a user's position is updated
 abstract contract RewardDistributor is
     IRewardDistributor,
-    IStakingContract,
+    IRewardContract,
     RewardController
 {
     using SafeERC20 for IERC20Metadata;
@@ -46,7 +46,7 @@ abstract contract RewardDistributor is
     /// @notice Last timestamp when user withdrew liquidity from a market
     /// @dev First address is user, second is the market
     mapping(address => mapping(address => uint256))
-        public lastDepositTimeByUserByMarket;
+        public withdrawTimerStartByUserByMarket;
 
     /// @notice Latest LP/staking positions per user and market
     /// @dev First address is user, second is the market
@@ -83,7 +83,7 @@ abstract contract RewardDistributor is
     /// @dev Executes whenever a user's position is updated for any reason
     /// @param market Address of the market (i.e., perpetual market or staking token)
     /// @param user Address of the user
-    function updateStakingPosition(
+    function updatePosition(
         address market,
         address user
     ) external virtual;
@@ -260,7 +260,7 @@ abstract contract RewardDistributor is
     ) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
         for (uint i; i < numMarkets; ++i) {
-            accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
+            _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
         }
         uint256 numTokens = _rewardTokens.length;
         for (uint i; i < numTokens; ++i) {
@@ -283,17 +283,6 @@ abstract contract RewardDistributor is
             }
         }
     }
-
-    /// @inheritdoc IRewardDistributor
-    function accrueRewards(address user) external override {
-        uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets; ++i) {
-            accrueRewards(_getMarketAddress(_getMarketIdx(i)), user);
-        }
-    }
-
-    /// @inheritdoc IRewardDistributor
-    function accrueRewards(address market, address user) public virtual;
 
     /* ****************** */
     /*      Internal      */
@@ -338,6 +327,13 @@ abstract contract RewardDistributor is
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[market] = block.timestamp;
     }
+
+    /// @notice Accrues rewards to a user for a given market
+    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
+    /// position is handled by `updatePosition`
+    /// @param market Address of the market to accrue rewards for
+    /// @param user Address of the user
+    function _accrueRewards(address market, address user) internal virtual;
 
     /// @notice Distributes accrued rewards from the ecosystem reserve to a user for a given reward token
     /// @dev Checks if there are enough rewards remaining in the ecosystem reserve to distribute, updates

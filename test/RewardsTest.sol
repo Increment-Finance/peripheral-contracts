@@ -2,17 +2,16 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {PerpetualUtils} from "../lib/increment-protocol/test/foundry/helpers/PerpetualUtils.sol";
-import {Test} from "forge-std/Test.sol";
+import "../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
+import "../lib/increment-protocol/test/helpers/Utils.sol";
 import "increment-protocol/ClearingHouse.sol";
-import "increment-protocol/test/TestPerpetual.sol";
+import "../lib/increment-protocol/test/mocks/TestPerpetual.sol";
 import "increment-protocol/tokens/UA.sol";
 import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
-import "increment-protocol/mocks/MockAggregator.sol";
-import "@increment-governance/IncrementToken.sol";
-import "../contracts/PerpRewardDistributor.sol";
-import {EcosystemReserve, IERC20 as AaveIERC20} from "../contracts/EcosystemReserve.sol";
+import {IncrementToken} from "@increment-governance/IncrementToken.sol";
+import {TestPerpRewardDistributor, IRewardDistributor} from "./mocks/TestPerpRewardDistributor.sol";
+import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -23,17 +22,15 @@ import "increment-protocol/interfaces/IVault.sol";
 import "increment-protocol/interfaces/IVBase.sol";
 import "increment-protocol/interfaces/IVQuote.sol";
 import "increment-protocol/interfaces/IInsurance.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC20PresetFixedSupply} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 
 // libraries
-import "increment-protocol/lib/LibMath.sol";
+import {LibMath} from "increment-protocol/lib/LibMath.sol";
 import "increment-protocol/lib/LibPerpetual.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {console2 as console} from "forge/console2.sol";
 
-contract RewardsTest is PerpetualUtils {
+contract RewardsTest is Deployment, Utils {
     using LibMath for int256;
     using LibMath for uint256;
 
@@ -66,7 +63,7 @@ contract RewardsTest is PerpetualUtils {
     IncrementToken public rewardsToken2;
 
     EcosystemReserve public ecosystemReserve;
-    PerpRewardDistributor public rewardDistributor;
+    TestPerpRewardDistributor public rewardDistributor;
 
     function setUp() public virtual override {
         deal(liquidityProviderOne, 100 ether);
@@ -84,26 +81,29 @@ contract RewardsTest is PerpetualUtils {
             "vGBP base token",
             "vGBP",
             gbpOracle,
-            vBaseHeartBeat,
+            EURUSD.heartBeat,
             sequencerUptimeFeed,
-            gracePeriod
+            EURUSD.gracePeriod
         );
         vQuote2 = new VQuote("vUSD quote token", "vUSD");
+        (, int256 answer,,,) = baseOracle.latestRoundData();
+        uint8 decimals = baseOracle.decimals();
+        uint256 initialPrice = answer.toUint256() * (10 ** (18 - decimals));
         cryptoSwap2 = ICryptoSwap(
             factory.deploy_pool(
                 "GBP_USD",
                 "GBP_USD",
                 [address(vQuote2), address(vBase2)],
-                A,
-                gamma,
-                mid_fee,
-                out_fee,
-                allowed_extra_profit,
-                fee_gamma,
-                adjustment_step,
-                admin_fee,
-                ma_half_time,
-                initial_price
+                EURUSD.A,
+                EURUSD.gamma,
+                EURUSD.mid_fee,
+                EURUSD.out_fee,
+                EURUSD.allowed_extra_profit,
+                EURUSD.fee_gamma,
+                EURUSD.adjustment_step,
+                EURUSD.admin_fee,
+                EURUSD.ma_half_time,
+                initialPrice
             )
         );
         lpToken2 = IERC20Metadata(cryptoSwap2.token());
@@ -114,7 +114,16 @@ contract RewardsTest is PerpetualUtils {
             clearingHouse,
             curveCryptoViews,
             true,
-            perp_params
+            IPerpetual.PerpetualParams(
+                EURUSD.riskWeight,
+                EURUSD.maxLiquidityProvided,
+                EURUSD.twapFrequency,
+                EURUSD.sensitivity,
+                EURUSD.maxBlockTradeAmount,
+                EURUSD.insuranceFee,
+                EURUSD.lpDebtCoef,
+                EURUSD.lockPeriod
+            )
         );
 
         vBase2.transferPerpOwner(address(perpetual2));
@@ -134,7 +143,7 @@ contract RewardsTest is PerpetualUtils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        rewardDistributor = new PerpRewardDistributor(
+        rewardDistributor = new TestPerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
@@ -154,12 +163,12 @@ contract RewardsTest is PerpetualUtils {
             rewardsToken2.totalSupply()
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(rewardDistributor),
             type(uint256).max
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken2)),
+            rewardsToken2,
             address(rewardDistributor),
             type(uint256).max
         );
@@ -175,10 +184,10 @@ contract RewardsTest is PerpetualUtils {
 
         // Connect ClearingHouse to RewardsDistributor
         vm.startPrank(address(this));
-        clearingHouse.addStakingContract(rewardDistributor);
+        clearingHouse.addRewardContract(rewardDistributor);
 
         // Update ClearingHouse params to remove min open notional
-        clearingHouse_params = IClearingHouse.ClearingHouseParams({
+        clearingHouse.setParameters(IClearingHouse.ClearingHouseParams({
             minMargin: 0.025 ether,
             minMarginAtCreation: 0.055 ether,
             minPositiveOpenNotional: 0 ether,
@@ -188,8 +197,7 @@ contract RewardsTest is PerpetualUtils {
             liquidationDiscount: 0.95 ether,
             nonUACollSeizureDiscount: 0.75 ether,
             uaDebtSeizureThreshold: 10000 ether
-        });
-        clearingHouse.setParameters(clearingHouse_params);
+        }));
         vBase.setHeartBeat(30 days);
         vBase2.setHeartBeat(30 days);
     }
@@ -786,7 +794,7 @@ contract RewardsTest is PerpetualUtils {
             rewardsToken2.totalSupply()
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken2)),
+            rewardsToken2,
             address(rewardDistributor),
             type(uint256).max
         );
@@ -983,7 +991,7 @@ contract RewardsTest is PerpetualUtils {
             "Incorrect rewards"
         );
         assertEq(
-            rewardDistributor.lastDepositTimeByUserByMarket(
+            rewardDistributor.withdrawTimerStartByUserByMarket(
                 liquidityProviderTwo,
                 address(perpetual)
             ),
@@ -991,7 +999,7 @@ contract RewardsTest is PerpetualUtils {
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
-            rewardDistributor.lastDepositTimeByUserByMarket(
+            rewardDistributor.withdrawTimerStartByUserByMarket(
                 liquidityProviderTwo,
                 address(perpetual2)
             ),
@@ -1071,49 +1079,8 @@ contract RewardsTest is PerpetualUtils {
 
         // deploy new market contracts
         vm.startPrank(address(this));
-        TestPerpetual perpetual3;
-        {
-            VBase vBase3 = new VBase(
-                "vDAI base token",
-                "vDAI",
-                AggregatorV3Interface(
-                    address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
-                ),
-                30 days,
-                sequencerUptimeFeed,
-                gracePeriod
-            );
-            VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
-            perpetual3 = new TestPerpetual(
-                vBase3,
-                vQuote3,
-                ICryptoSwap(
-                    factory.deploy_pool(
-                        "DAI_USD",
-                        "DAI_USD",
-                        [address(vQuote3), address(vBase3)],
-                        A,
-                        gamma,
-                        mid_fee,
-                        out_fee,
-                        allowed_extra_profit,
-                        fee_gamma,
-                        adjustment_step,
-                        admin_fee,
-                        ma_half_time,
-                        initial_price
-                    )
-                ),
-                clearingHouse,
-                curveCryptoViews,
-                true,
-                perp_params
-            );
-
-            vBase3.transferPerpOwner(address(perpetual3));
-            vQuote3.transferPerpOwner(address(perpetual3));
-            clearingHouse.allowListPerpetual(perpetual3);
-        }
+        TestPerpetual perpetual3 = _deployTestPerpetual();
+        clearingHouse.allowListPerpetual(perpetual3);
 
         // skip some time
         skip(10 days);
@@ -1312,45 +1279,7 @@ contract RewardsTest is PerpetualUtils {
         clearingHouse.delistPerpetual(perpetual2);
 
         // replace it with a new perpetual
-        VBase vBase3 = new VBase(
-            "vDAI base token",
-            "vDAI",
-            AggregatorV3Interface(
-                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
-            ),
-            30 days,
-            sequencerUptimeFeed,
-            gracePeriod
-        );
-        VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
-        TestPerpetual perpetual3 = new TestPerpetual(
-            vBase3,
-            vQuote3,
-            ICryptoSwap(
-                factory.deploy_pool(
-                    "DAI_USD",
-                    "DAI_USD",
-                    [address(vQuote3), address(vBase3)],
-                    A,
-                    gamma,
-                    mid_fee,
-                    out_fee,
-                    allowed_extra_profit,
-                    fee_gamma,
-                    adjustment_step,
-                    admin_fee,
-                    ma_half_time,
-                    initial_price
-                )
-            ),
-            clearingHouse,
-            curveCryptoViews,
-            true,
-            perp_params
-        );
-
-        vBase3.transferPerpOwner(address(perpetual3));
-        vQuote3.transferPerpOwner(address(perpetual3));
+        TestPerpetual perpetual3 = _deployTestPerpetual();
         clearingHouse.allowListPerpetual(perpetual3);
         console.log("Added new perpetual: %s", address(perpetual3));
         assertEq(
@@ -1456,7 +1385,7 @@ contract RewardsTest is PerpetualUtils {
         weights[0] = 7500;
         weights[1] = 2500;
 
-        PerpRewardDistributor newRewardsDistributor = new PerpRewardDistributor(
+        TestPerpRewardDistributor newRewardsDistributor = new TestPerpRewardDistributor(
             INITIAL_INFLATION_RATE,
             INITIAL_REDUCTION_FACTOR,
             address(rewardsToken),
@@ -1467,12 +1396,12 @@ contract RewardsTest is PerpetualUtils {
         );
         vm.startPrank(address(this));
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken)),
+            rewardsToken,
             address(newRewardsDistributor),
             type(uint256).max
         );
         ecosystemReserve.approve(
-            AaveIERC20(address(rewardsToken2)),
+            rewardsToken2,
             address(newRewardsDistributor),
             type(uint256).max
         );
@@ -1480,7 +1409,7 @@ contract RewardsTest is PerpetualUtils {
 
         // Connect ClearingHouse to new RewardsDistributor
         vm.startPrank(address(this));
-        clearingHouse.addStakingContract(newRewardsDistributor);
+        clearingHouse.addRewardContract(newRewardsDistributor);
 
         // skip some time
         skip(10 days);
@@ -1554,22 +1483,22 @@ contract RewardsTest is PerpetualUtils {
                 invalidMarket != address(perpetual2)
         );
 
-        // updateStakingPosition
+        // updatePosition
         vm.expectRevert(
             abi.encodeWithSignature(
                 "PerpRewardDistributor_CallerIsNotClearingHouse(address)",
                 address(this)
             )
         );
-        rewardDistributor.updateStakingPosition(
+        rewardDistributor.updatePosition(
             address(perpetual),
             liquidityProviderOne
         );
         vm.startPrank(address(clearingHouse));
         // invalidMarket is not a Perpetual contract, so calling IPerpetual(invalidMarket).getLpLiquidity()
-        // in _getCurrentPosition (called by updateStakingPosition), will revert due to missing function
+        // in _getCurrentPosition (called by updatePosition), will revert due to missing function
         vm.expectRevert();
-        rewardDistributor.updateStakingPosition(
+        rewardDistributor.updatePosition(
             invalidMarket,
             liquidityProviderOne
         );
@@ -1991,5 +1920,60 @@ contract RewardsTest is PerpetualUtils {
                     ))
             );
         return newUserRewards;
+    }
+
+    function _deployTestPerpetual() internal returns (TestPerpetual) {
+        VBase vBase3 = new VBase(
+            "vDAI base token",
+            "vDAI",
+            AggregatorV3Interface(
+                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
+            ),
+            30 days,
+            sequencerUptimeFeed,
+            ETHUSD.gracePeriod
+        );
+        VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
+        (, int256 answer,,,) = baseOracle.latestRoundData();
+        uint8 decimals = eth_baseOracle.decimals();
+        uint256 initialPrice = answer.toUint256() * (10 ** (18 - decimals));
+        TestPerpetual perpetual3 = new TestPerpetual(
+            vBase3,
+            vQuote3,
+            ICryptoSwap(
+                factory.deploy_pool(
+                    "DAI_USD",
+                    "DAI_USD",
+                    [address(vQuote3), address(vBase3)],
+                    ETHUSD.A,
+                    ETHUSD.gamma,
+                    ETHUSD.mid_fee,
+                    ETHUSD.out_fee,
+                    ETHUSD.allowed_extra_profit,
+                    ETHUSD.fee_gamma,
+                    ETHUSD.adjustment_step,
+                    ETHUSD.admin_fee,
+                    ETHUSD.ma_half_time,
+                    initialPrice
+                )
+            ),
+            clearingHouse,
+            curveCryptoViews,
+            true,
+            IPerpetual.PerpetualParams(
+                ETHUSD.riskWeight,
+                ETHUSD.maxLiquidityProvided,
+                ETHUSD.twapFrequency,
+                ETHUSD.sensitivity,
+                ETHUSD.maxBlockTradeAmount,
+                ETHUSD.insuranceFee,
+                ETHUSD.lpDebtCoef,
+                ETHUSD.lockPeriod
+            )
+        );
+
+        vBase3.transferPerpOwner(address(perpetual3));
+        vQuote3.transferPerpOwner(address(perpetual3));
+        return perpetual3;
     }
 }

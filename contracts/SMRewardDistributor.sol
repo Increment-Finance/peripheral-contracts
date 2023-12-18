@@ -15,7 +15,7 @@ import "./interfaces/IRewardController.sol";
 contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     using PRBMathUD60x18 for uint256;
 
-    /// @notice The SafetyModule contract which stores the list of StakedTokens and can call `updateStakingPosition`
+    /// @notice The SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
     ISafetyModule public safetyModule;
 
     /// @notice The maximum reward multiplier, scaled by 1e18
@@ -64,13 +64,13 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
-    function updateStakingPosition(
+    function updatePosition(
         address market,
         address user
     )
         external
         virtual
-        override(IStakingContract, RewardDistributor)
+        override(IRewardContract, RewardDistributor)
         onlySafetyModule
     {
         _updateMarketRewards(market);
@@ -133,52 +133,11 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /*    External User   */
     /* ****************** */
 
-    /// @notice Accrues rewards to a user for a given staking token
-    /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
-    /// stake position is handled by `updateStakingPosition`
-    /// @param market Address of the token in `stakingTokens`
-    /// @param user Address of the user
-    function accrueRewards(
-        address market,
-        address user
-    ) public virtual override(IRewardDistributor, RewardDistributor) {
-        uint256 userPosition = lpPositionsPerUser[user][market];
-        if (userPosition != _getCurrentPosition(user, market))
-            // only occurs if the user has a pre-existing balance and has not registered for rewards,
-            // since updating stake position calls updateStakingPosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                userPosition,
-                _getCurrentPosition(user, market)
-            );
-        if (totalLiquidityPerMarket[market] == 0) return;
-        _updateMarketRewards(market);
-        uint256 rewardMultiplier = computeRewardMultiplier(user, market);
-        uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ++i) {
-            address token = rewardTokens[i];
-            uint256 newRewards = userPosition
-                .mul(
-                    cumulativeRewardPerLpToken[token][market] -
-                        cumulativeRewardPerLpTokenPerUser[user][token][market]
-                )
-                .mul(rewardMultiplier);
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
-            if (newRewards == 0) continue;
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
-            emit RewardAccruedToUser(user, token, market, newRewards);
-            uint256 rewardTokenBalance = _rewardTokenBalance(token);
-            if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(
-                    token,
-                    totalUnclaimedRewards[token] - rewardTokenBalance
-                );
-            }
-        }
+    /// @notice Indicates whether claiming rewards is currently paused
+    /// @dev Contract is paused if either this contract or the SafetyModule has been paused
+    /// @return True if paused, false otherwise
+    function paused() public view override returns (bool) {
+        return super.paused() || Pausable(address(safetyModule)).paused();
     }
 
     /* ******************* */
@@ -305,5 +264,53 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         address token
     ) internal view virtual override returns (uint256) {
         return IStakedToken(token).balanceOf(staker);
+    }
+
+    /// @notice Accrues rewards to a user for a given staking token
+    /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
+    /// stake position is handled by `updatePosition`
+    /// @param market Address of the token in `stakingTokens`
+    /// @param user Address of the user
+    function _accrueRewards(
+        address market,
+        address user
+    ) internal virtual override {
+        uint256 userPosition = lpPositionsPerUser[user][market];
+        if (userPosition != _getCurrentPosition(user, market))
+            // only occurs if the user has a pre-existing balance and has not registered for rewards,
+            // since updating stake position calls updatePosition which updates lpPositionsPerUser
+            revert RewardDistributor_UserPositionMismatch(
+                user,
+                market,
+                userPosition,
+                _getCurrentPosition(user, market)
+            );
+        if (totalLiquidityPerMarket[market] == 0) return;
+        _updateMarketRewards(market);
+        uint256 rewardMultiplier = computeRewardMultiplier(user, market);
+        uint256 numTokens = rewardTokens.length;
+        for (uint i; i < numTokens; ++i) {
+            address token = rewardTokens[i];
+            uint256 newRewards = userPosition
+                .mul(
+                    cumulativeRewardPerLpToken[token][market] -
+                        cumulativeRewardPerLpTokenPerUser[user][token][market]
+                )
+                .mul(rewardMultiplier);
+            cumulativeRewardPerLpTokenPerUser[user][token][
+                market
+            ] = cumulativeRewardPerLpToken[token][market];
+            if (newRewards == 0) continue;
+            rewardsAccruedByUser[user][token] += newRewards;
+            totalUnclaimedRewards[token] += newRewards;
+            emit RewardAccruedToUser(user, token, market, newRewards);
+            uint256 rewardTokenBalance = _rewardTokenBalance(token);
+            if (totalUnclaimedRewards[token] > rewardTokenBalance) {
+                emit RewardTokenShortfall(
+                    token,
+                    totalUnclaimedRewards[token] - rewardTokenBalance
+                );
+            }
+        }
     }
 }

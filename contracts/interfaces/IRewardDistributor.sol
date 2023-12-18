@@ -136,7 +136,7 @@ interface IRewardDistributor {
     /// @param user Address of the user
     /// @param market Address of the market
     /// @return Timestamp when user last withdrew liquidity from the market
-    function lastDepositTimeByUserByMarket(
+    function withdrawTimerStartByUserByMarket(
         address user,
         address market
     ) external view returns (uint256);
@@ -232,17 +232,4 @@ interface IRewardDistributor {
         address _user,
         address[] memory _rewardTokens
     ) external;
-
-    /// @notice Accrues rewards to a user for all markets
-    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes
-    /// in position is handled by `updateStakingPosition`
-    /// @param user Address of the user to accrue rewards for
-    function accrueRewards(address user) external;
-
-    /// @notice Accrues rewards to a user for a given market
-    /// @dev Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
-    /// position is handled by `updateStakingPosition`
-    /// @param market Address of the market to accrue rewards for
-    /// @param user Address of the user
-    function accrueRewards(address market, address user) external;
 }

@@ -4,12 +4,12 @@ pragma solidity 0.8.16;
 // interfaces
 import {ISafetyModule} from "./ISafetyModule.sol";
 import {IRewardDistributor} from "./IRewardDistributor.sol";
-import {IStakingContract} from "increment-protocol/interfaces/IStakingContract.sol";
+import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 
 /// @title ISMRewardDistributor
 /// @author webthethird
 /// @notice Interface for the Safety Module's Reward Distributor contract
-interface ISMRewardDistributor is IRewardDistributor, IStakingContract {
+interface ISMRewardDistributor is IRewardDistributor, IRewardContract {
     /// @notice Emitted when the max reward multiplier is updated by governance
     /// @param maxRewardMultiplier New max reward multiplier
     event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
@@ -23,7 +23,7 @@ interface ISMRewardDistributor is IRewardDistributor, IStakingContract {
     /// @param newSafetyModule Address of the new SafetyModule contract
     event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
 
-    /// @notice Error returned when the caller of `updateStakingPosition` is not the SafetyModule
+    /// @notice Error returned when the caller of `updatePosition` is not the SafetyModule
     /// @param caller Address of the caller
     error SMRD_CallerIsNotSafetyModule(address caller);
 
@@ -47,7 +47,7 @@ interface ISMRewardDistributor is IRewardDistributor, IStakingContract {
     /// @param max Maximum allowed value
     error SMRD_InvalidSmoothingValueTooHigh(uint256 value, uint256 max);
 
-    /// @notice Gets the address of the SafetyModule contract which stores the list of StakedTokens and can call `updateStakingPosition`
+    /// @notice Gets the address of the SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
     /// @return Address of the SafetyModule contract
     function safetyModule() external view returns (ISafetyModule);
 
