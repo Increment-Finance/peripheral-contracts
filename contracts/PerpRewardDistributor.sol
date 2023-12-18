@@ -125,7 +125,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                         (newRewards * (earlyWithdrawalThreshold - deltaTime)) /
                         earlyWithdrawalThreshold;
                 }
-                if (newLpPosition > 0) {
+                if (newLpPosition != 0) {
                     // Reset timer
                     withdrawTimerStartByUserByMarket[user][market] = block
                         .timestamp;
@@ -137,7 +137,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
-            if (newRewards > 0) {
+            if (newRewards != 0) {
                 rewardsAccruedByUser[user][token] += newRewards;
                 totalUnclaimedRewards[token] += newRewards;
                 emit RewardAccruedToUser(

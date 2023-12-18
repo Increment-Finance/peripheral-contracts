@@ -140,7 +140,7 @@ contract SafetyModule is
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (address(stakingToken) == address(0))
             revert SafetyModule_InvalidAuctionId(_auctionId);
-        if (_remainingBalance > 0)
+        if (_remainingBalance != 0)
             _returnFunds(
                 stakingToken,
                 address(auctionModule),
@@ -231,7 +231,7 @@ contract SafetyModule is
         // Remaining balance should always be non-zero, since the only way the auction module could run out
         // of auction tokens is if they are all sold, in which case the auction would have ended on its own
         // But just in case, check to avoid reverting
-        if (remainingBalance > 0)
+        if (remainingBalance != 0)
             _returnFunds(
                 stakingToken,
                 address(auctionModule),

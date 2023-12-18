@@ -274,7 +274,7 @@ abstract contract RewardDistributor is
         for (uint i; i < numTokens;) {
             address token = _rewardTokens[i];
             uint256 rewards = rewardsAccruedByUser[_user][token];
-            if (rewards > 0) {
+            if (rewards != 0) {
                 uint256 remainingRewards = _distributeReward(
                     token,
                     _user,
@@ -282,7 +282,7 @@ abstract contract RewardDistributor is
                 );
                 rewardsAccruedByUser[_user][token] = remainingRewards;
                 emit RewardClaimed(_user, token, rewards - remainingRewards);
-                if (remainingRewards > 0) {
+                if (remainingRewards != 0) {
                     emit RewardTokenShortfall(
                         token,
                         totalUnclaimedRewards[token]
@@ -331,7 +331,7 @@ abstract contract RewardDistributor is
                 marketWeightsByToken[token][market]) / 10000) *
                 deltaTime) / 365 days) * 1e18) /
                 totalLiquidityPerMarket[market];
-            if (newRewards > 0) {
+            if (newRewards != 0) {
                 cumulativeRewardPerLpToken[token][market] += newRewards;
                 emit RewardAccruedToMarket(market, token, newRewards);
             }

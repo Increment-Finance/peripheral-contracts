@@ -112,7 +112,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         }
         if (prevPosition == 0 || newPosition < prevPosition) {
             // Removed stake or staked for the first time - need to reset multiplier
-            if (newPosition > 0) {
+            if (newPosition != 0) {
                 // Partial removal or first stake - reset multiplier to 1
                 multiplierStartTimeByUser[user][market] = block.timestamp;
             } else {
