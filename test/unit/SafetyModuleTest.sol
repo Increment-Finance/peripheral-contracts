@@ -2,19 +2,19 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {Deployment} from "../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
-import {Utils} from "../lib/increment-protocol/test/helpers/Utils.sol";
+import {Deployment} from "../../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
+import {Utils} from "../../lib/increment-protocol/test/helpers/Utils.sol";
 import {ClearingHouse} from "increment-protocol/ClearingHouse.sol";
-import {TestPerpetual} from "../lib/increment-protocol/test/mocks/TestPerpetual.sol";
+import {TestPerpetual} from "../../lib/increment-protocol/test/mocks/TestPerpetual.sol";
 import {UA} from "increment-protocol/tokens/UA.sol";
 import {VBase} from "increment-protocol/tokens/VBase.sol";
 import {VQuote} from "increment-protocol/tokens/VQuote.sol";
 import {IncrementToken} from "@increment-governance/IncrementToken.sol";
-import {SafetyModule, ISafetyModule} from "../contracts/SafetyModule.sol";
-import {StakedToken, IStakedToken} from "../contracts/StakedToken.sol";
-import {AuctionModule, IAuctionModule} from "../contracts/AuctionModule.sol";
-import {TestSMRewardDistributor, IRewardDistributor} from "./mocks/TestSMRewardDistributor.sol";
-import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
+import {SafetyModule, ISafetyModule} from "../../contracts/SafetyModule.sol";
+import {StakedToken, IStakedToken} from "../../contracts/StakedToken.sol";
+import {AuctionModule, IAuctionModule} from "../../contracts/AuctionModule.sol";
+import {TestSMRewardDistributor, IRewardDistributor} from "../mocks/TestSMRewardDistributor.sol";
+import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 
 // interfaces
 import {ICryptoSwap} from "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -26,8 +26,8 @@ import {IVBase} from "increment-protocol/interfaces/IVBase.sol";
 import {IVQuote} from "increment-protocol/interfaces/IVQuote.sol";
 import {IInsurance} from "increment-protocol/interfaces/IInsurance.sol";
 import {ERC20PresetFixedSupply, IERC20} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
-import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "./balancer/IWeightedPool.sol";
-import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "./balancer/IWeightedPoolFactory.sol";
+import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../balancer/IWeightedPool.sol";
+import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "../balancer/IWeightedPoolFactory.sol";
 
 // libraries
 import {LibMath} from "increment-protocol/lib/LibMath.sol";
@@ -616,11 +616,11 @@ contract SafetyModuleTest is Deployment, Utils {
         newSafetyModule.setAuctionModule(newAuctionModule);
         newAuctionModule.setSafetyModule(newSafetyModule);
         TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
-            ISafetyModule(address(0)),
-            INITIAL_MAX_MULTIPLIER,
-            INITIAL_SMOOTHING_VALUE,
-            address(rewardVault)
-        );
+                ISafetyModule(address(0)),
+                INITIAL_MAX_MULTIPLIER,
+                INITIAL_SMOOTHING_VALUE,
+                address(rewardVault)
+            );
         newSafetyModule.setRewardDistributor(newRewardDistributor);
         newRewardDistributor.setSafetyModule(newSafetyModule);
 
@@ -738,11 +738,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Remove all reward tokens from EcosystemReserve
         uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
-        rewardVault.transfer(
-            rewardsToken,
-            address(this),
-            rewardBalance
-        );
+        rewardVault.transfer(rewardsToken, address(this), rewardBalance);
 
         // Skip some time
         skip(10 days);
