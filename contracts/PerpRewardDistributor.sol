@@ -160,6 +160,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             newLpPosition -
             prevLpPosition;
         lpPositionsPerUser[user][market] = newLpPosition;
+        emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
     }
 
     /* ****************** */
