@@ -395,10 +395,10 @@ contract AuctionModule is
         uint256 finalLotSize = _getCurrentLotSize(_auctionId);
 
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
-        if (remainingBalance > 0)
+        if (remainingBalance != 0)
             auctionToken.approve(address(stakedToken), remainingBalance);
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
-        if (fundsRaised > 0)
+        if (fundsRaised != 0)
             paymentToken.approve(address(safetyModule), fundsRaised);
         // Notify SafetyModule if necessary
         if (!_terminatedEarly)

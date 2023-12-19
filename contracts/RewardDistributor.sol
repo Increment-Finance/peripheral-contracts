@@ -131,16 +131,24 @@ abstract contract RewardDistributor is
         // Validate weights
         uint256 totalWeight;
         uint256 numMarkets = _markets.length;
-        for (uint i; i < numMarkets; ++i) {
-            _updateMarketRewards(_markets[i]);
-            if (_marketWeights[i] == 0) continue;
-            if (_marketWeights[i] > 10000)
+        for (uint i; i < numMarkets;) {
+            address market = _markets[i];
+            _updateMarketRewards(market);
+            uint256 weight = _marketWeights[i];
+            if (weight == 0) {
+                unchecked { ++i; }
+                continue;
+            }
+            if (weight > 10000)
                 revert RewardController_WeightExceedsMax(
-                    _marketWeights[i],
+                    weight,
                     10000
                 );
-            totalWeight += _marketWeights[i];
-            emit NewWeight(_markets[i], _rewardToken, _marketWeights[i]);
+            totalWeight += weight;
+            marketWeightsByToken[_rewardToken][market] = weight;
+            timeOfLastCumRewardUpdate[market] = block.timestamp;
+            emit NewWeight(market, _rewardToken, weight);
+            unchecked { ++i; }
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
@@ -155,12 +163,7 @@ abstract contract RewardDistributor is
         rewardInfoByToken[_rewardToken]
             .reductionFactor = _initialReductionFactor;
         rewardInfoByToken[_rewardToken].marketAddresses = _markets;
-        for (uint i; i < numMarkets; ++i) {
-            rewardInfoByToken[_rewardToken].marketWeights[
-                _markets[i]
-            ] = _marketWeights[i];
-            timeOfLastCumRewardUpdate[_markets[i]] = block.timestamp;
-        }
+
         emit RewardTokenAdded(
             _rewardToken,
             block.timestamp,
@@ -184,17 +187,21 @@ abstract contract RewardDistributor is
         uint256 numMarkets = rewardInfoByToken[_rewardToken]
             .marketAddresses
             .length;
-        for (uint i; i < numMarkets; ++i) {
+        for (uint i; i < numMarkets;) {
             _updateMarketRewards(
                 rewardInfoByToken[_rewardToken].marketAddresses[i]
             );
+            unchecked { ++i; }
         }
 
         // Remove reward token address from list
         // The `delete` keyword applied to arrays does not reduce array length
         uint256 numRewards = rewardTokens.length;
         for (uint i; i < numRewards; ++i) {
-            if (rewardTokens[i] != _rewardToken) continue;
+            if (rewardTokens[i] != _rewardToken) {
+                unchecked { ++i; }
+                continue;
+            }
             // Find the token in the array and swap it with the last element
             rewardTokens[i] = rewardTokens[numRewards - 1];
             // Delete the last element
@@ -207,17 +214,17 @@ abstract contract RewardDistributor is
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = _rewardTokenBalance(_rewardToken);
         uint256 unclaimedAccruals = totalUnclaimedRewards[_rewardToken];
-        uint256 unaccruedBalance = balance >= unclaimedAccruals
-            ? balance - unclaimedAccruals
-            : 0;
-
-        // Transfer remaining tokens to governance (which is the sender)
-        if (unaccruedBalance > 0)
+        uint256 unaccruedBalance;
+        if (balance >= unclaimedAccruals) {
+            unaccruedBalance = balance - unclaimedAccruals;
+            // Transfer remaining tokens to governance (which is the sender)
             IERC20Metadata(_rewardToken).safeTransferFrom(
                 ecosystemReserve,
                 msg.sender,
                 unaccruedBalance
             );
+        }
+
         emit RewardTokenRemoved(
             _rewardToken,
             unclaimedAccruals,
@@ -259,14 +266,15 @@ abstract contract RewardDistributor is
         address[] memory _rewardTokens
     ) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets; ++i) {
+        for (uint i; i < numMarkets;) {
             _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
+            unchecked { ++i; }
         }
         uint256 numTokens = _rewardTokens.length;
-        for (uint i; i < numTokens; ++i) {
+        for (uint i; i < numTokens;) {
             address token = _rewardTokens[i];
             uint256 rewards = rewardsAccruedByUser[_user][token];
-            if (rewards > 0) {
+            if (rewards != 0) {
                 uint256 remainingRewards = _distributeReward(
                     token,
                     _user,
@@ -274,13 +282,14 @@ abstract contract RewardDistributor is
                 );
                 rewardsAccruedByUser[_user][token] = remainingRewards;
                 emit RewardClaimed(_user, token, rewards - remainingRewards);
-                if (remainingRewards > 0) {
+                if (remainingRewards != 0) {
                     emit RewardTokenShortfall(
                         token,
                         totalUnclaimedRewards[token]
                     );
                 }
             }
+            unchecked { ++i; }
         }
     }
 
@@ -297,13 +306,16 @@ abstract contract RewardDistributor is
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
-        for (uint256 i; i < numTokens; ++i) {
+        for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             if (
                 rewardInfoByToken[token].paused ||
                 rewardInfoByToken[token].initialInflationRate == 0 ||
-                rewardInfoByToken[token].marketWeights[market] == 0
-            ) continue;
+                marketWeightsByToken[token][market] == 0
+            ) {
+                unchecked { ++i; }
+                continue;
+            }
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
                 rewardInfoByToken[token].initialInflationRate.div(
@@ -316,13 +328,14 @@ abstract contract RewardDistributor is
                 )
             );
             uint256 newRewards = (((((inflationRate *
-                rewardInfoByToken[token].marketWeights[market]) / 10000) *
+                marketWeightsByToken[token][market]) / 10000) *
                 deltaTime) / 365 days) * 1e18) /
                 totalLiquidityPerMarket[market];
-            if (newRewards > 0) {
+            if (newRewards != 0) {
                 cumulativeRewardPerLpToken[token][market] += newRewards;
                 emit RewardAccruedToMarket(market, token, newRewards);
             }
+            unchecked { ++i; }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[market] = block.timestamp;

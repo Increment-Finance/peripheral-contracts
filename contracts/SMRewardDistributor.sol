@@ -82,7 +82,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             prevPosition;
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ++i) {
+        for (uint i; i < numTokens;) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
             uint256 newRewards = prevPosition
@@ -94,7 +94,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
-            if (newRewards == 0) continue;
+            if (newRewards == 0) {
+                unchecked { ++i; }
+                continue;
+            }
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
@@ -105,10 +108,11 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                     totalUnclaimedRewards[token] - rewardTokenBalance
                 );
             }
+            unchecked { ++i; }
         }
         if (prevPosition == 0 || newPosition < prevPosition) {
             // Removed stake or staked for the first time - need to reset multiplier
-            if (newPosition > 0) {
+            if (newPosition != 0) {
                 // Partial removal or first stake - reset multiplier to 1
                 multiplierStartTimeByUser[user][market] = block.timestamp;
             } else {
@@ -289,7 +293,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ++i) {
+        for (uint i; i < numTokens;) {
             address token = rewardTokens[i];
             uint256 newRewards = userPosition
                 .mul(
@@ -300,7 +304,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             cumulativeRewardPerLpTokenPerUser[user][token][
                 market
             ] = cumulativeRewardPerLpToken[token][market];
-            if (newRewards == 0) continue;
+            if (newRewards == 0) {
+                unchecked { ++i; }
+                continue;
+            }
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
@@ -311,6 +318,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                     totalUnclaimedRewards[token] - rewardTokenBalance
                 );
             }
+            unchecked { ++i; }
         }
     }
 }

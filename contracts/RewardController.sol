@@ -35,7 +35,6 @@ abstract contract RewardController is
     /// @param initialInflationRate Initial rate of reward token emission per year
     /// @param reductionFactor Factor by which the inflation rate is reduced each year
     /// @param marketAddresses List of markets for which the reward token is distributed
-    /// @param marketWeights Market reward weights as basis points, i.e., 100 = 1%, 10000 = 100%
     struct RewardInfo {
         IERC20Metadata token;
         bool paused;
@@ -43,7 +42,6 @@ abstract contract RewardController is
         uint88 initialInflationRate;
         uint88 reductionFactor;
         address[] marketAddresses;
-        mapping(address => uint256) marketWeights;
     }
 
     /// @notice Maximum inflation rate, applies to all reward tokens
@@ -61,6 +59,10 @@ abstract contract RewardController is
 
     /// @notice Info for each registered reward token
     mapping(address => RewardInfo) internal rewardInfoByToken;
+
+    /// @notice Mapping from reward token to reward weights for each market
+    /// @dev Market reward weights are basis points, i.e., 100 = 1%, 10000 = 100%
+    mapping(address => mapping(address => uint256)) internal marketWeightsByToken;
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -111,7 +113,7 @@ abstract contract RewardController is
         address rewardToken,
         address market
     ) external view returns (uint256) {
-        return rewardInfoByToken[rewardToken].marketWeights[market];
+        return marketWeightsByToken[rewardToken][market];
     }
 
     /// @inheritdoc IRewardController
@@ -144,33 +146,36 @@ abstract contract RewardController is
             .marketAddresses
             .length;
         uint256 numNewMarkets = markets.length;
-        for (uint i; i < numOldMarkets; ++i) {
+        for (uint i; i < numOldMarkets;) {
             address market = rewardInfoByToken[rewardToken].marketAddresses[i];
             _updateMarketRewards(market);
             // Check if market is being removed from rewards
             bool found;
-            for (uint j; j < numNewMarkets; ++j) {
+            for (uint j; j < numNewMarkets;) {
                 if (markets[j] == market) {
                     found = true;
                     break;
                 }
+                unchecked { ++j; }
             }
             if (!found) {
-                delete rewardInfoByToken[rewardToken].marketWeights[market];
+                delete marketWeightsByToken[rewardToken][market];
                 emit MarketRemovedFromRewards(market, rewardToken);
             }
+            unchecked { ++i; }
         }
         // Validate weights and update rewards for any newly added markets
         uint256 totalWeight;
-        for (uint i; i < numNewMarkets; ++i) {
+        for (uint i; i < numNewMarkets;) {
             _updateMarketRewards(markets[i]);
             if (weights[i] > 10000)
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             totalWeight += weights[i];
-            rewardInfoByToken[rewardToken].marketWeights[markets[i]] = weights[
+            marketWeightsByToken[rewardToken][markets[i]] = weights[
                 i
             ];
             emit NewWeight(markets[i], rewardToken, weights[i]);
+            unchecked { ++i; }
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
@@ -196,10 +201,11 @@ abstract contract RewardController is
         uint256 numMarkets = rewardInfoByToken[rewardToken]
             .marketAddresses
             .length;
-        for (uint i; i < numMarkets; ++i) {
+        for (uint i; i < numMarkets;) {
             _updateMarketRewards(
                 rewardInfoByToken[rewardToken].marketAddresses[i]
             );
+            unchecked { ++i; }
         }
         rewardInfoByToken[rewardToken]
             .initialInflationRate = newInitialInflationRate;
@@ -256,10 +262,11 @@ abstract contract RewardController is
             uint256 numMarkets = rewardInfoByToken[rewardToken]
                 .marketAddresses
                 .length;
-            for (uint i; i < numMarkets; ++i) {
+            for (uint i; i < numMarkets;) {
                 _updateMarketRewards(
                     rewardInfoByToken[rewardToken].marketAddresses[i]
                 );
+                unchecked { ++i; }
             }
         }
         rewardInfoByToken[rewardToken].paused = paused;

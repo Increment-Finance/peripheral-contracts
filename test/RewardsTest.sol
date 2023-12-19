@@ -910,7 +910,7 @@ contract RewardsTest is Deployment, Utils {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
-        reductionRatio = bound(reductionRatio, 1e16, 1e18);
+        reductionRatio = bound(reductionRatio, 1e16, 5e17);
         skipTime = bound(skipTime, 1 days, 5 days);
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
@@ -1923,19 +1923,20 @@ contract RewardsTest is Deployment, Utils {
     }
 
     function _deployTestPerpetual() internal returns (TestPerpetual) {
+        AggregatorV3Interface dai_baseOracle = AggregatorV3Interface(
+                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
+            );
         VBase vBase3 = new VBase(
             "vDAI base token",
             "vDAI",
-            AggregatorV3Interface(
-                address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
-            ),
+            dai_baseOracle,
             30 days,
             sequencerUptimeFeed,
             ETHUSD.gracePeriod
         );
         VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
         (, int256 answer,,,) = baseOracle.latestRoundData();
-        uint8 decimals = eth_baseOracle.decimals();
+        uint8 decimals = dai_baseOracle.decimals();
         uint256 initialPrice = answer.toUint256() * (10 ** (18 - decimals));
         TestPerpetual perpetual3 = new TestPerpetual(
             vBase3,

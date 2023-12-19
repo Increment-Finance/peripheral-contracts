@@ -98,8 +98,9 @@ contract SafetyModule is
     /// @inheritdoc ISafetyModule
     function getStakingTokenIdx(address token) public view returns (uint256) {
         uint256 numTokens = stakingTokens.length;
-        for (uint256 i; i < numTokens; ++i) {
+        for (uint256 i; i < numTokens;) {
             if (address(stakingTokens[i]) == token) return i;
+            unchecked { ++i; }
         }
         revert SafetyModule_InvalidStakingToken(token);
     }
@@ -139,7 +140,7 @@ contract SafetyModule is
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
         if (address(stakingToken) == address(0))
             revert SafetyModule_InvalidAuctionId(_auctionId);
-        if (_remainingBalance > 0)
+        if (_remainingBalance != 0)
             _returnFunds(
                 stakingToken,
                 address(auctionModule),
@@ -230,7 +231,7 @@ contract SafetyModule is
         // Remaining balance should always be non-zero, since the only way the auction module could run out
         // of auction tokens is if they are all sold, in which case the auction would have ended on its own
         // But just in case, check to avoid reverting
-        if (remainingBalance > 0)
+        if (remainingBalance != 0)
             _returnFunds(
                 stakingToken,
                 address(auctionModule),
@@ -320,11 +321,12 @@ contract SafetyModule is
         IStakedToken _stakingToken
     ) external onlyRole(GOVERNANCE) {
         uint256 numTokens = stakingTokens.length;
-        for (uint i; i < numTokens; ++i) {
+        for (uint i; i < numTokens;) {
             if (stakingTokens[i] == _stakingToken)
                 revert SafetyModule_StakingTokenAlreadyRegistered(
                     address(_stakingToken)
                 );
+            unchecked { ++i; }
         }
         stakingTokens.push(_stakingToken);
         smRewardDistributor.initMarketStartTime(address(_stakingToken));
