@@ -4,11 +4,6 @@ pragma solidity 0.8.16;
 // contracts
 import {Deployment} from "../../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
 import {Utils} from "../../lib/increment-protocol/test/helpers/Utils.sol";
-import {ClearingHouse} from "increment-protocol/ClearingHouse.sol";
-import {TestPerpetual} from "../../lib/increment-protocol/test/mocks/TestPerpetual.sol";
-import {UA} from "increment-protocol/tokens/UA.sol";
-import {VBase} from "increment-protocol/tokens/VBase.sol";
-import {VQuote} from "increment-protocol/tokens/VQuote.sol";
 import {IncrementToken} from "@increment-governance/IncrementToken.sol";
 import {SafetyModule, ISafetyModule} from "../../contracts/SafetyModule.sol";
 import {StakedToken, IStakedToken} from "../../contracts/StakedToken.sol";
@@ -17,21 +12,12 @@ import {TestSMRewardDistributor, IRewardDistributor} from "../mocks/TestSMReward
 import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 
 // interfaces
-import {ICryptoSwap} from "increment-protocol/interfaces/ICryptoSwap.sol";
-import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
-import {ICurveCryptoFactory} from "increment-protocol/interfaces/ICurveCryptoFactory.sol";
-import {IVault} from "increment-protocol/interfaces/IVault.sol";
-import {IVBase} from "increment-protocol/interfaces/IVBase.sol";
-import {IVQuote} from "increment-protocol/interfaces/IVQuote.sol";
-import {IInsurance} from "increment-protocol/interfaces/IInsurance.sol";
 import {ERC20PresetFixedSupply, IERC20} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../balancer/IWeightedPool.sol";
 import {IWeightedPoolFactory, IAsset, IVault as IBalancerVault} from "../balancer/IWeightedPoolFactory.sol";
 
 // libraries
 import {LibMath} from "increment-protocol/lib/LibMath.sol";
-import "increment-protocol/lib/LibPerpetual.sol";
 import {console2 as console} from "forge/console2.sol";
 
 contract SafetyModuleTest is Deployment, Utils {
