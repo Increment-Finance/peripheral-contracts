@@ -70,12 +70,16 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         rewardInfoByToken[_rewardToken].marketAddresses = new address[](
             numMarkets
         );
-        for (uint256 i; i < numMarkets;) {
+        for (uint256 i; i < numMarkets; ) {
             address market = _getMarketAddress(_getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
-            marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[i];
+            marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[
+                i
+            ];
             timeOfLastCumRewardUpdate[market] = block.timestamp;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         rewardTokens.push(_rewardToken);
         emit RewardTokenAdded(
@@ -102,7 +106,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = _getCurrentPosition(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint256 i; i < numTokens;) {
+        for (uint256 i; i < numTokens; ) {
             address token = rewardTokens[i];
             // newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevLpPosition.mul(
@@ -147,7 +151,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     newRewards
                 );
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         totalLiquidityPerMarket[market] =
             totalLiquidityPerMarket[market] +
@@ -173,20 +179,21 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
-    function setClearingHouse(IClearingHouse _newClearingHouse)
-        external
-        onlyRole(GOVERNANCE)
-    {
-        emit ClearingHouseUpdated(address(clearingHouse), address(_newClearingHouse));
+    function setClearingHouse(
+        IClearingHouse _newClearingHouse
+    ) external onlyRole(GOVERNANCE) {
+        emit ClearingHouseUpdated(
+            address(clearingHouse),
+            address(_newClearingHouse)
+        );
         clearingHouse = _newClearingHouse;
     }
 
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
-    function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold)
-        external
-        onlyRole(GOVERNANCE)
-    {
+    function setEarlyWithdrawalThreshold(
+        uint256 _newEarlyWithdrawalThreshold
+    ) external onlyRole(GOVERNANCE) {
         emit EarlyWithdrawalThresholdUpdated(
             earlyWithdrawalThreshold,
             _newEarlyWithdrawalThreshold
@@ -256,7 +263,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         if (totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens;) {
+        for (uint i; i < numTokens; ) {
             address token = rewardTokens[i];
             uint256 newRewards = (lpPosition *
                 (cumulativeRewardPerLpToken[token][market] -
@@ -268,7 +275,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 market
             ] = cumulativeRewardPerLpToken[token][market];
             emit RewardAccruedToUser(user, token, market, newRewards);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

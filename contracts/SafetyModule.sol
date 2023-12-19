@@ -50,10 +50,13 @@ contract SafetyModule is
     /// i.e., `updatePosition`
     modifier onlyStakingToken() {
         bool isStakingToken;
-        for (uint i; i < stakingTokens.length; ++i) {
+        for (uint i; i < stakingTokens.length; ) {
             if (msg.sender == address(stakingTokens[i])) {
                 isStakingToken = true;
                 break;
+            }
+            unchecked {
+                ++i;
             }
         }
         if (!isStakingToken)
@@ -98,9 +101,11 @@ contract SafetyModule is
     /// @inheritdoc ISafetyModule
     function getStakingTokenIdx(address token) public view returns (uint256) {
         uint256 numTokens = stakingTokens.length;
-        for (uint256 i; i < numTokens;) {
+        for (uint256 i; i < numTokens; ) {
             if (address(stakingTokens[i]) == token) return i;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         revert SafetyModule_InvalidStakingToken(token);
     }
@@ -321,12 +326,14 @@ contract SafetyModule is
         IStakedToken _stakingToken
     ) external onlyRole(GOVERNANCE) {
         uint256 numTokens = stakingTokens.length;
-        for (uint i; i < numTokens;) {
+        for (uint i; i < numTokens; ) {
             if (stakingTokens[i] == _stakingToken)
                 revert SafetyModule_StakingTokenAlreadyRegistered(
                     address(_stakingToken)
                 );
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         stakingTokens.push(_stakingToken);
         smRewardDistributor.initMarketStartTime(address(_stakingToken));

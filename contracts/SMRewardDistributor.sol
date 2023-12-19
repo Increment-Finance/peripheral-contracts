@@ -82,7 +82,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             prevPosition;
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens;) {
+        for (uint i; i < numTokens; ) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
             uint256 newRewards = prevPosition
@@ -95,7 +95,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 market
             ] = cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             rewardsAccruedByUser[user][token] += newRewards;
@@ -108,7 +110,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                     totalUnclaimedRewards[token] - rewardTokenBalance
                 );
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         if (prevPosition == 0 || newPosition < prevPosition) {
             // Removed stake or staked for the first time - need to reset multiplier
@@ -293,7 +297,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens;) {
+        for (uint i; i < numTokens; ) {
             address token = rewardTokens[i];
             uint256 newRewards = userPosition
                 .mul(
@@ -305,7 +309,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 market
             ] = cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             rewardsAccruedByUser[user][token] += newRewards;
@@ -318,7 +324,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                     totalUnclaimedRewards[token] - rewardTokenBalance
                 );
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

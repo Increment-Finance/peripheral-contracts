@@ -392,7 +392,11 @@ contract StakedToken is
         safetyModule.updatePosition(address(this), to);
     }
 
-    function _stake(address from, address to, uint256 amount) internal whenNotPaused {
+    function _stake(
+        address from,
+        address to,
+        uint256 amount
+    ) internal whenNotPaused {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
         if (isInPostSlashingState)
@@ -427,7 +431,11 @@ contract StakedToken is
         emit Staked(from, to, amount);
     }
 
-    function _redeem(address from, address to, uint256 amount) internal whenNotPaused {
+    function _redeem(
+        address from,
+        address to,
+        uint256 amount
+    ) internal whenNotPaused {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 

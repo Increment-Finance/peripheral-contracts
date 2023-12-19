@@ -83,10 +83,7 @@ abstract contract RewardDistributor is
     /// @dev Executes whenever a user's position is updated for any reason
     /// @param market Address of the market (i.e., perpetual market or staking token)
     /// @param user Address of the user
-    function updatePosition(
-        address market,
-        address user
-    ) external virtual;
+    function updatePosition(address market, address user) external virtual;
 
     /* ****************** */
     /*     Governance     */
@@ -131,24 +128,25 @@ abstract contract RewardDistributor is
         // Validate weights
         uint256 totalWeight;
         uint256 numMarkets = _markets.length;
-        for (uint i; i < numMarkets;) {
+        for (uint i; i < numMarkets; ) {
             address market = _markets[i];
             _updateMarketRewards(market);
             uint256 weight = _marketWeights[i];
             if (weight == 0) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             if (weight > 10000)
-                revert RewardController_WeightExceedsMax(
-                    weight,
-                    10000
-                );
+                revert RewardController_WeightExceedsMax(weight, 10000);
             totalWeight += weight;
             marketWeightsByToken[_rewardToken][market] = weight;
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             emit NewWeight(market, _rewardToken, weight);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
@@ -187,19 +185,23 @@ abstract contract RewardDistributor is
         uint256 numMarkets = rewardInfoByToken[_rewardToken]
             .marketAddresses
             .length;
-        for (uint i; i < numMarkets;) {
+        for (uint i; i < numMarkets; ) {
             _updateMarketRewards(
                 rewardInfoByToken[_rewardToken].marketAddresses[i]
             );
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Remove reward token address from list
         // The `delete` keyword applied to arrays does not reduce array length
         uint256 numRewards = rewardTokens.length;
-        for (uint i; i < numRewards; ++i) {
+        for (uint i; i < numRewards; ) {
             if (rewardTokens[i] != _rewardToken) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             // Find the token in the array and swap it with the last element
@@ -249,9 +251,13 @@ abstract contract RewardDistributor is
 
     /// @inheritdoc IRewardDistributor
     function registerPositions(address[] calldata _markets) external {
-        for (uint i; i < _markets.length; ++i) {
+        uint256 numMarkets = _markets.length;
+        for (uint i; i < numMarkets; ) {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -266,12 +272,14 @@ abstract contract RewardDistributor is
         address[] memory _rewardTokens
     ) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets;) {
+        for (uint i; i < numMarkets; ) {
             _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         uint256 numTokens = _rewardTokens.length;
-        for (uint i; i < numTokens;) {
+        for (uint i; i < numTokens; ) {
             address token = _rewardTokens[i];
             uint256 rewards = rewardsAccruedByUser[_user][token];
             if (rewards != 0) {
@@ -289,7 +297,9 @@ abstract contract RewardDistributor is
                     );
                 }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -306,14 +316,16 @@ abstract contract RewardDistributor is
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
-        for (uint256 i; i < numTokens;) {
+        for (uint256 i; i < numTokens; ) {
             address token = rewardTokens[i];
             if (
                 rewardInfoByToken[token].paused ||
                 rewardInfoByToken[token].initialInflationRate == 0 ||
                 marketWeightsByToken[token][market] == 0
             ) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
@@ -328,14 +340,15 @@ abstract contract RewardDistributor is
                 )
             );
             uint256 newRewards = (((((inflationRate *
-                marketWeightsByToken[token][market]) / 10000) *
-                deltaTime) / 365 days) * 1e18) /
-                totalLiquidityPerMarket[market];
+                marketWeightsByToken[token][market]) / 10000) * deltaTime) /
+                365 days) * 1e18) / totalLiquidityPerMarket[market];
             if (newRewards != 0) {
                 cumulativeRewardPerLpToken[token][market] += newRewards;
                 emit RewardAccruedToMarket(market, token, newRewards);
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
         timeOfLastCumRewardUpdate[market] = block.timestamp;

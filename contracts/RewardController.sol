@@ -62,7 +62,8 @@ abstract contract RewardController is
 
     /// @notice Mapping from reward token to reward weights for each market
     /// @dev Market reward weights are basis points, i.e., 100 = 1%, 10000 = 100%
-    mapping(address => mapping(address => uint256)) internal marketWeightsByToken;
+    mapping(address => mapping(address => uint256))
+        internal marketWeightsByToken;
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -146,36 +147,40 @@ abstract contract RewardController is
             .marketAddresses
             .length;
         uint256 numNewMarkets = markets.length;
-        for (uint i; i < numOldMarkets;) {
+        for (uint i; i < numOldMarkets; ) {
             address market = rewardInfoByToken[rewardToken].marketAddresses[i];
             _updateMarketRewards(market);
             // Check if market is being removed from rewards
             bool found;
-            for (uint j; j < numNewMarkets;) {
+            for (uint j; j < numNewMarkets; ) {
                 if (markets[j] == market) {
                     found = true;
                     break;
                 }
-                unchecked { ++j; }
+                unchecked {
+                    ++j;
+                }
             }
             if (!found) {
                 delete marketWeightsByToken[rewardToken][market];
                 emit MarketRemovedFromRewards(market, rewardToken);
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         // Validate weights and update rewards for any newly added markets
         uint256 totalWeight;
-        for (uint i; i < numNewMarkets;) {
+        for (uint i; i < numNewMarkets; ) {
             _updateMarketRewards(markets[i]);
             if (weights[i] > 10000)
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             totalWeight += weights[i];
-            marketWeightsByToken[rewardToken][markets[i]] = weights[
-                i
-            ];
+            marketWeightsByToken[rewardToken][markets[i]] = weights[i];
             emit NewWeight(markets[i], rewardToken, weights[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         if (totalWeight != 10000)
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
@@ -201,11 +206,13 @@ abstract contract RewardController is
         uint256 numMarkets = rewardInfoByToken[rewardToken]
             .marketAddresses
             .length;
-        for (uint i; i < numMarkets;) {
+        for (uint i; i < numMarkets; ) {
             _updateMarketRewards(
                 rewardInfoByToken[rewardToken].marketAddresses[i]
             );
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         rewardInfoByToken[rewardToken]
             .initialInflationRate = newInitialInflationRate;
@@ -262,11 +269,13 @@ abstract contract RewardController is
             uint256 numMarkets = rewardInfoByToken[rewardToken]
                 .marketAddresses
                 .length;
-            for (uint i; i < numMarkets;) {
+            for (uint i; i < numMarkets; ) {
                 _updateMarketRewards(
                     rewardInfoByToken[rewardToken].marketAddresses[i]
                 );
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
         }
         rewardInfoByToken[rewardToken].paused = paused;
