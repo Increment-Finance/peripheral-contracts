@@ -132,15 +132,6 @@ interface IRewardDistributor {
         address rewardToken
     ) external view returns (uint256);
 
-    /// @notice Last timestamp when user withdrew liquidity from a market
-    /// @param user Address of the user
-    /// @param market Address of the market
-    /// @return Timestamp when user last withdrew liquidity from the market
-    function withdrawTimerStartByUserByMarket(
-        address user,
-        address market
-    ) external view returns (uint256);
-
     /// @notice Latest LP/staking positions per user and market
     /// @param user Address of the user
     /// @param market Address of the market

@@ -43,11 +43,6 @@ abstract contract RewardDistributor is
     /// @dev Address is reward token
     mapping(address => uint256) public totalUnclaimedRewards;
 
-    /// @notice Last timestamp when user withdrew liquidity from a market
-    /// @dev First address is user, second is the market
-    mapping(address => mapping(address => uint256))
-        public withdrawTimerStartByUserByMarket;
-
     /// @notice Latest LP/staking positions per user and market
     /// @dev First address is user, second is the market
     mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
