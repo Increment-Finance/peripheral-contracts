@@ -78,6 +78,19 @@ contract SafetyModuleInvariantTest is Test {
     StakedBPTHandler public stakedTokenHandler2;
     StakedTokenHandler[] public stakedTokenHandlers;
 
+    // Invariant ghost variables
+    mapping(address => mapping(address => uint256))
+        public lastMarketAccumulatorValue;
+
+    mapping(address => mapping(address => mapping(address => uint256)))
+        public lastUserAccumulatorValue;
+
+    mapping(address => mapping(address => uint256))
+        public lastUserRewardsBalance;
+
+    mapping(address => mapping(address => uint256))
+        public lastUserRewardsAccrued;
+
     function setUp() public virtual {
         /* initialize fork */
         vm.createFork(vm.envString("MAINNET_RPC_URL"));
@@ -268,6 +281,135 @@ contract SafetyModuleInvariantTest is Test {
     /*     Invariants     */
     /* ****************** */
 
+    function invariantMarketAccumulatorNeverDecreases() public {
+        uint256 numRewards = rewardDistributor.getRewardTokenCount();
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        for (uint256 i; i < numRewards; i++) {
+            address rewardToken = rewardDistributor.rewardTokens(i);
+            for (uint j; j < numMarkets; j++) {
+                address market = address(safetyModule.stakingTokens(j));
+                uint256 accumulatorValue = rewardDistributor
+                    .cumulativeRewardPerLpToken(rewardToken, market);
+                assertGe(
+                    accumulatorValue,
+                    lastMarketAccumulatorValue[rewardToken][market],
+                    "Invariant: accumulator does not decrease"
+                );
+                lastMarketAccumulatorValue[rewardToken][
+                    market
+                ] = accumulatorValue;
+            }
+        }
+    }
+
+    function invariantUserAccumulatorUpdatesOnAccrual() public {
+        uint256 numRewards = rewardDistributor.getRewardTokenCount();
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        for (uint256 i; i < numRewards; i++) {
+            address rewardToken = rewardDistributor.rewardTokens(i);
+            for (uint j; j < numMarkets; j++) {
+                address market = address(safetyModule.stakingTokens(j));
+                uint256 marketAccumulatorValue = rewardDistributor
+                    .cumulativeRewardPerLpToken(rewardToken, market);
+                for (uint k; k < stakers.length; k++) {
+                    address staker = stakers[k];
+                    uint256 userAccumulatorValue = rewardDistributor
+                        .cumulativeRewardPerLpTokenPerUser(
+                            staker,
+                            rewardToken,
+                            market
+                        );
+                    assertGe(
+                        userAccumulatorValue,
+                        lastUserAccumulatorValue[staker][rewardToken][market],
+                        "Invariant: user accumulator does not decrease"
+                    );
+                    lastUserAccumulatorValue[staker][rewardToken][
+                        market
+                    ] = userAccumulatorValue;
+                    if (userAccumulatorValue == marketAccumulatorValue) {
+                        uint256 rewardsAccrued = rewardDistributor
+                            .rewardsAccruedByUser(staker, rewardToken);
+                        uint256 rewardsBalance = IERC20(rewardToken).balanceOf(
+                            staker
+                        );
+                        if (rewardsAccrued > 0) {
+                            assertGe(
+                                rewardsAccrued,
+                                lastUserRewardsAccrued[staker][rewardToken],
+                                "Invariant: user accumulator updates on reward accrual"
+                            );
+                        } else {
+                            assertGe(
+                                rewardsBalance,
+                                lastUserRewardsBalance[staker][rewardToken],
+                                "Invariant: user accumulator updates on claim rewards"
+                            );
+                        }
+                        lastUserRewardsAccrued[staker][
+                            rewardToken
+                        ] = rewardsAccrued;
+                        lastUserRewardsBalance[staker][
+                            rewardToken
+                        ] = rewardsBalance;
+                    }
+                }
+            }
+        }
+        skip(1 days);
+    }
+
+    function invariantStakerPositionsMatch() public {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        for (uint256 i; i < numMarkets; i++) {
+            IStakedToken stakedToken = safetyModule.stakingTokens(i);
+            address market = address(stakedToken);
+            for (uint256 j; j < stakers.length; j++) {
+                address staker = stakers[j];
+                assertEq(
+                    rewardDistributor.lpPositionsPerUser(staker, market),
+                    stakedToken.balanceOf(staker),
+                    "Invariant: staker positions always match in StakedToken and SMRewardDistributor"
+                );
+            }
+        }
+    }
+
+    function invariantTotalLiquidityMatches() public {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        for (uint256 i; i < numMarkets; i++) {
+            IStakedToken stakedToken = safetyModule.stakingTokens(i);
+            address market = address(stakedToken);
+            assertEq(
+                rewardDistributor.totalLiquidityPerMarket(market),
+                stakedToken.totalSupply(),
+                "Invariant: total liquidity always matches in StakedToken and SMRewardDistributor"
+            );
+        }
+    }
+
+    function invariantSumOfAccruedRewardsUnclaimed() public {
+        uint256 numRewards = rewardDistributor.getRewardTokenCount();
+        for (uint i; i < numRewards; i++) {
+            address rewardToken = rewardDistributor.rewardTokens(i);
+            uint256 totalUnclaimedRewards = rewardDistributor
+                .totalUnclaimedRewards(rewardToken);
+            uint256 sumOfAccruedRewards;
+            for (uint j; j < stakers.length; j++) {
+                address staker = stakers[j];
+                sumOfAccruedRewards += rewardDistributor.rewardsAccruedByUser(
+                    staker,
+                    rewardToken
+                );
+            }
+            assertEq(
+                totalUnclaimedRewards,
+                sumOfAccruedRewards,
+                "Invariant: sum of accrued rewards equals total unclaimed rewards"
+            );
+        }
+    }
+
     function invariantExchangeRates() public {
         for (uint256 i; i < stakedTokens.length; i++) {
             StakedToken stakedToken = stakedTokens[i];
@@ -278,7 +420,7 @@ contract SafetyModuleInvariantTest is Test {
             assertEq(
                 underlyingBalance,
                 stakedToken.totalSupply().wadMul(stakedToken.exchangeRate()),
-                "Invariant: exchange rate"
+                "Invariant: exchange rate equals underlying balance / total supply"
             );
         }
     }
