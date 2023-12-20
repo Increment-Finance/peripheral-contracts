@@ -411,8 +411,10 @@ abstract contract RewardDistributor is
                 lpPositionsPerUser[_user][_market]
             );
         uint256 lpPosition = _getCurrentPosition(_user, _market);
+        if (lpPosition == 0) return;
         lpPositionsPerUser[_user][_market] = lpPosition;
         totalLiquidityPerMarket[_market] += lpPosition;
+        emit PositionUpdated(_user, _market, 0, lpPosition);
     }
 
     /// @inheritdoc RewardController
