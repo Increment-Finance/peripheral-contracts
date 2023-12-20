@@ -2,14 +2,12 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {RewardDistributor} from "./RewardDistributor.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 
 // interfaces
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ISafetyModule, ISMRewardDistributor, IRewardContract} from "./interfaces/ISafetyModule.sol";
+import {ISafetyModule, ISMRewardDistributor} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 
