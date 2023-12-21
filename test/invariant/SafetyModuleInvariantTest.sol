@@ -278,6 +278,7 @@ contract SafetyModuleInvariantTest is Test {
         stakedTokenHandlers = [stakedTokenHandler1, stakedTokenHandler2];
 
         // Set handlers as target contracts
+        targetContract(address(safetyModuleHandler));
         targetContract(address(smrdHandler));
         targetContract(address(stakedTokenHandler1));
         targetContract(address(stakedTokenHandler2));
