@@ -11,6 +11,7 @@ import {AuctionModule, IAuctionModule} from "../../contracts/AuctionModule.sol";
 import {TestSMRewardDistributor, IRewardDistributor} from "../mocks/TestSMRewardDistributor.sol";
 import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 import {ERC20PresetFixedSupply, IERC20} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {SafetyModuleHandler} from "./handlers/SafetyModuleHandler.sol";
 import {StakedTokenHandler} from "./handlers/StakedTokenHandler.sol";
 import {StakedBPTHandler} from "./handlers/StakedBPTHandler.sol";
 import {SMRDHandler} from "./handlers/SMRDHandler.sol";
@@ -73,6 +74,7 @@ contract SafetyModuleInvariantTest is Test {
     IAsset[] public poolAssets;
 
     // Handler contracts
+    SafetyModuleHandler public safetyModuleHandler;
     SMRDHandler public smrdHandler;
     StakedTokenHandler public stakedTokenHandler1;
     StakedBPTHandler public stakedTokenHandler2;
@@ -260,6 +262,10 @@ contract SafetyModuleInvariantTest is Test {
         vm.stopPrank();
 
         // Deploy handler contracts
+        safetyModuleHandler = new SafetyModuleHandler(
+            safetyModule,
+            address(this)
+        );
         smrdHandler = new SMRDHandler(rewardDistributor, stakers);
         stakedTokenHandler1 = new StakedTokenHandler(stakedToken1, stakers);
         stakedTokenHandler2 = new StakedBPTHandler(
@@ -428,4 +434,24 @@ contract SafetyModuleInvariantTest is Test {
     /* ****************** */
     /*  Helper Functions  */
     /* ****************** */
+
+    modifier onlySafetyModuleHandler() {
+        require(
+            msg.sender == address(safetyModuleHandler),
+            "Only SafetyModuleHandler"
+        );
+        _;
+    }
+
+    function addStakedToken(
+        StakedToken newStakedToken
+    ) external onlySafetyModuleHandler {
+        stakedTokens.push(newStakedToken);
+        StakedTokenHandler newStakedTokenHandler = new StakedTokenHandler(
+            newStakedToken,
+            stakers
+        );
+        stakedTokenHandlers.push(newStakedTokenHandler);
+        targetContract(address(newStakedTokenHandler));
+    }
 }
