@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
+import {ISafetyModule} from "./ISafetyModule.sol";
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title IStakedToken
@@ -114,6 +115,18 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
     error StakedToken_CallerIsNotSafetyModule(address caller);
+
+    /// @notice Address of the SafetyModule contract
+    /// @return SafetyModule contract
+    function safetyModule() external view returns (ISafetyModule);
+
+    /// @notice Max amount of staked tokens allowed per user
+    /// @return Max balance allowed per user
+    function maxStakeAmount() external view returns (uint256);
+
+    /// @notice Exchange rate between the underlying token and the staked token
+    /// @return Ratio of underlying tokens held in this contract per staked token issued, normalized to 1e18
+    function exchangeRate() external view returns (uint256);
 
     /// @notice Returns the underlying ERC20 token
     /// @return Underlying ERC20 token
