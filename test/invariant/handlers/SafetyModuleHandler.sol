@@ -7,11 +7,21 @@ import "../../../contracts/StakedToken.sol";
 import {Test} from "forge/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+// interfaces
+import {IRewardDistributor} from "../../../contracts/interfaces/IRewardDistributor.sol";
+
+// libraries
+import "stringutils/strings.sol";
+
 interface ITestContract {
     function addStakedToken(StakedToken stakedToken) external;
 }
 
 contract SafetyModuleHandler is Test {
+    using strings for *;
+
+    event StakingTokenAdded(address indexed stakingToken);
+
     SafetyModule public safetyModule;
 
     ITestContract public testContract;
@@ -51,10 +61,12 @@ contract SafetyModuleHandler is Test {
             cooldownSeconds,
             unstakeWindowSeconds,
             maxStakeAmount,
-            "stk".concat(underlyingName),
-            "stk".concat(underlyingSymbol)
+            "stk".toSlice().concat(underlyingName.toSlice()),
+            "stk".toSlice().concat(underlyingSymbol.toSlice())
         );
-        safetyModule.addStakedToken(stakedToken);
+        vm.expectEmit(false, false, false, true);
+        emit StakingTokenAdded(address(stakedToken));
+        safetyModule.addStakingToken(stakedToken);
         testContract.addStakedToken(stakedToken);
     }
 }
