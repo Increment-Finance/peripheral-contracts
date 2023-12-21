@@ -3,3 +3,4 @@ prb-math/=lib/increment-protocol/lib/prb-math
 @increment/=lib/increment-protocol/contracts/
 @increment-governance/=lib/increment-governance/src/
 forge/=lib/increment-protocol/lib/forge-std/src/
+stringutils/=lib/solidity-stringutils/
