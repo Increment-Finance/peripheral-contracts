@@ -94,6 +94,15 @@ contract StakedTokenHandler is Test {
             stakedToken.stake(amount);
             return;
         }
+        if (stakedToken.isInPostSlashingState()) {
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "StakedToken_StakingDisabledInPostSlashingState()"
+                )
+            );
+            stakedToken.stake(amount);
+            return;
+        }
         if (amount > type(uint128).max) {
             amount = type(uint128).max;
         }
