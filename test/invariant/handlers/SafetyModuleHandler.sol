@@ -109,6 +109,32 @@ contract SafetyModuleHandler is Test {
         safetyModule.addStakingToken(stakedToken);
         testContract.addStakedToken(stakedToken);
     }
+    // function addStakingToken(
+    //     string memory underlyingName,
+    //     string memory underlyingSymbol,
+    //     uint256 cooldownSeconds,
+    //     uint256 unstakeWindowSeconds,
+    //     uint256 maxStakeAmount
+    // ) external useGovernance {
+    //     cooldownSeconds = bound(cooldownSeconds, 1 hours, 1 weeks);
+    //     unstakeWindowSeconds = bound(unstakeWindowSeconds, 1 hours, 1 weeks);
+    //     maxStakeAmount = bound(maxStakeAmount, 10_000e18, 1_000_000e18);
+    //     ERC20 underlying = new ERC20(underlyingName, underlyingSymbol);
+    //     StakedToken stakedToken = new StakedToken(
+    //         underlying,
+    //         safetyModule,
+    //         cooldownSeconds,
+    //         unstakeWindowSeconds,
+    //         maxStakeAmount,
+    //         "stk".toSlice().concat(underlyingName.toSlice()),
+    //         "stk".toSlice().concat(underlyingSymbol.toSlice())
+    //     );
+    //     vm.expectEmit(false, false, false, true);
+    //     emit StakingTokenAdded(address(stakedToken));
+    //     safetyModule.addStakingToken(stakedToken);
+    //     vm.stopPrank();
+    //     testContract.addStakedToken(stakedToken);
+    // }
 
     function setMaxPercentUserLoss(
         uint256 maxPercentUserLoss
