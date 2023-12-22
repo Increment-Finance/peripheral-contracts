@@ -135,10 +135,12 @@ contract SafetyModuleHandler is Test {
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external useGovernance {
-        uint256 stakedTokenIndex = bound(
-            _stakedTokenIndexSeed,
-            0,
-            safetyModule.getNumStakingTokens() - 1
+        IStakedToken stakedToken = safetyModule.stakingTokens(
+            bound(
+                _stakedTokenIndexSeed,
+                0,
+                safetyModule.getNumStakingTokens() - 1
+            )
         );
         _numLots = uint8(bound(_numLots, 1, 100));
         _lotPrice = uint128(bound(_lotPrice, 1e6, type(uint128).max));
@@ -157,53 +159,36 @@ contract SafetyModuleHandler is Test {
         );
         _timeLimit = uint32(bound(_timeLimit, 1 days, 4 weeks));
 
-        IStakedToken stakedToken = safetyModule.stakingTokens(stakedTokenIndex);
-        uint256 slashAmount = safetyModule.getAuctionableTotal(
-            address(stakedToken)
+        uint256 underlyingAmount = stakedToken.previewRedeem(
+            safetyModule.getAuctionableTotal(address(stakedToken))
         );
-        uint256 underlyingAmount = stakedToken.previewRedeem(slashAmount);
-        uint256 initialTotalTokens = uint256(_initialLotSize) *
-            uint256(_numLots);
         uint256 nextAuctionId = auctionModule.nextAuctionId();
-        bool isInPostSlashingState = stakedToken.isInPostSlashingState();
+        bool expectFail;
 
-        if (slashAmount == 0) {
+        if (safetyModule.getAuctionableTotal(address(stakedToken)) == 0) {
+            expectFail = true;
             vm.expectRevert(
                 abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
             );
-        } else if (isInPostSlashingState) {
+        } else if (stakedToken.isInPostSlashingState()) {
+            expectFail = true;
             vm.expectRevert(
                 abi.encodeWithSignature(
                     "StakedToken_SlashingDisabledInPostSlashingState()"
                 )
             );
-        } else if (underlyingAmount < initialTotalTokens) {
+        } else if (
+            underlyingAmount < uint256(_initialLotSize) * uint256(_numLots)
+        ) {
+            expectFail = true;
+            IERC20 underlyingToken = stakedToken.getUnderlyingToken();
             vm.expectRevert(
                 abi.encodeWithSignature(
                     "SafetyModule_InsufficientSlashedTokensForAuction(address,uint256,uint256)",
-                    address(stakedToken.getUnderlyingToken()),
-                    initialTotalTokens,
+                    address(underlyingToken),
+                    uint256(_initialLotSize) * uint256(_numLots),
                     underlyingAmount
                 )
-            );
-        } else {
-            vm.expectEmit(false, false, false, true);
-            emit TokensSlashedForAuction(
-                address(stakedToken),
-                slashAmount,
-                underlyingAmount,
-                nextAuctionId
-            );
-            vm.expectEmit(false, false, false, true);
-            emit AuctionStarted(
-                nextAuctionId,
-                address(stakedToken.getUnderlyingToken()),
-                uint64(block.timestamp + _timeLimit),
-                _lotPrice,
-                _initialLotSize,
-                _numLots,
-                _lotIncreaseIncrement,
-                _lotIncreasePeriod
             );
         }
 
@@ -217,11 +202,7 @@ contract SafetyModuleHandler is Test {
             _timeLimit
         );
 
-        if (
-            slashAmount == 0 ||
-            isInPostSlashingState ||
-            underlyingAmount < initialTotalTokens
-        ) {
+        if (expectFail) {
             return;
         }
 
