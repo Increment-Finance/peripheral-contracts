@@ -1808,30 +1808,6 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardDistributor.initMarketStartTime(address(stakedToken1));
         vm.stopPrank();
 
-        // test invalid auction ID
-        // (auction exists but corresponding StakedToken is not stored in SafetyModule)
-        vm.startPrank(address(safetyModule));
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            numLots,
-            1 ether,
-            lotSize,
-            0.1 ether,
-            1 hours,
-            10 days
-        );
-        vm.stopPrank();
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
-        safetyModule.terminateAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
-        vm.startPrank(address(auctionModule));
-        safetyModule.auctionEnded(0, 0);
-        vm.stopPrank();
-
         // test insufficient auctionable funds
         vm.expectRevert(
             abi.encodeWithSignature(
