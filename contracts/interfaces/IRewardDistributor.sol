@@ -109,8 +109,7 @@ interface IRewardDistributor {
     );
 
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
-    /// @param argIndex Index of the invalid argument
-    error RewardDistributor_InvalidZeroAddress(uint256 argIndex);
+    error RewardDistributor_InvalidZeroAddress();
 
     /// @notice Gets the address of the reward token vault
     /// @return Address of the EcosystemReserve contract which serves as the reward token vault

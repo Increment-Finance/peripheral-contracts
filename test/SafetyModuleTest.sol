@@ -1766,10 +1766,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
         rewardDistributor.setSmoothingValue(highSmoothingValue);
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidZeroAddress(uint256)",
-                0
-            )
+            abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()")
         );
         rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 

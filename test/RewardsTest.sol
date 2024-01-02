@@ -1684,10 +1684,7 @@ contract RewardsTest is Deployment, Utils {
         );
         ecosystemReserve.transferAdmin(address(0));
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidZeroAddress(uint256)",
-                0
-            )
+            abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()")
         );
         rewardDistributor.setEcosystemReserve(address(0));
 
