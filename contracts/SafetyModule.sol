@@ -128,7 +128,6 @@ contract SafetyModule is
         address market,
         address user
     ) external override nonReentrant onlyStakingToken {
-        getStakingTokenIdx(market); // Called to make sure the staking token is registered
         smRewardDistributor.updatePosition(market, user);
     }
 
@@ -226,10 +225,6 @@ contract SafetyModule is
         auctionModule.terminateAuction(_auctionId);
         IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (
-            address(auctionToken) == address(0) ||
-            address(stakingToken) == address(0)
-        ) revert SafetyModule_InvalidAuctionId(_auctionId);
         uint256 remainingBalance = auctionToken.balanceOf(
             address(auctionModule)
         );
@@ -258,10 +253,6 @@ contract SafetyModule is
         address _from,
         uint256 _amount
     ) external onlyRole(GOVERNANCE) {
-        if (_stakingToken == address(0))
-            revert SafetyModule_InvalidZeroAddress(0);
-        if (_from == address(0)) revert SafetyModule_InvalidZeroAddress(1);
-        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(2);
         IStakedToken stakingToken = stakingTokens[
             getStakingTokenIdx(_stakingToken)
         ];
@@ -273,7 +264,6 @@ contract SafetyModule is
     function withdrawFundsRaisedFromAuction(
         uint256 _amount
     ) external onlyRole(GOVERNANCE) {
-        if (_amount == 0) revert SafetyModule_InvalidZeroAmount(0);
         IERC20 paymentToken = auctionModule.paymentToken();
         paymentToken.safeTransferFrom(
             address(auctionModule),
