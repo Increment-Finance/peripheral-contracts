@@ -118,14 +118,6 @@ interface ISafetyModule is IRewardContract {
         uint256 maxAmount
     );
 
-    /// @notice Error returned when a caller passes a zero amount to a function that requires a non-zero value
-    /// @param argIndex Index of the argument where a zero was passed
-    error SafetyModule_InvalidZeroAmount(uint256 argIndex);
-
-    /// @notice Error returned when a caller passes the zero address to a function that requires a non-zero address
-    /// @param argIndex Index of the argument where a zero address was passed
-    error SafetyModule_InvalidZeroAddress(uint256 argIndex);
-
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
     function auctionModule() external view returns (IAuctionModule);
