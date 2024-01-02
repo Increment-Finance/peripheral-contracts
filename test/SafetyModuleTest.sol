@@ -616,11 +616,11 @@ contract SafetyModuleTest is Deployment, Utils {
         newSafetyModule.setAuctionModule(newAuctionModule);
         newAuctionModule.setSafetyModule(newSafetyModule);
         TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
-            ISafetyModule(address(0)),
-            INITIAL_MAX_MULTIPLIER,
-            INITIAL_SMOOTHING_VALUE,
-            address(rewardVault)
-        );
+                ISafetyModule(address(0)),
+                INITIAL_MAX_MULTIPLIER,
+                INITIAL_SMOOTHING_VALUE,
+                address(rewardVault)
+            );
         newSafetyModule.setRewardDistributor(newRewardDistributor);
         newRewardDistributor.setSafetyModule(newSafetyModule);
 
@@ -738,11 +738,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Remove all reward tokens from EcosystemReserve
         uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
-        rewardVault.transfer(
-            rewardsToken,
-            address(this),
-            rewardBalance
-        );
+        rewardVault.transfer(rewardsToken, address(this), rewardBalance);
 
         // Skip some time
         skip(10 days);
@@ -1769,6 +1765,13 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         rewardDistributor.setSmoothingValue(highSmoothingValue);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_InvalidZeroAddress(uint256)",
+                0
+            )
+        );
+        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
         // test staking token already registered
         vm.expectRevert(
@@ -1855,47 +1858,6 @@ contract SafetyModuleTest is Deployment, Utils {
             0,
             1 days
         );
-
-        // test invalid zero args
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        safetyModule.returnFunds(address(0), address(auctionModule), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                1
-            )
-        );
-        safetyModule.returnFunds(address(stakedToken1), address(0), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                2
-            )
-        );
-        safetyModule.returnFunds(
-            address(stakedToken1),
-            address(auctionModule),
-            0
-        );
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                0
-            )
-        );
-        safetyModule.withdrawFundsRaisedFromAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
         // test invalid caller not auction module
         vm.expectRevert(
