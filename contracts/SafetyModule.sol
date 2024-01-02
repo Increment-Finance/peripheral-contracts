@@ -142,8 +142,6 @@ contract SafetyModule is
         uint256 _remainingBalance
     ) external onlyAuctionModule {
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (address(stakingToken) == address(0))
-            revert SafetyModule_InvalidAuctionId(_auctionId);
         if (_remainingBalance != 0)
             _returnFunds(
                 stakingToken,
