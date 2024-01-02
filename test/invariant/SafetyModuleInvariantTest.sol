@@ -130,6 +130,7 @@ contract SafetyModuleInvariantTest is Test {
         );
 
         // Deploy auction module
+        usdc = IERC20Metadata(USDC);
         auctionModule = new AuctionModule(safetyModule, IERC20(address(usdc)));
         safetyModule.setAuctionModule(auctionModule);
 
