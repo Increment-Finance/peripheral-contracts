@@ -15,6 +15,8 @@ import {strings} from "stringutils/strings.sol";
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 interface ITestContract {
+    function numStakedTokenHandlers() external view returns (uint256);
+
     function addStakedToken(StakedToken stakedToken) external;
 }
 
@@ -93,6 +95,9 @@ contract SafetyModuleHandler is Test {
     //     uint256 unstakeWindowSeconds,
     //     uint256 maxStakeAmount
     // ) external useGovernance {
+    //     if (testContract.numStakedTokenHandlers() == 9) {
+    //         return;
+    //     }
     //     cooldownSeconds = bound(cooldownSeconds, 1 hours, 1 weeks);
     //     unstakeWindowSeconds = bound(unstakeWindowSeconds, 1 hours, 1 weeks);
     //     maxStakeAmount = bound(maxStakeAmount, 10_000e18, 1_000_000e18);

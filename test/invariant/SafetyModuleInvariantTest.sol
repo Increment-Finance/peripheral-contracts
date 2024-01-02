@@ -78,7 +78,15 @@ contract SafetyModuleInvariantTest is Test {
     SMRDHandler public smrdHandler;
     StakedTokenHandler public stakedTokenHandler1;
     StakedBPTHandler public stakedTokenHandler2;
+    StakedTokenHandler public stakedTokenHandler3;
+    StakedTokenHandler public stakedTokenHandler4;
+    StakedTokenHandler public stakedTokenHandler5;
+    StakedTokenHandler public stakedTokenHandler6;
+    StakedTokenHandler public stakedTokenHandler7;
+    StakedTokenHandler public stakedTokenHandler8;
+    StakedTokenHandler public stakedTokenHandler9;
     StakedTokenHandler[] public stakedTokenHandlers;
+    uint256 public numStakedTokenHandlers = 2;
 
     // Invariant ghost variables
     mapping(address => mapping(address => uint256))
@@ -275,6 +283,35 @@ contract SafetyModuleInvariantTest is Test {
             poolAssets,
             poolId
         );
+        // Deploy extra staked token handlers for later use
+        stakedTokenHandler3 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
+        stakedTokenHandler4 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
+        stakedTokenHandler5 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
+        stakedTokenHandler6 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
+        stakedTokenHandler7 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
+        stakedTokenHandler8 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
+        stakedTokenHandler9 = new StakedTokenHandler(
+            StakedToken(address(0)),
+            stakers
+        );
         stakedTokenHandlers = [stakedTokenHandler1, stakedTokenHandler2];
 
         // Set handlers as target contracts
@@ -447,12 +484,46 @@ contract SafetyModuleInvariantTest is Test {
     function addStakedToken(
         StakedToken newStakedToken
     ) external onlySafetyModuleHandler {
+        IERC20 underlying = newStakedToken.getUnderlyingToken();
+
+        // Use pre-deployed StakedTokenHandler
+        // since deploying a new one doesn't give it access to cheats
+        StakedTokenHandler newStakedTokenHandler;
+        if (numStakedTokenHandlers == 2)
+            newStakedTokenHandler = stakedTokenHandler3;
+        else if (numStakedTokenHandlers == 3)
+            newStakedTokenHandler = stakedTokenHandler4;
+        else if (numStakedTokenHandlers == 4)
+            newStakedTokenHandler = stakedTokenHandler5;
+        else if (numStakedTokenHandlers == 5)
+            newStakedTokenHandler = stakedTokenHandler6;
+        else if (numStakedTokenHandlers == 6)
+            newStakedTokenHandler = stakedTokenHandler7;
+        else if (numStakedTokenHandlers == 7)
+            newStakedTokenHandler = stakedTokenHandler8;
+        else if (numStakedTokenHandlers == 8)
+            newStakedTokenHandler = stakedTokenHandler9;
+        else revert("too many staked token handlers");
+        numStakedTokenHandlers++;
+        newStakedTokenHandler.setStakedToken(newStakedToken);
+        // newStakedTokenHandler = new StakedTokenHandler(newStakedToken, stakers);
+
+        // Add staked token and its handler to lists
         stakedTokens.push(newStakedToken);
-        StakedTokenHandler newStakedTokenHandler = new StakedTokenHandler(
-            newStakedToken,
-            stakers
-        );
         stakedTokenHandlers.push(newStakedTokenHandler);
+
+        // Register new target and exclude base contracts
         targetContract(address(newStakedTokenHandler));
+        excludeContract(address(newStakedToken));
+        excludeContract(address(underlying));
+
+        // Approve new staked token for users
+        vm.startPrank(stakerOne);
+        underlying.approve(address(newStakedToken), type(uint256).max);
+        vm.startPrank(stakerTwo);
+        underlying.approve(address(newStakedToken), type(uint256).max);
+        vm.startPrank(stakerThree);
+        underlying.approve(address(newStakedToken), type(uint256).max);
+        vm.stopPrank();
     }
 }
