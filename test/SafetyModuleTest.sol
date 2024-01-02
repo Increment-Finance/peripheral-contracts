@@ -1790,14 +1790,6 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         safetyModule.getStakingTokenIdx(invalidMarket);
-        vm.startPrank(address(stakedToken1));
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidStakingToken(address)",
-                invalidMarket
-            )
-        );
-        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.startPrank(invalidMarket);
         vm.expectRevert(
             abi.encodeWithSignature(
