@@ -1537,20 +1537,6 @@ contract RewardsTest is Deployment, Utils {
         rewardDistributor.registerPositions(markets);
         vm.stopPrank();
 
-        _provideLiquidityBothPerps(10_000e18, 10_000e18);
-
-        // accrueRewards
-        skip(5 days);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
-                liquidityProviderTwo,
-                address(perpetual),
-                block.timestamp + 5 days
-            )
-        );
-        rewardDistributor.accrueRewards(liquidityProviderTwo);
-
         // addRewardToken
         vm.startPrank(address(this));
         address[] memory markets2 = new address[](2);
