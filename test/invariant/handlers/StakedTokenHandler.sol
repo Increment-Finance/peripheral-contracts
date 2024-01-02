@@ -46,6 +46,8 @@ contract StakedTokenHandler is Test {
 
     address internal currentActor;
 
+    address internal testContract;
+
     mapping(address => uint256) public stakeBalances;
 
     modifier useActor(uint256 actorIndexSeed) {
@@ -57,16 +59,28 @@ contract StakedTokenHandler is Test {
 
     constructor(StakedToken _stakedToken, address[] memory _actors) {
         stakedToken = _stakedToken;
+        actors = _actors;
+        currentActor = actors[0];
+        testContract = msg.sender;
+        if (address(stakedToken) == address(0)) return;
         smRewardDistributor = stakedToken.safetyModule().smRewardDistributor();
         rewardDistributor = IRewardDistributor(address(smRewardDistributor));
         rewardController = IRewardController(address(smRewardDistributor));
-        actors = _actors;
-        currentActor = actors[0];
     }
 
-    /* ******************** */
-    /*  External Functions  */
-    /* ******************** */
+    /* ********************* */
+    /* Test Helper Functions */
+    /* ********************* */
+
+    function setStakedToken(StakedToken _stakedToken) external {
+        if (msg.sender != testContract || address(stakedToken) != address(0)) {
+            return;
+        }
+        stakedToken = _stakedToken;
+        smRewardDistributor = stakedToken.safetyModule().smRewardDistributor();
+        rewardDistributor = IRewardDistributor(address(smRewardDistributor));
+        rewardController = IRewardController(address(smRewardDistributor));
+    }
 
     function dealUnderlying(
         uint256 amount,
@@ -77,6 +91,10 @@ contract StakedTokenHandler is Test {
         amount = bound(amount, 1e18, 1_000_000e18);
         deal(underlying, actor, amount);
     }
+
+    /* ******************** */
+    /*  External Functions  */
+    /* ******************** */
 
     function stake(
         uint256 amount,
