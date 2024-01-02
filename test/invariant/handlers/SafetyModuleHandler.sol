@@ -11,7 +11,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IRewardDistributor} from "../../../contracts/interfaces/IRewardDistributor.sol";
 
 // libraries
-import "stringutils/strings.sol";
+import {strings} from "stringutils/strings.sol";
+import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 interface ITestContract {
     function addStakedToken(StakedToken stakedToken) external;
@@ -19,6 +20,7 @@ interface ITestContract {
 
 contract SafetyModuleHandler is Test {
     using strings for *;
+    using PRBMathUD60x18 for uint256;
 
     event StakingTokenAdded(address indexed stakingToken);
 
