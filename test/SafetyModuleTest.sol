@@ -1967,7 +1967,10 @@ contract SafetyModuleTest is Deployment, Utils {
         // redeem correctly
         stakedToken1.cooldown();
         skip(1 days);
-        stakedToken1.redeem(stakedBalance);
+        if (stakedBalance % 2 == 0 && stakedBalance < type(uint256).max / 2)
+            // test redeeming more than staked balance to make sure it adjusts the amount
+            stakedToken1.redeem(stakedBalance * 2);
+        else stakedToken1.redeem(stakedBalance);
         // restake, then try redeeming without cooldown
         stakedToken1.stake(stakedBalance);
         vm.expectRevert(
@@ -2087,6 +2090,33 @@ contract SafetyModuleTest is Deployment, Utils {
         // try slashing 100% of staked tokens, when only 30% is allowed
         stakedToken1.slash(address(this), maxAuctionableTotal);
         vm.stopPrank();
+
+        // test paused
+        stakedToken1.pause();
+        assertTrue(stakedToken1.paused(), "Staked token should be paused");
+        vm.startPrank(address(liquidityProviderOne));
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.stake(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.redeem(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.transfer(liquidityProviderTwo, 1);
+        vm.stopPrank();
+        stakedToken1.unpause();
+        safetyModule.pause();
+        assertTrue(
+            stakedToken1.paused(),
+            "Staked token should be paused when Safety Module is"
+        );
+        vm.startPrank(address(liquidityProviderOne));
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.stake(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.redeem(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.transfer(liquidityProviderTwo, 1);
+        vm.stopPrank();
+        safetyModule.unpause();
     }
 
     function testAuctionModuleErrors() public {

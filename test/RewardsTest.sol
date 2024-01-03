@@ -152,6 +152,7 @@ contract RewardsTest is Deployment, Utils {
             10 days,
             weights
         );
+        rewardDistributor.setClearingHouse(clearingHouse); // just for coverage, will likely never happen
 
         // Transfer all rewards tokens to the vault and approve the distributor
         rewardsToken.transfer(
@@ -907,19 +908,23 @@ contract RewardsTest is Deployment, Utils {
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint256 reductionRatio,
+        uint256 thresholdTime,
         uint256 skipTime
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         reductionRatio = bound(reductionRatio, 1e16, 5e17);
-        skipTime = bound(skipTime, 1 days, 5 days);
+        thresholdTime = bound(thresholdTime, 1 days, 28 days);
+        skipTime = bound(skipTime, thresholdTime / 10, thresholdTime / 2);
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
         );
         require(
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
+
+        rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
 
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
         uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
@@ -949,7 +954,7 @@ contract RewardsTest is Deployment, Utils {
         // console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
-            (cumulativeRewards1.wadMul(lpBalance1) * skipTime) / 10 days,
+            (cumulativeRewards1.wadMul(lpBalance1) * skipTime) / thresholdTime,
             1e16,
             "Incorrect rewards"
         );
@@ -962,7 +967,7 @@ contract RewardsTest is Deployment, Utils {
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // skip to the end of the early withdrawal window
-        skip(10 days - 2 * skipTime);
+        skip(thresholdTime - 2 * skipTime);
 
         // remove all liquidity from second perpetual
         _removeAllLiquidity(liquidityProviderTwo, perpetual2);
@@ -987,8 +992,8 @@ contract RewardsTest is Deployment, Utils {
             );
         assertApproxEqRel(
             accruedRewards,
-            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) / 10 days) +
-                cumulativeRewards2.wadMul(lpBalance2),
+            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) /
+                thresholdTime) + cumulativeRewards2.wadMul(lpBalance2),
             1e16,
             "Incorrect rewards"
         );
@@ -997,7 +1002,7 @@ contract RewardsTest is Deployment, Utils {
                 liquidityProviderTwo,
                 address(perpetual)
             ),
-            block.timestamp - (10 days - 2 * skipTime),
+            block.timestamp - (thresholdTime - 2 * skipTime),
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
