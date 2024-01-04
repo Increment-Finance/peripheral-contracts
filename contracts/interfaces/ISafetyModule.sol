@@ -98,10 +98,6 @@ interface ISafetyModule is IRewardContract {
     /// @param invalidAddress Address that was passed
     error SafetyModule_InvalidStakingToken(address invalidAddress);
 
-    /// @notice Error returned when passing an invalid auction ID to a function that interacts with the auction module
-    /// @param invalidId ID that was passed
-    error SafetyModule_InvalidAuctionId(uint256 invalidId);
-
     /// @notice Error returned when trying to set the max percent user loss to a value that is too high
     /// @param value Value that was passed
     /// @param max Maximum allowed value
@@ -117,14 +113,6 @@ interface ISafetyModule is IRewardContract {
         uint256 amount,
         uint256 maxAmount
     );
-
-    /// @notice Error returned when a caller passes a zero amount to a function that requires a non-zero value
-    /// @param argIndex Index of the argument where a zero was passed
-    error SafetyModule_InvalidZeroAmount(uint256 argIndex);
-
-    /// @notice Error returned when a caller passes the zero address to a function that requires a non-zero address
-    /// @param argIndex Index of the argument where a zero address was passed
-    error SafetyModule_InvalidZeroAddress(uint256 argIndex);
 
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract

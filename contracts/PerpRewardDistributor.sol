@@ -239,17 +239,12 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address market,
         address user
     ) internal virtual override {
+        // Do not accrue rewards for the given market before the early withdrawal threshold has passed
         if (
             block.timestamp <
             withdrawTimerStartByUserByMarket[user][market] +
                 earlyWithdrawalThreshold
-        )
-            revert RewardDistributor_EarlyRewardAccrual(
-                user,
-                market,
-                withdrawTimerStartByUserByMarket[user][market] +
-                    earlyWithdrawalThreshold
-            );
+        ) return;
         uint256 lpPosition = lpPositionsPerUser[user][market];
         if (lpPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,

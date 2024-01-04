@@ -616,11 +616,11 @@ contract SafetyModuleTest is Deployment, Utils {
         newSafetyModule.setAuctionModule(newAuctionModule);
         newAuctionModule.setSafetyModule(newSafetyModule);
         TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
-            ISafetyModule(address(0)),
-            INITIAL_MAX_MULTIPLIER,
-            INITIAL_SMOOTHING_VALUE,
-            address(rewardVault)
-        );
+                ISafetyModule(address(0)),
+                INITIAL_MAX_MULTIPLIER,
+                INITIAL_SMOOTHING_VALUE,
+                address(rewardVault)
+            );
         newSafetyModule.setRewardDistributor(newRewardDistributor);
         newRewardDistributor.setSafetyModule(newSafetyModule);
 
@@ -738,11 +738,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Remove all reward tokens from EcosystemReserve
         uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
-        rewardVault.transfer(
-            rewardsToken,
-            address(this),
-            rewardBalance
-        );
+        rewardVault.transfer(rewardsToken, address(this), rewardBalance);
 
         // Skip some time
         skip(10 days);
@@ -1769,6 +1765,10 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         rewardDistributor.setSmoothingValue(highSmoothingValue);
+        vm.expectRevert(
+            abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()")
+        );
+        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
         // test staking token already registered
         vm.expectRevert(
@@ -1787,14 +1787,6 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         safetyModule.getStakingTokenIdx(invalidMarket);
-        vm.startPrank(address(stakedToken1));
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidStakingToken(address)",
-                invalidMarket
-            )
-        );
-        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.startPrank(invalidMarket);
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1811,30 +1803,6 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         rewardDistributor.initMarketStartTime(address(stakedToken1));
-        vm.stopPrank();
-
-        // test invalid auction ID
-        // (auction exists but corresponding StakedToken is not stored in SafetyModule)
-        vm.startPrank(address(safetyModule));
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            numLots,
-            1 ether,
-            lotSize,
-            0.1 ether,
-            1 hours,
-            10 days
-        );
-        vm.stopPrank();
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
-        safetyModule.terminateAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
-        vm.startPrank(address(auctionModule));
-        safetyModule.auctionEnded(0, 0);
         vm.stopPrank();
 
         // test insufficient auctionable funds
@@ -1855,47 +1823,6 @@ contract SafetyModuleTest is Deployment, Utils {
             0,
             1 days
         );
-
-        // test invalid zero args
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        safetyModule.returnFunds(address(0), address(auctionModule), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                1
-            )
-        );
-        safetyModule.returnFunds(address(stakedToken1), address(0), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                2
-            )
-        );
-        safetyModule.returnFunds(
-            address(stakedToken1),
-            address(auctionModule),
-            0
-        );
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                0
-            )
-        );
-        safetyModule.withdrawFundsRaisedFromAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
         // test invalid caller not auction module
         vm.expectRevert(
@@ -2040,7 +1967,10 @@ contract SafetyModuleTest is Deployment, Utils {
         // redeem correctly
         stakedToken1.cooldown();
         skip(1 days);
-        stakedToken1.redeem(stakedBalance);
+        if (stakedBalance % 2 == 0 && stakedBalance < type(uint256).max / 2)
+            // test redeeming more than staked balance to make sure it adjusts the amount
+            stakedToken1.redeem(stakedBalance * 2);
+        else stakedToken1.redeem(stakedBalance);
         // restake, then try redeeming without cooldown
         stakedToken1.stake(stakedBalance);
         vm.expectRevert(
@@ -2160,6 +2090,33 @@ contract SafetyModuleTest is Deployment, Utils {
         // try slashing 100% of staked tokens, when only 30% is allowed
         stakedToken1.slash(address(this), maxAuctionableTotal);
         vm.stopPrank();
+
+        // test paused
+        stakedToken1.pause();
+        assertTrue(stakedToken1.paused(), "Staked token should be paused");
+        vm.startPrank(address(liquidityProviderOne));
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.stake(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.redeem(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.transfer(liquidityProviderTwo, 1);
+        vm.stopPrank();
+        stakedToken1.unpause();
+        safetyModule.pause();
+        assertTrue(
+            stakedToken1.paused(),
+            "Staked token should be paused when Safety Module is"
+        );
+        vm.startPrank(address(liquidityProviderOne));
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.stake(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.redeem(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.transfer(liquidityProviderTwo, 1);
+        vm.stopPrank();
+        safetyModule.unpause();
     }
 
     function testAuctionModuleErrors() public {

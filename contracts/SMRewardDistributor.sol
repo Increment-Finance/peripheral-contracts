@@ -203,7 +203,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         ISafetyModule _newSafetyModule
     ) external onlyRole(GOVERNANCE) {
         if (address(_newSafetyModule) == address(0))
-            revert RewardDistributor_InvalidZeroAddress(0);
+            revert RewardDistributor_InvalidZeroAddress();
         emit SafetyModuleUpdated(
             address(safetyModule),
             address(_newSafetyModule)

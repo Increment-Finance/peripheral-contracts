@@ -83,17 +83,6 @@ interface IRewardDistributor {
         uint256 position
     );
 
-    /// @notice Error returned when a user tries to manually accrue rewards before the early withdrawal
-    /// penalty period is over
-    /// @param user Address of the user
-    /// @param market Address of the market
-    /// @param claimAllowedTimestamp Timestamp when the early withdrawal penalty period is over
-    error RewardDistributor_EarlyRewardAccrual(
-        address user,
-        address market,
-        uint256 claimAllowedTimestamp
-    );
-
     /// @notice Error returned if a user's position stored in the RewardDistributor does not match their current position in a given market
     /// @dev Only possible when the user had a pre-existing position in the market before the RewardDistributor
     /// was deployed, and has not called `registerPositions` yet
@@ -109,8 +98,7 @@ interface IRewardDistributor {
     );
 
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
-    /// @param argIndex Index of the invalid argument
-    error RewardDistributor_InvalidZeroAddress(uint256 argIndex);
+    error RewardDistributor_InvalidZeroAddress();
 
     /// @notice Gets the address of the reward token vault
     /// @return Address of the EcosystemReserve contract which serves as the reward token vault
