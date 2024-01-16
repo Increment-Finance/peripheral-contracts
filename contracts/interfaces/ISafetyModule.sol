@@ -99,6 +99,12 @@ interface ISafetyModule is IRewardContract {
     /// @param max Maximum allowed value
     error SafetyModule_InvalidMaxUserLossTooHigh(uint256 value, uint256 max);
 
+    /// @notice Error returned when trying to slash too soon after updating `maxPercentUserLoss`
+    /// @param enabledTime Time when slashing will be allowed again
+    error SafetyModule_DisabledAfterMaxPercentUserLossUpdated(
+        uint256 enabledTime
+    );
+
     /// @notice Error returned when the maximum auctionable amount of underlying tokens is less than
     /// the given initial lot size multiplied by the number of lots when calling `slashAndStartAuction`
     /// @param token The underlying ERC20 token

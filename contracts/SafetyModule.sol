@@ -31,6 +31,9 @@ contract SafetyModule is
     using PRBMathUD60x18 for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice Amount of time that must pass after updating `maxPercentUserLoss` before slashing can occur
+    uint256 public immutable USER_LOSS_UPDATE_DELAY;
+
     /// @notice Address of the auction module, which sells user funds in the event of an insolvency
     IAuctionModule public auctionModule;
 
@@ -45,6 +48,9 @@ contract SafetyModule is
 
     /// @notice The maximum percentage of user funds that can be sold at auction, normalized to 1e18
     uint256 public maxPercentUserLoss;
+
+    /// @notice Timestamp of the last time `maxPercentUserLoss` was updated
+    uint256 public maxUserLossUpdateTime;
 
     /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
     /// i.e., `updatePosition`
@@ -79,14 +85,16 @@ contract SafetyModule is
     constructor(
         address _auctionModule,
         address _smRewardDistributor,
-        uint256 _maxPercentUserLoss
+        uint256 _maxPercentUserLoss,
+        uint256 _maxUserLossUpdateDelay
     ) payable {
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
         maxPercentUserLoss = _maxPercentUserLoss;
+        USER_LOSS_UPDATE_DELAY = _maxUserLossUpdateDelay;
         emit AuctionModuleUpdated(address(0), _auctionModule);
         emit RewardDistributorUpdated(address(0), _smRewardDistributor);
-        emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
+        emit MaxPercentUserLossUpdated(0, _maxPercentUserLoss);
     }
 
     /* ****************** */
@@ -172,6 +180,12 @@ contract SafetyModule is
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
+        // Slashing is not allowed for `maxUserLossUpdateDelay` seconds after updating `maxPercentUserLoss`
+        if (block.timestamp < maxUserLossUpdateTime + USER_LOSS_UPDATE_DELAY)
+            revert SafetyModule_DisabledAfterMaxPercentUserLossUpdated(
+                maxUserLossUpdateTime + USER_LOSS_UPDATE_DELAY
+            );
+
         IStakedToken stakedToken = stakingTokens[
             getStakingTokenIdx(_stakedToken)
         ];
@@ -304,8 +318,9 @@ contract SafetyModule is
                 _maxPercentUserLoss,
                 1e18
             );
+        emit MaxPercentUserLossUpdated(maxPercentUserLoss, _maxPercentUserLoss);
         maxPercentUserLoss = _maxPercentUserLoss;
-        emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
+        maxUserLossUpdateTime = block.timestamp;
     }
 
     /// @inheritdoc ISafetyModule
