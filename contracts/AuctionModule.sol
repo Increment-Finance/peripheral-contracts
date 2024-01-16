@@ -51,6 +51,9 @@ contract AuctionModule is
         uint96 lotIncreaseIncrement;
     }
 
+    /// @notice Minimum duration of an auction
+    uint256 public immutable MIN_AUCTION_DURATION;
+
     /// @notice SafetyModule contract which manages staked token rewards, slashing and auctions
     ISafetyModule public safetyModule;
 
@@ -79,9 +82,14 @@ contract AuctionModule is
     /// @notice AuctionModule constructor
     /// @param _safetyModule SafetyModule contract to manage this contract
     /// @param _paymentToken ERC20 token used to purchase lots in auctions
-    constructor(ISafetyModule _safetyModule, IERC20 _paymentToken) payable {
+    constructor(
+        ISafetyModule _safetyModule,
+        IERC20 _paymentToken,
+        uint256 _minDuration
+    ) payable {
         safetyModule = _safetyModule;
         paymentToken = _paymentToken;
+        MIN_AUCTION_DURATION = _minDuration;
     }
 
     /* ****************** */
@@ -261,7 +269,8 @@ contract AuctionModule is
             revert AuctionModule_InvalidZeroArgument(4);
         if (_lotIncreasePeriod == 0)
             revert AuctionModule_InvalidZeroArgument(5);
-        if (_timeLimit == 0) revert AuctionModule_InvalidZeroArgument(6);
+        if (_timeLimit < MIN_AUCTION_DURATION)
+            revert AuctionModule_BelowMinimumDuration(MIN_AUCTION_DURATION);
 
         // Create auction
         uint256 auctionId = nextAuctionId;

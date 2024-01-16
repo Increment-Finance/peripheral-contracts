@@ -82,6 +82,10 @@ interface IAuctionModule {
     /// @param argIndex Index of the argument where a zero address was passed
     error AuctionModule_InvalidZeroAddress(uint256 argIndex);
 
+    /// @notice Error returned when attempting to start an auction with a duration that is too short
+    /// @param minDuration Minimum duration of an auction
+    error AuctionModule_BelowMinimumDuration(uint256 minDuration);
+
     /// @notice Error returned when a caller calls a function that requires the auction to be active
     /// @param auctionId ID of the auction
     error AuctionModule_AuctionNotActive(uint256 auctionId);

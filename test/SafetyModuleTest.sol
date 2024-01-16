@@ -147,7 +147,11 @@ contract SafetyModuleTest is Deployment, Utils {
         );
 
         // Deploy auction module
-        auctionModule = new AuctionModule(safetyModule, IERC20(address(usdc)));
+        auctionModule = new AuctionModule(
+            safetyModule,
+            IERC20(address(usdc)),
+            COOLDOWN_SECONDS
+        );
         safetyModule.setAuctionModule(auctionModule);
 
         // Deploy reward distributor
@@ -611,7 +615,8 @@ contract SafetyModuleTest is Deployment, Utils {
         );
         AuctionModule newAuctionModule = new AuctionModule(
             ISafetyModule(address(0)),
-            IERC20(address(usdc))
+            IERC20(address(usdc)),
+            COOLDOWN_SECONDS
         );
         newSafetyModule.setAuctionModule(newAuctionModule);
         newAuctionModule.setSafetyModule(newSafetyModule);
