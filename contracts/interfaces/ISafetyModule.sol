@@ -35,16 +35,12 @@ interface ISafetyModule is IRewardContract {
     );
 
     /// @notice Emitted when the max percent user loss is updated by governance
-    /// @param maxPercentUserLoss New max percent user loss
-    event MaxPercentUserLossUpdated(uint256 maxPercentUserLoss);
-
-    /// @notice Emitted when the max reward multiplier is updated by governance
-    /// @param maxRewardMultiplier New max reward multiplier
-    event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
-
-    /// @notice Emitted when the smoothing value is updated by governance
-    /// @param smoothingValue New smoothing value
-    event SmoothingValueUpdated(uint256 smoothingValue);
+    /// @param oldMaxPercentUserLoss Old max percent user loss
+    /// @param newMaxPercentUserLoss New max percent user loss
+    event MaxPercentUserLossUpdated(
+        uint256 oldMaxPercentUserLoss,
+        uint256 newMaxPercentUserLoss
+    );
 
     /// @notice Emitted when a staking token is slashed and the underlying tokens are sent to the AuctionModule
     /// @param stakingToken Address of the staking token
