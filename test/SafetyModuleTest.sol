@@ -2178,8 +2178,8 @@ contract SafetyModuleTest is Deployment, Utils {
         auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 0, 0);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "AuctionModule_InvalidZeroArgument(uint256)",
-                6
+                "AuctionModule_BelowMinimumDuration(uint256)",
+                COOLDOWN_SECONDS
             )
         );
         auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 1, 0);
