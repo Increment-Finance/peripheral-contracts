@@ -143,7 +143,8 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule = new SafetyModule(
             address(0),
             address(0),
-            INITIAL_MAX_USER_LOSS
+            INITIAL_MAX_USER_LOSS,
+            UNSTAKE_WINDOW
         );
 
         // Deploy auction module
@@ -611,7 +612,8 @@ contract SafetyModuleTest is Deployment, Utils {
         SafetyModule newSafetyModule = new SafetyModule(
             address(0),
             address(0),
-            INITIAL_MAX_USER_LOSS
+            INITIAL_MAX_USER_LOSS,
+            UNSTAKE_WINDOW
         );
         AuctionModule newAuctionModule = new AuctionModule(
             ISafetyModule(address(0)),
@@ -1837,6 +1839,41 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         safetyModule.auctionEnded(0, 0);
+
+        // test delay after updating maxPercentUserLoss
+        uint256 enabledTime = block.timestamp + UNSTAKE_WINDOW;
+        safetyModule.setMaxPercentUserLoss(1e18);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_DisabledAfterMaxPercentUserLossUpdated(uint256)",
+                enabledTime
+            )
+        );
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            1,
+            0,
+            1,
+            0,
+            0,
+            1 days
+        );
+        vm.warp(enabledTime - 1);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_DisabledAfterMaxPercentUserLossUpdated(uint256)",
+                enabledTime
+            )
+        );
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            1,
+            0,
+            1,
+            0,
+            0,
+            1 days
+        );
     }
 
     function testStakedTokenErrors(
