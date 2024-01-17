@@ -11,12 +11,20 @@ import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol
 /// @notice Interface for the Safety Module's Reward Distributor contract
 interface ISMRewardDistributor is IRewardDistributor, IRewardContract {
     /// @notice Emitted when the max reward multiplier is updated by governance
-    /// @param maxRewardMultiplier New max reward multiplier
-    event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
+    /// @param oldMaxRewardMultiplier Old max reward multiplier
+    /// @param newMaxRewardMultiplier New max reward multiplier
+    event MaxRewardMultiplierUpdated(
+        uint256 oldMaxRewardMultiplier,
+        uint256 newMaxRewardMultiplier
+    );
 
     /// @notice Emitted when the smoothing value is updated by governance
-    /// @param smoothingValue New smoothing value
-    event SmoothingValueUpdated(uint256 smoothingValue);
+    /// @param oldSmoothingValue Old smoothing value
+    /// @param newSmoothingValue New smoothing value
+    event SmoothingValueUpdated(
+        uint256 oldSmoothingValue,
+        uint256 newSmoothingValue
+    );
 
     /// @notice Emitted when the SafetyModule contract is updated by governance
     /// @param oldSafetyModule Address of the old SafetyModule contract
