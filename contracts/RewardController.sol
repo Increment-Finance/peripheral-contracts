@@ -244,13 +244,13 @@ abstract contract RewardController is
 
     /// @inheritdoc IRewardController
     /// @dev Can only be called by Emergency Admin
-    function pause() external override onlyRole(EMERGENCY_ADMIN) {
+    function pause() external virtual override onlyRole(EMERGENCY_ADMIN) {
         _pause();
     }
 
     /// @inheritdoc IRewardController
     /// @dev Can only be called by Emergency Admin
-    function unpause() external override onlyRole(EMERGENCY_ADMIN) {
+    function unpause() external virtual override onlyRole(EMERGENCY_ADMIN) {
         _unpause();
     }
 
