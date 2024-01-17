@@ -320,19 +320,15 @@ contract StakedToken is
         maxStakeAmount = _newMaxStakeAmount;
     }
 
-    /* ****************** */
-    /*   Emergency Admin  */
-    /* ****************** */
-
     /// @inheritdoc IStakedToken
-    /// @dev Can only be called by Emergency Admin
-    function pause() external onlyRole(EMERGENCY_ADMIN) {
+    /// @dev Can only be called by governance
+    function pause() external onlyRole(GOVERNANCE) {
         _pause();
     }
 
     /// @inheritdoc IStakedToken
-    /// @dev Can only be called by Emergency Admin
-    function unpause() external onlyRole(EMERGENCY_ADMIN) {
+    /// @dev Can only be called by governance
+    function unpause() external onlyRole(GOVERNANCE) {
         _unpause();
     }
 

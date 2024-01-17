@@ -328,19 +328,15 @@ contract SafetyModule is
         emit StakingTokenAdded(address(_stakingToken));
     }
 
-    /* ****************** */
-    /*   Emergency Admin  */
-    /* ****************** */
-
     /// @inheritdoc ISafetyModule
-    /// @dev Can only be called by Emergency Admin
-    function pause() external override onlyRole(EMERGENCY_ADMIN) {
+    /// @dev Only callable by governance
+    function pause() external override onlyRole(GOVERNANCE) {
         _pause();
     }
 
     /// @inheritdoc ISafetyModule
-    /// @dev Can only be called by Emergency Admin
-    function unpause() external override onlyRole(EMERGENCY_ADMIN) {
+    /// @dev Only callable by governance
+    function unpause() external override onlyRole(GOVERNANCE) {
         _unpause();
     }
 

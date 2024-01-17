@@ -240,6 +240,18 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         emit SmoothingValueUpdated(_smoothingValue);
     }
 
+    /// @inheritdoc IRewardController
+    /// @dev Only callable by governance
+    function pause() external override onlyRole(GOVERNANCE) {
+        _pause();
+    }
+
+    /// @inheritdoc IRewardController
+    /// @dev Only callable by governance
+    function unpause() external override onlyRole(GOVERNANCE) {
+        _unpause();
+    }
+
     /* **************** */
     /*     Internal     */
     /* **************** */
