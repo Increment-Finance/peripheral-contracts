@@ -188,11 +188,6 @@ contract StakedToken is
         if (destination == address(0)) revert StakedToken_InvalidZeroAddress();
         if (isInPostSlashingState)
             revert StakedToken_SlashingDisabledInPostSlashingState();
-        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
-            address(this)
-        );
-        if (amount > maxSlashAmount)
-            revert StakedToken_AboveMaxSlashAmount(amount, maxSlashAmount);
 
         // Change state to post-slashing
         isInPostSlashingState = true;

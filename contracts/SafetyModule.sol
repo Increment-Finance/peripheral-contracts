@@ -43,9 +43,6 @@ contract SafetyModule is
     /// @notice Mapping from auction ID to staking token that was slashed for the auction
     mapping(uint256 => IStakedToken) public stakingTokenByAuctionId;
 
-    /// @notice The maximum percentage of user funds that can be sold at auction, normalized to 1e18
-    uint256 public maxPercentUserLoss;
-
     /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
     /// i.e., `updatePosition`
     modifier onlyStakingToken() {
@@ -75,18 +72,11 @@ contract SafetyModule is
     /// @notice SafetyModule constructor
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _smRewardDistributor Address of the SMRewardDistributor contract, which distributes rewards to stakers
-    /// @param _maxPercentUserLoss The max percentage of user funds that can be sold at auction, normalized to 1e18
-    constructor(
-        address _auctionModule,
-        address _smRewardDistributor,
-        uint256 _maxPercentUserLoss
-    ) payable {
+    constructor(address _auctionModule, address _smRewardDistributor) payable {
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
-        maxPercentUserLoss = _maxPercentUserLoss;
         emit AuctionModuleUpdated(address(0), _auctionModule);
         emit RewardDistributorUpdated(address(0), _smRewardDistributor);
-        emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
     }
 
     /* ****************** */
@@ -108,12 +98,6 @@ contract SafetyModule is
             }
         }
         revert SafetyModule_InvalidStakingToken(token);
-    }
-
-    /// @inheritdoc ISafetyModule
-    function getAuctionableTotal(address token) public view returns (uint256) {
-        getStakingTokenIdx(token); // Called to make sure the staking token is registered
-        return IStakedToken(token).totalSupply().mul(maxPercentUserLoss);
     }
 
     /* ****************** */
@@ -168,18 +152,20 @@ contract SafetyModule is
         uint8 _numLots,
         uint128 _lotPrice,
         uint128 _initialLotSize,
+        uint64 _slashPercent,
         uint96 _lotIncreaseIncrement,
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
+        if (_slashPercent > 1e18)
+            revert SafetyModule_InvalidSlashPercentTooHigh();
+
         IStakedToken stakedToken = stakingTokens[
             getStakingTokenIdx(_stakedToken)
         ];
 
         // Slash the staked tokens and transfer the underlying tokens to the auction module
-        // Note: the StakedToken contract will revert if the slash amount exceeds the max slash amount,
-        //       but that should never happen because we slash exactly the max auctionable amount
-        uint256 slashAmount = getAuctionableTotal(_stakedToken);
+        uint256 slashAmount = stakedToken.totalSupply().mul(_slashPercent);
         uint256 underlyingAmount = stakedToken.slash(
             address(auctionModule),
             slashAmount
@@ -292,20 +278,6 @@ contract SafetyModule is
             address(_newRewardDistributor)
         );
         smRewardDistributor = _newRewardDistributor;
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance, reverts if the new value is greater than 1e18, i.e., 100%
-    function setMaxPercentUserLoss(
-        uint256 _maxPercentUserLoss
-    ) external onlyRole(GOVERNANCE) {
-        if (_maxPercentUserLoss > 1e18)
-            revert SafetyModule_InvalidMaxUserLossTooHigh(
-                _maxPercentUserLoss,
-                1e18
-            );
-        maxPercentUserLoss = _maxPercentUserLoss;
-        emit MaxPercentUserLossUpdated(_maxPercentUserLoss);
     }
 
     /// @inheritdoc ISafetyModule

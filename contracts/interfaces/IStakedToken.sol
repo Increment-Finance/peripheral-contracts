@@ -103,14 +103,6 @@ interface IStakedToken is IERC20Metadata {
         uint256 maxAmountMinusBalance
     );
 
-    /// @notice Error returned when the caller tries to slash more than the max percent user loss
-    /// @param amount Amount passed to the `slash` function
-    /// @param maxSlashAmount Maximum allowed amount to slash
-    error StakedToken_AboveMaxSlashAmount(
-        uint256 amount,
-        uint256 maxSlashAmount
-    );
-
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
     error StakedToken_CallerIsNotSafetyModule(address caller);
