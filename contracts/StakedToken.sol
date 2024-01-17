@@ -431,11 +431,7 @@ contract StakedToken is
         emit Staked(from, to, amount);
     }
 
-    function _redeem(
-        address from,
-        address to,
-        uint256 amount
-    ) internal whenNotPaused {
+    function _redeem(address from, address to, uint256 amount) internal {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 
