@@ -321,13 +321,13 @@ contract StakedToken is
     }
 
     /// @inheritdoc IStakedToken
-    /// @dev Can only be called by governance
+    /// @dev Only callable by governance
     function pause() external onlyRole(GOVERNANCE) {
         _pause();
     }
 
     /// @inheritdoc IStakedToken
-    /// @dev Can only be called by governance
+    /// @dev Only callable by governance
     function unpause() external onlyRole(GOVERNANCE) {
         _unpause();
     }
