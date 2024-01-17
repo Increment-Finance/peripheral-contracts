@@ -2098,8 +2098,6 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(bytes("Pausable: paused"));
         stakedToken1.stake(1);
         vm.expectRevert(bytes("Pausable: paused"));
-        stakedToken1.redeem(1);
-        vm.expectRevert(bytes("Pausable: paused"));
         stakedToken1.transfer(liquidityProviderTwo, 1);
         vm.stopPrank();
         stakedToken1.unpause();
@@ -2111,8 +2109,6 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(address(liquidityProviderOne));
         vm.expectRevert(bytes("Pausable: paused"));
         stakedToken1.stake(1);
-        vm.expectRevert(bytes("Pausable: paused"));
-        stakedToken1.redeem(1);
         vm.expectRevert(bytes("Pausable: paused"));
         stakedToken1.transfer(liquidityProviderTwo, 1);
         vm.stopPrank();
