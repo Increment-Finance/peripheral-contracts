@@ -114,11 +114,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
             if (newLpPosition >= prevLpPosition) {
-                // Added liquidity
-                if (withdrawTimerStartByUserByMarket[user][market] == 0) {
-                    withdrawTimerStartByUserByMarket[user][market] = block
-                        .timestamp;
-                }
+                // Added liquidity - reset early withdrawal timer
+                withdrawTimerStartByUserByMarket[user][market] = block
+                    .timestamp;
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
                 uint256 deltaTime = block.timestamp -
