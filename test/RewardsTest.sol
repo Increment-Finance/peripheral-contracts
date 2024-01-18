@@ -1013,6 +1013,17 @@ contract RewardsTest is Deployment, Utils {
             0,
             "Last deposit time not reset to zero after full withdrawal"
         );
+
+        // check that early withdrawal timer is reset after adding liquidity
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        assertEq(
+            rewardDistributor.withdrawTimerStartByUserByMarket(
+                liquidityProviderTwo,
+                address(perpetual)
+            ),
+            block.timestamp,
+            "Early withdrawal timer not reset after adding liquidity"
+        );
     }
 
     function testPausingAccrual(uint256 providedLiquidity1) public {
