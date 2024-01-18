@@ -173,6 +173,9 @@ contract StakedToken is
         //solium-disable-next-line
         stakersCooldowns[msg.sender] = block.timestamp;
 
+        // Accrue rewards before resetting user's multiplier to 1
+        safetyModule.updatePosition(address(this), msg.sender);
+
         emit Cooldown(msg.sender);
     }
 
