@@ -462,6 +462,18 @@ contract SafetyModuleTest is Deployment, Utils {
             2.25e18,
             "Reward multiplier mismatch after increasing max multiplier"
         );
+
+        // Calling cooldown resets the multiplier to 1
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        assertEq(
+            rewardDistributor.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch after cooldown"
+        );
     }
 
     function testMultipliedRewardAccrual(uint256 stakeAmount) public {
@@ -473,13 +485,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Skip some time
         skip(9 days);
-
-        // Start cooldown period
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
-
-        // Skip cooldown period
-        skip(1 days);
 
         // Get reward preview
         uint256 rewardPreview = _viewNewRewardAccrual(
@@ -494,10 +499,11 @@ contract SafetyModuleTest is Deployment, Utils {
             address(stakedToken1)
         );
 
-        // Redeem stakedToken1
-        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
-
         // Get accrued rewards
+        rewardDistributor.accrueRewards(
+            address(stakedToken1),
+            liquidityProviderTwo
+        );
         uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
@@ -522,6 +528,36 @@ contract SafetyModuleTest is Deployment, Utils {
                 rewardMultiplier
             ),
             "Accrued rewards mismatch"
+        );
+
+        // Start cooldown period (accrues rewards)
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+
+        // Skip cooldown period
+        skip(1 days);
+
+        // Add to reward preview
+        rewardPreview += _viewNewRewardAccrual(
+            address(stakedToken1),
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Redeem stakedToken1
+        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
+
+        // Get new accrued rewards
+        accruedRewards = rewardDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Check that accrued rewards are equal to reward preview
+        assertEq(
+            accruedRewards,
+            rewardPreview,
+            "Accrued rewards preview mismatch"
         );
 
         // Check that rewards are not accrued after full redeem
@@ -617,7 +653,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         rewardVault.approve(
             rewardsToken,
-            address(newSafetyModule),
+            address(newRewardDistributor),
             type(uint256).max
         );
 
@@ -752,15 +788,22 @@ contract SafetyModuleTest is Deployment, Utils {
         // Skip some more time
         skip(9 days);
 
-        // Start cooldown period
+        // Get second reward preview
+        uint256 rewardPreview2 = _viewNewRewardAccrual(
+            address(stakedToken1),
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Start cooldown period (accrues rewards)
         vm.startPrank(liquidityProviderTwo);
         stakedToken1.cooldown();
 
         // Skip cooldown period
         skip(1 days);
 
-        // Get second reward preview
-        uint256 rewardPreview2 = _viewNewRewardAccrual(
+        // Get third reward preview
+        uint256 rewardPreview3 = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -770,7 +813,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(
             address(rewardsToken),
-            rewardPreview + rewardPreview2
+            rewardPreview + rewardPreview2 + rewardPreview3
         );
         stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
@@ -778,7 +821,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(
             address(rewardsToken),
-            rewardPreview + rewardPreview2
+            rewardPreview + rewardPreview2 + rewardPreview3
         );
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
@@ -795,7 +838,7 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
-            10_000e18 + rewardPreview + rewardPreview2,
+            10_000e18 + rewardPreview + rewardPreview2 + rewardPreview3,
             "Incorrect rewards after resolving shortfall"
         );
     }
