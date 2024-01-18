@@ -1,9 +1,9 @@
 # ISafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/ISafetyModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/ISafetyModule.sol)
 
 **Inherits:**
-IStakingContract
+IRewardContract
 
 **Author:**
 webthethird
@@ -80,20 +80,6 @@ function stakingTokenByAuctionId(uint256 auctionId) external view returns (IStak
 | -------- | -------------- | ------------------------------------- |
 | `<none>` | `IStakedToken` | StakedToken contract that was slashed |
 
-### maxPercentUserLoss
-
-Gets the maximum percentage of user funds that can be slashed and sold at auction, normalized to 1e18
-
-```solidity
-function maxPercentUserLoss() external view returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description                  |
-| -------- | --------- | ---------------------------- |
-| `<none>` | `uint256` | Maximum user loss percentage |
-
 ### getNumStakingTokens
 
 Gets the number of staking tokens registered in the SafetyModule
@@ -130,27 +116,6 @@ function getStakingTokenIdx(address token) external view returns (uint256);
 | -------- | --------- | ------------------------------------------------------- |
 | `<none>` | `uint256` | Index of the staking token in the `stakingTokens` array |
 
-### getAuctionableTotal
-
-Returns the total amount of staked tokens that can be sold at auction in the event of
-an insolvency in the vault that cannot be covered by the insurance fund
-
-```solidity
-function getAuctionableTotal(address token) external view returns (uint256);
-```
-
-**Parameters**
-
-| Name    | Type      | Description                  |
-| ------- | --------- | ---------------------------- |
-| `token` | `address` | Address of the staking token |
-
-**Returns**
-
-| Name     | Type      | Description                                                        |
-| -------- | --------- | ------------------------------------------------------------------ |
-| `<none>` | `uint256` | Total amount of staked tokens multiplied by the maxPercentUserLoss |
-
 ### slashAndStartAuction
 
 Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
@@ -162,6 +127,7 @@ function slashAndStartAuction(
     uint8 _numLots,
     uint128 _lotPrice,
     uint128 _initialLotSize,
+    uint64 _slashPercent,
     uint96 _lotIncreaseIncrement,
     uint16 _lotIncreasePeriod,
     uint32 _timeLimit
@@ -176,6 +142,7 @@ function slashAndStartAuction(
 | `_numLots`              | `uint8`   | Number of lots in the auction                                      |
 | `_lotPrice`             | `uint128` | Fixed price of each lot in the auction                             |
 | `_initialLotSize`       | `uint128` | Initial number of underlying tokens in each lot                    |
+| `_slashPercent`         | `uint64`  | Percentage of staked tokens to slash, normalized to 1e18           |
 | `_lotIncreaseIncrement` | `uint96`  | Amount of tokens by which the lot size increases each period       |
 | `_lotIncreasePeriod`    | `uint16`  | Number of seconds between each lot size increase                   |
 | `_timeLimit`            | `uint32`  | Number of seconds before the auction ends if all lots are not sold |
@@ -277,20 +244,6 @@ function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) extern
 | ----------------------- | ---------------------- | ------------------------------------------- |
 | `_newRewardDistributor` | `ISMRewardDistributor` | Address of the SMRewardDistributor contract |
 
-### setMaxPercentUserLoss
-
-Sets the maximum percentage of user funds that can be sold at auction, normalized to 1e18
-
-```solidity
-function setMaxPercentUserLoss(uint256 _maxPercentUserLoss) external;
-```
-
-**Parameters**
-
-| Name                  | Type      | Description                                                                          |
-| --------------------- | --------- | ------------------------------------------------------------------------------------ |
-| `_maxPercentUserLoss` | `uint256` | New maximum percentage of user funds that can be sold at auction, normalized to 1e18 |
-
 ### addStakingToken
 
 Adds a new staking token to the SafetyModule's stakingTokens array
@@ -380,48 +333,6 @@ event RewardDistributorUpdated(address oldRewardDistributor, address newRewardDi
 | ---------------------- | --------- | -------------------------------------- |
 | `oldRewardDistributor` | `address` | Address of the old SMRewardDistributor |
 | `newRewardDistributor` | `address` | Address of the new SMRewardDistributor |
-
-### MaxPercentUserLossUpdated
-
-Emitted when the max percent user loss is updated by governance
-
-```solidity
-event MaxPercentUserLossUpdated(uint256 maxPercentUserLoss);
-```
-
-**Parameters**
-
-| Name                 | Type      | Description               |
-| -------------------- | --------- | ------------------------- |
-| `maxPercentUserLoss` | `uint256` | New max percent user loss |
-
-### MaxRewardMultiplierUpdated
-
-Emitted when the max reward multiplier is updated by governance
-
-```solidity
-event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
-```
-
-**Parameters**
-
-| Name                  | Type      | Description               |
-| --------------------- | --------- | ------------------------- |
-| `maxRewardMultiplier` | `uint256` | New max reward multiplier |
-
-### SmoothingValueUpdated
-
-Emitted when the smoothing value is updated by governance
-
-```solidity
-event SmoothingValueUpdated(uint256 smoothingValue);
-```
-
-**Parameters**
-
-| Name             | Type      | Description         |
-| ---------------- | --------- | ------------------- |
-| `smoothingValue` | `uint256` | New smoothing value |
 
 ### TokensSlashedForAuction
 
@@ -538,34 +449,13 @@ error SafetyModule_InvalidStakingToken(address invalidAddress);
 | ---------------- | --------- | ----------------------- |
 | `invalidAddress` | `address` | Address that was passed |
 
-### SafetyModule_InvalidAuctionId
+### SafetyModule_InvalidSlashPercentTooHigh
 
-Error returned when passing an invalid auction ID to a function that interacts with the auction module
-
-```solidity
-error SafetyModule_InvalidAuctionId(uint256 invalidId);
-```
-
-**Parameters**
-
-| Name        | Type      | Description        |
-| ----------- | --------- | ------------------ |
-| `invalidId` | `uint256` | ID that was passed |
-
-### SafetyModule_InvalidMaxUserLossTooHigh
-
-Error returned when trying to set the max percent user loss to a value that is too high
+Error returned when passing a `slashPercent` value that is greater than 100% (1e18)
 
 ```solidity
-error SafetyModule_InvalidMaxUserLossTooHigh(uint256 value, uint256 max);
+error SafetyModule_InvalidSlashPercentTooHigh();
 ```
-
-**Parameters**
-
-| Name    | Type      | Description           |
-| ------- | --------- | --------------------- |
-| `value` | `uint256` | Value that was passed |
-| `max`   | `uint256` | Maximum allowed value |
 
 ### SafetyModule_InsufficientSlashedTokensForAuction
 
@@ -583,31 +473,3 @@ error SafetyModule_InsufficientSlashedTokensForAuction(IERC20 token, uint256 amo
 | `token`     | `IERC20`  | The underlying ERC20 token                            |
 | `amount`    | `uint256` | The initial lot size multiplied by the number of lots |
 | `maxAmount` | `uint256` | The maximum auctionable amount of underlying tokens   |
-
-### SafetyModule_InvalidZeroAmount
-
-Error returned when a caller passes a zero amount to a function that requires a non-zero value
-
-```solidity
-error SafetyModule_InvalidZeroAmount(uint256 argIndex);
-```
-
-**Parameters**
-
-| Name       | Type      | Description                                   |
-| ---------- | --------- | --------------------------------------------- |
-| `argIndex` | `uint256` | Index of the argument where a zero was passed |
-
-### SafetyModule_InvalidZeroAddress
-
-Error returned when a caller passes the zero address to a function that requires a non-zero address
-
-```solidity
-error SafetyModule_InvalidZeroAddress(uint256 argIndex);
-```
-
-**Parameters**
-
-| Name       | Type      | Description                                           |
-| ---------- | --------- | ----------------------------------------------------- |
-| `argIndex` | `uint256` | Index of the argument where a zero address was passed |

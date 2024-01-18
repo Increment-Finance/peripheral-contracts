@@ -1,6 +1,6 @@
 # IStakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/IStakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IStakedToken.sol)
 
 **Inherits:**
 IERC20Metadata
@@ -259,6 +259,22 @@ function setMaxStakeAmount(uint256 _newMaxStakeAmount) external;
 | -------------------- | --------- | ------------------------------------------------ |
 | `_newMaxStakeAmount` | `uint256` | New max amount of staked tokens allowed per user |
 
+### pause
+
+Pauses staking and transferring of staked tokens
+
+```solidity
+function pause() external;
+```
+
+### unpause
+
+Unpauses staking and transferring of staked tokens
+
+```solidity
+function unpause() external;
+```
+
 ## Events
 
 ### Staked
@@ -496,21 +512,6 @@ error StakedToken_AboveMaxStakeAmount(uint256 maxStakeAmount, uint256 maxAmountM
 | ----------------------- | --------- | --------------------------------------------------------------------------- |
 | `maxStakeAmount`        | `uint256` | Maximum allowed amount to stake                                             |
 | `maxAmountMinusBalance` | `uint256` | Amount that the user can still stake without exceeding the max stake amount |
-
-### StakedToken_AboveMaxSlashAmount
-
-Error returned when the caller tries to slash more than the max percent user loss
-
-```solidity
-error StakedToken_AboveMaxSlashAmount(uint256 amount, uint256 maxSlashAmount);
-```
-
-**Parameters**
-
-| Name             | Type      | Description                           |
-| ---------------- | --------- | ------------------------------------- |
-| `amount`         | `uint256` | Amount passed to the `slash` function |
-| `maxSlashAmount` | `uint256` | Maximum allowed amount to slash       |
 
 ### StakedToken_CallerIsNotSafetyModule
 

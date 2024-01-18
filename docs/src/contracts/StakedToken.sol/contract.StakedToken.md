@@ -1,6 +1,6 @@
 # StakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/StakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/StakedToken.sol)
 
 **Inherits:**
 [IStakedToken](/contracts/interfaces/IStakedToken.sol/interface.IStakedToken.md), ERC20Permit, IncreAccessControl, Pausable, ReentrancyGuard
@@ -106,7 +106,7 @@ constructor(
     uint256 _maxStakeAmount,
     string memory _name,
     string memory _symbol
-) ERC20(_name, _symbol) ERC20Permit(_name);
+) payable ERC20(_name, _symbol) ERC20Permit(_name);
 ```
 
 **Parameters**
@@ -365,6 +365,22 @@ function getNextCooldownTimestamp(
 | -------- | --------- | -------------------------- |
 | `<none>` | `uint256` | The new cooldown timestamp |
 
+### paused
+
+Indicates whether staking and transferring are currently paused
+
+_Contract is paused if either this contract or the SafetyModule has been paused_
+
+```solidity
+function paused() public view override returns (bool);
+```
+
+**Returns**
+
+| Name     | Type   | Description                     |
+| -------- | ------ | ------------------------------- |
+| `<none>` | `bool` | True if paused, false otherwise |
+
 ### setSafetyModule
 
 Changes the SafetyModule contract used for reward management
@@ -397,6 +413,26 @@ function setMaxStakeAmount(uint256 _newMaxStakeAmount) external onlyRole(GOVERNA
 | -------------------- | --------- | ------------------------------------------------ |
 | `_newMaxStakeAmount` | `uint256` | New max amount of staked tokens allowed per user |
 
+### pause
+
+Pauses staking and transferring of staked tokens
+
+_Only callable by governance_
+
+```solidity
+function pause() external onlyRole(GOVERNANCE);
+```
+
+### unpause
+
+Unpauses staking and transferring of staked tokens
+
+_Only callable by governance_
+
+```solidity
+function unpause() external onlyRole(GOVERNANCE);
+```
+
 ### \_updateExchangeRate
 
 Updates the exchange rate of the staked token, based on the current underlying token balance
@@ -414,7 +450,7 @@ _Updates the cooldown timestamps if necessary, and updates the staking positions
 in the SafetyModule, accruing rewards in the process_
 
 ```solidity
-function _transfer(address from, address to, uint256 amount) internal override;
+function _transfer(address from, address to, uint256 amount) internal override whenNotPaused;
 ```
 
 **Parameters**
@@ -428,7 +464,7 @@ function _transfer(address from, address to, uint256 amount) internal override;
 ### \_stake
 
 ```solidity
-function _stake(address from, address to, uint256 amount) internal;
+function _stake(address from, address to, uint256 amount) internal whenNotPaused;
 ```
 
 ### \_redeem

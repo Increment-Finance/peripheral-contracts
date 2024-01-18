@@ -1,6 +1,6 @@
 # IAuctionModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/IAuctionModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IAuctionModule.sol)
 
 **Author:**
 webthethird
@@ -300,7 +300,7 @@ function completeAuction(uint256 _auctionId) external;
 
 Buys one or more lots at the current lot size, and ends the auction if all lots are sold
 
-_The caller must first approve this contract to transfer the `lotPrice * numLotsToBuy` in payment tokens_
+\_The caller must approve this contract to transfer the lotPrice x numLotsToBuy in payment tokens\*
 
 ```solidity
 function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;

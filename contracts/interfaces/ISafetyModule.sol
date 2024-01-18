@@ -34,10 +34,6 @@ interface ISafetyModule is IRewardContract {
         address newRewardDistributor
     );
 
-    /// @notice Emitted when the max percent user loss is updated by governance
-    /// @param maxPercentUserLoss New max percent user loss
-    event MaxPercentUserLossUpdated(uint256 maxPercentUserLoss);
-
     /// @notice Emitted when a staking token is slashed and the underlying tokens are sent to the AuctionModule
     /// @param stakingToken Address of the staking token
     /// @param slashAmount Amount of staking tokens slashed

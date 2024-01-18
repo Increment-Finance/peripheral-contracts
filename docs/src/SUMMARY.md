@@ -2,6 +2,7 @@
 - [Home](README.md)
 # contracts
   - [❱ interfaces](contracts/interfaces/README.md)
+    - [IAdminControlledEcosystemReserve](contracts/interfaces/IAdminControlledEcosystemReserve.sol/interface.IAdminControlledEcosystemReserve.md)
     - [IAuctionModule](contracts/interfaces/IAuctionModule.sol/interface.IAuctionModule.md)
     - [IPerpRewardDistributor](contracts/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
     - [IRewardController](contracts/interfaces/IRewardController.sol/interface.IRewardController.md)
@@ -9,6 +10,8 @@
     - [ISMRewardDistributor](contracts/interfaces/ISMRewardDistributor.sol/interface.ISMRewardDistributor.md)
     - [ISafetyModule](contracts/interfaces/ISafetyModule.sol/interface.ISafetyModule.md)
     - [IStakedToken](contracts/interfaces/IStakedToken.sol/interface.IStakedToken.md)
+  - [VersionedInitializable](contracts/AdminControlledEcosystemReserve.sol/abstract.VersionedInitializable.md)
+  - [AdminControlledEcosystemReserve](contracts/AdminControlledEcosystemReserve.sol/abstract.AdminControlledEcosystemReserve.md)
   - [AuctionModule](contracts/AuctionModule.sol/contract.AuctionModule.md)
   - [EcosystemReserve](contracts/EcosystemReserve.sol/contract.EcosystemReserve.md)
   - [PerpRewardDistributor](contracts/PerpRewardDistributor.sol/contract.PerpRewardDistributor.md)

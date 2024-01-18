@@ -1,6 +1,6 @@
 # Increment Finance: Peripheral Contracts
 
-This repository contains peripheral smart contracts for [Increment Protocol](https://github.com/Increment-Finance/increment-protocol). Specifically, it contains contracts for distributing reward tokens to liquidity providers in the Perpetual markets, as well as a Safety Module which rewards stakers for providing economic security to the protocol.
+This repository contains peripheral smart contracts for [Increment Protocol](https://github.com/Increment-Finance/increment-protocol). Specifically, it contains contracts for distributing reward tokens to liquidity providers in the Perpetual markets, as well as a Safety Module which rewards stakers for providing economic security to the protocol. The Safety Module is comprised of a central SafetyModule contract, a StakedToken contract for staking, an SMRewardDistributor for handling reward distribution to stakers, and an AuctionModule contract for auctioning slashed tokens in the event of a shortfall in the protocol.
 
 ## Setup
 
@@ -10,9 +10,9 @@ To get started with this project, follow these steps:
    ```
    git clone https://github.com/Increment-Finance/peripheral-contracts.git && cd peripheral-contracts
    ```
-2. Initialize the submodules by running the following command:
+2. Initialize the submodules and recursively install their submodules by running the following command:
    ```
-   git submodule update --init
+   git submodule update --init && forge install
    ```
 
 ## Testing
