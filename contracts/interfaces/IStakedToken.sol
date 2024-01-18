@@ -191,9 +191,9 @@ interface IStakedToken is IERC20Metadata {
     /// @param _newMaxStakeAmount New max amount of staked tokens allowed per user
     function setMaxStakeAmount(uint256 _newMaxStakeAmount) external;
 
-    /// @notice Pauses the staking, redeeming and transferring of staked tokens
+    /// @notice Pauses staking and transferring of staked tokens
     function pause() external;
 
-    /// @notice Unpauses the staking, redeeming and transferring of staked tokens
+    /// @notice Unpauses staking and transferring of staked tokens
     function unpause() external;
 }
