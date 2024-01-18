@@ -1,6 +1,7 @@
 
 
 # Contents
+- [IAdminControlledEcosystemReserve](IAdminControlledEcosystemReserve.sol/interface.IAdminControlledEcosystemReserve.md)
 - [IAuctionModule](IAuctionModule.sol/interface.IAuctionModule.md)
 - [IPerpRewardDistributor](IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
 - [IRewardController](IRewardController.sol/interface.IRewardController.md)

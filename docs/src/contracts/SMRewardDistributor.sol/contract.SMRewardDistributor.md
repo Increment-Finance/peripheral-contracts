@@ -1,6 +1,6 @@
 # SMRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/SMRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/SMRewardDistributor.sol)
 
 **Inherits:**
 [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [ISMRewardDistributor](/contracts/interfaces/ISMRewardDistributor.sol/interface.ISMRewardDistributor.md)
@@ -14,7 +14,7 @@ Reward distributor for the Safety Module
 
 ### safetyModule
 
-The SafetyModule contract which stores the list of StakedTokens and can call `updateStakingPosition`
+The SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
 
 ```solidity
 ISafetyModule public safetyModule;
@@ -68,7 +68,7 @@ constructor(
     uint256 _maxRewardMultiplier,
     uint256 _smoothingValue,
     address _ecosystemReserve
-) RewardDistributor(_ecosystemReserve);
+) payable RewardDistributor(_ecosystemReserve);
 ```
 
 **Parameters**
@@ -80,18 +80,17 @@ constructor(
 | `_smoothingValue`      | `uint256`       | The smoothing value, scaled by 1e18                                          |
 | `_ecosystemReserve`    | `address`       | The address of the EcosystemReserve contract, where reward tokens are stored |
 
-### updateStakingPosition
+### updatePosition
 
 Accrues rewards and updates the stored stake position of a user and the total tokens staked
 
 _Executes whenever a user's stake is updated for any reason_
 
 ```solidity
-function updateStakingPosition(address market, address user)
+function updatePosition(address market, address user)
     external
     virtual
-    override(IStakingContract, RewardDistributor)
-    nonReentrant
+    override(IRewardContract, RewardDistributor)
     onlySafetyModule;
 ```
 
@@ -102,29 +101,21 @@ function updateStakingPosition(address market, address user)
 | `market` | `address` | Address of the staking token in `stakingTokens` |
 | `user`   | `address` | Address of the staker                           |
 
-### accrueRewards
+### paused
 
-newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
+Indicates whether claiming rewards is currently paused
 
-Accrues rewards to a user for a given staking token
-
-_Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
-stake position is handled by `updateStakingPosition`_
+_Contract is paused if either this contract or the SafetyModule has been paused_
 
 ```solidity
-function accrueRewards(address market, address user)
-    public
-    virtual
-    override(IRewardDistributor, RewardDistributor)
-    nonReentrant;
+function paused() public view override returns (bool);
 ```
 
-**Parameters**
+**Returns**
 
-| Name     | Type      | Description                             |
-| -------- | --------- | --------------------------------------- |
-| `market` | `address` | Address of the token in `stakingTokens` |
-| `user`   | `address` | Address of the user                     |
+| Name     | Type   | Description                     |
+| -------- | ------ | ------------------------------- |
+| `<none>` | `bool` | True if paused, false otherwise |
 
 ### computeRewardMultiplier
 
@@ -214,6 +205,26 @@ function setSmoothingValue(uint256 _smoothingValue) external onlyRole(GOVERNANCE
 | ----------------- | --------- | ----------------------------------- |
 | `_smoothingValue` | `uint256` | New smoothing value, scaled by 1e18 |
 
+### pause
+
+Pause the contract
+
+_Only callable by governance_
+
+```solidity
+function pause() external override onlyRole(GOVERNANCE);
+```
+
+### unpause
+
+Unpause the contract
+
+_Only callable by governance_
+
+```solidity
+function unpause() external override onlyRole(GOVERNANCE);
+```
+
 ### \_getNumMarkets
 
 ```solidity
@@ -252,3 +263,21 @@ function _getCurrentPosition(address staker, address token) internal view virtua
 | Name     | Type      | Description                                      |
 | -------- | --------- | ------------------------------------------------ |
 | `<none>` | `uint256` | Current balance of the user in the staking token |
+
+### \_accrueRewards
+
+Accrues rewards to a user for a given staking token
+
+_Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
+stake position is handled by `updatePosition`_
+
+```solidity
+function _accrueRewards(address market, address user) internal virtual override;
+```
+
+**Parameters**
+
+| Name     | Type      | Description                             |
+| -------- | --------- | --------------------------------------- |
+| `market` | `address` | Address of the token in `stakingTokens` |
+| `user`   | `address` | Address of the user                     |

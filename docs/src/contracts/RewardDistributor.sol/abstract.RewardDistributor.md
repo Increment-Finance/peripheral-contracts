@@ -1,9 +1,9 @@
 # RewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/RewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/RewardDistributor.sol)
 
 **Inherits:**
-[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IStakingContract, [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
+[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IRewardContract, [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
 
 **Author:**
 webthethird
@@ -12,7 +12,7 @@ Abstract contract responsible for accruing and distributing rewards to users for
 liquidity to perpetual markets (handled by PerpRewardDistributor) or staking tokens (with the SafetyModule)
 
 _Inherits from RewardController, which defines the RewardInfo data structure and functions allowing
-governance to add/remove reward tokens or update their parameters, and implements IStakingContract, the
+governance to add/remove reward tokens or update their parameters, and implements IRewardContract, the
 interface used by the ClearingHouse to update user rewards any time a user's position is updated_
 
 ## State Variables
@@ -109,7 +109,7 @@ mapping(address => uint256) public totalLiquidityPerMarket;
 RewardDistributor constructor
 
 ```solidity
-constructor(address _ecosystemReserve);
+constructor(address _ecosystemReserve) payable;
 ```
 
 **Parameters**
@@ -118,14 +118,14 @@ constructor(address _ecosystemReserve);
 | ------------------- | --------- | ----------------------------------------------------------------------- |
 | `_ecosystemReserve` | `address` | Address of the EcosystemReserve contract, which holds the reward tokens |
 
-### updateStakingPosition
+### updatePosition
 
 Accrues rewards and updates the stored position of a user and the total liquidity of a market
 
 _Executes whenever a user's position is updated for any reason_
 
 ```solidity
-function updateStakingPosition(address market, address user) external virtual;
+function updatePosition(address market, address user) external virtual;
 ```
 
 **Parameters**
@@ -160,10 +160,10 @@ _Can only be called by governance_
 ```solidity
 function addRewardToken(
     address _rewardToken,
-    uint256 _initialInflationRate,
-    uint256 _initialReductionFactor,
+    uint88 _initialInflationRate,
+    uint88 _initialReductionFactor,
     address[] calldata _markets,
-    uint16[] calldata _marketWeights
+    uint256[] calldata _marketWeights
 ) external onlyRole(GOVERNANCE);
 ```
 
@@ -172,10 +172,10 @@ function addRewardToken(
 | Name                      | Type        | Description                                           |
 | ------------------------- | ----------- | ----------------------------------------------------- |
 | `_rewardToken`            | `address`   | Address of the reward token                           |
-| `_initialInflationRate`   | `uint256`   | Initial inflation rate for the new token              |
-| `_initialReductionFactor` | `uint256`   | Initial reduction factor for the new token            |
+| `_initialInflationRate`   | `uint88`    | Initial inflation rate for the new token              |
+| `_initialReductionFactor` | `uint88`    | Initial reduction factor for the new token            |
 | `_markets`                | `address[]` | Addresses of the markets to reward with the new token |
-| `_marketWeights`          | `uint16[]`  | Initial weights per market for the new token          |
+| `_marketWeights`          | `uint256[]` | Initial weights per market for the new token          |
 
 ### removeRewardToken
 
@@ -211,31 +211,20 @@ function setEcosystemReserve(address _newEcosystemReserve) external onlyRole(GOV
 
 ### registerPositions
 
-Fetches and stores the caller's LP/stake positions and updates the total liquidity in each market
+Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the
+provided markets
 
-_Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment_
-
-```solidity
-function registerPositions() external;
-```
-
-### registerPositions
-
-Fetches and stores the caller's LP/stake positions and updates the total liquidity in each market
-
-_Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment_
+_Can only be called once per user, only necessary if user was an LP prior to this contract's deployment_
 
 ```solidity
 function registerPositions(address[] calldata _markets) external;
 ```
 
-### claimRewards
+**Parameters**
 
-Accrues and then distributes rewards for all markets to the caller
-
-```solidity
-function claimRewards() public override;
-```
+| Name       | Type        | Description                           |
+| ---------- | ----------- | ------------------------------------- |
+| `_markets` | `address[]` | Addresses of the markets to sync with |
 
 ### claimRewardsFor
 
@@ -258,50 +247,15 @@ Accrues and then distributes rewards for all markets and reward tokens
 and returns the amount of rewards that were not distributed to the given user
 
 ```solidity
-function claimRewardsFor(address _user, address[] memory _rewardTokens) public override whenNotPaused;
+function claimRewardsFor(address _user, address[] memory _rewardTokens) public override nonReentrant whenNotPaused;
 ```
 
 **Parameters**
 
-| Name            | Type        | Description                                         |
-| --------------- | ----------- | --------------------------------------------------- |
-| `_user`         | `address`   | Address of the user to claim rewards for            |
-| `_rewardTokens` | `address[]` | Addresses of the reward tokens to claim rewards for |
-
-### accrueRewards
-
-Accrues rewards to a user for all markets
-
-_Assumes user's position hasn't changed since last accrual, since updating rewards due to changes
-in position is handled by `updateStakingPosition`_
-
-```solidity
-function accrueRewards(address user) external override;
-```
-
-**Parameters**
-
-| Name   | Type      | Description                               |
-| ------ | --------- | ----------------------------------------- |
-| `user` | `address` | Address of the user to accrue rewards for |
-
-### accrueRewards
-
-Accrues rewards to a user for all markets
-
-_Assumes user's position hasn't changed since last accrual, since updating rewards due to changes
-in position is handled by `updateStakingPosition`_
-
-```solidity
-function accrueRewards(address market, address user) public virtual;
-```
-
-**Parameters**
-
-| Name     | Type      | Description                                 |
-| -------- | --------- | ------------------------------------------- |
-| `market` | `address` | Address of the market to accrue rewards for |
-| `user`   | `address` | Address of the user to accrue rewards for   |
+| Name            | Type        | Description                              |
+| --------------- | ----------- | ---------------------------------------- |
+| `_user`         | `address`   | Address of the user to claim rewards for |
+| `_rewardTokens` | `address[]` |                                          |
 
 ### \_updateMarketRewards
 
@@ -318,6 +272,24 @@ function _updateMarketRewards(address market) internal override;
 | Name     | Type      | Description           |
 | -------- | --------- | --------------------- |
 | `market` | `address` | Address of the market |
+
+### \_accrueRewards
+
+Accrues rewards to a user for a given market
+
+_Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
+position is handled by `updatePosition`_
+
+```solidity
+function _accrueRewards(address market, address user) internal virtual;
+```
+
+**Parameters**
+
+| Name     | Type      | Description                                 |
+| -------- | --------- | ------------------------------------------- |
+| `market` | `address` | Address of the market to accrue rewards for |
+| `user`   | `address` | Address of the user                         |
 
 ### \_distributeReward
 

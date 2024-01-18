@@ -1,6 +1,6 @@
 # SafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/SafetyModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/SafetyModule.sol)
 
 **Inherits:**
 [ISafetyModule](/contracts/interfaces/ISafetyModule.sol/interface.ISafetyModule.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -47,20 +47,12 @@ Mapping from auction ID to staking token that was slashed for the auction
 mapping(uint256 => IStakedToken) public stakingTokenByAuctionId;
 ```
 
-### maxPercentUserLoss
-
-The maximum percentage of user funds that can be sold at auction, normalized to 1e18
-
-```solidity
-uint256 public maxPercentUserLoss;
-```
-
 ## Functions
 
 ### onlyStakingToken
 
 Modifier for functions that can only be called by a registered StakedToken contract,
-i.e., `updateStakingPosition`
+i.e., `updatePosition`
 
 ```solidity
 modifier onlyStakingToken();
@@ -80,7 +72,7 @@ modifier onlyAuctionModule();
 SafetyModule constructor
 
 ```solidity
-constructor(address _auctionModule, address _smRewardDistributor, uint256 _maxPercentUserLoss);
+constructor(address _auctionModule, address _smRewardDistributor) payable;
 ```
 
 **Parameters**
@@ -89,7 +81,6 @@ constructor(address _auctionModule, address _smRewardDistributor, uint256 _maxPe
 | ---------------------- | --------- | ----------------------------------------------------------------------------------- |
 | `_auctionModule`       | `address` | Address of the auction module, which sells user funds in the event of an insolvency |
 | `_smRewardDistributor` | `address` | Address of the SMRewardDistributor contract, which distributes rewards to stakers   |
-| `_maxPercentUserLoss`  | `uint256` | The max percentage of user funds that can be sold at auction, normalized to 1e18    |
 
 ### getNumStakingTokens
 
@@ -127,35 +118,14 @@ function getStakingTokenIdx(address token) public view returns (uint256);
 | -------- | --------- | ------------------------------------------------------- |
 | `<none>` | `uint256` | Index of the staking token in the `stakingTokens` array |
 
-### getAuctionableTotal
-
-Returns the total amount of staked tokens that can be sold at auction in the event of
-an insolvency in the vault that cannot be covered by the insurance fund
-
-```solidity
-function getAuctionableTotal(address token) public view returns (uint256);
-```
-
-**Parameters**
-
-| Name    | Type      | Description                  |
-| ------- | --------- | ---------------------------- |
-| `token` | `address` | Address of the staking token |
-
-**Returns**
-
-| Name     | Type      | Description                                                        |
-| -------- | --------- | ------------------------------------------------------------------ |
-| `<none>` | `uint256` | Total amount of staked tokens multiplied by the maxPercentUserLoss |
-
-### updateStakingPosition
+### updatePosition
 
 Accrues rewards and updates the stored stake position of a user and the total tokens staked
 
 _Executes whenever a user's stake is updated for any reason_
 
 ```solidity
-function updateStakingPosition(address market, address user) external override nonReentrant onlyStakingToken;
+function updatePosition(address market, address user) external override nonReentrant onlyStakingToken;
 ```
 
 **Parameters**
@@ -196,6 +166,7 @@ function slashAndStartAuction(
     uint8 _numLots,
     uint128 _lotPrice,
     uint128 _initialLotSize,
+    uint64 _slashPercent,
     uint96 _lotIncreaseIncrement,
     uint16 _lotIncreasePeriod,
     uint32 _timeLimit
@@ -210,6 +181,7 @@ function slashAndStartAuction(
 | `_numLots`              | `uint8`   | Number of lots in the auction                                      |
 | `_lotPrice`             | `uint128` | Fixed price of each lot in the auction                             |
 | `_initialLotSize`       | `uint128` | Initial number of underlying tokens in each lot                    |
+| `_slashPercent`         | `uint64`  | Percentage of staked tokens to slash, normalized to 1e18           |
 | `_lotIncreaseIncrement` | `uint96`  | Amount of tokens by which the lot size increases each period       |
 | `_lotIncreasePeriod`    | `uint16`  | Number of seconds between each lot size increase                   |
 | `_timeLimit`            | `uint32`  | Number of seconds before the auction ends if all lots are not sold |
@@ -302,22 +274,6 @@ function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) extern
 | ----------------------- | ---------------------- | ------------------------------------------- |
 | `_newRewardDistributor` | `ISMRewardDistributor` | Address of the SMRewardDistributor contract |
 
-### setMaxPercentUserLoss
-
-Sets the maximum percentage of user funds that can be sold at auction, normalized to 1e18
-
-_Only callable by governance, reverts if the new value is greater than 1e18, i.e., 100%_
-
-```solidity
-function setMaxPercentUserLoss(uint256 _maxPercentUserLoss) external onlyRole(GOVERNANCE);
-```
-
-**Parameters**
-
-| Name                  | Type      | Description                                                                          |
-| --------------------- | --------- | ------------------------------------------------------------------------------------ |
-| `_maxPercentUserLoss` | `uint256` | New maximum percentage of user funds that can be sold at auction, normalized to 1e18 |
-
 ### addStakingToken
 
 Adds a new staking token to the SafetyModule's stakingTokens array
@@ -338,20 +294,20 @@ function addStakingToken(IStakedToken _stakingToken) external onlyRole(GOVERNANC
 
 Pause the contract
 
-_Can only be called by Emergency Admin_
+_Only callable by governance_
 
 ```solidity
-function pause() external override onlyRole(EMERGENCY_ADMIN);
+function pause() external override onlyRole(GOVERNANCE);
 ```
 
 ### unpause
 
 Unpause the contract
 
-_Can only be called by Emergency Admin_
+_Only callable by governance_
 
 ```solidity
-function unpause() external override onlyRole(EMERGENCY_ADMIN);
+function unpause() external override onlyRole(GOVERNANCE);
 ```
 
 ### \_returnFunds

@@ -2,6 +2,8 @@
 
 # Contents
 - [interfaces](/contracts/interfaces)
+- [VersionedInitializable](AdminControlledEcosystemReserve.sol/abstract.VersionedInitializable.md)
+- [AdminControlledEcosystemReserve](AdminControlledEcosystemReserve.sol/abstract.AdminControlledEcosystemReserve.md)
 - [AuctionModule](AuctionModule.sol/contract.AuctionModule.md)
 - [EcosystemReserve](EcosystemReserve.sol/contract.EcosystemReserve.md)
 - [PerpRewardDistributor](PerpRewardDistributor.sol/contract.PerpRewardDistributor.md)
