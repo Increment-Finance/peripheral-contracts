@@ -11,8 +11,6 @@ webthethird
 Handles reward accrual and distribution for staking tokens, and allows governance to auction a
 percentage of user funds in the event of an insolvency in the vault
 
-_Auction module and related logic is not yet implemented_
-
 ## State Variables
 
 ### auctionModule
