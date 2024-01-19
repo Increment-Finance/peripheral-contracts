@@ -1,6 +1,6 @@
 # IRewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/IRewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IRewardController.sol)
 
 **Author:**
 webthethird
@@ -125,12 +125,12 @@ function getReductionFactor(address rewardToken) external view returns (uint256)
 | -------- | --------- | ------------------------------------ |
 | `<none>` | `uint256` | Reduction factor of the reward token |
 
-### getRewardWeights
+### getRewardWeight
 
-Gets the addresses and weights of all markets for a reward token
+Gets the reward weight of a given market for a reward token
 
 ```solidity
-function getRewardWeights(address rewardToken) external view returns (address[] memory, uint16[] memory);
+function getRewardWeight(address rewardToken, address market) external view returns (uint256);
 ```
 
 **Parameters**
@@ -138,36 +138,13 @@ function getRewardWeights(address rewardToken) external view returns (address[] 
 | Name          | Type      | Description                 |
 | ------------- | --------- | --------------------------- |
 | `rewardToken` | `address` | Address of the reward token |
+| `market`      | `address` | Address of the market       |
 
 **Returns**
 
-| Name     | Type        | Description                                              |
-| -------- | ----------- | -------------------------------------------------------- |
-| `<none>` | `address[]` | List of market addresses and their corresponding weights |
-| `<none>` | `uint16[]`  |                                                          |
-
-### getMarketWeightIdx
-
-Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketWeightIdx(address token, address market) external view returns (int256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                 |
-| -------- | --------- | --------------------------- |
-| `token`  | `address` | Address of the reward token |
-| `market` | `address` | Address of the market       |
-
-**Returns**
-
-| Name     | Type     | Description                                                                                   |
-| -------- | -------- | --------------------------------------------------------------------------------------------- |
-| `<none>` | `int256` | Index of the market in the `rewardInfo.marketWeights` array, or -1 if the market is not found |
+| Name     | Type      | Description                                     |
+| -------- | --------- | ----------------------------------------------- |
+| `<none>` | `uint256` | The reward weight of the market in basis points |
 
 ### isTokenPaused
 
@@ -194,7 +171,7 @@ function isTokenPaused(address rewardToken) external view returns (bool);
 Sets the market addresses and reward weights for a reward token
 
 ```solidity
-function updateRewardWeights(address rewardToken, address[] calldata markets, uint16[] calldata weights) external;
+function updateRewardWeights(address rewardToken, address[] calldata markets, uint256[] calldata weights) external;
 ```
 
 **Parameters**
@@ -203,7 +180,7 @@ function updateRewardWeights(address rewardToken, address[] calldata markets, ui
 | ------------- | ----------- | ------------------------------------------- |
 | `rewardToken` | `address`   | Address of the reward token                 |
 | `markets`     | `address[]` | List of market addresses to receive rewards |
-| `weights`     | `uint16[]`  | List of weights for each market             |
+| `weights`     | `uint256[]` | List of weights for each market             |
 
 ### updateInitialInflationRate
 
@@ -212,7 +189,7 @@ Sets the initial inflation rate used to calculate emissions over time for a give
 _Current inflation rate still factors in the reduction factor and time elapsed since the initial timestamp_
 
 ```solidity
-function updateInitialInflationRate(address rewardToken, uint256 newInitialInflationRate) external;
+function updateInitialInflationRate(address rewardToken, uint88 newInitialInflationRate) external;
 ```
 
 **Parameters**
@@ -220,14 +197,14 @@ function updateInitialInflationRate(address rewardToken, uint256 newInitialInfla
 | Name                      | Type      | Description                                           |
 | ------------------------- | --------- | ----------------------------------------------------- |
 | `rewardToken`             | `address` | Address of the reward token                           |
-| `newInitialInflationRate` | `uint256` | The new inflation rate in tokens/year, scaled by 1e18 |
+| `newInitialInflationRate` | `uint88`  | The new inflation rate in tokens/year, scaled by 1e18 |
 
 ### updateReductionFactor
 
 Sets the reduction factor used to reduce emissions over time for a given reward token
 
 ```solidity
-function updateReductionFactor(address rewardToken, uint256 newReductionFactor) external;
+function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external;
 ```
 
 **Parameters**
@@ -235,7 +212,7 @@ function updateReductionFactor(address rewardToken, uint256 newReductionFactor) 
 | Name                 | Type      | Description                              |
 | -------------------- | --------- | ---------------------------------------- |
 | `rewardToken`        | `address` | Address of the reward token              |
-| `newReductionFactor` | `uint256` | The new reduction factor, scaled by 1e18 |
+| `newReductionFactor` | `uint88`  | The new reduction factor, scaled by 1e18 |
 
 ### pause
 
@@ -342,7 +319,7 @@ event RewardTokenShortfall(address indexed rewardToken, uint256 shortfallAmount)
 Emitted when a gauge weight is updated
 
 ```solidity
-event NewWeight(address indexed market, address indexed rewardToken, uint16 newWeight);
+event NewWeight(address indexed market, address indexed rewardToken, uint256 newWeight);
 ```
 
 **Parameters**
@@ -351,7 +328,7 @@ event NewWeight(address indexed market, address indexed rewardToken, uint16 newW
 | ------------- | --------- | ---------------------------------------------- |
 | `market`      | `address` | The address of the perp market or staked token |
 | `rewardToken` | `address` | The reward token address                       |
-| `newWeight`   | `uint16`  | The new weight value                           |
+| `newWeight`   | `uint256` | The new weight value                           |
 
 ### NewInitialInflationRate
 
@@ -463,27 +440,27 @@ error RewardController_IncorrectWeightsCount(uint256 actual, uint256 expected);
 Error returned when the sum of the weights provided is not equal to 100% (in basis points)
 
 ```solidity
-error RewardController_IncorrectWeightsSum(uint16 actual, uint16 expected);
+error RewardController_IncorrectWeightsSum(uint256 actual, uint256 expected);
 ```
 
 **Parameters**
 
-| Name       | Type     | Description                                   |
-| ---------- | -------- | --------------------------------------------- |
-| `actual`   | `uint16` | The sum of the weights provided               |
-| `expected` | `uint16` | The expected sum of the weights (i.e., 10000) |
+| Name       | Type      | Description                                   |
+| ---------- | --------- | --------------------------------------------- |
+| `actual`   | `uint256` | The sum of the weights provided               |
+| `expected` | `uint256` | The expected sum of the weights (i.e., 10000) |
 
 ### RewardController_WeightExceedsMax
 
 Error returned when one of the weights provided is greater than the maximum allowed weight (i.e., 100% in basis points)
 
 ```solidity
-error RewardController_WeightExceedsMax(uint16 weight, uint16 max);
+error RewardController_WeightExceedsMax(uint256 weight, uint256 max);
 ```
 
 **Parameters**
 
-| Name     | Type     | Description                              |
-| -------- | -------- | ---------------------------------------- |
-| `weight` | `uint16` | The weight that was passed               |
-| `max`    | `uint16` | The maximum allowed weight (i.e., 10000) |
+| Name     | Type      | Description                              |
+| -------- | --------- | ---------------------------------------- |
+| `weight` | `uint256` | The weight that was passed               |
+| `max`    | `uint256` | The maximum allowed weight (i.e., 10000) |

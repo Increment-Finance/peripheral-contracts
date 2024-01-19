@@ -1,6 +1,6 @@
 # PerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/PerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/PerpRewardDistributor.sol)
 
 **Inherits:**
 [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [IPerpRewardDistributor](/contracts/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
@@ -32,7 +32,7 @@ uint256 public override earlyWithdrawalThreshold;
 
 ### onlyClearingHouse
 
-Modifier for functions that can only be called by the ClearingHouse, i.e., `updateStakingPosition`
+Modifier for functions that can only be called by the ClearingHouse, i.e., `updatePosition`
 
 ```solidity
 modifier onlyClearingHouse();
@@ -44,36 +44,36 @@ PerpRewardDistributor constructor
 
 ```solidity
 constructor(
-    uint256 _initialInflationRate,
-    uint256 _initialReductionFactor,
+    uint88 _initialInflationRate,
+    uint88 _initialReductionFactor,
     address _rewardToken,
     address _clearingHouse,
     address _ecosystemReserve,
     uint256 _earlyWithdrawalThreshold,
-    uint16[] memory _initialRewardWeights
-) RewardDistributor(_ecosystemReserve);
+    uint256[] memory _initialRewardWeights
+) payable RewardDistributor(_ecosystemReserve);
 ```
 
 **Parameters**
 
-| Name                        | Type       | Description                                                                    |
-| --------------------------- | ---------- | ------------------------------------------------------------------------------ |
-| `_initialInflationRate`     | `uint256`  | The initial inflation rate for the first reward token, scaled by 1e18          |
-| `_initialReductionFactor`   | `uint256`  | The initial reduction factor for the first reward token, scaled by 1e18        |
-| `_rewardToken`              | `address`  | The address of the first reward token                                          |
-| `_clearingHouse`            | `address`  | The address of the ClearingHouse contract, which calls `updateStakingPosition` |
-| `_ecosystemReserve`         | `address`  | The address of the EcosystemReserve contract, which stores reward tokens       |
-| `_earlyWithdrawalThreshold` | `uint256`  | The amount of time after which LPs can remove liquidity without penalties      |
-| `_initialRewardWeights`     | `uint16[]` | The initial reward weights for the first reward token, as basis points         |
+| Name                        | Type        | Description                                                               |
+| --------------------------- | ----------- | ------------------------------------------------------------------------- |
+| `_initialInflationRate`     | `uint88`    | The initial inflation rate for the first reward token, scaled by 1e18     |
+| `_initialReductionFactor`   | `uint88`    | The initial reduction factor for the first reward token, scaled by 1e18   |
+| `_rewardToken`              | `address`   | The address of the first reward token                                     |
+| `_clearingHouse`            | `address`   | The address of the ClearingHouse contract, which calls `updatePosition`   |
+| `_ecosystemReserve`         | `address`   | The address of the EcosystemReserve contract, which stores reward tokens  |
+| `_earlyWithdrawalThreshold` | `uint256`   | The amount of time after which LPs can remove liquidity without penalties |
+| `_initialRewardWeights`     | `uint256[]` | The initial reward weights for the first reward token, as basis points    |
 
-### updateStakingPosition
+### updatePosition
 
 Accrues rewards and updates the stored LP position of a user and the total LP of a market
 
 _Executes whenever a user's liquidity is updated for any reason_
 
 ```solidity
-function updateStakingPosition(address market, address user) external virtual override nonReentrant onlyClearingHouse;
+function updatePosition(address market, address user) external virtual override onlyClearingHouse;
 ```
 
 **Parameters**
@@ -82,24 +82,6 @@ function updateStakingPosition(address market, address user) external virtual ov
 | -------- | --------- | -------------------------------- |
 | `market` | `address` | Address of the perpetual market  |
 | `user`   | `address` | Address of the liquidity provier |
-
-### accrueRewards
-
-Accrues rewards to a user for a given market
-
-_Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
-LP position is handled by `updateStakingPosition`_
-
-```solidity
-function accrueRewards(address market, address user) public virtual override nonReentrant;
-```
-
-**Parameters**
-
-| Name     | Type      | Description                                         |
-| -------- | --------- | --------------------------------------------------- |
-| `market` | `address` | Address of the market in `ClearingHouse.perpetuals` |
-| `user`   | `address` | Address of the user                                 |
 
 ### paused
 
@@ -116,6 +98,38 @@ function paused() public view override returns (bool);
 | Name     | Type   | Description                     |
 | -------- | ------ | ------------------------------- |
 | `<none>` | `bool` | True if paused, false otherwise |
+
+### setClearingHouse
+
+Sets the address of the ClearingHouse contract which stores the list of Perpetuals and can call `updatePosition`
+
+_Only callable by governance_
+
+```solidity
+function setClearingHouse(IClearingHouse _newClearingHouse) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name                | Type             | Description                |
+| ------------------- | ---------------- | -------------------------- |
+| `_newClearingHouse` | `IClearingHouse` | New ClearingHouse contract |
+
+### setEarlyWithdrawalThreshold
+
+Sets the number of seconds that a user must leave their liquidity in the market to avoid the early withdrawal penalty
+
+_Only callable by governance_
+
+```solidity
+function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name                           | Type      | Description                               |
+| ------------------------------ | --------- | ----------------------------------------- |
+| `_newEarlyWithdrawalThreshold` | `uint256` | New early withdrawal threshold in seconds |
 
 ### \_getNumMarkets
 
@@ -197,3 +211,21 @@ function _getCurrentPosition(address user, address market) internal view overrid
 | Name     | Type      | Description                                |
 | -------- | --------- | ------------------------------------------ |
 | `<none>` | `uint256` | Current position of the user in the market |
+
+### \_accrueRewards
+
+Accrues rewards to a user for a given market
+
+_Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
+LP position is handled by `updatePosition`_
+
+```solidity
+function _accrueRewards(address market, address user) internal virtual override;
+```
+
+**Parameters**
+
+| Name     | Type      | Description                                         |
+| -------- | --------- | --------------------------------------------------- |
+| `market` | `address` | Address of the market in `ClearingHouse.perpetuals` |
+| `user`   | `address` | Address of the user                                 |

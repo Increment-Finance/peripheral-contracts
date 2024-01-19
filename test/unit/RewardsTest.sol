@@ -152,6 +152,7 @@ contract RewardsTest is Deployment, Utils {
             10 days,
             weights
         );
+        rewardDistributor.setClearingHouse(clearingHouse); // just for coverage, will likely never happen
 
         // Transfer all rewards tokens to the vault and approve the distributor
         rewardsToken.transfer(
@@ -907,19 +908,23 @@ contract RewardsTest is Deployment, Utils {
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint256 reductionRatio,
+        uint256 thresholdTime,
         uint256 skipTime
     ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         reductionRatio = bound(reductionRatio, 1e16, 5e17);
-        skipTime = bound(skipTime, 1 days, 5 days);
+        thresholdTime = bound(thresholdTime, 1 days, 28 days);
+        skipTime = bound(skipTime, thresholdTime / 10, thresholdTime / 2);
         require(
             providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
         );
         require(
             providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
         );
+
+        rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
 
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
         uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
@@ -949,7 +954,7 @@ contract RewardsTest is Deployment, Utils {
         // console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
-            (cumulativeRewards1.wadMul(lpBalance1) * skipTime) / 10 days,
+            (cumulativeRewards1.wadMul(lpBalance1) * skipTime) / thresholdTime,
             1e16,
             "Incorrect rewards"
         );
@@ -962,7 +967,7 @@ contract RewardsTest is Deployment, Utils {
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // skip to the end of the early withdrawal window
-        skip(10 days - 2 * skipTime);
+        skip(thresholdTime - 2 * skipTime);
 
         // remove all liquidity from second perpetual
         _removeAllLiquidity(liquidityProviderTwo, perpetual2);
@@ -987,8 +992,8 @@ contract RewardsTest is Deployment, Utils {
             );
         assertApproxEqRel(
             accruedRewards,
-            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) / 10 days) +
-                cumulativeRewards2.wadMul(lpBalance2),
+            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) /
+                thresholdTime) + cumulativeRewards2.wadMul(lpBalance2),
             1e16,
             "Incorrect rewards"
         );
@@ -997,7 +1002,7 @@ contract RewardsTest is Deployment, Utils {
                 liquidityProviderTwo,
                 address(perpetual)
             ),
-            block.timestamp - (10 days - 2 * skipTime),
+            block.timestamp - (thresholdTime - 2 * skipTime),
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
@@ -1007,6 +1012,17 @@ contract RewardsTest is Deployment, Utils {
             ),
             0,
             "Last deposit time not reset to zero after full withdrawal"
+        );
+
+        // check that early withdrawal timer is reset after adding liquidity
+        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        assertEq(
+            rewardDistributor.withdrawTimerStartByUserByMarket(
+                liquidityProviderTwo,
+                address(perpetual)
+            ),
+            block.timestamp,
+            "Early withdrawal timer not reset after adding liquidity"
         );
     }
 
@@ -1523,37 +1539,19 @@ contract RewardsTest is Deployment, Utils {
 
         // registerPositions
         vm.startPrank(liquidityProviderOne);
-        // use try-catch to avoid comparing error parameters, which depend on rpc fork block
         address[] memory markets = new address[](1);
         markets[0] = address(perpetual2);
-        try rewardDistributor.registerPositions(markets) {
-            assertTrue(false, "Register positions should have reverted");
-        } catch (bytes memory reason) {
-            bytes4 expectedSelector = IRewardDistributor
-                .RewardDistributor_PositionAlreadyRegistered
-                .selector;
-            bytes4 receivedSelector = bytes4(reason);
-            assertEq(
-                receivedSelector,
-                expectedSelector,
-                "Incorrect revert error selector"
-            );
-        }
-        vm.stopPrank();
-
-        _provideLiquidityBothPerps(10_000e18, 10_000e18);
-
-        // accrueRewards
-        skip(5 days);
+        uint256 position = perpetual2.getLpLiquidity(liquidityProviderOne);
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardDistributor_EarlyRewardAccrual(address,address,uint256)",
-                liquidityProviderTwo,
-                address(perpetual),
-                block.timestamp + 5 days
+                "RewardDistributor_PositionAlreadyRegistered(address,address,uint256)",
+                liquidityProviderOne,
+                address(perpetual2),
+                position
             )
         );
-        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        rewardDistributor.registerPositions(markets);
+        vm.stopPrank();
 
         // addRewardToken
         vm.startPrank(address(this));
@@ -1688,10 +1686,7 @@ contract RewardsTest is Deployment, Utils {
         );
         ecosystemReserve.transferAdmin(address(0));
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidZeroAddress(uint256)",
-                0
-            )
+            abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()")
         );
         rewardDistributor.setEcosystemReserve(address(0));
 

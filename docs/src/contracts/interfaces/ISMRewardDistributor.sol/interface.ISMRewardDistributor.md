@@ -1,9 +1,9 @@
 # ISMRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/ISMRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/ISMRewardDistributor.sol)
 
 **Inherits:**
-[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IStakingContract
+[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IRewardContract
 
 **Author:**
 webthethird
@@ -14,7 +14,7 @@ Interface for the Safety Module's Reward Distributor contract
 
 ### safetyModule
 
-Gets the address of the SafetyModule contract which stores the list of StakedTokens and can call `updateStakingPosition`
+Gets the address of the SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
 
 ```solidity
 function safetyModule() external view returns (ISafetyModule);
@@ -141,28 +141,30 @@ function setSmoothingValue(uint256 _smoothingValue) external;
 Emitted when the max reward multiplier is updated by governance
 
 ```solidity
-event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
+event MaxRewardMultiplierUpdated(uint256 oldMaxRewardMultiplier, uint256 newMaxRewardMultiplier);
 ```
 
 **Parameters**
 
-| Name                  | Type      | Description               |
-| --------------------- | --------- | ------------------------- |
-| `maxRewardMultiplier` | `uint256` | New max reward multiplier |
+| Name                     | Type      | Description               |
+| ------------------------ | --------- | ------------------------- |
+| `oldMaxRewardMultiplier` | `uint256` | Old max reward multiplier |
+| `newMaxRewardMultiplier` | `uint256` | New max reward multiplier |
 
 ### SmoothingValueUpdated
 
 Emitted when the smoothing value is updated by governance
 
 ```solidity
-event SmoothingValueUpdated(uint256 smoothingValue);
+event SmoothingValueUpdated(uint256 oldSmoothingValue, uint256 newSmoothingValue);
 ```
 
 **Parameters**
 
-| Name             | Type      | Description         |
-| ---------------- | --------- | ------------------- |
-| `smoothingValue` | `uint256` | New smoothing value |
+| Name                | Type      | Description         |
+| ------------------- | --------- | ------------------- |
+| `oldSmoothingValue` | `uint256` | Old smoothing value |
+| `newSmoothingValue` | `uint256` | New smoothing value |
 
 ### SafetyModuleUpdated
 
@@ -183,7 +185,7 @@ event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
 
 ### SMRD_CallerIsNotSafetyModule
 
-Error returned when the caller of `updateStakingPosition` is not the SafetyModule
+Error returned when the caller of `updatePosition` is not the SafetyModule
 
 ```solidity
 error SMRD_CallerIsNotSafetyModule(address caller);

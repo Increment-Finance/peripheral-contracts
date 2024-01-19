@@ -80,7 +80,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
     uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
-    uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
     uint256 constant COOLDOWN_SECONDS = 1 days;
@@ -126,11 +125,7 @@ contract SafetyModuleTest is Deployment, Utils {
         weights[1] = 5000;
 
         // Deploy safety module
-        safetyModule = new SafetyModule(
-            address(0),
-            address(0),
-            INITIAL_MAX_USER_LOSS
-        );
+        safetyModule = new SafetyModule(address(0), address(0));
 
         // Deploy auction module
         auctionModule = new AuctionModule(safetyModule, IERC20(address(usdc)));
@@ -453,6 +448,18 @@ contract SafetyModuleTest is Deployment, Utils {
             2.25e18,
             "Reward multiplier mismatch after increasing max multiplier"
         );
+
+        // Calling cooldown resets the multiplier to 1
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        assertEq(
+            rewardDistributor.computeRewardMultiplier(
+                liquidityProviderTwo,
+                address(stakedToken1)
+            ),
+            1e18,
+            "Reward multiplier mismatch after cooldown"
+        );
     }
 
     function testMultipliedRewardAccrual(uint256 stakeAmount) public {
@@ -464,13 +471,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Skip some time
         skip(9 days);
-
-        // Start cooldown period
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
-
-        // Skip cooldown period
-        skip(1 days);
 
         // Get reward preview
         uint256 rewardPreview = _viewNewRewardAccrual(
@@ -485,10 +485,11 @@ contract SafetyModuleTest is Deployment, Utils {
             address(stakedToken1)
         );
 
-        // Redeem stakedToken1
-        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
-
         // Get accrued rewards
+        rewardDistributor.accrueRewards(
+            address(stakedToken1),
+            liquidityProviderTwo
+        );
         uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
             liquidityProviderTwo,
             address(rewardsToken)
@@ -513,6 +514,36 @@ contract SafetyModuleTest is Deployment, Utils {
                 rewardMultiplier
             ),
             "Accrued rewards mismatch"
+        );
+
+        // Start cooldown period (accrues rewards)
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+
+        // Skip cooldown period
+        skip(1 days);
+
+        // Add to reward preview
+        rewardPreview += _viewNewRewardAccrual(
+            address(stakedToken1),
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Redeem stakedToken1
+        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
+
+        // Get new accrued rewards
+        accruedRewards = rewardDistributor.rewardsAccruedByUser(
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Check that accrued rewards are equal to reward preview
+        assertEq(
+            accruedRewards,
+            rewardPreview,
+            "Accrued rewards preview mismatch"
         );
 
         // Check that rewards are not accrued after full redeem
@@ -590,11 +621,7 @@ contract SafetyModuleTest is Deployment, Utils {
         weights[1] = 5000;
 
         console.log("deploying new safety module");
-        SafetyModule newSafetyModule = new SafetyModule(
-            address(0),
-            address(0),
-            INITIAL_MAX_USER_LOSS
-        );
+        SafetyModule newSafetyModule = new SafetyModule(address(0), address(0));
         AuctionModule newAuctionModule = new AuctionModule(
             ISafetyModule(address(0)),
             IERC20(address(usdc))
@@ -612,7 +639,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         rewardVault.approve(
             rewardsToken,
-            address(newSafetyModule),
+            address(newRewardDistributor),
             type(uint256).max
         );
 
@@ -747,15 +774,22 @@ contract SafetyModuleTest is Deployment, Utils {
         // Skip some more time
         skip(9 days);
 
-        // Start cooldown period
+        // Get second reward preview
+        uint256 rewardPreview2 = _viewNewRewardAccrual(
+            address(stakedToken1),
+            liquidityProviderTwo,
+            address(rewardsToken)
+        );
+
+        // Start cooldown period (accrues rewards)
         vm.startPrank(liquidityProviderTwo);
         stakedToken1.cooldown();
 
         // Skip cooldown period
         skip(1 days);
 
-        // Get second reward preview
-        uint256 rewardPreview2 = _viewNewRewardAccrual(
+        // Get third reward preview
+        uint256 rewardPreview3 = _viewNewRewardAccrual(
             address(stakedToken1),
             liquidityProviderTwo,
             address(rewardsToken)
@@ -765,7 +799,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(
             address(rewardsToken),
-            rewardPreview + rewardPreview2
+            rewardPreview + rewardPreview2 + rewardPreview3
         );
         stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
@@ -773,7 +807,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(
             address(rewardsToken),
-            rewardPreview + rewardPreview2
+            rewardPreview + rewardPreview2 + rewardPreview3
         );
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
@@ -790,7 +824,7 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
-            10_000e18 + rewardPreview + rewardPreview2,
+            10_000e18 + rewardPreview + rewardPreview2 + rewardPreview3,
             "Incorrect rewards after resolving shortfall"
         );
     }
@@ -1156,28 +1190,6 @@ contract SafetyModuleTest is Deployment, Utils {
     /*  Slashing/Auctions  */
     /* ******************* */
 
-    function testAuctionableBalance(uint256 maxPercentUserLoss) public {
-        /* bounds */
-        maxPercentUserLoss = bound(maxPercentUserLoss, 0, 1e18);
-
-        // Get initial balances
-        uint256 balance1 = stakedToken1.balanceOf(liquidityProviderOne);
-        uint256 balance2 = stakedToken2.balanceOf(liquidityProviderOne);
-
-        // Set new max percent user loss and check auctionable balances
-        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
-        assertEq(
-            safetyModule.getAuctionableTotal(address(stakedToken1)),
-            balance1.wadMul(maxPercentUserLoss),
-            "Auctionable total 1 mismatch"
-        );
-        assertEq(
-            safetyModule.getAuctionableTotal(address(stakedToken2)),
-            balance2.wadMul(maxPercentUserLoss),
-            "Auctionable total 2 mismatch"
-        );
-    }
-
     function testStakedTokenExchangeRate(
         uint256 donatePercent,
         uint256 slashPercent,
@@ -1187,8 +1199,6 @@ contract SafetyModuleTest is Deployment, Utils {
         donatePercent = bound(donatePercent, 1e16, 1e18);
         slashPercent = bound(slashPercent, 1e16, 1e18);
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
-
-        safetyModule.setMaxPercentUserLoss(1e18);
 
         // Check initial conditions
         uint256 initialSupply = stakedToken1.totalSupply();
@@ -1309,14 +1319,16 @@ contract SafetyModuleTest is Deployment, Utils {
     function testAuctionSoldOut(
         uint8 numLots,
         uint128 lotPrice,
-        uint128 initialLotSize
+        uint128 initialLotSize,
+        uint64 slashPercent
     ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
         // lotSize x numLots should not exceed auctionable balance
-        uint256 auctionableBalance = safetyModule.getAuctionableTotal(
-            address(stakedToken1)
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(
+            slashPercent
         );
         initialLotSize = uint128(
             bound(initialLotSize, 1e18, auctionableBalance / numLots)
@@ -1333,6 +1345,7 @@ contract SafetyModuleTest is Deployment, Utils {
             numLots,
             lotPrice,
             initialLotSize,
+            slashPercent,
             lotIncreaseIncrement,
             lotIncreasePeriod,
             timeLimit
@@ -1389,7 +1402,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
         assertEq(
             stakedToken1.exchangeRate(),
-            1e18 - INITIAL_MAX_USER_LOSS,
+            1e18 - slashPercent,
             "Exchange rate mismatch after slashing"
         );
 
@@ -1458,14 +1471,16 @@ contract SafetyModuleTest is Deployment, Utils {
     function testAuctionTimeOut(
         uint8 numLots,
         uint128 lotPrice,
-        uint128 initialLotSize
+        uint128 initialLotSize,
+        uint64 slashPercent
     ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
         // initialLotSize x numLots should not exceed auctionable balance
-        uint256 auctionableBalance = safetyModule.getAuctionableTotal(
-            address(stakedToken1)
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(
+            slashPercent
         );
         initialLotSize = uint128(
             bound(initialLotSize, 1e18, auctionableBalance / numLots)
@@ -1487,6 +1502,7 @@ contract SafetyModuleTest is Deployment, Utils {
             numLots,
             lotPrice,
             initialLotSize,
+            slashPercent,
             lotIncreaseIncrement,
             lotIncreasePeriod,
             timeLimit
@@ -1562,14 +1578,16 @@ contract SafetyModuleTest is Deployment, Utils {
     function testTerminateAuctionEarly(
         uint8 numLots,
         uint128 lotPrice,
-        uint128 initialLotSize
+        uint128 initialLotSize,
+        uint64 slashPercent
     ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
         // lotSize x numLots should not exceed auctionable balance
-        uint256 auctionableBalance = safetyModule.getAuctionableTotal(
-            address(stakedToken1)
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(
+            slashPercent
         );
         initialLotSize = uint128(
             bound(initialLotSize, 1e18, auctionableBalance / numLots)
@@ -1586,6 +1604,7 @@ contract SafetyModuleTest is Deployment, Utils {
             numLots,
             lotPrice,
             initialLotSize,
+            slashPercent,
             lotIncreaseIncrement,
             lotIncreasePeriod,
             timeLimit
@@ -1602,7 +1621,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
         assertEq(
             stakedToken1.exchangeRate(),
-            1e18 - INITIAL_MAX_USER_LOSS,
+            1e18 - slashPercent,
             "Exchange rate mismatch after slashing"
         );
 
@@ -1674,11 +1693,6 @@ contract SafetyModuleTest is Deployment, Utils {
     /* ******************* */
 
     function testSafetyModuleErrors(
-        uint256 highMaxUserLoss,
-        uint256 lowMaxMultiplier,
-        uint256 highMaxMultiplier,
-        uint256 lowSmoothingValue,
-        uint256 highSmoothingValue,
         uint256 invalidMarketIdx,
         address invalidMarket,
         address invalidRewardToken,
@@ -1686,7 +1700,95 @@ contract SafetyModuleTest is Deployment, Utils {
         uint128 lotSize
     ) public {
         /* bounds */
-        highMaxUserLoss = bound(highMaxUserLoss, 1e18 + 1, type(uint256).max);
+        invalidMarketIdx = bound(invalidMarketIdx, 2, type(uint256).max);
+        vm.assume(
+            invalidMarket != address(stakedToken1) &&
+                invalidMarket != address(stakedToken2)
+        );
+        vm.assume(invalidRewardToken != address(rewardsToken));
+        vm.assume(
+            uint256(numLots) * uint256(lotSize) > stakedToken1.totalSupply()
+        );
+
+        // test staking token already registered
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_StakingTokenAlreadyRegistered(address)",
+                address(stakedToken1)
+            )
+        );
+        safetyModule.addStakingToken(stakedToken1);
+
+        // test invalid staking token
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InvalidStakingToken(address)",
+                invalidMarket
+            )
+        );
+        safetyModule.getStakingTokenIdx(invalidMarket);
+        vm.startPrank(invalidMarket);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_CallerIsNotStakingToken(address)",
+                invalidMarket
+            )
+        );
+        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
+        vm.stopPrank();
+
+        // test insufficient auctionable funds
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InsufficientSlashedTokensForAuction(address,uint256,uint256)",
+                address(stakedToken1.getUnderlyingToken()),
+                uint256(numLots) * uint256(lotSize),
+                stakedToken1.totalSupply()
+            )
+        );
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            numLots,
+            0,
+            lotSize,
+            1e18,
+            0,
+            0,
+            1 days
+        );
+
+        // test slash percent too high
+        vm.expectRevert(
+            abi.encodeWithSignature("SafetyModule_InvalidSlashPercentTooHigh()")
+        );
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            numLots,
+            0,
+            lotSize,
+            1e18 + 1,
+            0,
+            0,
+            1 days
+        );
+
+        // test invalid caller not auction module
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_CallerIsNotAuctionModule(address)",
+                address(this)
+            )
+        );
+        safetyModule.auctionEnded(0, 0);
+    }
+
+    function testSMRDErrors(
+        uint256 lowMaxMultiplier,
+        uint256 highMaxMultiplier,
+        uint256 lowSmoothingValue,
+        uint256 highSmoothingValue
+    ) public {
+        /* bounds */
         lowMaxMultiplier = bound(lowMaxMultiplier, 0, 1e18 - 1);
         highMaxMultiplier = bound(
             highMaxMultiplier,
@@ -1699,26 +1801,8 @@ contract SafetyModuleTest is Deployment, Utils {
             100e18 + 1,
             type(uint256).max
         );
-        invalidMarketIdx = bound(invalidMarketIdx, 2, type(uint256).max);
-        vm.assume(
-            invalidMarket != address(stakedToken1) &&
-                invalidMarket != address(stakedToken2)
-        );
-        vm.assume(invalidRewardToken != address(rewardsToken));
-        vm.assume(
-            uint256(numLots) * uint256(lotSize) >
-                safetyModule.getAuctionableTotal(address(stakedToken1))
-        );
 
         // test governor-controlled params out of bounds
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidMaxUserLossTooHigh(uint256,uint256)",
-                highMaxUserLoss,
-                1e18
-            )
-        );
-        safetyModule.setMaxPercentUserLoss(highMaxUserLoss);
         vm.expectRevert(
             abi.encodeWithSignature(
                 "SMRD_InvalidMaxMultiplierTooLow(uint256,uint256)",
@@ -1751,40 +1835,12 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         rewardDistributor.setSmoothingValue(highSmoothingValue);
+        vm.expectRevert(
+            abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()")
+        );
+        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
-        // test staking token already registered
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_StakingTokenAlreadyRegistered(address)",
-                address(stakedToken1)
-            )
-        );
-        safetyModule.addStakingToken(stakedToken1);
-
-        // test invalid staking token
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidStakingToken(address)",
-                invalidMarket
-            )
-        );
-        safetyModule.getStakingTokenIdx(invalidMarket);
-        vm.startPrank(address(stakedToken1));
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidStakingToken(address)",
-                invalidMarket
-            )
-        );
-        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
-        vm.startPrank(invalidMarket);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_CallerIsNotStakingToken(address)",
-                invalidMarket
-            )
-        );
-        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
+        // test already initialized market
         vm.startPrank(address(safetyModule));
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1795,98 +1851,25 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardDistributor.initMarketStartTime(address(stakedToken1));
         vm.stopPrank();
 
-        // test invalid auction ID
-        // (auction exists but corresponding StakedToken is not stored in SafetyModule)
-        vm.startPrank(address(safetyModule));
-        auctionModule.startAuction(
-            stakedToken1.getUnderlyingToken(),
-            numLots,
-            1 ether,
-            lotSize,
-            0.1 ether,
-            1 hours,
-            10 days
+        // test paused
+        rewardDistributor.pause();
+        assertTrue(rewardDistributor.paused(), "SMRD should be paused");
+        vm.expectRevert(bytes("Pausable: paused"));
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.unpause();
+        assertTrue(!rewardDistributor.paused(), "SMRD should not be paused");
+        safetyModule.pause();
+        assertTrue(
+            rewardDistributor.paused(),
+            "SMRD should be paused when safety module is paused"
         );
-        vm.stopPrank();
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
+        vm.expectRevert(bytes("Pausable: paused"));
+        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        safetyModule.unpause();
+        assertTrue(
+            !rewardDistributor.paused(),
+            "SMRD should not be paused when safety module is unpaused"
         );
-        safetyModule.terminateAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_InvalidAuctionId(uint256)", 0)
-        );
-        vm.startPrank(address(auctionModule));
-        safetyModule.auctionEnded(0, 0);
-        vm.stopPrank();
-
-        // test insufficient auctionable funds
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InsufficientSlashedTokensForAuction(address,uint256,uint256)",
-                address(stakedToken1.getUnderlyingToken()),
-                uint256(numLots) * uint256(lotSize),
-                safetyModule.getAuctionableTotal(address(stakedToken1))
-            )
-        );
-        safetyModule.slashAndStartAuction(
-            address(stakedToken1),
-            numLots,
-            0,
-            lotSize,
-            0,
-            0,
-            1 days
-        );
-
-        // test invalid zero args
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        safetyModule.returnFunds(address(0), address(auctionModule), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAddress(uint256)",
-                1
-            )
-        );
-        safetyModule.returnFunds(address(stakedToken1), address(0), 0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                2
-            )
-        );
-        safetyModule.returnFunds(
-            address(stakedToken1),
-            address(auctionModule),
-            0
-        );
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InvalidZeroAmount(uint256)",
-                0
-            )
-        );
-        safetyModule.withdrawFundsRaisedFromAuction(0);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_InvalidZeroAddress(uint256)",
-                0
-            )
-        );
-        rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
-
-        // test invalid caller not auction module
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_CallerIsNotAuctionModule(address)",
-                address(this)
-            )
-        );
-        safetyModule.auctionEnded(0, 0);
     }
 
     function testStakedTokenErrors(
@@ -2022,7 +2005,10 @@ contract SafetyModuleTest is Deployment, Utils {
         // redeem correctly
         stakedToken1.cooldown();
         skip(1 days);
-        stakedToken1.redeem(stakedBalance);
+        if (stakedBalance % 2 == 0 && stakedBalance < type(uint256).max / 2)
+            // test redeeming more than staked balance to make sure it adjusts the amount
+            stakedToken1.redeem(stakedBalance * 2);
+        else stakedToken1.redeem(stakedBalance);
         // restake, then try redeeming without cooldown
         stakedToken1.stake(stakedBalance);
         vm.expectRevert(
@@ -2058,12 +2044,9 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.settleSlashing();
 
         // test zero exchange rate
-        safetyModule.setMaxPercentUserLoss(1e18); // set max user loss to 100%
         vm.startPrank(address(safetyModule));
         // slash 100% of staked tokens, resulting in zero exchange rate
-        uint256 maxAuctionableTotal = safetyModule.getAuctionableTotal(
-            address(stakedToken1)
-        );
+        uint256 maxAuctionableTotal = stakedToken1.totalSupply();
         uint256 slashedTokens = stakedToken1.slash(
             address(this),
             maxAuctionableTotal
@@ -2124,24 +2107,28 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.cooldown();
         vm.stopPrank();
 
-        // test above max slash amount
-        safetyModule.setMaxPercentUserLoss(0.3e18); // set max user loss to 30%
-        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
-            address(stakedToken1)
-        );
-        vm.startPrank(address(safetyModule));
-        // end post-slashing state, which re-enables slashing
-        stakedToken1.settleSlashing();
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "StakedToken_AboveMaxSlashAmount(uint256,uint256)",
-                maxAuctionableTotal,
-                maxSlashAmount
-            )
-        );
-        // try slashing 100% of staked tokens, when only 30% is allowed
-        stakedToken1.slash(address(this), maxAuctionableTotal);
+        // test paused
+        stakedToken1.pause();
+        assertTrue(stakedToken1.paused(), "Staked token should be paused");
+        vm.startPrank(address(liquidityProviderOne));
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.stake(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.transfer(liquidityProviderTwo, 1);
         vm.stopPrank();
+        stakedToken1.unpause();
+        safetyModule.pause();
+        assertTrue(
+            stakedToken1.paused(),
+            "Staked token should be paused when Safety Module is"
+        );
+        vm.startPrank(address(liquidityProviderOne));
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.stake(1);
+        vm.expectRevert(bytes("Pausable: paused"));
+        stakedToken1.transfer(liquidityProviderTwo, 1);
+        vm.stopPrank();
+        safetyModule.unpause();
     }
 
     function testAuctionModuleErrors() public {
@@ -2151,6 +2138,7 @@ contract SafetyModuleTest is Deployment, Utils {
             1,
             1 ether,
             1e18,
+            0.5e18,
             0.1 ether,
             1 hours,
             10 days

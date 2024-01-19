@@ -52,8 +52,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         maxRewardMultiplier = _maxRewardMultiplier;
         smoothingValue = _smoothingValue;
         emit SafetyModuleUpdated(address(0), address(_safetyModule));
-        emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
-        emit SmoothingValueUpdated(_smoothingValue);
+        emit MaxRewardMultiplierUpdated(0, _maxRewardMultiplier);
+        emit SmoothingValueUpdated(0, _smoothingValue);
     }
 
     /* ****************** */
@@ -114,10 +114,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 ++i;
             }
         }
-        if (prevPosition == 0 || newPosition < prevPosition) {
-            // Removed stake or staked for the first time - need to reset multiplier
+        if (prevPosition == 0 || newPosition <= prevPosition) {
+            // Removed stake, started cooldown or staked for the first time - need to reset multiplier
             if (newPosition != 0) {
-                // Partial removal or first stake - reset multiplier to 1
+                // Partial removal, cooldown or first stake - reset multiplier to 1
                 multiplierStartTimeByUser[user][market] = block.timestamp;
             } else {
                 // Full removal - set multiplier to 0 until the user stakes again
@@ -204,7 +204,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         ISafetyModule _newSafetyModule
     ) external onlyRole(GOVERNANCE) {
         if (address(_newSafetyModule) == address(0))
-            revert RewardDistributor_InvalidZeroAddress(0);
+            revert RewardDistributor_InvalidZeroAddress();
         emit SafetyModuleUpdated(
             address(safetyModule),
             address(_newSafetyModule)
@@ -224,8 +224,11 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 _maxRewardMultiplier,
                 10e18
             );
+        emit MaxRewardMultiplierUpdated(
+            maxRewardMultiplier,
+            _maxRewardMultiplier
+        );
         maxRewardMultiplier = _maxRewardMultiplier;
-        emit MaxRewardMultiplierUpdated(_maxRewardMultiplier);
     }
 
     /// @inheritdoc ISMRewardDistributor
@@ -237,8 +240,20 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             revert SMRD_InvalidSmoothingValueTooLow(_smoothingValue, 10e18);
         else if (_smoothingValue > 100e18)
             revert SMRD_InvalidSmoothingValueTooHigh(_smoothingValue, 100e18);
+        emit SmoothingValueUpdated(smoothingValue, _smoothingValue);
         smoothingValue = _smoothingValue;
-        emit SmoothingValueUpdated(_smoothingValue);
+    }
+
+    /// @inheritdoc IRewardController
+    /// @dev Only callable by governance
+    function pause() external override onlyRole(GOVERNANCE) {
+        _pause();
+    }
+
+    /// @inheritdoc IRewardController
+    /// @dev Only callable by governance
+    function unpause() external override onlyRole(GOVERNANCE) {
+        _unpause();
     }
 
     /* **************** */

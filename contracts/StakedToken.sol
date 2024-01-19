@@ -173,6 +173,9 @@ contract StakedToken is
         //solium-disable-next-line
         stakersCooldowns[msg.sender] = block.timestamp;
 
+        // Accrue rewards before resetting user's multiplier to 1
+        safetyModule.updatePosition(address(this), msg.sender);
+
         emit Cooldown(msg.sender);
     }
 
@@ -188,11 +191,6 @@ contract StakedToken is
         if (destination == address(0)) revert StakedToken_InvalidZeroAddress();
         if (isInPostSlashingState)
             revert StakedToken_SlashingDisabledInPostSlashingState();
-        uint256 maxSlashAmount = safetyModule.getAuctionableTotal(
-            address(this)
-        );
-        if (amount > maxSlashAmount)
-            revert StakedToken_AboveMaxSlashAmount(amount, maxSlashAmount);
 
         // Change state to post-slashing
         isInPostSlashingState = true;
@@ -287,7 +285,7 @@ contract StakedToken is
         return toCooldownTimestamp;
     }
 
-    /// @notice Indicates whether staking, redeeming and transferring are currently paused
+    /// @notice Indicates whether staking and transferring are currently paused
     /// @dev Contract is paused if either this contract or the SafetyModule has been paused
     /// @return True if paused, false otherwise
     function paused() public view override returns (bool) {
@@ -320,19 +318,15 @@ contract StakedToken is
         maxStakeAmount = _newMaxStakeAmount;
     }
 
-    /* ****************** */
-    /*   Emergency Admin  */
-    /* ****************** */
-
     /// @inheritdoc IStakedToken
-    /// @dev Can only be called by Emergency Admin
-    function pause() external onlyRole(EMERGENCY_ADMIN) {
+    /// @dev Only callable by governance
+    function pause() external onlyRole(GOVERNANCE) {
         _pause();
     }
 
     /// @inheritdoc IStakedToken
-    /// @dev Can only be called by Emergency Admin
-    function unpause() external onlyRole(EMERGENCY_ADMIN) {
+    /// @dev Only callable by governance
+    function unpause() external onlyRole(GOVERNANCE) {
         _unpause();
     }
 
@@ -431,11 +425,7 @@ contract StakedToken is
         emit Staked(from, to, amount);
     }
 
-    function _redeem(
-        address from,
-        address to,
-        uint256 amount
-    ) internal whenNotPaused {
+    function _redeem(address from, address to, uint256 amount) internal {
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 

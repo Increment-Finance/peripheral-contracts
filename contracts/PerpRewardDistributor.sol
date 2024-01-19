@@ -119,11 +119,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
             if (newLpPosition >= prevLpPosition) {
-                // Added liquidity
-                if (withdrawTimerStartByUserByMarket[user][market] == 0) {
-                    withdrawTimerStartByUserByMarket[user][market] = block
-                        .timestamp;
-                }
+                // Added liquidity - reset early withdrawal timer
+                withdrawTimerStartByUserByMarket[user][market] = block
+                    .timestamp;
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
                 uint256 deltaTime = block.timestamp -
@@ -245,17 +243,12 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address market,
         address user
     ) internal virtual override {
+        // Do not accrue rewards for the given market before the early withdrawal threshold has passed
         if (
             block.timestamp <
             withdrawTimerStartByUserByMarket[user][market] +
                 earlyWithdrawalThreshold
-        )
-            revert RewardDistributor_EarlyRewardAccrual(
-                user,
-                market,
-                withdrawTimerStartByUserByMarket[user][market] +
-                    earlyWithdrawalThreshold
-            );
+        ) return;
         uint256 lpPosition = lpPositionsPerUser[user][market];
         if (lpPosition != _getCurrentPosition(user, market))
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,

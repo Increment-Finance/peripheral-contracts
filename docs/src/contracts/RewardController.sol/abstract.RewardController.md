@@ -1,6 +1,6 @@
 # RewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/RewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/RewardController.sol)
 
 **Inherits:**
 [IRewardController](/contracts/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -44,7 +44,7 @@ uint256 public constant MAX_REWARD_TOKENS = 10;
 
 List of reward token addresses
 
-_Length must be <= `MAX_REWARD_TOKENS`_
+_Length must be <= MAX_REWARD_TOKENS_
 
 ```solidity
 address[] public rewardTokens;
@@ -56,6 +56,16 @@ Info for each registered reward token
 
 ```solidity
 mapping(address => RewardInfo) internal rewardInfoByToken;
+```
+
+### marketWeightsByToken
+
+Mapping from reward token to reward weights for each market
+
+_Market reward weights are basis points, i.e., 100 = 1%, 10000 = 100%_
+
+```solidity
+mapping(address => mapping(address => uint256)) internal marketWeightsByToken;
 ```
 
 ## Functions
@@ -156,12 +166,12 @@ function getReductionFactor(address rewardToken) external view returns (uint256)
 | -------- | --------- | ------------------------------------ |
 | `<none>` | `uint256` | Reduction factor of the reward token |
 
-### getRewardWeights
+### getRewardWeight
 
-Gets the addresses and weights of all markets for a reward token
+Gets the reward weight of a given market for a reward token
 
 ```solidity
-function getRewardWeights(address rewardToken) external view returns (address[] memory, uint16[] memory);
+function getRewardWeight(address rewardToken, address market) external view returns (uint256);
 ```
 
 **Parameters**
@@ -169,36 +179,13 @@ function getRewardWeights(address rewardToken) external view returns (address[] 
 | Name          | Type      | Description                 |
 | ------------- | --------- | --------------------------- |
 | `rewardToken` | `address` | Address of the reward token |
+| `market`      | `address` | Address of the market       |
 
 **Returns**
 
-| Name     | Type        | Description                                              |
-| -------- | ----------- | -------------------------------------------------------- |
-| `<none>` | `address[]` | List of market addresses and their corresponding weights |
-| `<none>` | `uint16[]`  | The corresponding weights for each market                |
-
-### getMarketWeightIdx
-
-Gets the index of the market in the rewardInfo.marketWeights array for a given reward token
-
-_Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)_
-
-```solidity
-function getMarketWeightIdx(address token, address market) public view virtual returns (int256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description                 |
-| -------- | --------- | --------------------------- |
-| `token`  | `address` | Address of the reward token |
-| `market` | `address` | Address of the market       |
-
-**Returns**
-
-| Name     | Type     | Description                                                                                   |
-| -------- | -------- | --------------------------------------------------------------------------------------------- |
-| `<none>` | `int256` | Index of the market in the `rewardInfo.marketWeights` array, or -1 if the market is not found |
+| Name     | Type      | Description                                     |
+| -------- | --------- | ----------------------------------------------- |
+| `<none>` | `uint256` | The reward weight of the market in basis points |
 
 ### isTokenPaused
 
@@ -227,9 +214,8 @@ Sets the market addresses and reward weights for a reward token
 _Only callable by Governance_
 
 ```solidity
-function updateRewardWeights(address rewardToken, address[] calldata markets, uint16[] calldata weights)
+function updateRewardWeights(address rewardToken, address[] calldata markets, uint256[] calldata weights)
     external
-    nonReentrant
     onlyRole(GOVERNANCE);
 ```
 
@@ -239,7 +225,7 @@ function updateRewardWeights(address rewardToken, address[] calldata markets, ui
 | ------------- | ----------- | ------------------------------------------- |
 | `rewardToken` | `address`   | Address of the reward token                 |
 | `markets`     | `address[]` | List of market addresses to receive rewards |
-| `weights`     | `uint16[]`  | List of weights for each market             |
+| `weights`     | `uint256[]` | List of weights for each market             |
 
 ### updateInitialInflationRate
 
@@ -248,7 +234,7 @@ Sets the initial inflation rate used to calculate emissions over time for a give
 _Only callable by Governance_
 
 ```solidity
-function updateInitialInflationRate(address rewardToken, uint256 newInitialInflationRate)
+function updateInitialInflationRate(address rewardToken, uint88 newInitialInflationRate)
     external
     onlyRole(GOVERNANCE);
 ```
@@ -258,7 +244,7 @@ function updateInitialInflationRate(address rewardToken, uint256 newInitialInfla
 | Name                      | Type      | Description                                           |
 | ------------------------- | --------- | ----------------------------------------------------- |
 | `rewardToken`             | `address` | Address of the reward token                           |
-| `newInitialInflationRate` | `uint256` | The new inflation rate in tokens/year, scaled by 1e18 |
+| `newInitialInflationRate` | `uint88`  | The new inflation rate in tokens/year, scaled by 1e18 |
 
 ### updateReductionFactor
 
@@ -267,7 +253,7 @@ Sets the reduction factor used to reduce emissions over time for a given reward 
 _Only callable by Governance_
 
 ```solidity
-function updateReductionFactor(address rewardToken, uint256 newReductionFactor) external onlyRole(GOVERNANCE);
+function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
@@ -275,7 +261,7 @@ function updateReductionFactor(address rewardToken, uint256 newReductionFactor) 
 | Name                 | Type      | Description                              |
 | -------------------- | --------- | ---------------------------------------- |
 | `rewardToken`        | `address` | Address of the reward token              |
-| `newReductionFactor` | `uint256` | The new reduction factor, scaled by 1e18 |
+| `newReductionFactor` | `uint88`  | The new reduction factor, scaled by 1e18 |
 
 ### pause
 
@@ -284,7 +270,7 @@ Pause the contract
 _Can only be called by Emergency Admin_
 
 ```solidity
-function pause() external override onlyRole(EMERGENCY_ADMIN);
+function pause() external virtual override onlyRole(EMERGENCY_ADMIN);
 ```
 
 ### unpause
@@ -294,7 +280,7 @@ Unpause the contract
 _Can only be called by Emergency Admin_
 
 ```solidity
-function unpause() external override onlyRole(EMERGENCY_ADMIN);
+function unpause() external virtual override onlyRole(EMERGENCY_ADMIN);
 ```
 
 ### setPaused
@@ -421,22 +407,20 @@ Data structure containing essential info for each reward token
 struct RewardInfo {
     IERC20Metadata token;
     bool paused;
-    uint256 initialTimestamp;
-    uint256 initialInflationRate;
-    uint256 reductionFactor;
+    uint80 initialTimestamp;
+    uint88 initialInflationRate;
+    uint88 reductionFactor;
     address[] marketAddresses;
-    uint16[] marketWeights;
 }
 ```
 
 **Properties**
 
-| Name                   | Type             | Description                                                         |
-| ---------------------- | ---------------- | ------------------------------------------------------------------- |
-| `token`                | `IERC20Metadata` | Address of the reward token                                         |
-| `paused`               | `bool`           | Whether the reward token accrual is paused                          |
-| `initialTimestamp`     | `uint256`        | Time when the reward token was added                                |
-| `initialInflationRate` | `uint256`        | Initial rate of reward token emission per year                      |
-| `reductionFactor`      | `uint256`        | Factor by which the inflation rate is reduced each year             |
-| `marketAddresses`      | `address[]`      | List of markets for which the reward token is distributed           |
-| `marketWeights`        | `uint16[]`       | Market reward weights as basis points, i.e., 100 = 1%, 10000 = 100% |
+| Name                   | Type             | Description                                               |
+| ---------------------- | ---------------- | --------------------------------------------------------- |
+| `token`                | `IERC20Metadata` | Address of the reward token                               |
+| `paused`               | `bool`           | Whether the reward token accrual is paused                |
+| `initialTimestamp`     | `uint80`         | Time when the reward token was added                      |
+| `initialInflationRate` | `uint88`         | Initial rate of reward token emission per year            |
+| `reductionFactor`      | `uint88`         | Factor by which the inflation rate is reduced each year   |
+| `marketAddresses`      | `address[]`      | List of markets for which the reward token is distributed |

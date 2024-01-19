@@ -1,9 +1,9 @@
 # EcosystemReserve
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/EcosystemReserve.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/EcosystemReserve.sol)
 
 **Inherits:**
-AdminControlledEcosystemReserve
+[AdminControlledEcosystemReserve](/contracts/AdminControlledEcosystemReserve.sol/abstract.AdminControlledEcosystemReserve.md)
 
 **Author:**
 webthethird

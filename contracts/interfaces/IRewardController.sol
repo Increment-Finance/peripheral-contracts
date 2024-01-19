@@ -140,6 +140,7 @@ interface IRewardController {
 
     /// @notice Gets the reward weight of a given market for a reward token
     /// @param rewardToken Address of the reward token
+    /// @param market Address of the market
     /// @return The reward weight of the market in basis points
     function getRewardWeight(
         address rewardToken,

@@ -190,7 +190,7 @@ interface IAuctionModule {
     function completeAuction(uint256 _auctionId) external;
 
     /// @notice Buys one or more lots at the current lot size, and ends the auction if all lots are sold
-    /// @dev The caller must approve this contract to transfer the lotPrice * numLotsToBuy in payment tokens
+    /// @dev The caller must approve this contract to transfer the lotPrice x numLotsToBuy in payment tokens
     /// @param _auctionId ID of the auction
     /// @param _numLotsToBuy Number of lots to buy
     function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;

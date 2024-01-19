@@ -1,6 +1,6 @@
 # IRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/ecb136b3c508e89c22b16cec8dcfd7e319381983/contracts/interfaces/IRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IRewardDistributor.sol)
 
 **Author:**
 webthethird
@@ -200,10 +200,10 @@ Adds a new reward token
 ```solidity
 function addRewardToken(
     address _rewardToken,
-    uint256 _initialInflationRate,
-    uint256 _initialReductionFactor,
+    uint88 _initialInflationRate,
+    uint88 _initialReductionFactor,
     address[] calldata _markets,
-    uint16[] calldata _marketWeights
+    uint256[] calldata _marketWeights
 ) external;
 ```
 
@@ -212,10 +212,10 @@ function addRewardToken(
 | Name                      | Type        | Description                                           |
 | ------------------------- | ----------- | ----------------------------------------------------- |
 | `_rewardToken`            | `address`   | Address of the reward token                           |
-| `_initialInflationRate`   | `uint256`   | Initial inflation rate for the new token              |
-| `_initialReductionFactor` | `uint256`   | Initial reduction factor for the new token            |
+| `_initialInflationRate`   | `uint88`    | Initial inflation rate for the new token              |
+| `_initialReductionFactor` | `uint88`    | Initial reduction factor for the new token            |
 | `_markets`                | `address[]` | Addresses of the markets to reward with the new token |
-| `_marketWeights`          | `uint16[]`  | Initial weights per market for the new token          |
+| `_marketWeights`          | `uint256[]` | Initial weights per market for the new token          |
 
 ### removeRewardToken
 
@@ -264,16 +264,6 @@ function initMarketStartTime(address _market) external;
 
 ### registerPositions
 
-Fetches and stores the caller's LP/stake positions and updates the total liquidity in each market
-
-_Can only be called once per user, only necessary if user was an LP/staker prior to this contract's deployment_
-
-```solidity
-function registerPositions() external;
-```
-
-### registerPositions
-
 Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the
 provided markets
 
@@ -288,14 +278,6 @@ function registerPositions(address[] calldata _markets) external;
 | Name       | Type        | Description                           |
 | ---------- | ----------- | ------------------------------------- |
 | `_markets` | `address[]` | Addresses of the markets to sync with |
-
-### claimRewards
-
-Accrues and then distributes rewards for all markets to the caller
-
-```solidity
-function claimRewards() external;
-```
 
 ### claimRewardsFor
 
@@ -327,41 +309,6 @@ function claimRewardsFor(address _user, address[] memory _rewardTokens) external
 | --------------- | ----------- | --------------------------------------------------- |
 | `_user`         | `address`   | Address of the user to claim rewards for            |
 | `_rewardTokens` | `address[]` | Addresses of the reward tokens to claim rewards for |
-
-### accrueRewards
-
-Accrues rewards to a user for all markets
-
-_Assumes user's position hasn't changed since last accrual, since updating rewards due to changes
-in position is handled by `updateStakingPosition`_
-
-```solidity
-function accrueRewards(address user) external;
-```
-
-**Parameters**
-
-| Name   | Type      | Description                               |
-| ------ | --------- | ----------------------------------------- |
-| `user` | `address` | Address of the user to accrue rewards for |
-
-### accrueRewards
-
-Accrues rewards to a user for a given market
-
-_Assumes user's position hasn't changed since last accrual, since updating rewards due to changes in
-position is handled by `updateStakingPosition`_
-
-```solidity
-function accrueRewards(address market, address user) external;
-```
-
-**Parameters**
-
-| Name     | Type      | Description                                 |
-| -------- | --------- | ------------------------------------------- |
-| `market` | `address` | Address of the market to accrue rewards for |
-| `user`   | `address` | Address of the user                         |
 
 ## Events
 
@@ -497,23 +444,6 @@ error RewardDistributor_PositionAlreadyRegistered(address user, address market, 
 | `market`   | `address` | Address of the market |
 | `position` | `uint256` | Position of the user  |
 
-### RewardDistributor_EarlyRewardAccrual
-
-Error returned when a user tries to manually accrue rewards before the early withdrawal
-penalty period is over
-
-```solidity
-error RewardDistributor_EarlyRewardAccrual(address user, address market, uint256 claimAllowedTimestamp);
-```
-
-**Parameters**
-
-| Name                    | Type      | Description                                                |
-| ----------------------- | --------- | ---------------------------------------------------------- |
-| `user`                  | `address` | Address of the user                                        |
-| `market`                | `address` | Address of the market                                      |
-| `claimAllowedTimestamp` | `uint256` | Timestamp when the early withdrawal penalty period is over |
-
 ### RewardDistributor_UserPositionMismatch
 
 Error returned if a user's position stored in the RewardDistributor does not match their current position in a given market
@@ -541,11 +471,5 @@ error RewardDistributor_UserPositionMismatch(
 Error returned when the zero address is passed to a function that expects a non-zero address
 
 ```solidity
-error RewardDistributor_InvalidZeroAddress(uint256 argIndex);
+error RewardDistributor_InvalidZeroAddress();
 ```
-
-**Parameters**
-
-| Name       | Type      | Description                   |
-| ---------- | --------- | ----------------------------- |
-| `argIndex` | `uint256` | Index of the invalid argument |

@@ -34,18 +34,6 @@ interface ISafetyModule is IRewardContract {
         address newRewardDistributor
     );
 
-    /// @notice Emitted when the max percent user loss is updated by governance
-    /// @param maxPercentUserLoss New max percent user loss
-    event MaxPercentUserLossUpdated(uint256 maxPercentUserLoss);
-
-    /// @notice Emitted when the max reward multiplier is updated by governance
-    /// @param maxRewardMultiplier New max reward multiplier
-    event MaxRewardMultiplierUpdated(uint256 maxRewardMultiplier);
-
-    /// @notice Emitted when the smoothing value is updated by governance
-    /// @param smoothingValue New smoothing value
-    event SmoothingValueUpdated(uint256 smoothingValue);
-
     /// @notice Emitted when a staking token is slashed and the underlying tokens are sent to the AuctionModule
     /// @param stakingToken Address of the staking token
     /// @param slashAmount Amount of staking tokens slashed
@@ -98,14 +86,8 @@ interface ISafetyModule is IRewardContract {
     /// @param invalidAddress Address that was passed
     error SafetyModule_InvalidStakingToken(address invalidAddress);
 
-    /// @notice Error returned when passing an invalid auction ID to a function that interacts with the auction module
-    /// @param invalidId ID that was passed
-    error SafetyModule_InvalidAuctionId(uint256 invalidId);
-
-    /// @notice Error returned when trying to set the max percent user loss to a value that is too high
-    /// @param value Value that was passed
-    /// @param max Maximum allowed value
-    error SafetyModule_InvalidMaxUserLossTooHigh(uint256 value, uint256 max);
+    /// @notice Error returned when passing a `slashPercent` value that is greater than 100% (1e18)
+    error SafetyModule_InvalidSlashPercentTooHigh();
 
     /// @notice Error returned when the maximum auctionable amount of underlying tokens is less than
     /// the given initial lot size multiplied by the number of lots when calling `slashAndStartAuction`
@@ -117,14 +99,6 @@ interface ISafetyModule is IRewardContract {
         uint256 amount,
         uint256 maxAmount
     );
-
-    /// @notice Error returned when a caller passes a zero amount to a function that requires a non-zero value
-    /// @param argIndex Index of the argument where a zero was passed
-    error SafetyModule_InvalidZeroAmount(uint256 argIndex);
-
-    /// @notice Error returned when a caller passes the zero address to a function that requires a non-zero address
-    /// @param argIndex Index of the argument where a zero address was passed
-    error SafetyModule_InvalidZeroAddress(uint256 argIndex);
 
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
@@ -146,10 +120,6 @@ interface ISafetyModule is IRewardContract {
         uint256 auctionId
     ) external view returns (IStakedToken);
 
-    /// @notice Gets the maximum percentage of user funds that can be slashed and sold at auction, normalized to 1e18
-    /// @return Maximum user loss percentage
-    function maxPercentUserLoss() external view returns (uint256);
-
     /// @notice Gets the number of staking tokens registered in the SafetyModule
     /// @return Number of staking tokens
     function getNumStakingTokens() external view returns (uint256);
@@ -160,18 +130,13 @@ interface ISafetyModule is IRewardContract {
     /// @return Index of the staking token in the `stakingTokens` array
     function getStakingTokenIdx(address token) external view returns (uint256);
 
-    /// @notice Returns the total amount of staked tokens that can be sold at auction in the event of
-    /// an insolvency in the vault that cannot be covered by the insurance fund
-    /// @param token Address of the staking token
-    /// @return Total amount of staked tokens multiplied by the maxPercentUserLoss
-    function getAuctionableTotal(address token) external view returns (uint256);
-
     /// @notice Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
     /// transfers the underlying tokens to the AuctionModule and starts an auction to sell them
     /// @param _stakedToken Address of the staked token to slash
     /// @param _numLots Number of lots in the auction
     /// @param _lotPrice Fixed price of each lot in the auction
     /// @param _initialLotSize Initial number of underlying tokens in each lot
+    /// @param _slashPercent Percentage of staked tokens to slash, normalized to 1e18
     /// @param _lotIncreaseIncrement Amount of tokens by which the lot size increases each period
     /// @param _lotIncreasePeriod Number of seconds between each lot size increase
     /// @param _timeLimit Number of seconds before the auction ends if all lots are not sold
@@ -181,6 +146,7 @@ interface ISafetyModule is IRewardContract {
         uint8 _numLots,
         uint128 _lotPrice,
         uint128 _initialLotSize,
+        uint64 _slashPercent,
         uint96 _lotIncreaseIncrement,
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
@@ -224,10 +190,6 @@ interface ISafetyModule is IRewardContract {
     function setRewardDistributor(
         ISMRewardDistributor _newRewardDistributor
     ) external;
-
-    /// @notice Sets the maximum percentage of user funds that can be sold at auction, normalized to 1e18
-    /// @param _maxPercentUserLoss New maximum percentage of user funds that can be sold at auction, normalized to 1e18
-    function setMaxPercentUserLoss(uint256 _maxPercentUserLoss) external;
 
     /// @notice Adds a new staking token to the SafetyModule's stakingTokens array
     /// @param _stakingToken Address of the new staking token
