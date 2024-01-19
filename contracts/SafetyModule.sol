@@ -21,7 +21,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @author webthethird
 /// @notice Handles reward accrual and distribution for staking tokens, and allows governance to auction a
 /// percentage of user funds in the event of an insolvency in the vault
-/// @dev Auction module and related logic is not yet implemented
 contract SafetyModule is
     ISafetyModule,
     IncreAccessControl,
