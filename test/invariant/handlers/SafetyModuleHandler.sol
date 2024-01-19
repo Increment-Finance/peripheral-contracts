@@ -330,10 +330,7 @@ contract SafetyModuleHandler is Test {
         );
         if (amount == 0) {
             vm.expectRevert(
-                abi.encodeWithSignature(
-                    "SafetyModule_InvalidZeroAmount(uint256)",
-                    2
-                )
+                abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
             );
             safetyModule.returnFunds(address(stakedToken), governance, amount);
             return;
@@ -378,16 +375,6 @@ contract SafetyModuleHandler is Test {
     function withdrawFundsRaisedFromAuction(
         uint256 amount
     ) external useGovernance {
-        if (amount == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "SafetyModule_InvalidZeroAmount(uint256)",
-                    0
-                )
-            );
-            safetyModule.withdrawFundsRaisedFromAuction(amount);
-            return;
-        }
         IERC20 paymentToken = auctionModule.paymentToken();
         uint256 allowance = paymentToken.allowance(
             address(auctionModule),
