@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 // contracts
 import "../../../contracts/StakedToken.sol";
-import {Test} from "forge/Test.sol";
+import {Test} from "../../../lib/increment-protocol/lib/forge-std/src/Test.sol";
 
 // interfaces
 import "../../../contracts/interfaces/ISMRewardDistributor.sol";
@@ -11,7 +11,7 @@ import "../../../contracts/interfaces/IRewardController.sol";
 import "../../../contracts/interfaces/IRewardDistributor.sol";
 
 // libraries
-import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contracts/PRBMathUD60x18.sol";
 
 contract StakedTokenHandler is Test {
     using PRBMathUD60x18 for uint256;

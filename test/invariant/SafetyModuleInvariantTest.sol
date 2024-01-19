@@ -38,7 +38,6 @@ contract SafetyModuleInvariantTest is Test {
 
     uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
-    uint256 constant INITIAL_MAX_USER_LOSS = 0.5e18;
     uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
     uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
     uint256 constant COOLDOWN_SECONDS = 1 days;
@@ -103,7 +102,7 @@ contract SafetyModuleInvariantTest is Test {
 
     function setUp() public virtual {
         /* initialize fork */
-        vm.createFork(vm.envString("MAINNET_RPC_URL"));
+        mainnetFork = vm.createFork(vm.envString("MAINNET_RPC_URL"));
         vm.selectFork(mainnetFork);
 
         deal(stakerOne, 100 ether);
@@ -123,11 +122,7 @@ contract SafetyModuleInvariantTest is Test {
         weights[1] = 5000;
 
         // Deploy safety module
-        safetyModule = new SafetyModule(
-            address(0),
-            address(0),
-            INITIAL_MAX_USER_LOSS
-        );
+        safetyModule = new SafetyModule(address(0), address(0));
 
         // Deploy auction module
         usdc = IERC20Metadata(USDC);

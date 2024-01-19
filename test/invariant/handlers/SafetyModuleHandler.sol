@@ -4,15 +4,15 @@ pragma solidity 0.8.16;
 // contracts
 import "../../../contracts/SafetyModule.sol";
 import "../../../contracts/StakedToken.sol";
-import {Test} from "forge/Test.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Test} from "../../../lib/increment-protocol/lib/forge-std/src/Test.sol";
+import {ERC20} from "../../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 // interfaces
 import {IRewardDistributor} from "../../../contracts/interfaces/IRewardDistributor.sol";
 
 // libraries
-import {strings} from "stringutils/strings.sol";
-import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {strings} from "../../../lib/solidity-stringutils/strings.sol";
+import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contracts/PRBMathUD60x18.sol";
 
 interface ITestContract {
     function numStakedTokenHandlers() external view returns (uint256);
@@ -118,26 +118,12 @@ contract SafetyModuleHandler is Test {
     //     testContract.addStakedToken(stakedToken);
     // }
 
-    function setMaxPercentUserLoss(
-        uint256 maxPercentUserLoss
-    ) external useGovernance {
-        if (maxPercentUserLoss > 1e18) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "SafetyModule_InvalidMaxUserLossTooHigh(uint256,uint256)",
-                    maxPercentUserLoss,
-                    1e18
-                )
-            );
-        }
-        safetyModule.setMaxPercentUserLoss(maxPercentUserLoss);
-    }
-
     function slashAndStartAuction(
         uint256 _stakedTokenIndexSeed,
         uint8 _numLots,
         uint128 _lotPrice,
         uint128 _initialLotSize,
+        uint64 _slashPercent,
         uint96 _lotIncreaseIncrement,
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
@@ -165,14 +151,15 @@ contract SafetyModuleHandler is Test {
             bound(_lotIncreasePeriod, 30 minutes, 12 hours)
         );
         _timeLimit = uint32(bound(_timeLimit, 1 days, 4 weeks));
+        _slashPercent = uint64(bound(_slashPercent, 1e16, 1e18));
 
         uint256 underlyingAmount = stakedToken.previewRedeem(
-            safetyModule.getAuctionableTotal(address(stakedToken))
+            stakedToken.totalSupply().mul(_slashPercent)
         );
         uint256 nextAuctionId = auctionModule.nextAuctionId();
         bool expectFail;
 
-        if (safetyModule.getAuctionableTotal(address(stakedToken)) == 0) {
+        if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
             expectFail = true;
             vm.expectRevert(
                 abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
@@ -204,6 +191,7 @@ contract SafetyModuleHandler is Test {
             _numLots,
             _lotPrice,
             _initialLotSize,
+            _slashPercent,
             _lotIncreaseIncrement,
             _lotIncreasePeriod,
             _timeLimit
