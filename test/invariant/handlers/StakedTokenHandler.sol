@@ -80,6 +80,11 @@ contract StakedTokenHandler is Test {
         _;
     }
 
+    modifier onlyTestContract() {
+        if (msg.sender != testContract) return;
+        _;
+    }
+
     constructor(
         StakedToken[] memory _stakedTokens,
         StakedToken[] memory _stakedBPTs,
@@ -111,6 +116,16 @@ contract StakedTokenHandler is Test {
     /* ********************* */
     /* Test Helper Functions */
     /* ********************* */
+
+    function addStakedToken(
+        StakedToken _stakedToken,
+        bool _isStakedBPT
+    ) external onlyTestContract {
+        stakedTokens.push(_stakedToken);
+        if (_isStakedBPT) {
+            isStakedBPT[_stakedToken] = true;
+        }
+    }
 
     function dealUnderlying(
         uint256 amount,
