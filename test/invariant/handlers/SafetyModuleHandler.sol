@@ -154,7 +154,10 @@ contract SafetyModuleHandler is Test {
         uint256 nextAuctionId = auctionModule.nextAuctionId();
         bool expectFail;
 
-        if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
+        if (auctionModule.paused()) {
+            expectFail = true;
+            vm.expectRevert(bytes("Pausable: paused"));
+        } else if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
             expectFail = true;
             vm.expectRevert(
                 abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")

@@ -284,4 +284,16 @@ contract AuctionModuleHandler is Test {
             "AuctionModule: Completed auction should be inactive"
         );
     }
+
+    /* ******************** */
+    /* Governance Functions */
+    /* ******************** */
+
+    function pause() external useGovernance {
+        auctionModule.pause();
+    }
+
+    function unpause() external useGovernance {
+        auctionModule.unpause();
+    }
 }
