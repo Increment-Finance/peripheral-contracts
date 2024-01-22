@@ -6,6 +6,7 @@ import "../../../contracts/SafetyModule.sol";
 import "../../../contracts/StakedToken.sol";
 import {Test} from "../../../lib/increment-protocol/lib/forge-std/src/Test.sol";
 import {ERC20} from "../../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {Pausable} from "../../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/security/Pausable.sol";
 
 // interfaces
 import {IRewardDistributor} from "../../../contracts/interfaces/IRewardDistributor.sol";
@@ -154,7 +155,7 @@ contract SafetyModuleHandler is Test {
         uint256 nextAuctionId = auctionModule.nextAuctionId();
         bool expectFail;
 
-        if (auctionModule.paused()) {
+        if (Pausable(address(auctionModule)).paused()) {
             expectFail = true;
             vm.expectRevert(bytes("Pausable: paused"));
         } else if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
