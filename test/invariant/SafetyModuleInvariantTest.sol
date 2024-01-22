@@ -12,6 +12,7 @@ import {TestSMRewardDistributor, IRewardDistributor} from "../mocks/TestSMReward
 import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 import {ERC20PresetFixedSupply, IERC20} from "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import {SafetyModuleHandler} from "./handlers/SafetyModuleHandler.sol";
+import {AuctionModuleHandler} from "./handlers/AuctionModuleHandler.sol";
 import {StakedTokenHandler} from "./handlers/StakedTokenHandler.sol";
 import {SMRDHandler} from "./handlers/SMRDHandler.sol";
 
@@ -74,6 +75,7 @@ contract SafetyModuleInvariantTest is Test {
 
     // Handler contracts
     SafetyModuleHandler public safetyModuleHandler;
+    AuctionModuleHandler public auctionModuleHandler;
     SMRDHandler public smrdHandler;
     StakedTokenHandler public stakedTokenHandler;
 
@@ -261,6 +263,11 @@ contract SafetyModuleInvariantTest is Test {
             safetyModule,
             address(this)
         );
+        auctionModuleHandler = new AuctionModuleHandler(
+            auctionModule,
+            stakers,
+            address(this)
+        );
         smrdHandler = new SMRDHandler(rewardDistributor, stakers);
         stakedTokenHandler = new StakedTokenHandler(
             stakedTokens,
@@ -270,6 +277,7 @@ contract SafetyModuleInvariantTest is Test {
 
         // Set handlers as target contracts
         targetContract(address(safetyModuleHandler));
+        targetContract(address(auctionModuleHandler));
         targetContract(address(smrdHandler));
         targetContract(address(stakedTokenHandler));
     }
