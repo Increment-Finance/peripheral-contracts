@@ -15,6 +15,7 @@ import {SafetyModuleHandler} from "./handlers/SafetyModuleHandler.sol";
 import {AuctionModuleHandler} from "./handlers/AuctionModuleHandler.sol";
 import {StakedTokenHandler} from "./handlers/StakedTokenHandler.sol";
 import {SMRDHandler} from "./handlers/SMRDHandler.sol";
+import {BalancerPoolHandler} from "./handlers/BalancerPoolHandler.sol";
 
 // interfaces
 import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../balancer/IWeightedPool.sol";
@@ -78,6 +79,7 @@ contract SafetyModuleInvariantTest is Test {
     AuctionModuleHandler public auctionModuleHandler;
     SMRDHandler public smrdHandler;
     StakedTokenHandler public stakedTokenHandler;
+    BalancerPoolHandler public balancerPoolHandler;
 
     // Invariant ghost variables
     mapping(address => mapping(address => uint256))
@@ -274,12 +276,21 @@ contract SafetyModuleInvariantTest is Test {
             stakedBPTs,
             stakers
         );
+        IWeightedPool[] memory pools = new IWeightedPool[](1);
+        pools[0] = balancerPool;
+        balancerPoolHandler = new BalancerPoolHandler(
+            balancerVault,
+            pools,
+            weth,
+            stakers
+        );
 
         // Set handlers as target contracts
         targetContract(address(safetyModuleHandler));
         targetContract(address(auctionModuleHandler));
         targetContract(address(smrdHandler));
         targetContract(address(stakedTokenHandler));
+        targetContract(address(balancerPoolHandler));
     }
 
     /* ****************** */
