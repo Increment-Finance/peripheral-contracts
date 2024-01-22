@@ -151,64 +151,6 @@ contract StakedTokenHandler is Test {
         }
     }
 
-    function dealWETH(
-        uint256 amount,
-        uint256 actorIndexSeed,
-        uint256 tokenIndexSeed
-    ) external useActor(actorIndexSeed) useStakedBPT(tokenIndexSeed) {
-        amount = bound(amount, 0.1e18, 1_000e18);
-        deal(currentActor, amount);
-        IWeightedPool balancerPool = IWeightedPool(
-            address(stakedToken.getUnderlyingToken())
-        );
-        IBalancerVault balancerVault = balancerPool.getVault();
-        bytes32 poolId = balancerPool.getPoolId();
-        (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(poolId);
-        IWETH weth = IWETH(address(poolERC20s[1]));
-        weth.approve(address(balancerVault), amount);
-        weth.deposit{value: amount}();
-    }
-
-    function joinBalancerPool(
-        uint256 actorIndexSeed,
-        uint256 tokenIndexSeed,
-        uint256[2] memory maxAmountsIn
-    ) external useActor(actorIndexSeed) useStakedBPT(tokenIndexSeed) {
-        uint256[] memory maxAmounts = new uint256[](2);
-        maxAmounts[0] = bound(maxAmountsIn[0], 100e18, 1_000_000e18);
-        maxAmounts[1] = bound(
-            maxAmountsIn[1],
-            maxAmounts[0] / 1000,
-            maxAmounts[0] / 10
-        );
-        IWeightedPool balancerPool = IWeightedPool(
-            address(stakedToken.getUnderlyingToken())
-        );
-        IBalancerVault balancerVault = balancerPool.getVault();
-        bytes32 poolId = balancerPool.getPoolId();
-        (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(poolId);
-        if (
-            poolERC20s[0].balanceOf(currentActor) < maxAmounts[0] ||
-            poolERC20s[1].balanceOf(currentActor) < maxAmounts[1]
-        ) {
-            vm.expectRevert();
-        }
-        IAsset[] memory poolAssets = new IAsset[](2);
-        poolAssets[0] = IAsset(address(poolERC20s[0]));
-        poolAssets[1] = IAsset(address(poolERC20s[1]));
-        balancerVault.joinPool(
-            poolId,
-            currentActor,
-            currentActor,
-            IBalancerVault.JoinPoolRequest(
-                poolAssets,
-                maxAmounts,
-                abi.encode(JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT, maxAmounts),
-                false
-            )
-        );
-    }
-
     /* ******************** */
     /*  External Functions  */
     /* ******************** */
