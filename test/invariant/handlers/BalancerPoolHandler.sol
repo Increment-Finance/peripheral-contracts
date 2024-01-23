@@ -177,4 +177,58 @@ contract BalancerPoolHandler is Test {
             )
         );
     }
+
+    function joinPoolProportional(
+        uint256 actorIndexSeedSender,
+        uint256 actorIndexSeedRecipient,
+        uint256 poolIndexSeed
+    ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
+        address recipient = actors[
+            bound(actorIndexSeedRecipient, 0, actors.length - 1)
+        ];
+        (
+            IERC20[] memory poolERC20s,
+            uint256[] memory balances,
+            uint256 lastChangeBlock
+        ) = balancerVault.getPoolTokens(currentPoolId);
+        IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
+        uint256[] memory maxAmounts = new uint256[](poolERC20s.length);
+        (uint256 bptAmountOut, uint256[] memory amountsIn) = currentPool
+            .queryJoin(
+                currentPoolId,
+                currentActor,
+                recipient,
+                balances,
+                lastChangeBlock,
+                balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
+                abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT, 100 ether)
+            );
+        bool expectFail;
+        for (uint i; i < poolERC20s.length; i++) {
+            poolAssets[i] = IAsset(address(poolERC20s[i]));
+            maxAmounts[i] = (amountsIn[i] * 6) / 5;
+            poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
+            if (poolERC20s[i].balanceOf(currentActor) < amountsIn[i]) {
+                expectFail = true;
+            }
+        }
+        if (expectFail) {
+            vm.expectRevert();
+        }
+
+        balancerVault.joinPool(
+            currentPoolId,
+            currentActor,
+            recipient,
+            IBalancerVault.JoinPoolRequest(
+                poolAssets,
+                maxAmounts,
+                abi.encode(
+                    JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
+                    bptAmountOut
+                ),
+                false
+            )
+        );
+    }
 }
