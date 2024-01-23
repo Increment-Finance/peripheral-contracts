@@ -5,7 +5,7 @@ pragma solidity 0.8.16;
 import {Test} from "../../../lib/increment-protocol/lib/forge-std/src/Test.sol";
 
 // interfaces
-import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind} from "../../balancer/IWeightedPool.sol";
+import {IBalancerPoolToken, IWeightedPool, IWETH, JoinKind, ExitKind} from "../../balancer/IWeightedPool.sol";
 import {IAsset, IVault as IBalancerVault} from "../../balancer/IWeightedPoolFactory.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20} from "../../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -93,12 +93,7 @@ contract BalancerPoolHandler is Test {
                     maxAmounts[0] / 10
                 );
             else maxAmounts[i] = bound(maxAmountsIn[i], 100e18, 1_000_000e18);
-            if (poolERC20s[i].balanceOf(currentActor) < maxAmounts[i]) {
-                vm.expectRevert();
-                break;
-            } else {
-                poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
-            }
+            deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
         }
         balancerVault.joinPool(
             poolId,
@@ -117,11 +112,13 @@ contract BalancerPoolHandler is Test {
         uint256 actorIndexSeedSender,
         uint256 actorIndexSeedRecipient,
         uint256 poolIndexSeed,
-        uint256 enterTokenIndexSeed
+        uint256 enterTokenIndexSeed,
+        uint256 estBptOut
     ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
         address recipient = actors[
             bound(actorIndexSeedRecipient, 0, actors.length - 1)
         ];
+        estBptOut = bound(estBptOut, 0.1 ether, 10 ether);
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
@@ -144,21 +141,15 @@ contract BalancerPoolHandler is Test {
                 balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
                 abi.encode(
                     JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
-                    100 ether,
+                    estBptOut,
                     enterTokenIndex
                 )
             );
-        bool expectFail;
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
             maxAmounts[i] = (amountsIn[i] * 6) / 5;
             poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
-            if (poolERC20s[i].balanceOf(currentActor) < amountsIn[i]) {
-                expectFail = true;
-            }
-        }
-        if (expectFail) {
-            vm.expectRevert();
+            deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
         }
 
         balancerVault.joinPool(
@@ -181,11 +172,13 @@ contract BalancerPoolHandler is Test {
     function joinPoolProportional(
         uint256 actorIndexSeedSender,
         uint256 actorIndexSeedRecipient,
-        uint256 poolIndexSeed
+        uint256 poolIndexSeed,
+        uint256 estBptOut
     ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
         address recipient = actors[
             bound(actorIndexSeedRecipient, 0, actors.length - 1)
         ];
+        estBptOut = bound(estBptOut, 0.1 ether, 10 ether);
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
@@ -201,19 +194,13 @@ contract BalancerPoolHandler is Test {
                 balances,
                 lastChangeBlock,
                 balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
-                abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT, 100 ether)
+                abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT, estBptOut)
             );
-        bool expectFail;
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
             maxAmounts[i] = (amountsIn[i] * 6) / 5;
             poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
-            if (poolERC20s[i].balanceOf(currentActor) < amountsIn[i]) {
-                expectFail = true;
-            }
-        }
-        if (expectFail) {
-            vm.expectRevert();
+            deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
         }
 
         balancerVault.joinPool(
