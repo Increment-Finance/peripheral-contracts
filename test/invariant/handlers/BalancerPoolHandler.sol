@@ -71,14 +71,10 @@ contract BalancerPoolHandler is Test {
     /* ******************** */
 
     function joinPoolExactTokensIn(
-        uint256 actorIndexSeedSender,
-        uint256 actorIndexSeedRecipient,
+        uint256 actorIndexSeed,
         uint256 poolIndexSeed,
         uint256[8] memory maxAmountsIn
-    ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
-        address recipient = actors[
-            bound(actorIndexSeedRecipient, 0, actors.length - 1)
-        ];
+    ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
         bytes32 poolId = currentPool.getPoolId();
         (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(poolId);
         uint256 numTokens = poolERC20s.length;
@@ -93,12 +89,13 @@ contract BalancerPoolHandler is Test {
                     maxAmounts[0] / 10
                 );
             else maxAmounts[i] = bound(maxAmountsIn[i], 100e18, 1_000_000e18);
+            poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
             deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
         }
         balancerVault.joinPool(
             poolId,
             currentActor,
-            recipient,
+            currentActor,
             IBalancerVault.JoinPoolRequest(
                 poolAssets,
                 maxAmounts,
@@ -109,60 +106,50 @@ contract BalancerPoolHandler is Test {
     }
 
     function joinPoolSingleTokenIn(
-        uint256 actorIndexSeedSender,
-        uint256 actorIndexSeedRecipient,
+        uint256 actorIndexSeed,
         uint256 poolIndexSeed,
-        uint256 enterTokenIndexSeed,
         uint256 estBptOut
-    ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
-        address recipient = actors[
-            bound(actorIndexSeedRecipient, 0, actors.length - 1)
-        ];
+    ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
         estBptOut = bound(estBptOut, 0.1 ether, 10 ether);
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
             uint256 lastChangeBlock
         ) = balancerVault.getPoolTokens(currentPoolId);
-        uint256 enterTokenIndex = bound(
-            enterTokenIndexSeed,
-            0,
-            poolERC20s.length - 1
-        );
         IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
-        uint256[] memory maxAmounts = new uint256[](poolERC20s.length);
+        bytes memory userData = abi.encode(
+            JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
+            estBptOut,
+            0
+        );
         (uint256 bptAmountOut, uint256[] memory amountsIn) = currentPool
             .queryJoin(
                 currentPoolId,
                 currentActor,
-                recipient,
+                currentActor,
                 balances,
                 lastChangeBlock,
                 balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
-                abi.encode(
-                    JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
-                    estBptOut,
-                    enterTokenIndex
-                )
+                userData
             );
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
-            maxAmounts[i] = (amountsIn[i] * 6) / 5;
-            poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
-            deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
+            amountsIn[i] = (amountsIn[i] * 6) / 5;
+            poolERC20s[i].approve(address(balancerVault), amountsIn[i]);
+            deal(address(poolERC20s[i]), currentActor, amountsIn[i]);
         }
 
         balancerVault.joinPool(
             currentPoolId,
             currentActor,
-            recipient,
+            currentActor,
             IBalancerVault.JoinPoolRequest(
                 poolAssets,
-                maxAmounts,
+                amountsIn,
                 abi.encode(
                     JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
                     bptAmountOut / 2,
-                    enterTokenIndex
+                    0
                 ),
                 false
             )
@@ -170,14 +157,10 @@ contract BalancerPoolHandler is Test {
     }
 
     function joinPoolProportional(
-        uint256 actorIndexSeedSender,
-        uint256 actorIndexSeedRecipient,
+        uint256 actorIndexSeed,
         uint256 poolIndexSeed,
         uint256 estBptOut
-    ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
-        address recipient = actors[
-            bound(actorIndexSeedRecipient, 0, actors.length - 1)
-        ];
+    ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
         estBptOut = bound(estBptOut, 0.1 ether, 10 ether);
         (
             IERC20[] memory poolERC20s,
@@ -185,31 +168,40 @@ contract BalancerPoolHandler is Test {
             uint256 lastChangeBlock
         ) = balancerVault.getPoolTokens(currentPoolId);
         IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
-        uint256[] memory maxAmounts = new uint256[](poolERC20s.length);
+        bytes memory userData = abi.encode(
+            JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
+            estBptOut
+        );
         (uint256 bptAmountOut, uint256[] memory amountsIn) = currentPool
             .queryJoin(
                 currentPoolId,
                 currentActor,
-                recipient,
+                currentActor,
                 balances,
                 lastChangeBlock,
                 balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
-                abi.encode(JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT, estBptOut)
+                userData
             );
+
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
-            maxAmounts[i] = (amountsIn[i] * 6) / 5;
-            poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
-            deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
+            amountsIn[i] = (amountsIn[i] * 6) / 5;
+            poolERC20s[i].approve(address(balancerVault), amountsIn[i]);
+            deal(address(poolERC20s[i]), currentActor, amountsIn[i]);
         }
+
+        userData = abi.encode(
+            JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
+            bptAmountOut
+        );
 
         balancerVault.joinPool(
             currentPoolId,
             currentActor,
-            recipient,
+            currentActor,
             IBalancerVault.JoinPoolRequest(
                 poolAssets,
-                maxAmounts,
+                amountsIn,
                 abi.encode(
                     JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
                     bptAmountOut
