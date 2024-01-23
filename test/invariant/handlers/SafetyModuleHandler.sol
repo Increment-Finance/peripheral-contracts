@@ -155,10 +155,7 @@ contract SafetyModuleHandler is Test {
         uint256 nextAuctionId = auctionModule.nextAuctionId();
         bool expectFail;
 
-        if (Pausable(address(auctionModule)).paused()) {
-            expectFail = true;
-            vm.expectRevert(bytes("Pausable: paused"));
-        } else if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
+        if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
             expectFail = true;
             vm.expectRevert(
                 abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
@@ -183,6 +180,9 @@ contract SafetyModuleHandler is Test {
                     underlyingAmount
                 )
             );
+        } else if (Pausable(address(auctionModule)).paused()) {
+            expectFail = true;
+            vm.expectRevert(bytes("Pausable: paused"));
         }
 
         uint256 auctionId = safetyModule.slashAndStartAuction(
