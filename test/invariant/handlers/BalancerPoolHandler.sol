@@ -210,4 +210,61 @@ contract BalancerPoolHandler is Test {
             )
         );
     }
+
+    function exitPoolExactTokensOut(
+        uint256 actorIndexSeed,
+        uint256 poolIndexSeed,
+        uint256 maxAmountIn,
+        uint256[8] memory minAmountsOut
+    ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        uint256 bptBalance = currentPool.balanceOf(currentActor);
+        if (bptBalance == 0) return;
+        maxAmountIn = bound(maxAmountIn, bptBalance / 100, bptBalance);
+        (
+            IERC20[] memory poolERC20s,
+            uint256[] memory balances,
+            uint256 lastChangeBlock
+        ) = balancerVault.getPoolTokens(currentPoolId);
+        IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
+        uint256[] memory minAmounts = new uint256[](poolERC20s.length);
+        for (uint i; i < poolERC20s.length; i++) {
+            poolAssets[i] = IAsset(address(poolERC20s[i]));
+            minAmounts[i] = bound(
+                minAmountsOut[i],
+                poolERC20s[i].balanceOf(address(currentPool)) / 100,
+                poolERC20s[i].balanceOf(address(currentPool)) / 10
+            );
+        }
+        bytes memory userData = abi.encode(
+            ExitKind.BPT_IN_FOR_EXACT_TOKENS_OUT,
+            minAmounts,
+            maxAmountIn
+        );
+        (uint256 bptIn, ) = currentPool.queryExit(
+            currentPoolId,
+            currentActor,
+            currentActor,
+            balances,
+            lastChangeBlock,
+            balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
+            userData
+        );
+        if (currentPool.balanceOf(currentActor) < bptIn) {
+            vm.expectRevert();
+        } else {
+            currentPool.approve(address(balancerVault), (bptIn * 6) / 5);
+        }
+
+        balancerVault.exitPool(
+            currentPoolId,
+            currentActor,
+            payable(currentActor),
+            IBalancerVault.ExitPoolRequest(
+                poolAssets,
+                minAmounts,
+                userData,
+                false
+            )
+        );
+    }
 }
