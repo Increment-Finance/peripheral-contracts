@@ -1,0 +1,108 @@
+name: Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "test/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Compile
+        run: forge build
+
+      - name: Running Coverage
+        run: |
+          read LINE_COVERAGE STATEMENT_COVERAGE BRANCH_COVERAGE FUNCTION_COVERAGE < <(forge coverage | grep -v -E 'test|Total' | awk -F '|' '
+              {
+                  for (i = 2; i <= NF; i++) {
+                      gsub(/[ %]/, "", $i);
+                      split($i, a, "[(/)]");
+                      num[i] += a[2];
+                      denom[i] += a[3];
+                  }
+              }
+              END {
+                  for (i = 2; i <= NF; i++) {
+                      if (denom[i] > 0) {
+                          printf "%.2f ", (num[i]/denom[i])*100;
+                      }
+                  }
+                  print "";
+              }')
+
+          # send coverage values to github env
+          echo "LINE_COVERAGE=$(echo $LINE_COVERAGE)" >> $GITHUB_ENV
+          echo "BRANCH_COVERAGE=$(echo $BRANCH_COVERAGE)" >> $GITHUB_ENV
+          echo "STATEMENT_COVERAGE=$(echo $STATEMENT_COVERAGE)" >> $GITHUB_ENV
+          echo "FUNCTION_COVERAGE=$(echo $FUNCTION_COVERAGE)" >> $GITHUB_ENV
+
+          # print coverage
+          echo "Line Coverage: $LINE_COVERAGE%"
+          echo "Branch Coverage: $BRANCH_COVERAGE%"
+          echo "Statement Coverage: $STATEMENT_COVERAGE%"
+          echo "Function Coverage: $FUNCTION_COVERAGE%"
+
+          # config branch name
+          REF=${{ github.ref }}
+          echo "github.ref: $REF"
+          IFS='/' read -ra PATHS <<< "$REF"
+          BRANCH_NAME="${PATHS[1]}_${PATHS[2]}"
+          echo $BRANCH_NAME
+          echo "BRANCH=$(echo ${BRANCH_NAME})" >> $GITHUB_ENV
+
+      - name: Create the Line Coverage Badge
+        uses: schneegans/dynamic-badges-action@v1.0.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
+          filename: increment-protocol-line-coverage__${{ env.BRANCH }}.json
+          label: Line Coverage
+          message: ${{ env.LINE_COVERAGE }}%
+          color: "#63C261"
+          namedLogo: github
+
+      - name: Create the Branch Coverage Badge
+        uses: schneegans/dynamic-badges-action@v1.0.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
+          filename: increment-protocol-branch-coverage__${{ env.BRANCH }}.json
+          label: Branch Coverage
+          message: ${{ env.BRANCH_COVERAGE }}%
+          color: "#63C261"
+          namedLogo: github
+
+      - name: Create the Statement Coverage Badge
+        uses: schneegans/dynamic-badges-action@v1.0.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
+          filename: increment-protocol-statement-coverage__${{ env.BRANCH }}.json
+          label: Statement Coverage
+          message: ${{ env.STATEMENT_COVERAGE }}%
+          color: "#63C261"
+          namedLogo: github
+
+      - name: Create the Function Coverage Badge
+        uses: schneegans/dynamic-badges-action@v1.0.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
+          filename: increment-protocol-function-coverage__${{ env.BRANCH }}.json
+          label: Function Coverage
+          message: ${{ env.FUNCTION_COVERAGE }}%
+          color: "#63C261"
+          namedLogo: github
