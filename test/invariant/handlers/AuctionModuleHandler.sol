@@ -289,11 +289,11 @@ contract AuctionModuleHandler is Test {
     /* Governance Functions */
     /* ******************** */
 
-    function pause() external useGovernance {
-        auctionModule.pause();
-    }
-
-    function unpause() external useGovernance {
-        auctionModule.unpause();
+    function pauseUnpause() external useGovernance {
+        if (auctionModule.paused()) {
+            auctionModule.unpause();
+        } else {
+            auctionModule.pause();
+        }
     }
 }
