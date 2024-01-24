@@ -82,10 +82,13 @@ contract BalancerPoolHandler is Test {
         bytes32 poolId = currentPool.getPoolId();
         (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(poolId);
         uint256 numTokens = poolERC20s.length;
+
+        // Prepare pool assets and max amounts in for queryJoin
         IAsset[] memory poolAssets = new IAsset[](numTokens);
         uint256[] memory maxAmounts = new uint256[](numTokens);
         for (uint i; i < numTokens; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
+            // Bounds w/ special case for WETH
             if (address(poolERC20s[i]) == address(weth) && i != 0)
                 maxAmounts[i] = bound(
                     maxAmountsIn[i],
@@ -93,9 +96,12 @@ contract BalancerPoolHandler is Test {
                     maxAmounts[0] / 10
                 );
             else maxAmounts[i] = bound(maxAmountsIn[i], 100e18, 1_000_000e18);
+            // Approve and deal tokens to actor
             poolERC20s[i].approve(address(balancerVault), maxAmounts[i]);
             deal(address(poolERC20s[i]), currentActor, maxAmounts[i]);
         }
+
+        // Join pool
         balancerVault.joinPool(
             poolId,
             currentActor,
@@ -108,6 +114,7 @@ contract BalancerPoolHandler is Test {
             )
         );
 
+        // Update local user vault balances
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
@@ -124,18 +131,25 @@ contract BalancerPoolHandler is Test {
         uint256 poolIndexSeed,
         uint256 estBptOut
     ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        // Bounds
         estBptOut = bound(estBptOut, 0.1 ether, 10 ether);
+
+        // Get pool tokens and arguments for queryJoin
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
             uint256 lastChangeBlock
         ) = balancerVault.getPoolTokens(currentPoolId);
+
+        // Prepare pool assets and userData for queryJoin
         IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
         bytes memory userData = abi.encode(
             JoinKind.TOKEN_IN_FOR_EXACT_BPT_OUT,
             estBptOut,
             0
         );
+
+        // Get amounts in and bpt amount out from queryJoin
         (uint256 bptAmountOut, uint256[] memory amountsIn) = currentPool
             .queryJoin(
                 currentPoolId,
@@ -146,6 +160,8 @@ contract BalancerPoolHandler is Test {
                 balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
                 userData
             );
+
+        // Apply 20% increase to estimates for max amounts in and deal tokens to actor
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
             amountsIn[i] = (amountsIn[i] * 6) / 5;
@@ -153,6 +169,7 @@ contract BalancerPoolHandler is Test {
             deal(address(poolERC20s[i]), currentActor, amountsIn[i]);
         }
 
+        // Join pool
         balancerVault.joinPool(
             currentPoolId,
             currentActor,
@@ -169,6 +186,7 @@ contract BalancerPoolHandler is Test {
             )
         );
 
+        // Update local user vault balances
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
@@ -185,17 +203,24 @@ contract BalancerPoolHandler is Test {
         uint256 poolIndexSeed,
         uint256 estBptOut
     ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        // Bounds
         estBptOut = bound(estBptOut, 0.1 ether, 10 ether);
+
+        // Get pool assets and arguments for queryJoin
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
             uint256 lastChangeBlock
         ) = balancerVault.getPoolTokens(currentPoolId);
+
+        // Prepare pool assets and userData for queryJoin
         IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
         bytes memory userData = abi.encode(
             JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
             estBptOut
         );
+
+        // Get amounts in and bpt amount out from queryJoin
         (uint256 bptAmountOut, uint256[] memory amountsIn) = currentPool
             .queryJoin(
                 currentPoolId,
@@ -207,6 +232,7 @@ contract BalancerPoolHandler is Test {
                 userData
             );
 
+        // Apply 20% increase to estimates for max amounts in and deal tokens to actor
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
             amountsIn[i] = (amountsIn[i] * 6) / 5;
@@ -214,11 +240,11 @@ contract BalancerPoolHandler is Test {
             deal(address(poolERC20s[i]), currentActor, amountsIn[i]);
         }
 
+        // Prepare userData and join pool
         userData = abi.encode(
             JoinKind.ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
             bptAmountOut
         );
-
         balancerVault.joinPool(
             currentPoolId,
             currentActor,
@@ -234,6 +260,7 @@ contract BalancerPoolHandler is Test {
             )
         );
 
+        // Update local user vault balances
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
@@ -248,32 +275,38 @@ contract BalancerPoolHandler is Test {
     function exitPoolExactTokensOut(
         uint256 actorIndexSeed,
         uint256 poolIndexSeed,
-        uint256 maxAmountIn,
         uint256[8] memory minAmountsOut
     ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        // Bounds
         uint256 bptBalance = currentPool.balanceOf(currentActor);
         if (bptBalance == 0) return;
-        maxAmountIn = bound(maxAmountIn, bptBalance / 100, bptBalance);
+
+        // Get pool assets and arguments for queryExit
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
             uint256 lastChangeBlock
         ) = balancerVault.getPoolTokens(currentPoolId);
         IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
+
+        // Prepare min amounts out and userData for queryExit
         uint256[] memory minAmounts = new uint256[](poolERC20s.length);
         for (uint i; i < poolERC20s.length; i++) {
+            if (balances[i] == 0) return;
             poolAssets[i] = IAsset(address(poolERC20s[i]));
             minAmounts[i] = bound(
                 minAmountsOut[i],
-                poolERC20s[i].balanceOf(address(currentPool)) / 100,
-                poolERC20s[i].balanceOf(address(currentPool)) / 10
+                balances[i] / 1000,
+                balances[i] / 100
             );
         }
         bytes memory userData = abi.encode(
             ExitKind.BPT_IN_FOR_EXACT_TOKENS_OUT,
             minAmounts,
-            maxAmountIn
+            bptBalance / 10
         );
+
+        // Get BPT amount in from queryExit
         (uint256 bptIn, ) = currentPool.queryExit(
             currentPoolId,
             currentActor,
@@ -283,12 +316,15 @@ contract BalancerPoolHandler is Test {
             balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
             userData
         );
-        if (currentPool.balanceOf(currentActor) < bptIn) {
+
+        // Check if actor has enough BPTs, and approve vault to transfer them if so
+        if (bptBalance < bptIn) {
             vm.expectRevert();
         } else {
             currentPool.approve(address(balancerVault), (bptIn * 6) / 5);
         }
 
+        // Exit pool
         balancerVault.exitPool(
             currentPoolId,
             currentActor,
@@ -301,6 +337,7 @@ contract BalancerPoolHandler is Test {
             )
         );
 
+        // Update local user vault balances
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
@@ -317,9 +354,12 @@ contract BalancerPoolHandler is Test {
         uint256 poolIndexSeed,
         uint256 bptAmountIn
     ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        // Bounds
         uint256 bptBalance = currentPool.balanceOf(currentActor);
         if (bptBalance == 0) return;
         bptAmountIn = bound(bptAmountIn, bptBalance / 100, bptBalance);
+
+        // Get pool assets and arguments for queryExit
         (
             IERC20[] memory poolERC20s,
             uint256[] memory balances,
@@ -329,6 +369,8 @@ contract BalancerPoolHandler is Test {
         for (uint i; i < poolERC20s.length; i++) {
             poolAssets[i] = IAsset(address(poolERC20s[i]));
         }
+
+        // Get amounts out from queryExit and apply 20% slippage
         bytes memory userData = abi.encode(
             ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
             bptAmountIn
@@ -345,8 +387,11 @@ contract BalancerPoolHandler is Test {
         for (uint i; i < amountsOut.length; i++) {
             amountsOut[i] = (amountsOut[i] * 4) / 5;
         }
+
+        // Approve vault to transfer BPTs
         currentPool.approve(address(balancerVault), bptAmountIn);
 
+        // Exit pool
         balancerVault.exitPool(
             currentPoolId,
             currentActor,
@@ -359,6 +404,7 @@ contract BalancerPoolHandler is Test {
             )
         );
 
+        // Update local user vault balances
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
@@ -376,20 +422,18 @@ contract BalancerPoolHandler is Test {
         uint256 amountIn,
         bool firstAssetIn
     ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        // Bounds
         amountIn = bound(amountIn, 0.01 ether, 1 ether);
-        IBalancerVault.SwapKind swapKind = IBalancerVault.SwapKind.GIVEN_IN;
-        IBalancerVault.FundManagement memory funds = IBalancerVault
-            .FundManagement({
-                sender: currentActor,
-                fromInternalBalance: false,
-                recipient: payable(currentActor),
-                toInternalBalance: false
-            });
+
+        // Get pool assets
         (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(
             currentPoolId
         );
         IAsset assetIn = IAsset(address(poolERC20s[firstAssetIn ? 0 : 1]));
         IAsset assetOut = IAsset(address(poolERC20s[firstAssetIn ? 1 : 0]));
+
+        // Prepare structs and enums
+        IBalancerVault.SwapKind swapKind = IBalancerVault.SwapKind.GIVEN_IN;
         IBalancerVault.SingleSwap memory singleSwap = IBalancerVault
             .SingleSwap({
                 poolId: currentPoolId,
@@ -399,15 +443,25 @@ contract BalancerPoolHandler is Test {
                 amount: amountIn,
                 userData: new bytes(0)
             });
+        IBalancerVault.FundManagement memory funds = IBalancerVault
+            .FundManagement({
+                sender: currentActor,
+                fromInternalBalance: false,
+                recipient: payable(currentActor),
+                toInternalBalance: false
+            });
 
+        // Deal tokens to actor and approve vault to transfer them
         deal(address(assetIn), currentActor, amountIn);
         poolERC20s[firstAssetIn ? 0 : 1].approve(
             address(balancerVault),
             amountIn
         );
 
+        // Swap
         balancerVault.swap(singleSwap, funds, 0, block.timestamp + 1 hours);
 
+        // Update local user vault balances
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
@@ -427,51 +481,72 @@ contract BalancerPoolHandler is Test {
         uint256[5] memory amounts,
         uint256 numOps
     ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
-        console.log("manageUserBalance");
+        // Bounds
         address receiver = actors[
             bound(actorIndexSeedReceiver, 0, actors.length - 1)
         ];
         numOps = bound(numOps, 1, 5);
 
+        // Create ops array and get pool tokens
         IBalancerVault.UserBalanceOp[]
             memory ops = new IBalancerVault.UserBalanceOp[](numOps);
         (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(
             currentPoolId
         );
+
+        // Populate ops array with UserBalanceOp structs
         for (uint256 i; i < numOps; i++) {
+            // Bounds
             IERC20 token = poolERC20s[
                 bound(assetKindSeeds[i], 0, poolERC20s.length - 1)
             ];
             IAsset asset = IAsset(address(token));
             IBalancerVault.UserBalanceOpKind kind = IBalancerVault
                 .UserBalanceOpKind(bound(assetKindSeeds[i], 0, 3));
+
+            // Handle token amount according to op kind
             uint256 amount;
             if (kind == IBalancerVault.UserBalanceOpKind.DEPOSIT_INTERNAL) {
+                // Vault needs to be able to transfer tokens from actor
                 amount = bound(amounts[i], 0.1 ether, 10 ether);
+                // Give tokens to actor
                 deal(
                     address(asset),
                     currentActor,
                     amount + token.balanceOf(currentActor)
                 );
+                // Approve vault to transfer tokens if necessary
                 uint256 allowance = token.allowance(
                     currentActor,
                     address(balancerVault)
                 );
-                if (allowance < amount)
-                    token.approve(address(balancerVault), amount + allowance);
+                if (allowance != type(uint256).max)
+                    token.approve(
+                        address(balancerVault),
+                        type(uint256).max - allowance > amount
+                            ? amount + allowance
+                            : type(uint256).max
+                    );
+                // Increase local user balance so it is reflected in subsequent ops
                 userBalancesByToken[receiver][address(token)] += amount;
             } else {
+                // All other op kinds decrement sender balance in vault
                 uint256 userBalance = userBalancesByToken[currentActor][
                     address(token)
                 ];
                 amount = bound(amounts[i], userBalance / 50, userBalance / 10);
+                // Decrease local user balance of sender so it is reflected in subsequent ops
                 userBalancesByToken[currentActor][address(token)] -= amount;
+                // WITHDRAW_INTERNAL and TRANSFER_EXTERNAL only decrement sender balance in vault
+                // but TRANSFER_INTERNAL also increments receiver balance in vault
                 if (
                     kind == IBalancerVault.UserBalanceOpKind.TRANSFER_INTERNAL
                 ) {
+                    // Increase local user balance of recipient so it is reflected in subsequent ops
                     userBalancesByToken[receiver][address(token)] += amount;
                 }
             }
+            // Create UserBalanceOp
             ops[i] = IBalancerVault.UserBalanceOp({
                 kind: kind,
                 asset: asset,
@@ -483,14 +558,17 @@ contract BalancerPoolHandler is Test {
 
         balancerVault.manageUserBalance(ops);
 
+        // Check that local user vault balances reflect vault state after all ops
         uint256[] memory internalBalances = balancerVault.getInternalBalance(
             currentActor,
             poolERC20s
         );
         for (uint i; i < poolERC20s.length; i++) {
-            userBalancesByToken[currentActor][
-                address(poolERC20s[i])
-            ] = internalBalances[i];
+            assertEq(
+                userBalancesByToken[currentActor][address(poolERC20s[i])],
+                internalBalances[i],
+                "Local user vault balance does not match vault state after ops"
+            );
         }
     }
 }
