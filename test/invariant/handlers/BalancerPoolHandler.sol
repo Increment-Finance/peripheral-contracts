@@ -315,4 +315,43 @@ contract BalancerPoolHandler is Test {
             )
         );
     }
+
+    function singleSwapGivenIn(
+        uint256 actorIndexSeed,
+        uint256 poolIndexSeed,
+        uint256 amountIn,
+        bool firstAssetIn
+    ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        amountIn = bound(amountIn, 0.01 ether, 1 ether);
+        IBalancerVault.SwapKind swapKind = IBalancerVault.SwapKind.GIVEN_IN;
+        IBalancerVault.FundManagement memory funds = IBalancerVault
+            .FundManagement({
+                sender: currentActor,
+                fromInternalBalance: false,
+                recipient: payable(currentActor),
+                toInternalBalance: false
+            });
+        (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(
+            currentPoolId
+        );
+        IAsset assetIn = IAsset(address(poolERC20s[firstAssetIn ? 0 : 1]));
+        IAsset assetOut = IAsset(address(poolERC20s[firstAssetIn ? 1 : 0]));
+        IBalancerVault.SingleSwap memory singleSwap = IBalancerVault
+            .SingleSwap({
+                poolId: currentPoolId,
+                kind: swapKind,
+                assetIn: assetIn,
+                assetOut: assetOut,
+                amount: amountIn,
+                userData: new bytes(0)
+            });
+
+        deal(address(assetIn), currentActor, amountIn);
+        poolERC20s[firstAssetIn ? 0 : 1].approve(
+            address(balancerVault),
+            amountIn
+        );
+
+        balancerVault.swap(singleSwap, funds, 0, block.timestamp + 1 hours);
+    }
 }
