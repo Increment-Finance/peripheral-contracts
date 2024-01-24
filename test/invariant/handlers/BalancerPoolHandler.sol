@@ -12,6 +12,7 @@ import {IERC20} from "../../../lib/increment-protocol/lib/openzeppelin-contracts
 
 // libraries
 import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contracts/PRBMathUD60x18.sol";
+import {console2 as console} from "forge/console2.sol";
 
 contract BalancerPoolHandler is Test {
     using PRBMathUD60x18 for uint256;
@@ -26,6 +27,9 @@ contract BalancerPoolHandler is Test {
 
     IWeightedPool internal currentPool;
     bytes32 internal currentPoolId;
+
+    mapping(address => mapping(address => uint256))
+        internal userBalancesByToken;
 
     modifier useActor(uint256 actorIndexSeed) {
         currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
@@ -103,6 +107,16 @@ contract BalancerPoolHandler is Test {
                 false
             )
         );
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < numTokens; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
     }
 
     function joinPoolSingleTokenIn(
@@ -154,6 +168,16 @@ contract BalancerPoolHandler is Test {
                 false
             )
         );
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < poolERC20s.length; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
     }
 
     function joinPoolProportional(
@@ -209,6 +233,16 @@ contract BalancerPoolHandler is Test {
                 false
             )
         );
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < poolERC20s.length; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
     }
 
     function exitPoolExactTokensOut(
@@ -266,6 +300,16 @@ contract BalancerPoolHandler is Test {
                 false
             )
         );
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < poolERC20s.length; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
     }
 
     function exitPoolExactBptIn(
@@ -314,6 +358,16 @@ contract BalancerPoolHandler is Test {
                 false
             )
         );
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < poolERC20s.length; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
     }
 
     function singleSwapGivenIn(
@@ -353,5 +407,90 @@ contract BalancerPoolHandler is Test {
         );
 
         balancerVault.swap(singleSwap, funds, 0, block.timestamp + 1 hours);
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < poolERC20s.length; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
+    }
+
+    function manageUserBalance(
+        uint256 actorIndexSeedSender,
+        uint256 actorIndexSeedReceiver,
+        uint256 poolIndexSeed,
+        uint256[5] memory assetKindSeeds,
+        uint256[5] memory amounts,
+        uint256 numOps
+    ) external useActor(actorIndexSeedSender) usePool(poolIndexSeed) {
+        console.log("manageUserBalance");
+        address receiver = actors[
+            bound(actorIndexSeedReceiver, 0, actors.length - 1)
+        ];
+        numOps = bound(numOps, 1, 5);
+
+        IBalancerVault.UserBalanceOp[]
+            memory ops = new IBalancerVault.UserBalanceOp[](numOps);
+        (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(
+            currentPoolId
+        );
+        for (uint256 i; i < numOps; i++) {
+            IERC20 token = poolERC20s[
+                bound(assetKindSeeds[i], 0, poolERC20s.length - 1)
+            ];
+            IAsset asset = IAsset(address(token));
+            IBalancerVault.UserBalanceOpKind kind = IBalancerVault
+                .UserBalanceOpKind(bound(assetKindSeeds[i], 0, 3));
+            uint256 amount;
+            if (kind == IBalancerVault.UserBalanceOpKind.DEPOSIT_INTERNAL) {
+                amount = bound(amounts[i], 0.1 ether, 10 ether);
+                deal(
+                    address(asset),
+                    currentActor,
+                    amount + token.balanceOf(currentActor)
+                );
+                uint256 allowance = token.allowance(
+                    currentActor,
+                    address(balancerVault)
+                );
+                if (allowance < amount)
+                    token.approve(address(balancerVault), amount + allowance);
+                userBalancesByToken[receiver][address(token)] += amount;
+            } else {
+                uint256 userBalance = userBalancesByToken[currentActor][
+                    address(token)
+                ];
+                amount = bound(amounts[i], userBalance / 50, userBalance / 10);
+                userBalancesByToken[currentActor][address(token)] -= amount;
+                if (
+                    kind == IBalancerVault.UserBalanceOpKind.TRANSFER_INTERNAL
+                ) {
+                    userBalancesByToken[receiver][address(token)] += amount;
+                }
+            }
+            ops[i] = IBalancerVault.UserBalanceOp({
+                kind: kind,
+                asset: asset,
+                amount: amount,
+                sender: currentActor,
+                recipient: payable(receiver)
+            });
+        }
+
+        balancerVault.manageUserBalance(ops);
+
+        uint256[] memory internalBalances = balancerVault.getInternalBalance(
+            currentActor,
+            poolERC20s
+        );
+        for (uint i; i < poolERC20s.length; i++) {
+            userBalancesByToken[currentActor][
+                address(poolERC20s[i])
+            ] = internalBalances[i];
+        }
     }
 }
