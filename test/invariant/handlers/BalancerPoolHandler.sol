@@ -267,4 +267,52 @@ contract BalancerPoolHandler is Test {
             )
         );
     }
+
+    function exitPoolExactBptIn(
+        uint256 actorIndexSeed,
+        uint256 poolIndexSeed,
+        uint256 bptAmountIn
+    ) external useActor(actorIndexSeed) usePool(poolIndexSeed) {
+        uint256 bptBalance = currentPool.balanceOf(currentActor);
+        if (bptBalance == 0) return;
+        bptAmountIn = bound(bptAmountIn, bptBalance / 100, bptBalance);
+        (
+            IERC20[] memory poolERC20s,
+            uint256[] memory balances,
+            uint256 lastChangeBlock
+        ) = balancerVault.getPoolTokens(currentPoolId);
+        IAsset[] memory poolAssets = new IAsset[](poolERC20s.length);
+        for (uint i; i < poolERC20s.length; i++) {
+            poolAssets[i] = IAsset(address(poolERC20s[i]));
+        }
+        bytes memory userData = abi.encode(
+            ExitKind.EXACT_BPT_IN_FOR_TOKENS_OUT,
+            bptAmountIn
+        );
+        (, uint256[] memory amountsOut) = currentPool.queryExit(
+            currentPoolId,
+            currentActor,
+            currentActor,
+            balances,
+            lastChangeBlock,
+            balancerVault.getProtocolFeesCollector().getSwapFeePercentage(),
+            userData
+        );
+        for (uint i; i < amountsOut.length; i++) {
+            amountsOut[i] = (amountsOut[i] * 4) / 5;
+        }
+        currentPool.approve(address(balancerVault), bptAmountIn);
+
+        balancerVault.exitPool(
+            currentPoolId,
+            currentActor,
+            payable(currentActor),
+            IBalancerVault.ExitPoolRequest(
+                poolAssets,
+                amountsOut,
+                userData,
+                false
+            )
+        );
+    }
 }
