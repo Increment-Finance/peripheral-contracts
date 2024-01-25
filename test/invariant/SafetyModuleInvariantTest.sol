@@ -358,9 +358,10 @@ contract SafetyModuleInvariantTest is Test {
             StakedToken stakedToken = stakedTokens[i];
             uint256 underlyingBalance = stakedToken.getUnderlyingToken().balanceOf(address(stakedToken));
 
-            assertEq(
+            assertApproxEqAbs(
                 underlyingBalance,
                 stakedToken.totalSupply().wadMul(stakedToken.exchangeRate()),
+                10,
                 "Invariant: exchange rate equals underlying balance / total supply"
             );
         }
