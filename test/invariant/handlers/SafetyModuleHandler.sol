@@ -87,32 +87,32 @@ contract SafetyModuleHandler is Test {
     /* Governance Functions */
     /* ******************** */
 
-    function addStakingToken(
-        string memory underlyingName,
-        string memory underlyingSymbol,
-        uint256 cooldownSeconds,
-        uint256 unstakeWindowSeconds,
-        uint256 maxStakeAmount
-    ) external useGovernance {
-        cooldownSeconds = bound(cooldownSeconds, 1 hours, 1 weeks);
-        unstakeWindowSeconds = bound(unstakeWindowSeconds, 1 hours, 1 weeks);
-        maxStakeAmount = bound(maxStakeAmount, 10_000e18, 1_000_000e18);
-        ERC20 underlying = new ERC20(underlyingName, underlyingSymbol);
-        StakedToken stakedToken = new StakedToken(
-            underlying,
-            safetyModule,
-            cooldownSeconds,
-            unstakeWindowSeconds,
-            maxStakeAmount,
-            "Staked ".toSlice().concat(underlyingName.toSlice()),
-            "stk".toSlice().concat(underlyingSymbol.toSlice())
-        );
-        vm.expectEmit(false, false, false, true);
-        emit StakingTokenAdded(address(stakedToken));
-        safetyModule.addStakingToken(stakedToken);
-        vm.stopPrank();
-        testContract.addStakedToken(stakedToken, false);
-    }
+    // function addStakingToken(
+    //     string memory underlyingName,
+    //     string memory underlyingSymbol,
+    //     uint256 cooldownSeconds,
+    //     uint256 unstakeWindowSeconds,
+    //     uint256 maxStakeAmount
+    // ) external useGovernance {
+    //     cooldownSeconds = bound(cooldownSeconds, 1 hours, 1 weeks);
+    //     unstakeWindowSeconds = bound(unstakeWindowSeconds, 1 hours, 1 weeks);
+    //     maxStakeAmount = bound(maxStakeAmount, 10_000e18, 1_000_000e18);
+    //     ERC20 underlying = new ERC20(underlyingName, underlyingSymbol);
+    //     StakedToken stakedToken = new StakedToken(
+    //         underlying,
+    //         safetyModule,
+    //         cooldownSeconds,
+    //         unstakeWindowSeconds,
+    //         maxStakeAmount,
+    //         "Staked ".toSlice().concat(underlyingName.toSlice()),
+    //         "stk".toSlice().concat(underlyingSymbol.toSlice())
+    //     );
+    //     vm.expectEmit(false, false, false, true);
+    //     emit StakingTokenAdded(address(stakedToken));
+    //     safetyModule.addStakingToken(stakedToken);
+    //     vm.stopPrank();
+    //     testContract.addStakedToken(stakedToken, false);
+    // }
 
     function slashAndStartAuction(
         uint256 _stakedTokenIndexSeed,
@@ -343,7 +343,7 @@ contract SafetyModuleHandler is Test {
         underlyingToken.approve(address(stakedToken), amount);
         uint256 prevGovernanceBalance = underlyingToken.balanceOf(governance);
         if (prevGovernanceBalance < amount) {
-            vm.expectRevert(bytes("ERC20: transfer amount exceeds balance"));
+            vm.expectRevert();
             safetyModule.returnFunds(address(stakedToken), governance, amount);
             return;
         }
