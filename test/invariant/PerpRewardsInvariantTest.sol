@@ -99,6 +99,25 @@ contract PerpRewardsInvariantTest is Deployment {
         // Set handlers as target contracts
         targetContract(address(clearingHouseHandler));
         targetContract(address(rewardDistributorHandler));
+
+        // Update ClearingHouse params to remove min open notional
+        clearingHouse.setParameters(
+            IClearingHouse.ClearingHouseParams({
+                minMargin: 0.025 ether,
+                minMarginAtCreation: 0.055 ether,
+                minPositiveOpenNotional: 0 ether,
+                liquidationReward: 0.015 ether,
+                insuranceRatio: 0.1 ether,
+                liquidationRewardInsuranceShare: 0.5 ether,
+                liquidationDiscount: 0.95 ether,
+                nonUACollSeizureDiscount: 0.75 ether,
+                uaDebtSeizureThreshold: 10000 ether
+            })
+        );
+
+        // Make VBase heartbeat more forgiving
+        vBase.setHeartBeat(30 days);
+        eth_vBase.setHeartBeat(30 days);
     }
 
     /* ****************** */
