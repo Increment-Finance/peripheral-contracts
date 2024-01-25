@@ -59,10 +59,7 @@ interface IPoolSwapStructs {
 interface IControlledPool {
     function setSwapFeePercentage(uint256 swapFeePercentage) external;
 
-    function setAssetManagerPoolConfig(
-        IERC20 token,
-        bytes memory poolConfig
-    ) external;
+    function setAssetManagerPoolConfig(IERC20 token, bytes memory poolConfig) external;
 }
 
 interface IRecoveryMode {
@@ -88,13 +85,7 @@ interface IRecoveryMode {
     function inRecoveryMode() external view returns (bool);
 }
 
-interface IBasePool is
-    IPoolSwapStructs,
-    IControlledPool,
-    IBalancerPoolToken,
-    ITemporarilyPausable,
-    IRecoveryMode
-{
+interface IBasePool is IPoolSwapStructs, IControlledPool, IBalancerPoolToken, ITemporarilyPausable, IRecoveryMode {
     /**
      * @dev Called by the Vault when a user calls `IVault.joinPool` to add liquidity to this Pool. Returns how many of
      * each registered token the user should provide, as well as the amount of protocol fees the Pool owes to the Vault.
@@ -124,12 +115,7 @@ interface IBasePool is
         uint256 lastChangeBlock,
         uint256 protocolSwapFeePercentage,
         bytes memory userData
-    )
-        external
-        returns (
-            uint256[] memory amountsIn,
-            uint256[] memory dueProtocolFeeAmounts
-        );
+    ) external returns (uint256[] memory amountsIn, uint256[] memory dueProtocolFeeAmounts);
 
     /**
      * @dev Called by the Vault when a user calls `IVault.exitPool` to remove liquidity from this Pool. Returns how many
@@ -161,12 +147,7 @@ interface IBasePool is
         uint256 lastChangeBlock,
         uint256 protocolSwapFeePercentage,
         bytes memory userData
-    )
-        external
-        returns (
-            uint256[] memory amountsOut,
-            uint256[] memory dueProtocolFeeAmounts
-        );
+    ) external returns (uint256[] memory amountsOut, uint256[] memory dueProtocolFeeAmounts);
 
     /**
      * @dev Returns this Pool's ID, used when interacting with the Vault (to e.g. join the Pool or swap with it).
@@ -207,11 +188,9 @@ interface IBasePool is
 }
 
 interface IMinimalSwapInfoPool is IBasePool {
-    function onSwap(
-        SwapRequest memory swapRequest,
-        uint256 currentBalanceTokenIn,
-        uint256 currentBalanceTokenOut
-    ) external returns (uint256 amount);
+    function onSwap(SwapRequest memory swapRequest, uint256 currentBalanceTokenIn, uint256 currentBalanceTokenOut)
+        external
+        returns (uint256 amount);
 }
 
 interface IBaseWeightedPool is IMinimalSwapInfoPool {
@@ -238,10 +217,13 @@ enum JoinKind {
     TOKEN_IN_FOR_EXACT_BPT_OUT,
     ALL_TOKENS_IN_FOR_EXACT_BPT_OUT,
     ADD_TOKEN // for Managed Pool
+
 }
+
 enum ExitKind {
     EXACT_BPT_IN_FOR_ONE_TOKEN_OUT,
     EXACT_BPT_IN_FOR_TOKENS_OUT,
     BPT_IN_FOR_EXACT_TOKENS_OUT,
     REMOVE_TOKEN // for ManagedPool
+
 }

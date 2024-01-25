@@ -4,10 +4,7 @@ pragma solidity ^0.8.0;
 import "./IVault.sol";
 
 interface IBaseSplitCodeFactory {
-    function getCreationCodeContracts()
-        external
-        view
-        returns (address contractA, address contractB);
+    function getCreationCodeContracts() external view returns (address contractA, address contractB);
 
     function getCreationCode() external view returns (bytes memory);
 }

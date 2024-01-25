@@ -11,11 +11,7 @@ interface IStakedToken is IERC20Metadata {
     /// @param from Address of the user that staked tokens
     /// @param onBehalfOf Address of the user that tokens were staked on behalf of
     /// @param amount Amount of underlying tokens staked
-    event Staked(
-        address indexed from,
-        address indexed onBehalfOf,
-        uint256 amount
-    );
+    event Staked(address indexed from, address indexed onBehalfOf, uint256 amount);
 
     /// @notice Emitted when tokens are redeemed
     /// @param from Address of the user that redeemed tokens
@@ -31,11 +27,7 @@ interface IStakedToken is IERC20Metadata {
     /// @param destination Address where slashed underlying tokens were sent to
     /// @param stakeAmount Amount of staked tokens slashed
     /// @param underlyingAmount Amount of underlying tokens sent to the destination
-    event Slashed(
-        address indexed destination,
-        uint256 stakeAmount,
-        uint256 underlyingAmount
-    );
+    event Slashed(address indexed destination, uint256 stakeAmount, uint256 underlyingAmount);
 
     /// @notice Emitted when staking, slashing and cooldown are re-enabled after a slashing event is concluded
     event SlashingSettled();
@@ -57,10 +49,7 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Emitted when the max amount of staked tokens allowed per user is updated by governance
     /// @param oldMaxStakeAmount Old max stake amount
     /// @param newMaxStakeAmount New max stake amount
-    event MaxStakeAmountUpdated(
-        uint256 oldMaxStakeAmount,
-        uint256 newMaxStakeAmount
-    );
+    event MaxStakeAmountUpdated(uint256 oldMaxStakeAmount, uint256 newMaxStakeAmount);
 
     /// @notice Error returned when 0 amount is passed to a function that expects a non-zero amount
     error StakedToken_InvalidZeroAmount();
@@ -98,10 +87,7 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Error returned when the caller tries to stake more than the max stake amount
     /// @param maxStakeAmount Maximum allowed amount to stake
     /// @param maxAmountMinusBalance Amount that the user can still stake without exceeding the max stake amount
-    error StakedToken_AboveMaxStakeAmount(
-        uint256 maxStakeAmount,
-        uint256 maxAmountMinusBalance
-    );
+    error StakedToken_AboveMaxStakeAmount(uint256 maxStakeAmount, uint256 maxAmountMinusBalance);
 
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
@@ -127,16 +113,12 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Returns the amount of staked tokens one would receive for staking an amount of underlying tokens
     /// @param amountToStake Amount of underlying tokens to stake
     /// @return Amount of staked tokens that would be received at the current exchange rate
-    function previewStake(
-        uint256 amountToStake
-    ) external view returns (uint256);
+    function previewStake(uint256 amountToStake) external view returns (uint256);
 
     /// @notice Returns the amount of underlying tokens one would receive for redeeming an amount of staked tokens
     /// @param amountToRedeem Amount of staked tokens to redeem
     /// @return Amount of underlying tokens that would be received at the current exchange rate
-    function previewRedeem(
-        uint256 amountToRedeem
-    ) external view returns (uint256);
+    function previewRedeem(uint256 amountToRedeem) external view returns (uint256);
 
     /// @notice Stakes tokens from the sender and starts earning rewards
     /// @param amount Amount of underlying tokens to stake
@@ -168,10 +150,7 @@ interface IStakedToken is IERC20Metadata {
     /// @param destination Address to send the slashed underlying tokens to
     /// @param amount Amount of staked tokens to slash
     /// @return Amount of underlying tokens slashed
-    function slash(
-        address destination,
-        uint256 amount
-    ) external returns (uint256);
+    function slash(address destination, uint256 amount) external returns (uint256);
 
     /// @notice Transfers underlying tokens from the given address to this contract and increases the
     /// exchange rate accordingly

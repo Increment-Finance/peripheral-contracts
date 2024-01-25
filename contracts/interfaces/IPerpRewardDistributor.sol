@@ -5,7 +5,6 @@ pragma solidity 0.8.16;
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 
 interface IPerpRewardDistributor {
-
     /// @notice Emitted when the ClearingHouse contract is updated by governance
     /// @param oldClearingHouse Address of the old ClearingHouse contract
     /// @param newClearingHouse Address of the new ClearingHouse contract

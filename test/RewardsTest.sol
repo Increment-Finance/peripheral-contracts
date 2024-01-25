@@ -34,16 +34,10 @@ contract RewardsTest is Deployment, Utils {
     using LibMath for int256;
     using LibMath for uint256;
 
-    event MarketRemovedFromRewards(
-        address indexed market,
-        address indexed rewardToken
-    );
+    event MarketRemovedFromRewards(address indexed market, address indexed rewardToken);
 
     event NewFundsAdmin(address indexed fundsAdmin);
-    event EcosystemReserveUpdated(
-        address prevEcosystemReserve,
-        address newEcosystemReserve
-    );
+    event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystemReserve);
 
     uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
@@ -74,19 +68,11 @@ contract RewardsTest is Deployment, Utils {
         super.setUp();
 
         // Deploy second perpetual contract
-        gbpOracle = AggregatorV3Interface(
-            address(0x5c0Ab2d9b5a7ed9f470386e82BB36A3613cDd4b5)
-        );
-        vBase2 = new VBase(
-            "vGBP base token",
-            "vGBP",
-            gbpOracle,
-            EURUSD.heartBeat,
-            sequencerUptimeFeed,
-            EURUSD.gracePeriod
-        );
+        gbpOracle = AggregatorV3Interface(address(0x5c0Ab2d9b5a7ed9f470386e82BB36A3613cDd4b5));
+        vBase2 =
+            new VBase("vGBP base token", "vGBP", gbpOracle, EURUSD.heartBeat, sequencerUptimeFeed, EURUSD.gracePeriod);
         vQuote2 = new VQuote("vUSD quote token", "vUSD");
-        (, int256 answer, , , ) = baseOracle.latestRoundData();
+        (, int256 answer,,,) = baseOracle.latestRoundData();
         uint8 decimals = baseOracle.decimals();
         uint256 initialPrice = answer.toUint256() * (10 ** (18 - decimals));
         cryptoSwap2 = ICryptoSwap(
@@ -155,24 +141,10 @@ contract RewardsTest is Deployment, Utils {
         rewardDistributor.setClearingHouse(clearingHouse); // just for coverage, will likely never happen
 
         // Transfer all rewards tokens to the vault and approve the distributor
-        rewardsToken.transfer(
-            address(ecosystemReserve),
-            rewardsToken.totalSupply()
-        );
-        rewardsToken2.transfer(
-            address(ecosystemReserve),
-            rewardsToken2.totalSupply()
-        );
-        ecosystemReserve.approve(
-            rewardsToken,
-            address(rewardDistributor),
-            type(uint256).max
-        );
-        ecosystemReserve.approve(
-            rewardsToken2,
-            address(rewardDistributor),
-            type(uint256).max
-        );
+        rewardsToken.transfer(address(ecosystemReserve), rewardsToken.totalSupply());
+        rewardsToken2.transfer(address(ecosystemReserve), rewardsToken2.totalSupply());
+        ecosystemReserve.approve(rewardsToken, address(rewardDistributor), type(uint256).max);
+        ecosystemReserve.approve(rewardsToken2, address(rewardDistributor), type(uint256).max);
 
         // initial liquidity
         fundAndPrepareAccount(liquidityProviderOne, 100_000e18, vault, ua);
@@ -219,54 +191,18 @@ contract RewardsTest is Deployment, Utils {
             5e16, // 5% tolerance to account for fluctuation in oracle price
             "Position mismatch"
         );
-        assertEq(
-            rewardDistributor.getRewardTokenCount(),
-            1,
-            "Token count mismatch"
-        );
+        assertEq(rewardDistributor.getRewardTokenCount(), 1, "Token count mismatch");
         address token = rewardDistributor.rewardTokens(0);
         assertEq(token, address(rewardsToken), "Reward token mismatch");
+        assertEq(rewardDistributor.getInitialTimestamp(token), block.timestamp, "Initial timestamp mismatch");
         assertEq(
-            rewardDistributor.getInitialTimestamp(token),
-            block.timestamp,
-            "Initial timestamp mismatch"
+            rewardDistributor.getInitialInflationRate(token), INITIAL_INFLATION_RATE, "Base inflation rate mismatch"
         );
-        assertEq(
-            rewardDistributor.getInitialInflationRate(token),
-            INITIAL_INFLATION_RATE,
-            "Base inflation rate mismatch"
-        );
-        assertEq(
-            rewardDistributor.getInflationRate(token),
-            INITIAL_INFLATION_RATE,
-            "Inflation rate mismatch"
-        );
-        assertEq(
-            rewardDistributor.getReductionFactor(token),
-            INITIAL_REDUCTION_FACTOR,
-            "Reduction factor mismatch"
-        );
-        assertEq(
-            rewardDistributor.getRewardWeight(
-                address(token),
-                address(perpetual)
-            ),
-            7500,
-            "Market weight mismatch"
-        );
-        assertEq(
-            rewardDistributor.getRewardWeight(
-                address(token),
-                address(perpetual2)
-            ),
-            2500,
-            "Market weight mismatch"
-        );
-        assertEq(
-            rewardDistributor.earlyWithdrawalThreshold(),
-            10 days,
-            "Early withdrawal threshold mismatch"
-        );
+        assertEq(rewardDistributor.getInflationRate(token), INITIAL_INFLATION_RATE, "Inflation rate mismatch");
+        assertEq(rewardDistributor.getReductionFactor(token), INITIAL_REDUCTION_FACTOR, "Reduction factor mismatch");
+        assertEq(rewardDistributor.getRewardWeight(address(token), address(perpetual)), 7500, "Market weight mismatch");
+        assertEq(rewardDistributor.getRewardWeight(address(token), address(perpetual2)), 2500, "Market weight mismatch");
+        assertEq(rewardDistributor.earlyWithdrawalThreshold(), 10 days, "Early withdrawal threshold mismatch");
     }
 
     function testInflationAndReduction(
@@ -276,19 +212,11 @@ contract RewardsTest is Deployment, Utils {
     ) public {
         /* bounds */
         initialInflationRate = uint88(bound(initialInflationRate, 1e18, 5e24));
-        initialReductionFactor = uint88(
-            bound(initialReductionFactor, 1e18, 2e18)
-        );
+        initialReductionFactor = uint88(bound(initialReductionFactor, 1e18, 2e18));
 
         // Update inflation rate and reduction factor
-        rewardDistributor.updateInitialInflationRate(
-            address(rewardsToken),
-            initialInflationRate
-        );
-        rewardDistributor.updateReductionFactor(
-            address(rewardsToken),
-            initialReductionFactor
-        );
+        rewardDistributor.updateInitialInflationRate(address(rewardsToken), initialInflationRate);
+        rewardDistributor.updateReductionFactor(address(rewardsToken), initialReductionFactor);
 
         // Set heartbeats to 1 year
         vBase.setHeartBeat(365 days);
@@ -310,23 +238,12 @@ contract RewardsTest is Deployment, Utils {
 
         // Check accrued rewards
         rewardDistributor.accrueRewards(liquidityProviderOne);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
-            liquidityProviderOne,
-            address(rewardsToken)
-        );
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken));
 
         // Accrued rewards should be within 5% of the average inflation rate
-        uint256 currentInflationRate = rewardDistributor.getInflationRate(
-            address(rewardsToken)
-        );
-        uint256 approxRewards = (currentInflationRate + initialInflationRate) /
-            2;
-        assertApproxEqRel(
-            accruedRewards,
-            approxRewards,
-            5e16,
-            "Incorrect annual rewards"
-        );
+        uint256 currentInflationRate = rewardDistributor.getInflationRate(address(rewardsToken));
+        uint256 approxRewards = (currentInflationRate + initialInflationRate) / 2;
+        assertApproxEqRel(accruedRewards, approxRewards, 5e16, "Incorrect annual rewards");
     }
 
     function testRewardControllerErrors(
@@ -336,121 +253,54 @@ contract RewardsTest is Deployment, Utils {
         uint256[] memory marketWeights,
         address token
     ) public {
-        vm.assume(
-            token != address(rewardsToken) &&
-                token != address(rewardsToken2) &&
-                token != address(0)
-        );
+        vm.assume(token != address(rewardsToken) && token != address(rewardsToken2) && token != address(0));
         vm.assume(markets.length > 2);
         vm.assume(marketWeights.length > 2);
         vm.assume(markets.length != marketWeights.length);
-        vm.assume(
-            marketWeights[0] <= type(uint256).max / 2 &&
-                marketWeights[1] <= type(uint256).max / 2
-        );
+        vm.assume(marketWeights[0] <= type(uint256).max / 2 && marketWeights[1] <= type(uint256).max / 2);
         vm.assume(marketWeights[0] + marketWeights[1] != 10000);
-        inflationRate = uint88(
-            bound(inflationRate, 5e24 + 1, type(uint88).max)
-        );
+        inflationRate = uint88(bound(inflationRate, 5e24 + 1, type(uint88).max));
         reductionFactor = uint88(bound(reductionFactor, 0, 1e18 - 1));
 
         vm.startPrank(address(this));
 
         // test wrong token address
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_InvalidRewardTokenAddress(address)",
-                token
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
         rewardDistributor.updateRewardWeights(token, markets, marketWeights);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_InvalidRewardTokenAddress(address)",
-                token
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
         rewardDistributor.updateInitialInflationRate(token, inflationRate);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_InvalidRewardTokenAddress(address)",
-                token
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
         rewardDistributor.updateReductionFactor(token, reductionFactor);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_InvalidRewardTokenAddress(address)",
-                token
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
         rewardDistributor.setPaused(token, true);
 
         // test max inflation rate & min reduction factor
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_AboveMaxInflationRate(uint256,uint256)",
-                inflationRate,
-                5e24
-            )
+            abi.encodeWithSignature("RewardController_AboveMaxInflationRate(uint256,uint256)", inflationRate, 5e24)
         );
-        rewardDistributor.updateInitialInflationRate(
-            address(rewardsToken),
-            inflationRate
-        );
+        rewardDistributor.updateInitialInflationRate(address(rewardsToken), inflationRate);
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_AboveMaxInflationRate(uint256,uint256)",
-                inflationRate,
-                5e24
-            )
+            abi.encodeWithSignature("RewardController_AboveMaxInflationRate(uint256,uint256)", inflationRate, 5e24)
+        );
+        rewardDistributor.addRewardToken(address(rewardsToken), inflationRate, reductionFactor, markets, marketWeights);
+        vm.expectRevert(
+            abi.encodeWithSignature("RewardController_BelowMinReductionFactor(uint256,uint256)", reductionFactor, 1e18)
+        );
+        rewardDistributor.updateReductionFactor(address(rewardsToken), reductionFactor);
+        vm.expectRevert(
+            abi.encodeWithSignature("RewardController_BelowMinReductionFactor(uint256,uint256)", reductionFactor, 1e18)
         );
         rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            inflationRate,
-            reductionFactor,
-            markets,
-            marketWeights
-        );
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_BelowMinReductionFactor(uint256,uint256)",
-                reductionFactor,
-                1e18
-            )
-        );
-        rewardDistributor.updateReductionFactor(
-            address(rewardsToken),
-            reductionFactor
-        );
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_BelowMinReductionFactor(uint256,uint256)",
-                reductionFactor,
-                1e18
-            )
-        );
-        rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            INITIAL_INFLATION_RATE,
-            reductionFactor,
-            markets,
-            marketWeights
+            address(rewardsToken), INITIAL_INFLATION_RATE, reductionFactor, markets, marketWeights
         );
 
         // test incorrect market weights
         vm.expectRevert(
             abi.encodeWithSignature(
-                "RewardController_IncorrectWeightsCount(uint256,uint256)",
-                marketWeights.length,
-                markets.length
+                "RewardController_IncorrectWeightsCount(uint256,uint256)", marketWeights.length, markets.length
             )
         );
-        rewardDistributor.updateRewardWeights(
-            address(rewardsToken),
-            markets,
-            marketWeights
-        );
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
         address[] memory markets2 = new address[](2);
         markets2[0] = markets[0];
         markets2[1] = markets[1];
@@ -459,19 +309,11 @@ contract RewardsTest is Deployment, Utils {
         marketWeights2[1] = marketWeights[1];
         if (marketWeights2[0] > 10000) {
             vm.expectRevert(
-                abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint256,uint256)",
-                    marketWeights2[0],
-                    10000
-                )
+                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[0], 10000)
             );
         } else if (marketWeights[1] > 10000) {
             vm.expectRevert(
-                abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint256,uint256)",
-                    marketWeights2[1],
-                    10000
-                )
+                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[1], 10000)
             );
         } else {
             vm.expectRevert(
@@ -482,26 +324,14 @@ contract RewardsTest is Deployment, Utils {
                 )
             );
         }
-        rewardDistributor.updateRewardWeights(
-            address(rewardsToken),
-            markets2,
-            marketWeights2
-        );
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets2, marketWeights2);
         if (marketWeights2[0] > 10000) {
             vm.expectRevert(
-                abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint256,uint256)",
-                    marketWeights2[0],
-                    10000
-                )
+                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[0], 10000)
             );
         } else if (marketWeights[1] > 10000) {
             vm.expectRevert(
-                abi.encodeWithSignature(
-                    "RewardController_WeightExceedsMax(uint256,uint256)",
-                    marketWeights2[1],
-                    10000
-                )
+                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[1], 10000)
             );
         } else {
             vm.expectRevert(
@@ -513,11 +343,7 @@ contract RewardsTest is Deployment, Utils {
             );
         }
         rewardDistributor.addRewardToken(
-            address(rewardsToken2),
-            INITIAL_INFLATION_RATE,
-            INITIAL_REDUCTION_FACTOR,
-            markets2,
-            marketWeights2
+            address(rewardsToken2), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, markets2, marketWeights2
         );
     }
 
@@ -525,27 +351,18 @@ contract RewardsTest is Deployment, Utils {
     /*  RewardDistributor  */
     /* ******************* */
 
-    function testDelayedDepositScenario(
-        uint256 providedLiquidity1,
-        uint256 providedLiquidity2
-    ) public {
+    function testDelayedDepositScenario(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
         // skip some time
         skip(10 days);
 
-        uint256 priorTotalLiquidity1 = rewardDistributor
-            .totalLiquidityPerMarket(address(perpetual));
-        uint256 priorTotalLiquidity2 = rewardDistributor
-            .totalLiquidityPerMarket(address(perpetual2));
+        uint256 priorTotalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
+        uint256 priorTotalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
 
         // provide liquidity from user 2
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
@@ -555,42 +372,21 @@ contract RewardsTest is Deployment, Utils {
 
         // check rewards for user 1 with initial liquidity 10_000e18
         rewardDistributor.accrueRewards(liquidityProviderOne);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
-            liquidityProviderOne,
-            address(rewardsToken)
-        );
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken));
         assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards1 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
-        uint256 cumulativeRewards2 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
-        uint256 inflationRate = rewardDistributor.getInitialInflationRate(
-            address(rewardsToken)
-        );
-        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual)
-        );
-        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual2)
-        );
+        uint256 cumulativeRewards1 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
+        uint256 cumulativeRewards2 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual2));
+        uint256 inflationRate = rewardDistributor.getInitialInflationRate(address(rewardsToken));
+        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
+        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
         // user 1 had lpBalance/priorTotalLiquidity = 100% of liquidity in each market for 10 days,
         // and then had some lpBalance/totalLiquidity percent of liquidity for 10 days
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
-            10000) * 10) / 365) * 1e18) /
-            totalLiquidity1 +
-            (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) /
-            priorTotalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
-            10000) * 10) / 365) * 1e18) /
-            totalLiquidity2 +
-            (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
-            priorTotalLiquidity2;
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / totalLiquidity1
+            + (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / priorTotalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2
+            + (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / priorTotalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -607,10 +403,8 @@ contract RewardsTest is Deployment, Utils {
         uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderOne);
         uint256 lpBalance2 = perpetual2.getLpLiquidity(liquidityProviderOne);
 
-        uint256 expectedAccruedRewards1 = (cumulativeRewards1 * lpBalance1) /
-            1e18;
-        uint256 expectedAccruedRewards2 = (cumulativeRewards2 * lpBalance2) /
-            1e18;
+        uint256 expectedAccruedRewards1 = (cumulativeRewards1 * lpBalance1) / 1e18;
+        uint256 expectedAccruedRewards2 = (cumulativeRewards2 * lpBalance2) / 1e18;
         assertApproxEqRel(
             accruedRewards,
             expectedAccruedRewards1 + expectedAccruedRewards2,
@@ -632,12 +426,8 @@ contract RewardsTest is Deployment, Utils {
         inflationRate2 = uint88(bound(inflationRate2, 1e20, 5e24));
         reductionFactor2 = uint88(bound(reductionFactor2, 1e18, 5e18));
         marketWeight1 = marketWeight1 % 10000;
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
@@ -653,25 +443,15 @@ contract RewardsTest is Deployment, Utils {
         marketWeights[0] = marketWeight1;
         marketWeights[1] = 10000 - marketWeight1;
         rewardDistributor.addRewardToken(
-            address(rewardsToken2),
-            inflationRate2,
-            reductionFactor2,
-            markets,
-            marketWeights
+            address(rewardsToken2), inflationRate2, reductionFactor2, markets, marketWeights
         );
 
         // skip some more time
         skip(10 days);
 
         // check rewards for token 1
-        uint256[] memory previewAccruals1 = _viewNewRewardAccrual(
-            address(perpetual),
-            liquidityProviderTwo
-        );
-        uint256[] memory previewAccruals2 = _viewNewRewardAccrual(
-            address(perpetual2),
-            liquidityProviderTwo
-        );
+        uint256[] memory previewAccruals1 = _viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
+        uint256[] memory previewAccruals2 = _viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
         uint256[] memory previewAccruals = new uint256[](2);
         previewAccruals[0] = previewAccruals1[0] + previewAccruals2[0];
         if (previewAccruals1.length > 1) {
@@ -683,29 +463,13 @@ contract RewardsTest is Deployment, Utils {
 
         rewardDistributor.accrueRewards(liquidityProviderOne);
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = _checkRewards(
-            address(rewardsToken),
-            liquidityProviderTwo,
-            7500,
-            2500,
-            20
-        );
+        uint256 accruedRewards = _checkRewards(address(rewardsToken), liquidityProviderTwo, 7500, 2500, 20);
 
         // check rewards for token 2
-        uint256 accruedRewards2 = _checkRewards(
-            address(rewardsToken2),
-            liquidityProviderTwo,
-            marketWeights[0],
-            marketWeights[1],
-            10
-        );
-        uint256 accruedRewards21 = _checkRewards(
-            address(rewardsToken2),
-            liquidityProviderOne,
-            marketWeights[0],
-            marketWeights[1],
-            10
-        );
+        uint256 accruedRewards2 =
+            _checkRewards(address(rewardsToken2), liquidityProviderTwo, marketWeights[0], marketWeights[1], 10);
+        uint256 accruedRewards21 =
+            _checkRewards(address(rewardsToken2), liquidityProviderOne, marketWeights[0], marketWeights[1], 10);
         assertApproxEqRel(
             accruedRewards,
             previewAccruals[0],
@@ -731,20 +495,10 @@ contract RewardsTest is Deployment, Utils {
         rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
         // try claiming twice in a row to ensure rewards aren't distributed twice
         rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
+        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards, "Incorrect claimed balance");
+        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), accruedRewards2, "Incorrect claimed balance");
         assertEq(
-            rewardsToken.balanceOf(liquidityProviderTwo),
-            accruedRewards,
-            "Incorrect claimed balance"
-        );
-        assertEq(
-            rewardsToken2.balanceOf(liquidityProviderTwo),
-            accruedRewards2,
-            "Incorrect claimed balance"
-        );
-        assertEq(
-            rewardsToken2.balanceOf(address(ecosystemReserve)),
-            accruedRewards21,
-            "Incorrect remaining accrued balance"
+            rewardsToken2.balanceOf(address(ecosystemReserve)), accruedRewards21, "Incorrect remaining accrued balance"
         );
         assertEq(
             rewardsToken2.balanceOf(address(this)),
@@ -766,12 +520,8 @@ contract RewardsTest is Deployment, Utils {
         inflationRate2 = uint88(bound(inflationRate2, 1e24, 5e24));
         reductionFactor2 = uint88(bound(reductionFactor2, 1e18, 5e18));
         marketWeight1 = marketWeight1 % 10000;
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
@@ -786,59 +536,27 @@ contract RewardsTest is Deployment, Utils {
         rewardsToken2 = new IncrementToken(10e18, address(this));
         rewardsToken2.unpause();
         rewardDistributor.addRewardToken(
-            address(rewardsToken2),
-            inflationRate2,
-            reductionFactor2,
-            markets,
-            marketWeights
+            address(rewardsToken2), inflationRate2, reductionFactor2, markets, marketWeights
         );
-        rewardsToken2.transfer(
-            address(ecosystemReserve),
-            rewardsToken2.totalSupply()
-        );
-        ecosystemReserve.approve(
-            rewardsToken2,
-            address(rewardDistributor),
-            type(uint256).max
-        );
+        rewardsToken2.transfer(address(ecosystemReserve), rewardsToken2.totalSupply());
+        ecosystemReserve.approve(rewardsToken2, address(rewardDistributor), type(uint256).max);
 
         // skip some time
         skip(10 days);
 
         // check previews and rewards for token 1
-        uint256[] memory previewAccrualsPerp1 = _viewNewRewardAccrual(
-            address(perpetual),
-            liquidityProviderTwo
-        );
-        rewardDistributor.accrueRewards(
-            address(perpetual),
-            liquidityProviderTwo
-        );
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
+        uint256[] memory previewAccrualsPerp1 = _viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
+        rewardDistributor.accrueRewards(address(perpetual), liquidityProviderTwo);
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
         assertApproxEqRel(
             accruedRewards,
             previewAccrualsPerp1[0],
             1e15, // 0.1%
             "Incorrect accrued rewards preview: token 1 perp 1"
         );
-        uint256[] memory previewAccrualsPerp2 = _viewNewRewardAccrual(
-            address(perpetual2),
-            liquidityProviderTwo
-        );
-        rewardDistributor.accrueRewards(
-            address(perpetual2),
-            liquidityProviderTwo
-        );
-        accruedRewards = _checkRewards(
-            address(rewardsToken),
-            liquidityProviderTwo,
-            7500,
-            2500,
-            10
-        );
+        uint256[] memory previewAccrualsPerp2 = _viewNewRewardAccrual(address(perpetual2), liquidityProviderTwo);
+        rewardDistributor.accrueRewards(address(perpetual2), liquidityProviderTwo);
+        accruedRewards = _checkRewards(address(rewardsToken), liquidityProviderTwo, 7500, 2500, 10);
         assertApproxEqRel(
             accruedRewards,
             previewAccrualsPerp1[0] + previewAccrualsPerp2[0],
@@ -847,26 +565,13 @@ contract RewardsTest is Deployment, Utils {
         );
 
         // check rewards for token 2
-        uint256 accruedRewards2 = _checkRewards(
-            address(rewardsToken2),
-            liquidityProviderTwo,
-            marketWeights[0],
-            marketWeights[1],
-            10
-        );
+        uint256 accruedRewards2 =
+            _checkRewards(address(rewardsToken2), liquidityProviderTwo, marketWeights[0], marketWeights[1], 10);
 
         // claim rewards
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        assertEq(
-            rewardsToken.balanceOf(liquidityProviderTwo),
-            accruedRewards,
-            "Incorrect claimed balance"
-        );
-        assertEq(
-            rewardsToken2.balanceOf(liquidityProviderTwo),
-            10e18,
-            "Incorrect claimed balance"
-        );
+        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards, "Incorrect claimed balance");
+        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
             accruedRewards2 - 10e18,
@@ -880,23 +585,12 @@ contract RewardsTest is Deployment, Utils {
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
 
         // check that rewards are still accruing for token 2
-        uint256 accruedRewards2_2 = rewardDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken2)
-        );
-        assertGt(
-            accruedRewards2_2,
-            accruedRewards2,
-            "Rewards not accrued after adding more liquidity"
-        );
+        uint256 accruedRewards2_2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
+        assertGt(accruedRewards2_2, accruedRewards2, "Rewards not accrued after adding more liquidity");
 
         // fail to claim rewards again after token 2 is depleted
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        assertEq(
-            rewardsToken2.balanceOf(liquidityProviderTwo),
-            10e18,
-            "Tokens claimed after token 2 depleted"
-        );
+        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Tokens claimed after token 2 depleted");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
             accruedRewards2_2,
@@ -917,12 +611,8 @@ contract RewardsTest is Deployment, Utils {
         reductionRatio = bound(reductionRatio, 1e16, 5e17);
         thresholdTime = bound(thresholdTime, 1 days, 28 days);
         skipTime = bound(skipTime, thresholdTime / 10, thresholdTime / 2);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
         rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
 
@@ -934,23 +624,14 @@ contract RewardsTest is Deployment, Utils {
         skip(skipTime);
 
         // remove some liquidity from first perpetual
-        console.log(
-            "Removing %s% of liquidity from first perpetual",
-            reductionRatio / 1e16
-        );
+        console.log("Removing %s% of liquidity from first perpetual", reductionRatio / 1e16);
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // check rewards
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
         assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards1 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
+        uint256 cumulativeRewards1 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
         // console.log("Cumulative rewards: %s", cumulativeRewards1);
         assertApproxEqRel(
             accruedRewards,
@@ -974,42 +655,24 @@ contract RewardsTest is Deployment, Utils {
 
         // check that penalty was applied again, but only for the first perpetual
         accruedRewards =
-            rewardDistributor.rewardsAccruedByUser(
-                liquidityProviderTwo,
-                address(rewardsToken)
-            ) -
-            accruedRewards;
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)) - accruedRewards;
         cumulativeRewards1 =
-            rewardDistributor.cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            ) -
-            cumulativeRewards1;
-        uint256 cumulativeRewards2 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual)) - cumulativeRewards1;
+        uint256 cumulativeRewards2 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual2));
         assertApproxEqRel(
             accruedRewards,
-            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) /
-                thresholdTime) + cumulativeRewards2.wadMul(lpBalance2),
+            ((cumulativeRewards1.wadMul(lpBalance1) * skipTime) / thresholdTime) + cumulativeRewards2.wadMul(lpBalance2),
             1e16,
             "Incorrect rewards"
         );
         assertEq(
-            rewardDistributor.withdrawTimerStartByUserByMarket(
-                liquidityProviderTwo,
-                address(perpetual)
-            ),
+            rewardDistributor.withdrawTimerStartByUserByMarket(liquidityProviderTwo, address(perpetual)),
             block.timestamp - (thresholdTime - 2 * skipTime),
             "Early withdrawal timer not reset after partial withdrawal"
         );
         assertEq(
-            rewardDistributor.withdrawTimerStartByUserByMarket(
-                liquidityProviderTwo,
-                address(perpetual2)
-            ),
+            rewardDistributor.withdrawTimerStartByUserByMarket(liquidityProviderTwo, address(perpetual2)),
             0,
             "Last deposit time not reset to zero after full withdrawal"
         );
@@ -1017,10 +680,7 @@ contract RewardsTest is Deployment, Utils {
         // check that early withdrawal timer is reset after adding liquidity
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
         assertEq(
-            rewardDistributor.withdrawTimerStartByUserByMarket(
-                liquidityProviderTwo,
-                address(perpetual)
-            ),
+            rewardDistributor.withdrawTimerStartByUserByMarket(liquidityProviderTwo, address(perpetual)),
             block.timestamp,
             "Early withdrawal timer not reset after adding liquidity"
         );
@@ -1029,17 +689,10 @@ contract RewardsTest is Deployment, Utils {
     function testPausingAccrual(uint256 providedLiquidity1) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
 
         // add liquidity to first perpetual
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity1,
-            vault,
-            ua
-        );
+        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity1, vault, ua);
         _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
 
         // pause accrual
@@ -1053,10 +706,7 @@ contract RewardsTest is Deployment, Utils {
 
         // check that no rewards were accrued
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
-            liquidityProviderTwo,
-            address(rewardsToken)
-        );
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
         assertEq(accruedRewards, 0, "Rewards accrued while paused");
 
         // unpause accrual
@@ -1073,24 +723,16 @@ contract RewardsTest is Deployment, Utils {
         assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
     }
 
-    function testAddNewMarket(
-        uint256 providedLiquidity1,
-        uint256 providedLiquidity2,
-        uint256 providedLiquidity3
-    ) public {
+    function testAddNewMarket(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
+        public
+    {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         providedLiquidity3 = bound(providedLiquidity3, 100e18, 10_000e18);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
-        require(
-            providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
+        require(providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18);
 
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
@@ -1113,43 +755,22 @@ contract RewardsTest is Deployment, Utils {
             marketWeights[0] = 5000;
             marketWeights[1] = 3000;
             marketWeights[2] = 2000;
-            rewardDistributor.updateRewardWeights(
-                address(rewardsToken),
-                markets,
-                marketWeights
-            );
+            rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
         }
 
         // check that rewards were accrued to first two perpetuals at previous weights
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 cumulativeRewards1 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
-        uint256 cumulativeRewards2 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
-        uint256 cumulativeRewards3 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual3)
-            );
-        uint256 inflationRate = rewardDistributor.getInitialInflationRate(
-            address(rewardsToken)
-        );
-        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual)
-        );
-        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual2)
-        );
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity2;
+        uint256 cumulativeRewards1 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
+        uint256 cumulativeRewards2 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual2));
+        uint256 cumulativeRewards3 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual3));
+        uint256 inflationRate = rewardDistributor.getInitialInflationRate(address(rewardsToken));
+        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
+        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         uint256 expectedCumulativeRewards3 = 0;
         assertApproxEqRel(
             cumulativeRewards1,
@@ -1163,20 +784,11 @@ contract RewardsTest is Deployment, Utils {
             5e16, // 5%, accounts for reduction factor
             "Incorrect cumulative rewards"
         );
-        assertEq(
-            cumulativeRewards3,
-            expectedCumulativeRewards3,
-            "Incorrect cumulative rewards"
-        );
+        assertEq(cumulativeRewards3, expectedCumulativeRewards3, "Incorrect cumulative rewards");
 
         // provide liquidity to new perpetual
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual3);
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity3,
-            vault,
-            ua
-        );
+        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity3, vault, ua);
         _provideLiquidity(providedLiquidity3, liquidityProviderTwo, perpetual3);
 
         // skip some more time
@@ -1184,30 +796,13 @@ contract RewardsTest is Deployment, Utils {
 
         // check that rewards were accrued to all three perpetuals at new weights
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(perpetual)
-        );
-        cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(perpetual2)
-        );
-        cumulativeRewards3 = rewardDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(perpetual3)
-        );
-        uint256 totalLiquidity3 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual3)
-        );
-        expectedCumulativeRewards1 +=
-            (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) /
-            totalLiquidity1;
-        expectedCumulativeRewards2 +=
-            (((((inflationRate * 3000) / 10000) * 10) / 365) * 1e18) /
-            totalLiquidity2;
-        expectedCumulativeRewards3 +=
-            (((((inflationRate * 2000) / 10000) * 10) / 365) * 1e18) /
-            totalLiquidity3;
+        cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
+        cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual2));
+        cumulativeRewards3 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual3));
+        uint256 totalLiquidity3 = rewardDistributor.totalLiquidityPerMarket(address(perpetual3));
+        expectedCumulativeRewards1 += (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        expectedCumulativeRewards2 += (((((inflationRate * 3000) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
+        expectedCumulativeRewards3 += (((((inflationRate * 2000) / 10000) * 10) / 365) * 1e18) / totalLiquidity3;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1228,24 +823,16 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testDelistAndReplace(
-        uint256 providedLiquidity1,
-        uint256 providedLiquidity2,
-        uint256 providedLiquidity3
-    ) public {
+    function testDelistAndReplace(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
+        public
+    {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
         providedLiquidity3 = bound(providedLiquidity3, 100e18, 10_000e18);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
-        require(
-            providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
+        require(providedLiquidity3 >= 100e18 && providedLiquidity3 <= 10_000e18);
 
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
@@ -1255,29 +842,15 @@ contract RewardsTest is Deployment, Utils {
 
         // check that rewards were accrued to first two perpetuals at previous weights
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 cumulativeRewards1 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
-        uint256 cumulativeRewards2 = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
-        uint256 inflationRate = rewardDistributor.getInitialInflationRate(
-            address(rewardsToken)
-        );
-        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual)
-        );
-        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual2)
-        );
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
-            10000) * 10) / 365) * 1e18) / totalLiquidity2;
+        uint256 cumulativeRewards1 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
+        uint256 cumulativeRewards2 =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual2));
+        uint256 inflationRate = rewardDistributor.getInitialInflationRate(address(rewardsToken));
+        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
+        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1300,19 +873,11 @@ contract RewardsTest is Deployment, Utils {
         TestPerpetual perpetual3 = _deployTestPerpetual();
         clearingHouse.allowListPerpetual(perpetual3);
         console.log("Added new perpetual: %s", address(perpetual3));
-        assertEq(
-            clearingHouse.getNumMarkets(),
-            2,
-            "Incorrect number of markets"
-        );
+        assertEq(clearingHouse.getNumMarkets(), 2, "Incorrect number of markets");
 
         rewardDistributor.initMarketStartTime(address(perpetual3));
         assertEq(
-            _viewNewRewardAccrual(
-                address(perpetual3),
-                liquidityProviderTwo,
-                address(rewardsToken)
-            ),
+            _viewNewRewardAccrual(address(perpetual3), liquidityProviderTwo, address(rewardsToken)),
             0,
             "Incorrect accrued rewards preview for new perp without liquidity"
         );
@@ -1325,24 +890,12 @@ contract RewardsTest is Deployment, Utils {
         marketWeights[0] = 7500;
         marketWeights[1] = 2500;
         vm.expectEmit(false, false, false, true);
-        emit MarketRemovedFromRewards(
-            address(perpetual2),
-            address(rewardsToken)
-        );
-        rewardDistributor.updateRewardWeights(
-            address(rewardsToken),
-            markets,
-            marketWeights
-        );
+        emit MarketRemovedFromRewards(address(perpetual2), address(rewardsToken));
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
 
         // provide liquidity to new perpetual
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual3);
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity3,
-            vault,
-            ua
-        );
+        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity3, vault, ua);
         _provideLiquidity(providedLiquidity3, liquidityProviderTwo, perpetual3);
 
         // skip some time
@@ -1350,23 +903,11 @@ contract RewardsTest is Deployment, Utils {
 
         // check that rewards were accrued to first perpetual and new one at previous weights
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(perpetual)
-        );
-        cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken),
-            address(perpetual3)
-        );
-        totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual3)
-        );
-        expectedCumulativeRewards1 =
-            (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) /
-            totalLiquidity1;
-        expectedCumulativeRewards2 =
-            (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) /
-            totalLiquidity2;
+        cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
+        cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual3));
+        totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual3));
+        expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1381,19 +922,12 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testPreExistingLiquidity(
-        uint256 providedLiquidity1,
-        uint256 providedLiquidity2
-    ) public {
+    function testPreExistingLiquidity(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
-        require(
-            providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18
-        );
-        require(
-            providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18
-        );
+        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
@@ -1404,25 +938,17 @@ contract RewardsTest is Deployment, Utils {
         weights[1] = 2500;
 
         TestPerpRewardDistributor newRewardsDistributor = new TestPerpRewardDistributor(
-                INITIAL_INFLATION_RATE,
-                INITIAL_REDUCTION_FACTOR,
-                address(rewardsToken),
-                address(clearingHouse),
-                address(ecosystemReserve),
-                10 days,
-                weights
-            );
+            INITIAL_INFLATION_RATE,
+            INITIAL_REDUCTION_FACTOR,
+            address(rewardsToken),
+            address(clearingHouse),
+            address(ecosystemReserve),
+            10 days,
+            weights
+        );
         vm.startPrank(address(this));
-        ecosystemReserve.approve(
-            rewardsToken,
-            address(newRewardsDistributor),
-            type(uint256).max
-        );
-        ecosystemReserve.approve(
-            rewardsToken2,
-            address(newRewardsDistributor),
-            type(uint256).max
-        );
+        ecosystemReserve.approve(rewardsToken, address(newRewardsDistributor), type(uint256).max);
+        ecosystemReserve.approve(rewardsToken2, address(newRewardsDistributor), type(uint256).max);
         vm.stopPrank();
 
         // Connect ClearingHouse to new RewardsDistributor
@@ -1458,29 +984,15 @@ contract RewardsTest is Deployment, Utils {
 
         // check that rewards were accrued correctly
         newRewardsDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 cumulativeRewards1 = newRewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual)
-            );
-        uint256 cumulativeRewards2 = newRewardsDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardsToken),
-                address(perpetual2)
-            );
-        uint256 inflationRate = newRewardsDistributor.getInitialInflationRate(
-            address(rewardsToken)
-        );
-        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual)
-        );
-        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(
-            address(perpetual2)
-        );
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) /
-            10000) * 20) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) /
-            10000) * 20) / 365) * 1e18) / totalLiquidity2;
+        uint256 cumulativeRewards1 =
+            newRewardsDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
+        uint256 cumulativeRewards2 =
+            newRewardsDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual2));
+        uint256 inflationRate = newRewardsDistributor.getInitialInflationRate(address(rewardsToken));
+        uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
+        uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 20) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1496,22 +1008,13 @@ contract RewardsTest is Deployment, Utils {
     }
 
     function testRewardDistributorErrors(address invalidMarket) public {
-        vm.assume(
-            invalidMarket != address(perpetual) &&
-                invalidMarket != address(perpetual2)
-        );
+        vm.assume(invalidMarket != address(perpetual) && invalidMarket != address(perpetual2));
 
         // updatePosition
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "PerpRewardDistributor_CallerIsNotClearingHouse(address)",
-                address(this)
-            )
+            abi.encodeWithSignature("PerpRewardDistributor_CallerIsNotClearingHouse(address)", address(this))
         );
-        rewardDistributor.updatePosition(
-            address(perpetual),
-            liquidityProviderOne
-        );
+        rewardDistributor.updatePosition(address(perpetual), liquidityProviderOne);
         vm.startPrank(address(clearingHouse));
         // invalidMarket is not a Perpetual contract, so calling IPerpetual(invalidMarket).getLpLiquidity()
         // in _getCurrentPosition (called by updatePosition), will revert due to missing function
@@ -1521,20 +1024,12 @@ contract RewardsTest is Deployment, Utils {
 
         // initMarketStartTime
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_AlreadyInitializedStartTime(address)",
-                address(perpetual)
-            )
+            abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", address(perpetual))
         );
         rewardDistributor.initMarketStartTime(address(perpetual));
 
         // removeRewardToken
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_InvalidRewardTokenAddress(address)",
-                address(0)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", address(0)));
         rewardDistributor.removeRewardToken(address(0));
 
         // registerPositions
@@ -1559,102 +1054,42 @@ contract RewardsTest is Deployment, Utils {
         markets2[0] = address(perpetual);
         markets2[1] = address(perpetual2);
         uint256[] memory weights1 = new uint256[](1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_IncorrectWeightsCount(uint256,uint256)",
-                1,
-                2
-            )
-        );
-        rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            1e18,
-            1e18,
-            markets2,
-            weights1
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_IncorrectWeightsCount(uint256,uint256)", 1, 2));
+        rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights1);
         uint256[] memory weights2 = new uint256[](2);
         weights2[0] = type(uint256).max;
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_WeightExceedsMax(uint256,uint256)",
-                type(uint256).max,
-                10000
-            )
+            abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", type(uint256).max, 10000)
         );
-        rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            1e18,
-            1e18,
-            markets2,
-            weights2
-        );
+        rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
         weights2[0] = 0;
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_IncorrectWeightsSum(uint256,uint256)",
-                0,
-                10000
-            )
-        );
-        rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            1e18,
-            1e18,
-            markets2,
-            weights2
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_IncorrectWeightsSum(uint256,uint256)", 0, 10000));
+        rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
         weights2[0] = 5000;
         weights2[1] = 5000;
-        for (uint i; i < 9; ++i) {
-            rewardDistributor.addRewardToken(
-                address(rewardsToken),
-                1e18,
-                1e18,
-                markets2,
-                weights2
-            );
+        for (uint256 i; i < 9; ++i) {
+            rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
         }
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_AboveMaxRewardTokens(uint256)",
-                10
-            )
-        );
-        rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            1e18,
-            1e18,
-            markets2,
-            weights2
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardController_AboveMaxRewardTokens(uint256)", 10));
+        rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
 
         // paused
         vm.startPrank(address(this));
         clearingHouse.pause();
-        assertTrue(
-            rewardDistributor.paused(),
-            "Reward distributor not paused when clearing house is paused"
-        );
+        assertTrue(rewardDistributor.paused(), "Reward distributor not paused when clearing house is paused");
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
         rewardDistributor.claimRewardsFor(liquidityProviderOne);
         vm.stopPrank();
         clearingHouse.unpause();
         rewardDistributor.pause();
-        assertTrue(
-            rewardDistributor.paused(),
-            "Reward distributor not paused directly"
-        );
+        assertTrue(rewardDistributor.paused(), "Reward distributor not paused directly");
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
         rewardDistributor.claimRewardsFor(liquidityProviderOne);
         vm.stopPrank();
         rewardDistributor.unpause();
-        assertTrue(
-            !rewardDistributor.paused(),
-            "Reward distributor not unpaused directly"
-        );
+        assertTrue(!rewardDistributor.paused(), "Reward distributor not unpaused directly");
     }
 
     function testEcosystemReserve() public {
@@ -1669,10 +1104,7 @@ contract RewardsTest is Deployment, Utils {
                         "AccessControl: account ",
                         Strings.toHexString(liquidityProviderOne),
                         " is missing role ",
-                        Strings.toHexString(
-                            uint256(keccak256("GOVERNANCE")),
-                            32
-                        )
+                        Strings.toHexString(uint256(keccak256("GOVERNANCE")), 32)
                     )
                 )
             )
@@ -1681,27 +1113,18 @@ contract RewardsTest is Deployment, Utils {
         vm.stopPrank();
 
         // invalid address errors
-        vm.expectRevert(
-            abi.encodeWithSignature("EcosystemReserve_InvalidAdmin()")
-        );
+        vm.expectRevert(abi.encodeWithSignature("EcosystemReserve_InvalidAdmin()"));
         ecosystemReserve.transferAdmin(address(0));
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()")
-        );
+        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()"));
         rewardDistributor.setEcosystemReserve(address(0));
 
         // no errors
-        EcosystemReserve newEcosystemReserve = new EcosystemReserve(
-            address(this)
-        );
+        EcosystemReserve newEcosystemReserve = new EcosystemReserve(address(this));
         vm.expectEmit(false, false, false, true);
         emit NewFundsAdmin(address(this));
         ecosystemReserve.transferAdmin(address(this));
         vm.expectEmit(false, false, false, true);
-        emit EcosystemReserveUpdated(
-            address(ecosystemReserve),
-            address(newEcosystemReserve)
-        );
+        emit EcosystemReserveUpdated(address(ecosystemReserve), address(newEcosystemReserve));
         rewardDistributor.setEcosystemReserve(address(newEcosystemReserve));
     }
 
@@ -1709,32 +1132,20 @@ contract RewardsTest is Deployment, Utils {
     /*  Helper Functions  */
     /* ****************** */
 
-    function _checkRewards(
-        address token,
-        address user,
-        uint256 marketWeight1,
-        uint256 marketWeight2,
-        uint256 numDays
-    ) internal returns (uint256) {
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(
-            user,
-            token
-        );
+    function _checkRewards(address token, address user, uint256 marketWeight1, uint256 marketWeight2, uint256 numDays)
+        internal
+        returns (uint256)
+    {
+        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(user, token);
         assertGt(accruedRewards, 0, "Rewards not accrued");
-        uint256 cumulativeRewards1 = rewardDistributor
-            .cumulativeRewardPerLpToken(token, address(perpetual));
-        uint256 cumulativeRewards2 = rewardDistributor
-            .cumulativeRewardPerLpToken(token, address(perpetual2));
-        uint256 inflationRate = rewardDistributor.getInitialInflationRate(
-            address(token)
-        );
+        uint256 cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(token, address(perpetual));
+        uint256 cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(token, address(perpetual2));
+        uint256 inflationRate = rewardDistributor.getInitialInflationRate(address(token));
         {
-            uint256 expectedCumulativeRewards1 = (((((inflationRate *
-                marketWeight1) / 10000) * numDays) / 365) * 1e18) /
-                rewardDistributor.totalLiquidityPerMarket(address(perpetual));
-            uint256 expectedCumulativeRewards2 = (((((inflationRate *
-                marketWeight2) / 10000) * numDays) / 365) * 1e18) /
-                rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
+            uint256 expectedCumulativeRewards1 = (((((inflationRate * marketWeight1) / 10000) * numDays) / 365) * 1e18)
+                / rewardDistributor.totalLiquidityPerMarket(address(perpetual));
+            uint256 expectedCumulativeRewards2 = (((((inflationRate * marketWeight2) / 10000) * numDays) / 365) * 1e18)
+                / rewardDistributor.totalLiquidityPerMarket(address(perpetual2));
             assertApproxEqRel(
                 cumulativeRewards1,
                 expectedCumulativeRewards1,
@@ -1750,63 +1161,39 @@ contract RewardsTest is Deployment, Utils {
         }
         assertApproxEqRel(
             accruedRewards,
-            cumulativeRewards1.wadMul(perpetual.getLpLiquidity(user)) +
-                cumulativeRewards2.wadMul(perpetual2.getLpLiquidity(user)),
+            cumulativeRewards1.wadMul(perpetual.getLpLiquidity(user))
+                + cumulativeRewards2.wadMul(perpetual2.getLpLiquidity(user)),
             1e15, // 0.1%
             "Incorrect user rewards"
         );
         return accruedRewards;
     }
 
-    function _provideLiquidityBothPerps(
-        uint256 providedLiquidity1,
-        uint256 providedLiquidity2
-    )
+    function _provideLiquidityBothPerps(uint256 providedLiquidity1, uint256 providedLiquidity2)
         internal
         returns (uint256 percentOfLiquidity1, uint256 percentOfLiquidity2)
     {
         // provide some liquidity
-        fundAndPrepareAccount(
-            liquidityProviderTwo,
-            providedLiquidity1 + providedLiquidity2,
-            vault,
-            ua
-        );
+        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity1 + providedLiquidity2, vault, ua);
         _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
         _provideLiquidity(providedLiquidity2, liquidityProviderTwo, perpetual2);
-        percentOfLiquidity1 =
-            (providedLiquidity1 * 1e18) /
-            (10_000e18 + providedLiquidity1);
-        percentOfLiquidity2 =
-            (providedLiquidity2 * 1e18) /
-            (10_000e18 + providedLiquidity2);
+        percentOfLiquidity1 = (providedLiquidity1 * 1e18) / (10_000e18 + providedLiquidity1);
+        percentOfLiquidity2 = (providedLiquidity2 * 1e18) / (10_000e18 + providedLiquidity2);
     }
 
-    function _provideLiquidity(
-        uint256 depositAmount,
-        address user,
-        TestPerpetual perp
-    ) internal {
+    function _provideLiquidity(uint256 depositAmount, address user, TestPerpetual perp) internal {
         vm.startPrank(user);
 
         clearingHouse.deposit(depositAmount, ua);
         uint256 quoteAmount = depositAmount / 2;
         uint256 baseAmount = quoteAmount.wadDiv(perp.indexPrice().toUint256());
-        clearingHouse.provideLiquidity(
-            perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2,
-            [quoteAmount, baseAmount],
-            0
-        );
+        clearingHouse.provideLiquidity(perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2, [quoteAmount, baseAmount], 0);
     }
 
     function _removeAllLiquidity(address user, TestPerpetual perp) internal {
         vm.startPrank(user);
 
-        uint256 proposedAmount = _getLiquidityProviderProposedAmount(
-            user,
-            perp,
-            1e18
-        );
+        uint256 proposedAmount = _getLiquidityProviderProposedAmount(user, perp, 1e18);
         /*
         according to curve v2 whitepaper:
         discard values that do not converge
@@ -1824,112 +1211,59 @@ contract RewardsTest is Deployment, Utils {
         // clearingHouse.withdrawAll(ua);
     }
 
-    function _removeSomeLiquidity(
-        address user,
-        TestPerpetual perp,
-        uint256 reductionRatio
-    ) internal {
+    function _removeSomeLiquidity(address user, TestPerpetual perp, uint256 reductionRatio) internal {
         uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
         uint256 amount = (lpBalance * reductionRatio) / 1e18;
         uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
         vm.startPrank(user);
-        uint256 proposedAmount = _getLiquidityProviderProposedAmount(
-            user,
-            perp,
-            reductionRatio
-        );
-        clearingHouse.removeLiquidity(
-            idx,
-            amount,
-            [uint256(0), uint256(0)],
-            proposedAmount,
-            0
-        );
+        uint256 proposedAmount = _getLiquidityProviderProposedAmount(user, perp, reductionRatio);
+        clearingHouse.removeLiquidity(idx, amount, [uint256(0), uint256(0)], proposedAmount, 0);
 
         // clearingHouse.withdrawAll(ua);
     }
 
-    function _getLiquidityProviderProposedAmount(
-        address user,
-        IPerpetual perp,
-        uint256 reductionRatio
-    ) internal returns (uint256 proposedAmount) {
-        LibPerpetual.LiquidityProviderPosition memory lp = perpetual
-            .getLpPosition(user);
+    function _getLiquidityProviderProposedAmount(address user, IPerpetual perp, uint256 reductionRatio)
+        internal
+        returns (uint256 proposedAmount)
+    {
+        LibPerpetual.LiquidityProviderPosition memory lp = perpetual.getLpPosition(user);
         if (lp.liquidityBalance == 0) revert("No liquidity provided");
         uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
-        return
-            viewer.getLpProposedAmount(
-                idx,
-                user,
-                reductionRatio,
-                100,
-                [uint256(0), uint256(0)],
-                0
-            );
+        return viewer.getLpProposedAmount(idx, user, reductionRatio, 100, [uint256(0), uint256(0)], 0);
     }
 
-    function _viewNewRewardAccrual(
-        address market,
-        address user
-    ) public view returns (uint256[] memory) {
+    function _viewNewRewardAccrual(address market, address user) public view returns (uint256[] memory) {
         uint256 numTokens = rewardDistributor.getRewardTokenCount();
         uint256[] memory newRewards = new uint256[](numTokens);
-        for (uint i; i < numTokens; ++i) {
-            newRewards[i] = _viewNewRewardAccrual(
-                market,
-                user,
-                rewardDistributor.rewardTokens(i)
-            );
+        for (uint256 i; i < numTokens; ++i) {
+            newRewards[i] = _viewNewRewardAccrual(market, user, rewardDistributor.rewardTokens(i));
         }
         return newRewards;
     }
 
-    function _viewNewRewardAccrual(
-        address market,
-        address user,
-        address token
-    ) internal view returns (uint256) {
-        uint256 timeOfLastCumRewardUpdate = rewardDistributor
-            .timeOfLastCumRewardUpdate(market);
+    function _viewNewRewardAccrual(address market, address user, address token) internal view returns (uint256) {
+        uint256 timeOfLastCumRewardUpdate = rewardDistributor.timeOfLastCumRewardUpdate(market);
         uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate;
         if (rewardDistributor.totalLiquidityPerMarket(market) == 0) return 0;
         // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x guageWeight x deltaTime) to the previous cumRewardPerLpToken
         uint256 marketWeight = rewardDistributor.getRewardWeight(token, market);
-        uint256 newMarketRewards = (((rewardDistributor.getInflationRate(
-            token
-        ) * marketWeight) / 10000) * deltaTime) / 365 days;
-        uint256 newCumRewardPerLpToken = rewardDistributor
-            .cumulativeRewardPerLpToken(token, market) +
-            (newMarketRewards * 1e18) /
-            rewardDistributor.totalLiquidityPerMarket(market);
-        uint256 newUserRewards = rewardDistributor
-            .lpPositionsPerUser(user, market)
-            .wadMul(
-                (newCumRewardPerLpToken -
-                    rewardDistributor.cumulativeRewardPerLpTokenPerUser(
-                        user,
-                        token,
-                        market
-                    ))
-            );
+        uint256 newMarketRewards =
+            (((rewardDistributor.getInflationRate(token) * marketWeight) / 10000) * deltaTime) / 365 days;
+        uint256 newCumRewardPerLpToken = rewardDistributor.cumulativeRewardPerLpToken(token, market)
+            + (newMarketRewards * 1e18) / rewardDistributor.totalLiquidityPerMarket(market);
+        uint256 newUserRewards = rewardDistributor.lpPositionsPerUser(user, market).wadMul(
+            (newCumRewardPerLpToken - rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, market))
+        );
         return newUserRewards;
     }
 
     function _deployTestPerpetual() internal returns (TestPerpetual) {
-        AggregatorV3Interface dai_baseOracle = AggregatorV3Interface(
-            address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9)
-        );
-        VBase vBase3 = new VBase(
-            "vDAI base token",
-            "vDAI",
-            dai_baseOracle,
-            30 days,
-            sequencerUptimeFeed,
-            ETHUSD.gracePeriod
-        );
+        AggregatorV3Interface dai_baseOracle =
+            AggregatorV3Interface(address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9));
+        VBase vBase3 =
+            new VBase("vDAI base token", "vDAI", dai_baseOracle, 30 days, sequencerUptimeFeed, ETHUSD.gracePeriod);
         VQuote vQuote3 = new VQuote("vUSD quote token", "vUSD");
-        (, int256 answer, , , ) = baseOracle.latestRoundData();
+        (, int256 answer,,,) = baseOracle.latestRoundData();
         uint8 decimals = dai_baseOracle.decimals();
         uint256 initialPrice = answer.toUint256() * (10 ** (18 - decimals));
         TestPerpetual perpetual3 = new TestPerpetual(
