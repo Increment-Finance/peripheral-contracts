@@ -12,6 +12,7 @@ import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extens
 
 // libraries
 import {LibMath} from "../../../lib/increment-protocol/contracts/lib/LibMath.sol";
+import {LibPerpetual} from "../../../lib/increment-protocol/contracts/lib/LibPerpetual.sol";
 
 contract ClearingHouseHandler is Test {
     using LibMath for uint256;
@@ -77,9 +78,9 @@ contract ClearingHouseHandler is Test {
         ua.approve(address(vault), amount);
     }
 
-    /* ******************** */
-    /*  External Functions  */
-    /* ******************** */
+    /* ********************* */
+    /*  Liquidity Functions  */
+    /* ********************* */
 
     function provideLiquidity(uint256 actorIndexSeed, uint256 perpIndexSeed, uint256 depositAmount)
         public
@@ -87,7 +88,7 @@ contract ClearingHouseHandler is Test {
         usePerp(perpIndexSeed)
     {
         uint256 uaBalance = ua.balanceOf(currentActor);
-        if (uaBalance == 0) return;
+        if (uaBalance <= 100e18) return;
         depositAmount = bound(depositAmount, uaBalance / 100, uaBalance);
         if (ua.allowance(currentActor, address(vault)) < depositAmount) {
             ua.approve(address(vault), depositAmount);
@@ -105,11 +106,22 @@ contract ClearingHouseHandler is Test {
         usePerp(perpIndexSeed)
     {
         reductionRatio = bound(reductionRatio, 1e16, 1e18);
-        uint256 lpBalance = currentMarket.getLpLiquidity(currentActor);
+        LibPerpetual.LiquidityProviderPosition memory position =
+            currentMarket.getLpPosition(currentActor);
+        uint256 lpBalance = position.liquidityBalance;
+        uint256 lockPeriod = currentMarket.lockPeriod();
         if (lpBalance == 0) return;
         uint256 amount = lpBalance.wadMul(reductionRatio);
         uint256 proposedAmount =
             viewer.getLpProposedAmount(idx, currentActor, reductionRatio, 100, [uint256(0), uint256(0)], 0);
+        if (block.timestamp < position.depositTime + lockPeriod) {
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    "Perpetual_LockPeriodNotReached(uint256)",
+                    position.depositTime + lockPeriod
+                )
+            );
+        }
         clearingHouse.removeLiquidity(idx, amount, [uint256(0), uint256(0)], proposedAmount, 0);
     }
 }
