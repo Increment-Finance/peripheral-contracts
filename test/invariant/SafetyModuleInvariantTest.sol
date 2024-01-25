@@ -82,17 +82,13 @@ contract SafetyModuleInvariantTest is Test {
     BalancerPoolHandler public balancerPoolHandler;
 
     // Invariant ghost variables
-    mapping(address => mapping(address => uint256))
-        public lastMarketAccumulatorValue;
+    mapping(address => mapping(address => uint256)) public lastMarketAccumulatorValue;
 
-    mapping(address => mapping(address => mapping(address => uint256)))
-        public lastUserAccumulatorValue;
+    mapping(address => mapping(address => mapping(address => uint256))) public lastUserAccumulatorValue;
 
-    mapping(address => mapping(address => uint256))
-        public lastUserRewardsBalance;
+    mapping(address => mapping(address => uint256)) public lastUserRewardsBalance;
 
-    mapping(address => mapping(address => uint256))
-        public lastUserRewardsAccrued;
+    mapping(address => mapping(address => uint256)) public lastUserRewardsAccrued;
 
     function setUp() public virtual {
         /* initialize fork */
@@ -125,28 +121,16 @@ contract SafetyModuleInvariantTest is Test {
 
         // Deploy reward distributor
         rewardDistributor = new TestSMRewardDistributor(
-            safetyModule,
-            INITIAL_MAX_MULTIPLIER,
-            INITIAL_SMOOTHING_VALUE,
-            address(rewardVault)
+            safetyModule, INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(rewardVault)
         );
         safetyModule.setRewardDistributor(rewardDistributor);
 
         // Transfer half of the rewards tokens to the reward vault
-        rewardsToken.transfer(
-            address(rewardVault),
-            rewardsToken.totalSupply() / 2
-        );
-        rewardVault.approve(
-            rewardsToken,
-            address(rewardDistributor),
-            type(uint256).max
-        );
+        rewardsToken.transfer(address(rewardVault), rewardsToken.totalSupply() / 2);
+        rewardVault.approve(rewardsToken, address(rewardDistributor), type(uint256).max);
 
         // Deploy Balancer pool
-        weightedPoolFactory = IWeightedPoolFactory(
-            0x897888115Ada5773E02aA29F775430BFB5F34c51
-        );
+        weightedPoolFactory = IWeightedPoolFactory(0x897888115Ada5773E02aA29F775430BFB5F34c51);
         address[] memory poolTokens = new address[](2);
         poolTokens[0] = address(rewardsToken);
         poolTokens[1] = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -170,39 +154,23 @@ contract SafetyModuleInvariantTest is Test {
         // Add initial liquidity to the Balancer pool
         poolId = balancerPool.getPoolId();
         balancerVault = balancerPool.getVault();
-        (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(poolId);
+        (IERC20[] memory poolERC20s,,) = balancerVault.getPoolTokens(poolId);
         poolAssets = new IAsset[](2);
         poolAssets[0] = IAsset(address(poolERC20s[0]));
         poolAssets[1] = IAsset(address(poolERC20s[1]));
         uint256[] memory maxAmountsIn = new uint256[](2);
         maxAmountsIn[0] = 10_000 ether;
         maxAmountsIn[1] = 10 ether;
-        IBalancerVault.JoinPoolRequest memory joinRequest = IBalancerVault
-            .JoinPoolRequest(
-                poolAssets,
-                maxAmountsIn,
-                abi.encode(JoinKind.INIT, maxAmountsIn),
-                false
-            );
+        IBalancerVault.JoinPoolRequest memory joinRequest =
+            IBalancerVault.JoinPoolRequest(poolAssets, maxAmountsIn, abi.encode(JoinKind.INIT, maxAmountsIn), false);
         rewardsToken.approve(address(balancerVault), type(uint256).max);
         weth.approve(address(balancerVault), type(uint256).max);
         weth.deposit{value: 10 ether}();
-        balancerVault.joinPool(
-            poolId,
-            address(this),
-            address(this),
-            joinRequest
-        );
+        balancerVault.joinPool(poolId, address(this), address(this), joinRequest);
 
         // Deploy staking tokens
         stakedToken1 = new StakedToken(
-            rewardsToken,
-            safetyModule,
-            COOLDOWN_SECONDS,
-            UNSTAKE_WINDOW,
-            MAX_STAKE_AMOUNT_1,
-            "Staked INCR",
-            "stINCR"
+            rewardsToken, safetyModule, COOLDOWN_SECONDS, UNSTAKE_WINDOW, MAX_STAKE_AMOUNT_1, "Staked INCR", "stINCR"
         );
         stakedToken2 = new StakedToken(
             balancerPool,
@@ -226,11 +194,7 @@ contract SafetyModuleInvariantTest is Test {
         rewardWeights[0] = 5000;
         rewardWeights[1] = 5000;
         rewardDistributor.addRewardToken(
-            address(rewardsToken),
-            INITIAL_INFLATION_RATE,
-            INITIAL_REDUCTION_FACTOR,
-            stakingTokens,
-            rewardWeights
+            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakingTokens, rewardWeights
         );
 
         // Approve staking tokens and Balancer vault for users
@@ -261,29 +225,13 @@ contract SafetyModuleInvariantTest is Test {
         vm.stopPrank();
 
         // Deploy handler contracts
-        safetyModuleHandler = new SafetyModuleHandler(
-            safetyModule,
-            address(this)
-        );
-        auctionModuleHandler = new AuctionModuleHandler(
-            auctionModule,
-            stakers,
-            address(this)
-        );
+        safetyModuleHandler = new SafetyModuleHandler(safetyModule, address(this));
+        auctionModuleHandler = new AuctionModuleHandler(auctionModule, stakers, address(this));
         smrdHandler = new SMRDHandler(rewardDistributor, stakers);
-        stakedTokenHandler = new StakedTokenHandler(
-            stakedTokens,
-            stakedBPTs,
-            stakers
-        );
+        stakedTokenHandler = new StakedTokenHandler(stakedTokens, stakedBPTs, stakers);
         IWeightedPool[] memory pools = new IWeightedPool[](1);
         pools[0] = balancerPool;
-        balancerPoolHandler = new BalancerPoolHandler(
-            balancerVault,
-            pools,
-            weth,
-            stakers
-        );
+        balancerPoolHandler = new BalancerPoolHandler(balancerVault, pools, weth, stakers);
 
         // Set handlers as target contracts
         targetContract(address(safetyModuleHandler));
@@ -302,18 +250,15 @@ contract SafetyModuleInvariantTest is Test {
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
-            for (uint j; j < numMarkets; j++) {
+            for (uint256 j; j < numMarkets; j++) {
                 address market = address(safetyModule.stakingTokens(j));
-                uint256 accumulatorValue = rewardDistributor
-                    .cumulativeRewardPerLpToken(rewardToken, market);
+                uint256 accumulatorValue = rewardDistributor.cumulativeRewardPerLpToken(rewardToken, market);
                 assertGe(
                     accumulatorValue,
                     lastMarketAccumulatorValue[rewardToken][market],
                     "Invariant: accumulator does not decrease"
                 );
-                lastMarketAccumulatorValue[rewardToken][
-                    market
-                ] = accumulatorValue;
+                lastMarketAccumulatorValue[rewardToken][market] = accumulatorValue;
             }
         }
     }
@@ -323,32 +268,22 @@ contract SafetyModuleInvariantTest is Test {
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
-            for (uint j; j < numMarkets; j++) {
+            for (uint256 j; j < numMarkets; j++) {
                 address market = address(safetyModule.stakingTokens(j));
-                uint256 marketAccumulatorValue = rewardDistributor
-                    .cumulativeRewardPerLpToken(rewardToken, market);
-                for (uint k; k < stakers.length; k++) {
+                uint256 marketAccumulatorValue = rewardDistributor.cumulativeRewardPerLpToken(rewardToken, market);
+                for (uint256 k; k < stakers.length; k++) {
                     address staker = stakers[k];
-                    uint256 userAccumulatorValue = rewardDistributor
-                        .cumulativeRewardPerLpTokenPerUser(
-                            staker,
-                            rewardToken,
-                            market
-                        );
+                    uint256 userAccumulatorValue =
+                        rewardDistributor.cumulativeRewardPerLpTokenPerUser(staker, rewardToken, market);
                     assertGe(
                         userAccumulatorValue,
                         lastUserAccumulatorValue[staker][rewardToken][market],
                         "Invariant: user accumulator does not decrease"
                     );
-                    lastUserAccumulatorValue[staker][rewardToken][
-                        market
-                    ] = userAccumulatorValue;
+                    lastUserAccumulatorValue[staker][rewardToken][market] = userAccumulatorValue;
                     if (userAccumulatorValue == marketAccumulatorValue) {
-                        uint256 rewardsAccrued = rewardDistributor
-                            .rewardsAccruedByUser(staker, rewardToken);
-                        uint256 rewardsBalance = IERC20(rewardToken).balanceOf(
-                            staker
-                        );
+                        uint256 rewardsAccrued = rewardDistributor.rewardsAccruedByUser(staker, rewardToken);
+                        uint256 rewardsBalance = IERC20(rewardToken).balanceOf(staker);
                         if (rewardsAccrued > 0) {
                             assertGe(
                                 rewardsAccrued,
@@ -362,12 +297,8 @@ contract SafetyModuleInvariantTest is Test {
                                 "Invariant: user accumulator updates on claim rewards"
                             );
                         }
-                        lastUserRewardsAccrued[staker][
-                            rewardToken
-                        ] = rewardsAccrued;
-                        lastUserRewardsBalance[staker][
-                            rewardToken
-                        ] = rewardsBalance;
+                        lastUserRewardsAccrued[staker][rewardToken] = rewardsAccrued;
+                        lastUserRewardsBalance[staker][rewardToken] = rewardsBalance;
                     }
                 }
             }
@@ -406,17 +337,13 @@ contract SafetyModuleInvariantTest is Test {
 
     function invariantSumOfAccruedRewardsUnclaimed() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
-        for (uint i; i < numRewards; i++) {
+        for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
-            uint256 totalUnclaimedRewards = rewardDistributor
-                .totalUnclaimedRewards(rewardToken);
+            uint256 totalUnclaimedRewards = rewardDistributor.totalUnclaimedRewards(rewardToken);
             uint256 sumOfAccruedRewards;
-            for (uint j; j < stakers.length; j++) {
+            for (uint256 j; j < stakers.length; j++) {
                 address staker = stakers[j];
-                sumOfAccruedRewards += rewardDistributor.rewardsAccruedByUser(
-                    staker,
-                    rewardToken
-                );
+                sumOfAccruedRewards += rewardDistributor.rewardsAccruedByUser(staker, rewardToken);
             }
             assertEq(
                 totalUnclaimedRewards,
@@ -429,9 +356,7 @@ contract SafetyModuleInvariantTest is Test {
     function invariantExchangeRates() public {
         for (uint256 i; i < stakedTokens.length; i++) {
             StakedToken stakedToken = stakedTokens[i];
-            uint256 underlyingBalance = stakedToken
-                .getUnderlyingToken()
-                .balanceOf(address(stakedToken));
+            uint256 underlyingBalance = stakedToken.getUnderlyingToken().balanceOf(address(stakedToken));
 
             assertEq(
                 underlyingBalance,
@@ -446,17 +371,11 @@ contract SafetyModuleInvariantTest is Test {
     /* ****************** */
 
     modifier onlySafetyModuleHandler() {
-        require(
-            msg.sender == address(safetyModuleHandler),
-            "Only SafetyModuleHandler"
-        );
+        require(msg.sender == address(safetyModuleHandler), "Only SafetyModuleHandler");
         _;
     }
 
-    function addStakedToken(
-        StakedToken newStakedToken,
-        bool isStakedBPT
-    ) external onlySafetyModuleHandler {
+    function addStakedToken(StakedToken newStakedToken, bool isStakedBPT) external onlySafetyModuleHandler {
         IERC20 underlying = newStakedToken.getUnderlyingToken();
 
         // Add staked token to lists

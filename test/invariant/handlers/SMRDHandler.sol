@@ -14,18 +14,9 @@ import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contr
 contract SMRDHandler is Test {
     using PRBMathUD60x18 for uint256;
 
-    event RewardAccruedToUser(
-        address indexed user,
-        address rewardToken,
-        address market,
-        uint256 reward
-    );
+    event RewardAccruedToUser(address indexed user, address rewardToken, address market, uint256 reward);
 
-    event RewardClaimed(
-        address indexed user,
-        address rewardToken,
-        uint256 reward
-    );
+    event RewardClaimed(address indexed user, address rewardToken, uint256 reward);
 
     SMRewardDistributor public rewardDistributor;
 
@@ -42,10 +33,7 @@ contract SMRDHandler is Test {
         vm.stopPrank();
     }
 
-    constructor(
-        SMRewardDistributor _rewardDistributor,
-        address[] memory _actors
-    ) {
+    constructor(SMRewardDistributor _rewardDistributor, address[] memory _actors) {
         rewardDistributor = _rewardDistributor;
         safetyModule = rewardDistributor.safetyModule();
         actors = _actors;
@@ -64,18 +52,11 @@ contract SMRDHandler is Test {
     /*  External Functions  */
     /* ******************** */
 
-    function registerPositions(
-        uint256 actorIndexSeed
-    ) external useActor(actorIndexSeed) {
-        address[] memory markets = new address[](
-            safetyModule.getNumStakingTokens()
-        );
-        for (uint i; i < markets.length; i++) {
+    function registerPositions(uint256 actorIndexSeed) external useActor(actorIndexSeed) {
+        address[] memory markets = new address[](safetyModule.getNumStakingTokens());
+        for (uint256 i; i < markets.length; i++) {
             markets[i] = address(safetyModule.stakingTokens(i));
-            uint256 registeredPosition = rewardDistributor.lpPositionsPerUser(
-                currentActor,
-                markets[i]
-            );
+            uint256 registeredPosition = rewardDistributor.lpPositionsPerUser(currentActor, markets[i]);
             if (registeredPosition != 0) {
                 vm.expectRevert(
                     abi.encodeWithSignature(
@@ -100,42 +81,25 @@ contract SMRDHandler is Test {
         uint256[] memory prevBalances = new uint256[](numRewards);
         uint256[] memory reserveBalances = new uint256[](numRewards);
         uint256[] memory rewardsAccrued = new uint256[](numRewards);
-        uint256[][] memory newRewardsPerTokenPerMarket = new uint256[][](
-            numRewards
-        );
-        for (uint i; i < numMarkets; i++) {
+        uint256[][] memory newRewardsPerTokenPerMarket = new uint256[][](numRewards);
+        for (uint256 i; i < numMarkets; i++) {
             markets[i] = address(safetyModule.stakingTokens(i));
         }
-        for (uint i; i < numRewards; i++) {
+        for (uint256 i; i < numRewards; i++) {
             newRewardsPerTokenPerMarket[i] = new uint256[](numMarkets);
-            for (uint j; j < numMarkets; j++) {
-                newRewardsPerTokenPerMarket[i][
-                    j
-                ] = _previewNewUserRewardsPerMarket(
-                    actor,
-                    rewardDistributor.rewardTokens(i),
-                    markets[j]
-                );
+            for (uint256 j; j < numMarkets; j++) {
+                newRewardsPerTokenPerMarket[i][j] =
+                    _previewNewUserRewardsPerMarket(actor, rewardDistributor.rewardTokens(i), markets[j]);
             }
             tokens[i] = rewardDistributor.rewardTokens(i);
             prevBalances[i] = IERC20(tokens[i]).balanceOf(actor);
-            reserveBalances[i] = IERC20(tokens[i]).balanceOf(
-                rewardDistributor.ecosystemReserve()
-            );
+            reserveBalances[i] = IERC20(tokens[i]).balanceOf(rewardDistributor.ecosystemReserve());
             rewardsAccrued[i] =
-                rewardDistributor.rewardsAccruedByUser(actor, tokens[i]) +
-                _previewNewUserRewards(actor, tokens[i]);
+                rewardDistributor.rewardsAccruedByUser(actor, tokens[i]) + _previewNewUserRewards(actor, tokens[i]);
         }
-        _expectClaimRewardsEvents(
-            actor,
-            markets,
-            tokens,
-            reserveBalances,
-            rewardsAccrued,
-            newRewardsPerTokenPerMarket
-        );
+        _expectClaimRewardsEvents(actor, markets, tokens, reserveBalances, rewardsAccrued, newRewardsPerTokenPerMarket);
         rewardDistributor.claimRewardsFor(actor);
-        for (uint i; i < numRewards; i++) {
+        for (uint256 i; i < numRewards; i++) {
             if (rewardsAccrued[i] <= reserveBalances[i]) {
                 assertEq(
                     IERC20(tokens[i]).balanceOf(actor),
@@ -143,9 +107,7 @@ contract SMRDHandler is Test {
                     "SMRDHandler: reward token balance mismatch after claiming"
                 );
                 assertEq(
-                    IERC20(tokens[i]).balanceOf(
-                        rewardDistributor.ecosystemReserve()
-                    ),
+                    IERC20(tokens[i]).balanceOf(rewardDistributor.ecosystemReserve()),
                     reserveBalances[i] - rewardsAccrued[i],
                     "SMRDHandler: ecosystem reserve balance mismatch after claiming"
                 );
@@ -156,9 +118,7 @@ contract SMRDHandler is Test {
                     "SMRDHandler: reward token balance mismatch after claiming (shortfall)"
                 );
                 assertEq(
-                    IERC20(tokens[i]).balanceOf(
-                        rewardDistributor.ecosystemReserve()
-                    ),
+                    IERC20(tokens[i]).balanceOf(rewardDistributor.ecosystemReserve()),
                     0,
                     "SMRDHandler: ecosystem reserve balance mismatch after claiming (shortfall)"
                 );
@@ -170,10 +130,7 @@ contract SMRDHandler is Test {
     /* Public View Functions */
     /* ********************* */
 
-    function computeRewardMultiplier(
-        address user,
-        address stakingToken
-    ) public view returns (uint256) {
+    function computeRewardMultiplier(address user, address stakingToken) public view returns (uint256) {
         return rewardDistributor.computeRewardMultiplier(user, stakingToken);
     }
 
@@ -181,65 +138,39 @@ contract SMRDHandler is Test {
     /*      Internal      */
     /* ****************** */
 
-    function _previewNewUserRewards(
-        address user,
-        address rewardToken
-    ) internal view returns (uint256) {
+    function _previewNewUserRewards(address user, address rewardToken) internal view returns (uint256) {
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         uint256 newUserRewards;
-        for (uint i; i < numMarkets; i++) {
+        for (uint256 i; i < numMarkets; i++) {
             address stakedToken = address(safetyModule.stakingTokens(i));
-            newUserRewards += _previewNewUserRewardsPerMarket(
-                user,
-                rewardToken,
-                stakedToken
-            );
+            newUserRewards += _previewNewUserRewardsPerMarket(user, rewardToken, stakedToken);
         }
         return newUserRewards;
     }
 
-    function _previewNewUserRewardsPerMarket(
-        address user,
-        address rewardToken,
-        address stakedToken
-    ) internal view returns (uint256) {
+    function _previewNewUserRewardsPerMarket(address user, address rewardToken, address stakedToken)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 previousBalance = IStakedToken(stakedToken).balanceOf(user);
         uint256 multiplier = computeRewardMultiplier(user, stakedToken);
-        uint256 deltaTime = block.timestamp -
-            rewardDistributor.timeOfLastCumRewardUpdate(stakedToken);
-        uint256 rewardWeight = rewardDistributor.getRewardWeight(
-            rewardToken,
-            stakedToken
-        );
-        uint256 totalLiquidity = rewardDistributor.totalLiquidityPerMarket(
-            stakedToken
-        );
+        uint256 deltaTime = block.timestamp - rewardDistributor.timeOfLastCumRewardUpdate(stakedToken);
+        uint256 rewardWeight = rewardDistributor.getRewardWeight(rewardToken, stakedToken);
+        uint256 totalLiquidity = rewardDistributor.totalLiquidityPerMarket(stakedToken);
         if (
-            deltaTime == 0 ||
-            totalLiquidity == 0 ||
-            rewardWeight == 0 ||
-            multiplier == 0 ||
-            rewardDistributor.isTokenPaused(rewardToken) ||
-            rewardDistributor.getInitialInflationRate(rewardToken) == 0
+            deltaTime == 0 || totalLiquidity == 0 || rewardWeight == 0 || multiplier == 0
+                || rewardDistributor.isTokenPaused(rewardToken)
+                || rewardDistributor.getInitialInflationRate(rewardToken) == 0
         ) return 0;
         uint256 inflationRate = rewardDistributor.getInflationRate(rewardToken);
-        uint256 newMarketRewards = (((((inflationRate * rewardWeight) / 10000) *
-            deltaTime) / 365 days) * 1e18) / totalLiquidity;
-        uint256 cumRewardPerLpToken = rewardDistributor
-            .cumulativeRewardPerLpToken(
-                address(rewardToken),
-                address(stakedToken)
-            ) + newMarketRewards;
-        uint256 cumRewardPerLpTokenPerUser = rewardDistributor
-            .cumulativeRewardPerLpTokenPerUser(
-                user,
-                address(rewardToken),
-                address(stakedToken)
-            );
-        return
-            previousBalance
-                .mul(cumRewardPerLpToken - cumRewardPerLpTokenPerUser)
-                .mul(multiplier);
+        uint256 newMarketRewards =
+            (((((inflationRate * rewardWeight) / 10000) * deltaTime) / 365 days) * 1e18) / totalLiquidity;
+        uint256 cumRewardPerLpToken =
+            rewardDistributor.cumulativeRewardPerLpToken(address(rewardToken), address(stakedToken)) + newMarketRewards;
+        uint256 cumRewardPerLpTokenPerUser =
+            rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, address(rewardToken), address(stakedToken));
+        return previousBalance.mul(cumRewardPerLpToken - cumRewardPerLpTokenPerUser).mul(multiplier);
     }
 
     function _expectClaimRewardsEvents(
@@ -250,19 +181,14 @@ contract SMRDHandler is Test {
         uint256[] memory rewardsAccrued,
         uint256[][] memory newRewardsPerTokenPerMarket
     ) internal {
-        for (uint i; i < markets.length; ++i) {
-            for (uint j; j < tokens.length; ++j) {
+        for (uint256 i; i < markets.length; ++i) {
+            for (uint256 j; j < tokens.length; ++j) {
                 if (newRewardsPerTokenPerMarket[j][i] == 0) continue;
                 vm.expectEmit(false, false, false, true);
-                emit RewardAccruedToUser(
-                    user,
-                    tokens[j],
-                    markets[i],
-                    newRewardsPerTokenPerMarket[j][i]
-                );
+                emit RewardAccruedToUser(user, tokens[j], markets[i], newRewardsPerTokenPerMarket[j][i]);
             }
         }
-        for (uint i; i < tokens.length; ++i) {
+        for (uint256 i; i < tokens.length; ++i) {
             if (rewardsAccrued[i] == 0) continue;
             if (rewardsAccrued[i] <= reserveBalances[i]) {
                 vm.expectEmit(false, false, false, true);

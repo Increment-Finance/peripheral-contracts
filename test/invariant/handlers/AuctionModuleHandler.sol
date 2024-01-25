@@ -4,7 +4,9 @@ pragma solidity 0.8.16;
 // contracts
 import "../../../contracts/AuctionModule.sol";
 import {Test} from "../../../lib/increment-protocol/lib/forge-std/src/Test.sol";
-import {ERC20, IERC20} from "../../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {
+    ERC20, IERC20
+} from "../../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 // libraries
 import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contracts/PRBMathUD60x18.sol";
@@ -12,13 +14,7 @@ import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contr
 contract AuctionModuleHandler is Test {
     using PRBMathUD60x18 for uint256;
 
-    event LotsSold(
-        uint256 indexed auctionId,
-        address indexed buyer,
-        uint8 numLots,
-        uint256 lotSize,
-        uint128 lotPrice
-    );
+    event LotsSold(uint256 indexed auctionId, address indexed buyer, uint8 numLots, uint256 lotSize, uint128 lotPrice);
 
     event AuctionEnded(
         uint256 indexed auctionId,
@@ -43,11 +39,7 @@ contract AuctionModuleHandler is Test {
         if (auctionModule.nextAuctionId() == 0) {
             return;
         }
-        currentAuction = bound(
-            auctionIndexSeed,
-            0,
-            auctionModule.nextAuctionId() - 1
-        );
+        currentAuction = bound(auctionIndexSeed, 0, auctionModule.nextAuctionId() - 1);
         _;
     }
 
@@ -64,11 +56,7 @@ contract AuctionModuleHandler is Test {
         vm.stopPrank();
     }
 
-    constructor(
-        AuctionModule _auctionModule,
-        address[] memory _actors,
-        address _governance
-    ) {
+    constructor(AuctionModule _auctionModule, address[] memory _actors, address _governance) {
         auctionModule = _auctionModule;
         paymentToken = _auctionModule.paymentToken();
         actors = _actors;
@@ -88,11 +76,11 @@ contract AuctionModuleHandler is Test {
     /*  Auction Functions  */
     /* ******************* */
 
-    function buyLots(
-        uint256 actorIndexSeed,
-        uint256 auctionIndexSeed,
-        uint8 numLotsToBuy
-    ) external useActor(actorIndexSeed) useAuction(auctionIndexSeed) {
+    function buyLots(uint256 actorIndexSeed, uint256 auctionIndexSeed, uint8 numLotsToBuy)
+        external
+        useActor(actorIndexSeed)
+        useAuction(auctionIndexSeed)
+    {
         // Check for custom errors
         if (auctionModule.paused()) {
             vm.expectRevert(bytes("Pausable: paused"));
@@ -100,32 +88,17 @@ contract AuctionModuleHandler is Test {
             return;
         }
         if (currentAuction >= auctionModule.nextAuctionId()) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_InvalidAuctionId(uint256)",
-                    currentAuction
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", currentAuction));
             auctionModule.buyLots(currentAuction, numLotsToBuy);
             return;
         }
         if (numLotsToBuy == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_InvalidZeroArgument(uint256)",
-                    1
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 1));
             auctionModule.buyLots(currentAuction, numLotsToBuy);
             return;
         }
         if (!auctionModule.isAuctionActive(currentAuction)) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_AuctionNotActive(uint256)",
-                    currentAuction
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", currentAuction));
             auctionModule.buyLots(currentAuction, numLotsToBuy);
             return;
         }
@@ -144,10 +117,7 @@ contract AuctionModuleHandler is Test {
         // Check for ERC20 errors
         uint128 lotPrice = uint128(auctionModule.getLotPrice(currentAuction));
         uint256 paymentAmount = lotPrice * numLotsToBuy;
-        if (
-            paymentToken.allowance(currentActor, address(auctionModule)) <
-            paymentAmount
-        ) {
+        if (paymentToken.allowance(currentActor, address(auctionModule)) < paymentAmount) {
             vm.expectRevert(bytes("ERC20: transfer amount exceeds allowance"));
             auctionModule.buyLots(currentAuction, numLotsToBuy);
             return;
@@ -159,41 +129,20 @@ contract AuctionModuleHandler is Test {
         }
 
         // Get expected values
-        uint128 lotSize = uint128(
-            auctionModule.getCurrentLotSize(currentAuction)
-        );
+        uint128 lotSize = uint128(auctionModule.getCurrentLotSize(currentAuction));
         uint256 purchaseAmount = lotSize * numLotsToBuy;
         IERC20 auctionToken = auctionModule.getAuctionToken(currentAuction);
-        uint256 expectedTokenBalance = auctionToken.balanceOf(currentActor) +
-            purchaseAmount;
-        uint256 expectedPaymentBalance = paymentToken.balanceOf(currentActor) -
-            paymentAmount;
-        uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(
-            currentAuction
-        ) + purchaseAmount;
-        uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(
-            currentAuction
-        ) + paymentAmount;
-        uint256 remainingLots = auctionModule.getRemainingLots(currentAuction) -
-            numLotsToBuy;
+        uint256 expectedTokenBalance = auctionToken.balanceOf(currentActor) + purchaseAmount;
+        uint256 expectedPaymentBalance = paymentToken.balanceOf(currentActor) - paymentAmount;
+        uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(currentAuction) + purchaseAmount;
+        uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(currentAuction) + paymentAmount;
+        uint256 remainingLots = auctionModule.getRemainingLots(currentAuction) - numLotsToBuy;
 
         vm.expectEmit(false, false, false, true);
-        emit LotsSold(
-            currentAuction,
-            currentActor,
-            numLotsToBuy,
-            lotSize,
-            lotPrice
-        );
+        emit LotsSold(currentAuction, currentActor, numLotsToBuy, lotSize, lotPrice);
         if (remainingLots == 0) {
             vm.expectEmit(false, false, false, true);
-            emit AuctionEnded(
-                currentAuction,
-                uint8(0),
-                lotSize,
-                totalTokensSold,
-                totalFundsRaised
-            );
+            emit AuctionEnded(currentAuction, uint8(0), lotSize, totalTokensSold, totalFundsRaised);
         }
         auctionModule.buyLots(currentAuction, numLotsToBuy);
 
@@ -209,16 +158,16 @@ contract AuctionModuleHandler is Test {
         );
         if (auctionModule.getRemainingLots(currentAuction) == 0) {
             assertTrue(
-                !auctionModule.isAuctionActive(currentAuction),
-                "AuctionModule: Sold out auction should be inactive"
+                !auctionModule.isAuctionActive(currentAuction), "AuctionModule: Sold out auction should be inactive"
             );
         }
     }
 
-    function completeAuction(
-        uint256 actorIndexSeed,
-        uint256 auctionIndexSeed
-    ) external useActor(actorIndexSeed) useAuction(auctionIndexSeed) {
+    function completeAuction(uint256 actorIndexSeed, uint256 auctionIndexSeed)
+        external
+        useActor(actorIndexSeed)
+        useAuction(auctionIndexSeed)
+    {
         // Check for custom errors
         if (auctionModule.paused()) {
             vm.expectRevert(bytes("Pausable: paused"));
@@ -226,22 +175,12 @@ contract AuctionModuleHandler is Test {
             return;
         }
         if (currentAuction >= auctionModule.nextAuctionId()) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_InvalidAuctionId(uint256)",
-                    currentAuction
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", currentAuction));
             auctionModule.completeAuction(currentAuction);
             return;
         }
         if (!auctionModule.isAuctionActive(currentAuction)) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_AuctionNotActive(uint256)",
-                    currentAuction
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", currentAuction));
             auctionModule.completeAuction(currentAuction);
             return;
         }
@@ -258,30 +197,17 @@ contract AuctionModuleHandler is Test {
         }
 
         // Get expected values
-        uint128 lotSize = uint128(
-            auctionModule.getCurrentLotSize(currentAuction)
-        );
-        uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(
-            currentAuction
-        );
-        uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(
-            currentAuction
-        );
+        uint128 lotSize = uint128(auctionModule.getCurrentLotSize(currentAuction));
+        uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(currentAuction);
+        uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(currentAuction);
         uint256 remainingLots = auctionModule.getRemainingLots(currentAuction);
 
         vm.expectEmit(false, false, false, true);
-        emit AuctionEnded(
-            currentAuction,
-            uint8(remainingLots),
-            lotSize,
-            totalTokensSold,
-            totalFundsRaised
-        );
+        emit AuctionEnded(currentAuction, uint8(remainingLots), lotSize, totalTokensSold, totalFundsRaised);
         auctionModule.completeAuction(currentAuction);
 
         assertTrue(
-            !auctionModule.isAuctionActive(currentAuction),
-            "AuctionModule: Completed auction should be inactive"
+            !auctionModule.isAuctionActive(currentAuction), "AuctionModule: Completed auction should be inactive"
         );
     }
 

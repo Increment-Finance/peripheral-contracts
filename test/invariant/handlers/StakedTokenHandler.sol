@@ -18,25 +18,11 @@ import {PRBMathUD60x18} from "../../../lib/increment-protocol/lib/prb-math/contr
 contract StakedTokenHandler is Test {
     using PRBMathUD60x18 for uint256;
 
-    event RewardAccruedToMarket(
-        address indexed market,
-        address rewardToken,
-        uint256 reward
-    );
+    event RewardAccruedToMarket(address indexed market, address rewardToken, uint256 reward);
 
-    event RewardAccruedToUser(
-        address indexed user,
-        address rewardToken,
-        address market,
-        uint256 reward
-    );
+    event RewardAccruedToUser(address indexed user, address rewardToken, address market, uint256 reward);
 
-    event PositionUpdated(
-        address indexed user,
-        address market,
-        uint256 prevPosition,
-        uint256 newPosition
-    );
+    event PositionUpdated(address indexed user, address market, uint256 prevPosition, uint256 newPosition);
 
     StakedToken public stakedToken;
     StakedToken[] public stakedTokens;
@@ -62,20 +48,14 @@ contract StakedTokenHandler is Test {
     }
 
     modifier useStakedToken(uint256 tokenIndexSeed) {
-        stakedToken = stakedTokens[
-            bound(tokenIndexSeed, 0, stakedTokens.length - 1)
-        ];
+        stakedToken = stakedTokens[bound(tokenIndexSeed, 0, stakedTokens.length - 1)];
         _;
     }
 
     modifier useStakedBPT(uint256 tokenIndexSeed) {
         while (!isStakedBPT[stakedToken]) {
-            tokenIndexSeed == type(uint256).max
-                ? tokenIndexSeed = 0
-                : tokenIndexSeed += 1;
-            stakedToken = stakedTokens[
-                bound(tokenIndexSeed, 0, stakedTokens.length - 1)
-            ];
+            tokenIndexSeed == type(uint256).max ? tokenIndexSeed = 0 : tokenIndexSeed += 1;
+            stakedToken = stakedTokens[bound(tokenIndexSeed, 0, stakedTokens.length - 1)];
         }
         _;
     }
@@ -85,27 +65,15 @@ contract StakedTokenHandler is Test {
         _;
     }
 
-    constructor(
-        StakedToken[] memory _stakedTokens,
-        StakedToken[] memory _stakedBPTs,
-        address[] memory _actors
-    ) {
-        require(
-            _stakedTokens.length > 0,
-            "StakedTokenHandler: staked tokens must not be empty"
-        );
-        require(
-            _stakedBPTs.length > 0,
-            "StakedTokenHandler: staked BPTs must not be empty"
-        );
+    constructor(StakedToken[] memory _stakedTokens, StakedToken[] memory _stakedBPTs, address[] memory _actors) {
+        require(_stakedTokens.length > 0, "StakedTokenHandler: staked tokens must not be empty");
+        require(_stakedBPTs.length > 0, "StakedTokenHandler: staked BPTs must not be empty");
         stakedTokens = _stakedTokens;
         stakedToken = _stakedTokens[0];
         actors = _actors;
         currentActor = actors[0];
         testContract = msg.sender;
-        smRewardDistributor = stakedTokens[0]
-            .safetyModule()
-            .smRewardDistributor();
+        smRewardDistributor = stakedTokens[0].safetyModule().smRewardDistributor();
         rewardDistributor = IRewardDistributor(address(smRewardDistributor));
         rewardController = IRewardController(address(smRewardDistributor));
         for (uint256 i; i < _stakedBPTs.length; ++i) {
@@ -117,30 +85,24 @@ contract StakedTokenHandler is Test {
     /* Test Helper Functions */
     /* ********************* */
 
-    function addStakedToken(
-        StakedToken _stakedToken,
-        bool _isStakedBPT
-    ) external onlyTestContract {
+    function addStakedToken(StakedToken _stakedToken, bool _isStakedBPT) external onlyTestContract {
         stakedTokens.push(_stakedToken);
         if (_isStakedBPT) {
             isStakedBPT[_stakedToken] = true;
         }
     }
 
-    function dealUnderlying(
-        uint256 amount,
-        uint256 actorIndexSeed,
-        uint256 tokenIndexSeed
-    ) external virtual useActor(actorIndexSeed) useStakedToken(tokenIndexSeed) {
+    function dealUnderlying(uint256 amount, uint256 actorIndexSeed, uint256 tokenIndexSeed)
+        external
+        virtual
+        useActor(actorIndexSeed)
+        useStakedToken(tokenIndexSeed)
+    {
         if (isStakedBPT[stakedToken]) {
-            IWeightedPool balancerPool = IWeightedPool(
-                address(stakedToken.getUnderlyingToken())
-            );
+            IWeightedPool balancerPool = IWeightedPool(address(stakedToken.getUnderlyingToken()));
             IBalancerVault balancerVault = balancerPool.getVault();
             bytes32 poolId = balancerPool.getPoolId();
-            (IERC20[] memory poolERC20s, , ) = balancerVault.getPoolTokens(
-                poolId
-            );
+            (IERC20[] memory poolERC20s,,) = balancerVault.getPoolTokens(poolId);
             address underlying = address(poolERC20s[0]);
             amount = bound(amount, 1e18, 1_000_000e18);
             deal(underlying, currentActor, amount);
@@ -155,29 +117,24 @@ contract StakedTokenHandler is Test {
     /*  External Functions  */
     /* ******************** */
 
-    function stake(
-        uint256 amount,
-        uint256 actorIndexSeed,
-        uint256 tokenIndexSeed
-    ) external virtual useActor(actorIndexSeed) useStakedToken(tokenIndexSeed) {
+    function stake(uint256 amount, uint256 actorIndexSeed, uint256 tokenIndexSeed)
+        external
+        virtual
+        useActor(actorIndexSeed)
+        useStakedToken(tokenIndexSeed)
+    {
         if (stakedToken.paused()) {
             vm.expectRevert(bytes("Pausable: paused"));
             stakedToken.stake(amount);
             return;
         }
         if (amount == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
             stakedToken.stake(amount);
             return;
         }
         if (stakedToken.isInPostSlashingState()) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "StakedToken_StakingDisabledInPostSlashingState()"
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
             stakedToken.stake(amount);
             return;
         }
@@ -213,12 +170,7 @@ contract StakedTokenHandler is Test {
             _expectRewardEvents(currentActor, previousBalance);
         }
         vm.expectEmit(false, false, false, true);
-        emit PositionUpdated(
-            currentActor,
-            address(stakedToken),
-            previousBalance,
-            previousBalance + preview
-        );
+        emit PositionUpdated(currentActor, address(stakedToken), previousBalance, previousBalance + preview);
         stakedToken.stake(amount);
         assertEq(
             stakedToken.balanceOf(currentActor),
@@ -228,20 +180,18 @@ contract StakedTokenHandler is Test {
         stakeBalances[stakedToken][currentActor] += preview;
     }
 
-    function redeem(
-        uint256 amount,
-        uint256 actorIndexSeed,
-        uint256 tokenIndexSeed
-    ) external useActor(actorIndexSeed) useStakedToken(tokenIndexSeed) {
+    function redeem(uint256 amount, uint256 actorIndexSeed, uint256 tokenIndexSeed)
+        external
+        useActor(actorIndexSeed)
+        useStakedToken(tokenIndexSeed)
+    {
         if (stakedToken.paused()) {
             vm.expectRevert(bytes("Pausable: paused"));
             stakedToken.redeem(amount);
             return;
         }
         if (amount == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
             stakedToken.redeem(amount);
             return;
         }
@@ -251,27 +201,17 @@ contract StakedTokenHandler is Test {
         uint256 cooldownEnd = cooldownStart + cooldownPeriod;
         bool inPostSlashingState = stakedToken.isInPostSlashingState();
         if (cooldownEnd <= block.timestamp || inPostSlashingState) {
-            if (
-                cooldownEnd + unstakeWindow >= block.timestamp ||
-                inPostSlashingState
-            ) {
-                uint256 underlyingBalance = stakedToken
-                    .getUnderlyingToken()
-                    .balanceOf(currentActor);
+            if (cooldownEnd + unstakeWindow >= block.timestamp || inPostSlashingState) {
+                uint256 underlyingBalance = stakedToken.getUnderlyingToken().balanceOf(currentActor);
                 uint256 previousBalance = stakedToken.balanceOf(currentActor);
-                uint256 amountToRedeem = amount <= previousBalance
-                    ? amount
-                    : previousBalance;
+                uint256 amountToRedeem = amount <= previousBalance ? amount : previousBalance;
                 uint256 preview = stakedToken.previewRedeem(amountToRedeem);
                 if (previousBalance > 0) {
                     _expectRewardEvents(currentActor, previousBalance);
                 }
                 vm.expectEmit(false, false, false, true);
                 emit PositionUpdated(
-                    currentActor,
-                    address(stakedToken),
-                    previousBalance,
-                    previousBalance - amountToRedeem
+                    currentActor, address(stakedToken), previousBalance, previousBalance - amountToRedeem
                 );
                 stakedToken.redeem(amount);
                 assertEq(
@@ -287,53 +227,37 @@ contract StakedTokenHandler is Test {
                 stakeBalances[stakedToken][currentActor] -= amountToRedeem;
             } else {
                 vm.expectRevert(
-                    abi.encodeWithSignature(
-                        "StakedToken_UnstakeWindowFinished(uint256)",
-                        cooldownEnd + unstakeWindow
-                    )
+                    abi.encodeWithSignature("StakedToken_UnstakeWindowFinished(uint256)", cooldownEnd + unstakeWindow)
                 );
                 stakedToken.redeem(amount);
             }
         } else {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "StakedToken_InsufficientCooldown(uint256)",
-                    cooldownEnd
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_InsufficientCooldown(uint256)", cooldownEnd));
             stakedToken.redeem(amount);
         }
     }
 
-    function cooldown(
-        uint256 actorIndexSeed,
-        uint256 tokenIndexSeed
-    ) external useActor(actorIndexSeed) useStakedToken(tokenIndexSeed) {
+    function cooldown(uint256 actorIndexSeed, uint256 tokenIndexSeed)
+        external
+        useActor(actorIndexSeed)
+        useStakedToken(tokenIndexSeed)
+    {
         if (stakedToken.balanceOf(currentActor) == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()")
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()"));
         } else if (stakedToken.isInPostSlashingState()) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "StakedToken_CooldownDisabledInPostSlashingState()"
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_CooldownDisabledInPostSlashingState()"));
         }
         stakedToken.cooldown();
     }
 
-    function transfer(
-        uint256 amount,
-        uint256 actorIndexSeedFrom,
-        uint256 actorIndexSeedTo,
-        uint256 tokenIndexSeed
-    ) external useActor(actorIndexSeedFrom) useStakedToken(tokenIndexSeed) {
+    function transfer(uint256 amount, uint256 actorIndexSeedFrom, uint256 actorIndexSeedTo, uint256 tokenIndexSeed)
+        external
+        useActor(actorIndexSeedFrom)
+        useStakedToken(tokenIndexSeed)
+    {
         address to = actors[bound(actorIndexSeedTo, 0, actors.length - 1)];
         while (to == currentActor) {
-            actorIndexSeedTo == type(uint256).max
-                ? actorIndexSeedTo = 0
-                : actorIndexSeedTo += 1;
+            actorIndexSeedTo == type(uint256).max ? actorIndexSeedTo = 0 : actorIndexSeedTo += 1;
             to = actors[bound(actorIndexSeedTo, 0, actors.length - 1)];
         }
         vm.assume(to != currentActor);
@@ -349,9 +273,7 @@ contract StakedTokenHandler is Test {
         if (stakedToken.balanceOf(to) + amount > maxStake) {
             vm.expectRevert(
                 abi.encodeWithSignature(
-                    "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
-                    maxStake,
-                    maxStake - stakedToken.balanceOf(to)
+                    "StakedToken_AboveMaxStakeAmount(uint256,uint256)", maxStake, maxStake - stakedToken.balanceOf(to)
                 )
             );
             stakedToken.transfer(to, amount);
@@ -381,85 +303,52 @@ contract StakedTokenHandler is Test {
     /*      Internal      */
     /* ****************** */
 
-    function _previewNewMarketRewards(
-        address rewardToken
-    ) internal view returns (uint256) {
-        uint256 deltaTime = block.timestamp -
-            rewardDistributor.timeOfLastCumRewardUpdate(address(stakedToken));
-        uint256 rewardWeight = rewardController.getRewardWeight(
-            rewardToken,
-            address(stakedToken)
-        );
-        uint256 totalLiquidity = rewardDistributor.totalLiquidityPerMarket(
-            address(stakedToken)
-        );
+    function _previewNewMarketRewards(address rewardToken) internal view returns (uint256) {
+        uint256 deltaTime = block.timestamp - rewardDistributor.timeOfLastCumRewardUpdate(address(stakedToken));
+        uint256 rewardWeight = rewardController.getRewardWeight(rewardToken, address(stakedToken));
+        uint256 totalLiquidity = rewardDistributor.totalLiquidityPerMarket(address(stakedToken));
         if (
-            deltaTime == 0 ||
-            totalLiquidity == 0 ||
-            rewardWeight == 0 ||
-            rewardController.isTokenPaused(rewardToken) ||
-            rewardController.getInitialInflationRate(rewardToken) == 0
+            deltaTime == 0 || totalLiquidity == 0 || rewardWeight == 0 || rewardController.isTokenPaused(rewardToken)
+                || rewardController.getInitialInflationRate(rewardToken) == 0
         ) {
             return 0;
         }
         uint256 inflationRate = rewardController.getInflationRate(rewardToken);
-        uint256 newRewards = (((((inflationRate * rewardWeight) / 10000) *
-            deltaTime) / 365 days) * 1e18) / totalLiquidity;
+        uint256 newRewards =
+            (((((inflationRate * rewardWeight) / 10000) * deltaTime) / 365 days) * 1e18) / totalLiquidity;
         return newRewards;
     }
 
-    function _expectRewardEvents(
-        address user,
-        uint256 previousBalance
-    ) internal {
-        uint256 multiplier = smRewardDistributor.computeRewardMultiplier(
-            user,
-            address(stakedToken)
-        );
+    function _expectRewardEvents(address user, uint256 previousBalance) internal {
+        uint256 multiplier = smRewardDistributor.computeRewardMultiplier(user, address(stakedToken));
         uint256 numRewards = rewardController.getRewardTokenCount();
         address[] memory rewardTokens = new address[](numRewards);
         uint256[] memory newMarketRewards = new uint256[](numRewards);
         uint256[] memory newUserRewards = new uint256[](numRewards);
-        for (uint i; i < numRewards; ++i) {
+        for (uint256 i; i < numRewards; ++i) {
             rewardTokens[i] = address(rewardController.rewardTokens(i));
             newMarketRewards[i] = _previewNewMarketRewards(rewardTokens[i]);
-            uint256 cumRewardPerLpToken = rewardDistributor
-                .cumulativeRewardPerLpToken(
-                    address(rewardTokens[i]),
-                    address(stakedToken)
-                ) + newMarketRewards[i];
-            uint256 cumRewardPerLpTokenPerUser = rewardDistributor
-                .cumulativeRewardPerLpTokenPerUser(
-                    user,
-                    address(rewardTokens[i]),
-                    address(stakedToken)
-                );
-            newUserRewards[i] = previousBalance
-                .mul(cumRewardPerLpToken - cumRewardPerLpTokenPerUser)
-                .mul(multiplier);
+            uint256 cumRewardPerLpToken = rewardDistributor.cumulativeRewardPerLpToken(
+                address(rewardTokens[i]), address(stakedToken)
+            ) + newMarketRewards[i];
+            uint256 cumRewardPerLpTokenPerUser = rewardDistributor.cumulativeRewardPerLpTokenPerUser(
+                user, address(rewardTokens[i]), address(stakedToken)
+            );
+            newUserRewards[i] = previousBalance.mul(cumRewardPerLpToken - cumRewardPerLpTokenPerUser).mul(multiplier);
         }
-        for (uint i; i < numRewards; ++i) {
+        for (uint256 i; i < numRewards; ++i) {
             if (newMarketRewards[i] == 0) {
                 continue;
             }
             vm.expectEmit(false, false, false, true);
-            emit RewardAccruedToMarket(
-                address(stakedToken),
-                rewardTokens[i],
-                newMarketRewards[i]
-            );
+            emit RewardAccruedToMarket(address(stakedToken), rewardTokens[i], newMarketRewards[i]);
         }
-        for (uint i; i < numRewards; ++i) {
+        for (uint256 i; i < numRewards; ++i) {
             if (newUserRewards[i] == 0) {
                 continue;
             }
             vm.expectEmit(false, false, false, true);
-            emit RewardAccruedToUser(
-                user,
-                rewardTokens[i],
-                address(stakedToken),
-                newUserRewards[i]
-            );
+            emit RewardAccruedToUser(user, rewardTokens[i], address(stakedToken), newUserRewards[i]);
         }
     }
 }

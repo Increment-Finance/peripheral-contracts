@@ -26,10 +26,7 @@ contract SafetyModuleHandler is Test {
     event StakingTokenAdded(address indexed stakingToken);
 
     event TokensSlashedForAuction(
-        address indexed stakingToken,
-        uint256 slashAmount,
-        uint256 underlyingAmount,
-        uint256 indexed auctionId
+        address indexed stakingToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
     );
 
     event AuctionStarted(
@@ -52,10 +49,7 @@ contract SafetyModuleHandler is Test {
     );
 
     event AuctionTerminated(
-        uint256 indexed auctionId,
-        address stakingToken,
-        address underlyingToken,
-        uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
     event FundsReturned(address indexed from, uint256 amount);
@@ -124,52 +118,27 @@ contract SafetyModuleHandler is Test {
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external useGovernance {
-        IStakedToken stakedToken = safetyModule.stakingTokens(
-            bound(
-                _stakedTokenIndexSeed,
-                0,
-                safetyModule.getNumStakingTokens() - 1
-            )
-        );
+        IStakedToken stakedToken =
+            safetyModule.stakingTokens(bound(_stakedTokenIndexSeed, 0, safetyModule.getNumStakingTokens() - 1));
         _numLots = uint8(bound(_numLots, 1, 100));
         _lotPrice = uint128(bound(_lotPrice, 1e6, type(uint128).max));
-        _initialLotSize = uint128(
-            bound(_initialLotSize, 1e12, type(uint128).max)
-        );
-        _lotIncreaseIncrement = uint96(
-            bound(
-                _lotIncreaseIncrement,
-                _initialLotSize / 100,
-                _initialLotSize / 10
-            )
-        );
-        _lotIncreasePeriod = uint16(
-            bound(_lotIncreasePeriod, 30 minutes, 12 hours)
-        );
+        _initialLotSize = uint128(bound(_initialLotSize, 1e12, type(uint128).max));
+        _lotIncreaseIncrement = uint96(bound(_lotIncreaseIncrement, _initialLotSize / 100, _initialLotSize / 10));
+        _lotIncreasePeriod = uint16(bound(_lotIncreasePeriod, 30 minutes, 12 hours));
         _timeLimit = uint32(bound(_timeLimit, 1 days, 4 weeks));
         _slashPercent = uint64(bound(_slashPercent, 1e16, 1e18));
 
-        uint256 underlyingAmount = stakedToken.previewRedeem(
-            stakedToken.totalSupply().mul(_slashPercent)
-        );
+        uint256 underlyingAmount = stakedToken.previewRedeem(stakedToken.totalSupply().mul(_slashPercent));
         uint256 nextAuctionId = auctionModule.nextAuctionId();
         bool expectFail;
 
         if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
             expectFail = true;
-            vm.expectRevert(
-                abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
         } else if (stakedToken.isInPostSlashingState()) {
             expectFail = true;
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "StakedToken_SlashingDisabledInPostSlashingState()"
-                )
-            );
-        } else if (
-            underlyingAmount < uint256(_initialLotSize) * uint256(_numLots)
-        ) {
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_SlashingDisabledInPostSlashingState()"));
+        } else if (underlyingAmount < uint256(_initialLotSize) * uint256(_numLots)) {
             expectFail = true;
             IERC20 underlyingToken = stakedToken.getUnderlyingToken();
             vm.expectRevert(
@@ -201,73 +170,35 @@ contract SafetyModuleHandler is Test {
         }
 
         assertEq(auctionId, nextAuctionId, "Auction ID mismatch");
-        assertTrue(
-            auctionModule.isAuctionActive(auctionId),
-            "Auction not active"
-        );
-        assertTrue(
-            stakedToken.isInPostSlashingState(),
-            "Staked token not in post slashing state"
-        );
-        assertEq(
-            auctionModule.getCurrentLotSize(auctionId),
-            _initialLotSize,
-            "Initial lot size mismatch"
-        );
-        assertEq(
-            auctionModule.getRemainingLots(auctionId),
-            _numLots,
-            "Remaining lots mismatch"
-        );
+        assertTrue(auctionModule.isAuctionActive(auctionId), "Auction not active");
+        assertTrue(stakedToken.isInPostSlashingState(), "Staked token not in post slashing state");
+        assertEq(auctionModule.getCurrentLotSize(auctionId), _initialLotSize, "Initial lot size mismatch");
+        assertEq(auctionModule.getRemainingLots(auctionId), _numLots, "Remaining lots mismatch");
     }
 
     function terminateAuction(uint256 auctionId) external useGovernance {
         if (auctionModule.nextAuctionId() == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_InvalidAuctionId(uint256)",
-                    auctionId
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", auctionId));
             safetyModule.terminateAuction(auctionId);
             return;
         }
         auctionId = bound(auctionId, 0, auctionModule.nextAuctionId() - 1);
         IERC20 token = auctionModule.getAuctionToken(auctionId);
-        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(
-            auctionId
-        );
+        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(auctionId);
         uint256 unsoldTokens = token.balanceOf(address(auctionModule));
-        uint256 prevStakedUnderlyingBalance = token.balanceOf(
-            address(stakedToken)
-        );
+        uint256 prevStakedUnderlyingBalance = token.balanceOf(address(stakedToken));
         uint256 exchangeRate = stakedToken.exchangeRate();
         bool isAuctionActive = auctionModule.isAuctionActive(auctionId);
 
         if (!isAuctionActive) {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "AuctionModule_AuctionNotActive(uint256)",
-                    auctionId
-                )
-            );
+            vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
         } else {
             uint256 remainingLots = auctionModule.getRemainingLots(auctionId);
             uint256 finalLotSize = auctionModule.getCurrentLotSize(auctionId);
-            uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(
-                auctionId
-            );
-            uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(
-                auctionId
-            );
+            uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(auctionId);
+            uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(auctionId);
             vm.expectEmit(false, false, false, true);
-            emit AuctionEnded(
-                auctionId,
-                uint8(remainingLots),
-                finalLotSize,
-                totalTokensSold,
-                totalFundsRaised
-            );
+            emit AuctionEnded(auctionId, uint8(remainingLots), finalLotSize, totalTokensSold, totalFundsRaised);
             if (unsoldTokens != 0) {
                 vm.expectEmit(false, false, false, true);
                 emit FundsReturned(address(auctionModule), unsoldTokens);
@@ -275,12 +206,7 @@ contract SafetyModuleHandler is Test {
             vm.expectEmit(false, false, false, true);
             emit SlashingSettled();
             vm.expectEmit(false, false, false, true);
-            emit AuctionTerminated(
-                auctionId,
-                address(stakedToken),
-                address(token),
-                unsoldTokens
-            );
+            emit AuctionTerminated(auctionId, address(stakedToken), address(token), unsoldTokens);
         }
 
         auctionModule.terminateAuction(auctionId);
@@ -288,49 +214,25 @@ contract SafetyModuleHandler is Test {
             return;
         }
 
-        assertTrue(
-            !auctionModule.isAuctionActive(auctionId),
-            "Auction active after termination"
-        );
-        assertTrue(
-            !stakedToken.isInPostSlashingState(),
-            "Staked token in post slashing state after termination"
-        );
+        assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction active after termination");
+        assertTrue(!stakedToken.isInPostSlashingState(), "Staked token in post slashing state after termination");
         if (unsoldTokens != 0) {
-            assertEq(
-                token.balanceOf(address(auctionModule)),
-                0,
-                "Unsold tokens not returned from auction module"
-            );
+            assertEq(token.balanceOf(address(auctionModule)), 0, "Unsold tokens not returned from auction module");
             assertEq(
                 token.balanceOf(address(stakedToken)),
                 prevStakedUnderlyingBalance + unsoldTokens,
                 "Underlying balance mismatch after termination"
             );
-            assertGt(
-                stakedToken.exchangeRate(),
-                exchangeRate,
-                "Exchange rate mismatch after termination"
-            );
+            assertGt(stakedToken.exchangeRate(), exchangeRate, "Exchange rate mismatch after termination");
         }
     }
 
-    function returnFunds(
-        uint256 stakedTokenIndexSeed,
-        uint256 amount
-    ) external useGovernance {
+    function returnFunds(uint256 stakedTokenIndexSeed, uint256 amount) external useGovernance {
         amount = bound(amount, 0, type(uint256).max / 1e18);
-        IStakedToken stakedToken = safetyModule.stakingTokens(
-            bound(
-                stakedTokenIndexSeed,
-                0,
-                safetyModule.getNumStakingTokens() - 1
-            )
-        );
+        IStakedToken stakedToken =
+            safetyModule.stakingTokens(bound(stakedTokenIndexSeed, 0, safetyModule.getNumStakingTokens() - 1));
         if (amount == 0) {
-            vm.expectRevert(
-                abi.encodeWithSignature("StakedToken_InvalidZeroAmount()")
-            );
+            vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
             safetyModule.returnFunds(address(stakedToken), governance, amount);
             return;
         }
@@ -347,46 +249,29 @@ contract SafetyModuleHandler is Test {
             safetyModule.returnFunds(address(stakedToken), governance, amount);
             return;
         }
-        uint256 prevStakedTokenBalance = underlyingToken.balanceOf(
-            address(stakedToken)
-        );
+        uint256 prevStakedTokenBalance = underlyingToken.balanceOf(address(stakedToken));
         uint256 prevExchangeRate = stakedToken.exchangeRate();
         vm.expectEmit(false, false, false, true);
         emit FundsReturned(governance, amount);
         safetyModule.returnFunds(address(stakedToken), governance, amount);
-        assertEq(
-            underlyingToken.balanceOf(governance),
-            prevGovernanceBalance - amount,
-            "Governance balance mismatch"
-        );
+        assertEq(underlyingToken.balanceOf(governance), prevGovernanceBalance - amount, "Governance balance mismatch");
         assertEq(
             underlyingToken.balanceOf(address(stakedToken)),
             prevStakedTokenBalance + amount,
             "Staked token balance mismatch"
         );
-        assertGt(
-            stakedToken.exchangeRate(),
-            prevExchangeRate,
-            "Exchange rate mismatch"
-        );
+        assertGt(stakedToken.exchangeRate(), prevExchangeRate, "Exchange rate mismatch");
     }
 
-    function withdrawFundsRaisedFromAuction(
-        uint256 amount
-    ) external useGovernance {
+    function withdrawFundsRaisedFromAuction(uint256 amount) external useGovernance {
         IERC20 paymentToken = auctionModule.paymentToken();
-        uint256 allowance = paymentToken.allowance(
-            address(auctionModule),
-            address(safetyModule)
-        );
+        uint256 allowance = paymentToken.allowance(address(auctionModule), address(safetyModule));
         if (allowance < amount) {
             vm.expectRevert(bytes("ERC20: transfer amount exceeds allowance"));
             safetyModule.withdrawFundsRaisedFromAuction(amount);
             return;
         }
-        uint256 prevAuctionModuleBalance = paymentToken.balanceOf(
-            address(auctionModule)
-        );
+        uint256 prevAuctionModuleBalance = paymentToken.balanceOf(address(auctionModule));
         if (prevAuctionModuleBalance < amount) {
             vm.expectRevert(bytes("ERC20: transfer amount exceeds balance"));
             safetyModule.withdrawFundsRaisedFromAuction(amount);
@@ -394,11 +279,7 @@ contract SafetyModuleHandler is Test {
         }
         uint256 prevGovernanceBalance = paymentToken.balanceOf(governance);
         safetyModule.withdrawFundsRaisedFromAuction(amount);
-        assertEq(
-            paymentToken.balanceOf(governance),
-            prevGovernanceBalance + amount,
-            "Governance balance mismatch"
-        );
+        assertEq(paymentToken.balanceOf(governance), prevGovernanceBalance + amount, "Governance balance mismatch");
         assertEq(
             paymentToken.balanceOf(address(auctionModule)),
             prevAuctionModuleBalance - amount,

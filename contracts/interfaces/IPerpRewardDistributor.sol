@@ -8,18 +8,12 @@ interface IPerpRewardDistributor {
     /// @notice Emitted when the ClearingHouse contract is updated by governance
     /// @param oldClearingHouse Address of the old ClearingHouse contract
     /// @param newClearingHouse Address of the new ClearingHouse contract
-    event ClearingHouseUpdated(
-        address oldClearingHouse,
-        address newClearingHouse
-    );
+    event ClearingHouseUpdated(address oldClearingHouse, address newClearingHouse);
 
     /// @notice Emitted when the early withdrawal threshold is updated by governance
     /// @param oldEarlyWithdrawalThreshold Old early withdrawal threshold
     /// @param newEarlyWithdrawalThreshold New early withdrawal threshold
-    event EarlyWithdrawalThresholdUpdated(
-        uint256 oldEarlyWithdrawalThreshold,
-        uint256 newEarlyWithdrawalThreshold
-    );
+    event EarlyWithdrawalThresholdUpdated(uint256 oldEarlyWithdrawalThreshold, uint256 newEarlyWithdrawalThreshold);
 
     /// @notice Error returned when the caller of `updatePosition` is not the ClearingHouse
     /// @param caller Address of the caller
@@ -37,10 +31,7 @@ interface IPerpRewardDistributor {
     /// @param user Address of the user
     /// @param market Address of the market
     /// @return Timestamp when user last withdrew liquidity from the market
-    function withdrawTimerStartByUserByMarket(
-        address user,
-        address market
-    ) external view returns (uint256);
+    function withdrawTimerStartByUserByMarket(address user, address market) external view returns (uint256);
 
     /// @notice Sets the address of the ClearingHouse contract which stores the list of Perpetuals and can call `updatePosition`
     /// @param _newClearingHouse New ClearingHouse contract
@@ -48,7 +39,5 @@ interface IPerpRewardDistributor {
 
     /// @notice Sets the number of seconds that a user must leave their liquidity in the market to avoid the early withdrawal penalty
     /// @param _newEarlyWithdrawalThreshold New early withdrawal threshold in seconds
-    function setEarlyWithdrawalThreshold(
-        uint256 _newEarlyWithdrawalThreshold
-    ) external;
+    function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold) external;
 }
