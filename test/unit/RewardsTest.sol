@@ -1226,7 +1226,7 @@ contract RewardsTest is Deployment, Utils {
         internal
         returns (uint256 proposedAmount)
     {
-        LibPerpetual.LiquidityProviderPosition memory lp = perpetual.getLpPosition(user);
+        LibPerpetual.LiquidityProviderPosition memory lp = perp.getLpPosition(user);
         if (lp.liquidityBalance == 0) revert("No liquidity provided");
         uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
         return viewer.getLpProposedAmount(idx, user, reductionRatio, 100, [uint256(0), uint256(0)], 0);
