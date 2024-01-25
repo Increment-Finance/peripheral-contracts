@@ -19,12 +19,7 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 /// - a gradually decreasing emission rate, based on an initial inflation rate, reduction factor, and time elapsed
 /// - a list of markets for which the reward token is distributed
 /// - a list of weights representing the percentage of rewards that go to each market
-abstract contract RewardController is
-    IRewardController,
-    IncreAccessControl,
-    Pausable,
-    ReentrancyGuard
-{
+abstract contract RewardController is IRewardController, IncreAccessControl, Pausable, ReentrancyGuard {
     using PRBMathUD60x18 for uint256;
     using PRBMathUD60x18 for uint88;
 
@@ -62,8 +57,7 @@ abstract contract RewardController is
 
     /// @notice Mapping from reward token to reward weights for each market
     /// @dev Market reward weights are basis points, i.e., 100 = 1%, 10000 = 100%
-    mapping(address => mapping(address => uint256))
-        internal marketWeightsByToken;
+    mapping(address => mapping(address => uint256)) internal marketWeightsByToken;
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -75,45 +69,30 @@ abstract contract RewardController is
     }
 
     /// @inheritdoc IRewardController
-    function getInitialTimestamp(
-        address rewardToken
-    ) external view returns (uint256) {
+    function getInitialTimestamp(address rewardToken) external view returns (uint256) {
         return rewardInfoByToken[rewardToken].initialTimestamp;
     }
 
     /// @inheritdoc IRewardController
-    function getInitialInflationRate(
-        address rewardToken
-    ) external view returns (uint256) {
+    function getInitialInflationRate(address rewardToken) external view returns (uint256) {
         return rewardInfoByToken[rewardToken].initialInflationRate;
     }
 
     /// @inheritdoc IRewardController
-    function getInflationRate(
-        address rewardToken
-    ) external view returns (uint256) {
-        uint256 totalTimeElapsed = block.timestamp -
-            rewardInfoByToken[rewardToken].initialTimestamp;
-        return
-            rewardInfoByToken[rewardToken].initialInflationRate.div(
-                rewardInfoByToken[rewardToken].reductionFactor.pow(
-                    totalTimeElapsed.div(365 days)
-                )
-            );
+    function getInflationRate(address rewardToken) external view returns (uint256) {
+        uint256 totalTimeElapsed = block.timestamp - rewardInfoByToken[rewardToken].initialTimestamp;
+        return rewardInfoByToken[rewardToken].initialInflationRate.div(
+            rewardInfoByToken[rewardToken].reductionFactor.pow(totalTimeElapsed.div(365 days))
+        );
     }
 
     /// @inheritdoc IRewardController
-    function getReductionFactor(
-        address rewardToken
-    ) external view returns (uint256) {
+    function getReductionFactor(address rewardToken) external view returns (uint256) {
         return rewardInfoByToken[rewardToken].reductionFactor;
     }
 
     /// @inheritdoc IRewardController
-    function getRewardWeight(
-        address rewardToken,
-        address market
-    ) external view returns (uint256) {
+    function getRewardWeight(address rewardToken, address market) external view returns (uint256) {
         return marketWeightsByToken[rewardToken][market];
     }
 
@@ -128,31 +107,25 @@ abstract contract RewardController is
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Governance
-    function updateRewardWeights(
-        address rewardToken,
-        address[] calldata markets,
-        uint256[] calldata weights
-    ) external onlyRole(GOVERNANCE) {
-        if (
-            rewardToken == address(0) ||
-            rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
-        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
-        if (weights.length != markets.length)
-            revert RewardController_IncorrectWeightsCount(
-                weights.length,
-                markets.length
-            );
+    function updateRewardWeights(address rewardToken, address[] calldata markets, uint256[] calldata weights)
+        external
+        onlyRole(GOVERNANCE)
+    {
+        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+            revert RewardController_InvalidRewardTokenAddress(rewardToken);
+        }
+        if (weights.length != markets.length) {
+            revert RewardController_IncorrectWeightsCount(weights.length, markets.length);
+        }
         // Update rewards for all currently rewarded markets before changing weights
-        uint256 numOldMarkets = rewardInfoByToken[rewardToken]
-            .marketAddresses
-            .length;
+        uint256 numOldMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
         uint256 numNewMarkets = markets.length;
-        for (uint i; i < numOldMarkets; ) {
+        for (uint256 i; i < numOldMarkets;) {
             address market = rewardInfoByToken[rewardToken].marketAddresses[i];
             _updateMarketRewards(market);
             // Check if market is being removed from rewards
             bool found;
-            for (uint j; j < numNewMarkets; ) {
+            for (uint256 j; j < numNewMarkets;) {
                 if (markets[j] == market) {
                     found = true;
                     break;
@@ -171,10 +144,11 @@ abstract contract RewardController is
         }
         // Validate weights and update rewards for any newly added markets
         uint256 totalWeight;
-        for (uint i; i < numNewMarkets; ) {
+        for (uint256 i; i < numNewMarkets;) {
             _updateMarketRewards(markets[i]);
-            if (weights[i] > 10000)
+            if (weights[i] > 10000) {
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
+            }
             totalWeight += weights[i];
             marketWeightsByToken[rewardToken][markets[i]] = weights[i];
             emit NewWeight(markets[i], rewardToken, weights[i]);
@@ -182,58 +156,45 @@ abstract contract RewardController is
                 ++i;
             }
         }
-        if (totalWeight != 10000)
+        if (totalWeight != 10000) {
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
+        }
         // Replace stored lists of market addresses and weights
         rewardInfoByToken[rewardToken].marketAddresses = markets;
     }
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Governance
-    function updateInitialInflationRate(
-        address rewardToken,
-        uint88 newInitialInflationRate
-    ) external onlyRole(GOVERNANCE) {
-        if (
-            rewardToken == address(0) ||
-            rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
-        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
-        if (newInitialInflationRate > MAX_INFLATION_RATE)
-            revert RewardController_AboveMaxInflationRate(
-                newInitialInflationRate,
-                MAX_INFLATION_RATE
-            );
-        uint256 numMarkets = rewardInfoByToken[rewardToken]
-            .marketAddresses
-            .length;
-        for (uint i; i < numMarkets; ) {
-            _updateMarketRewards(
-                rewardInfoByToken[rewardToken].marketAddresses[i]
-            );
+    function updateInitialInflationRate(address rewardToken, uint88 newInitialInflationRate)
+        external
+        onlyRole(GOVERNANCE)
+    {
+        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+            revert RewardController_InvalidRewardTokenAddress(rewardToken);
+        }
+        if (newInitialInflationRate > MAX_INFLATION_RATE) {
+            revert RewardController_AboveMaxInflationRate(newInitialInflationRate, MAX_INFLATION_RATE);
+        }
+        uint256 numMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
+        for (uint256 i; i < numMarkets;) {
+            _updateMarketRewards(rewardInfoByToken[rewardToken].marketAddresses[i]);
             unchecked {
                 ++i;
             }
         }
-        rewardInfoByToken[rewardToken]
-            .initialInflationRate = newInitialInflationRate;
+        rewardInfoByToken[rewardToken].initialInflationRate = newInitialInflationRate;
         emit NewInitialInflationRate(rewardToken, newInitialInflationRate);
     }
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Governance
-    function updateReductionFactor(
-        address rewardToken,
-        uint88 newReductionFactor
-    ) external onlyRole(GOVERNANCE) {
-        if (
-            rewardToken == address(0) ||
-            rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
-        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
-        if (MIN_REDUCTION_FACTOR > newReductionFactor)
-            revert RewardController_BelowMinReductionFactor(
-                newReductionFactor,
-                MIN_REDUCTION_FACTOR
-            );
+    function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external onlyRole(GOVERNANCE) {
+        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+            revert RewardController_InvalidRewardTokenAddress(rewardToken);
+        }
+        if (MIN_REDUCTION_FACTOR > newReductionFactor) {
+            revert RewardController_BelowMinReductionFactor(newReductionFactor, MIN_REDUCTION_FACTOR);
+        }
         rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
         emit NewReductionFactor(rewardToken, newReductionFactor);
     }
@@ -256,23 +217,15 @@ abstract contract RewardController is
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Emergency Admin
-    function setPaused(
-        address rewardToken,
-        bool paused
-    ) external onlyRole(EMERGENCY_ADMIN) {
-        if (
-            rewardToken == address(0) ||
-            rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)
-        ) revert RewardController_InvalidRewardTokenAddress(rewardToken);
+    function setPaused(address rewardToken, bool paused) external onlyRole(EMERGENCY_ADMIN) {
+        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+            revert RewardController_InvalidRewardTokenAddress(rewardToken);
+        }
         if (rewardInfoByToken[rewardToken].paused == false) {
             // If not currently paused, accrue rewards before pausing
-            uint256 numMarkets = rewardInfoByToken[rewardToken]
-                .marketAddresses
-                .length;
-            for (uint i; i < numMarkets; ) {
-                _updateMarketRewards(
-                    rewardInfoByToken[rewardToken].marketAddresses[i]
-                );
+            uint256 numMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
+            for (uint256 i; i < numMarkets;) {
+                _updateMarketRewards(rewardInfoByToken[rewardToken].marketAddresses[i]);
                 unchecked {
                     ++i;
                 }
@@ -299,18 +252,13 @@ abstract contract RewardController is
     /// @param user Address of the user
     /// @param market Address of the market
     /// @return Current position of the user in the market
-    function _getCurrentPosition(
-        address user,
-        address market
-    ) internal view virtual returns (uint256);
+    function _getCurrentPosition(address user, address market) internal view virtual returns (uint256);
 
     /// @notice Gets the address of a market at a given index
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)
     /// @param idx Index of the market
     /// @return Address of the market
-    function _getMarketAddress(
-        uint256 idx
-    ) internal view virtual returns (address);
+    function _getMarketAddress(uint256 idx) internal view virtual returns (address);
 
     /// @notice Gets the index of an allowlisted market
     /// @dev Markets are the perpetual markets (for the PerpRewardDistributor) or staked tokens (for the SafetyModule)

@@ -21,18 +21,12 @@ interface ISafetyModule is IRewardContract {
     /// @notice Emitted when the AuctionModule is updated by governance
     /// @param oldAuctionModule Address of the old AuctionModule
     /// @param newAuctionModule Address of the new AuctionModule
-    event AuctionModuleUpdated(
-        address oldAuctionModule,
-        address newAuctionModule
-    );
+    event AuctionModuleUpdated(address oldAuctionModule, address newAuctionModule);
 
     /// @notice Emitted when the SMRewardDistributor is updated by governance
     /// @param oldRewardDistributor Address of the old SMRewardDistributor
     /// @param newRewardDistributor Address of the new SMRewardDistributor
-    event RewardDistributorUpdated(
-        address oldRewardDistributor,
-        address newRewardDistributor
-    );
+    event RewardDistributorUpdated(address oldRewardDistributor, address newRewardDistributor);
 
     /// @notice Emitted when a staking token is slashed and the underlying tokens are sent to the AuctionModule
     /// @param stakingToken Address of the staking token
@@ -40,10 +34,7 @@ interface ISafetyModule is IRewardContract {
     /// @param underlyingAmount Amount of underlying tokens sent to the AuctionModule
     /// @param auctionId ID of the auction
     event TokensSlashedForAuction(
-        address indexed stakingToken,
-        uint256 slashAmount,
-        uint256 underlyingAmount,
-        uint256 indexed auctionId
+        address indexed stakingToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
     );
 
     /// @notice Emitted when an auction is terminated by governance
@@ -52,10 +43,7 @@ interface ISafetyModule is IRewardContract {
     /// @param underlyingToken Address of the underlying token being sold in the auction
     /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
     event AuctionTerminated(
-        uint256 indexed auctionId,
-        address stakingToken,
-        address underlyingToken,
-        uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
     /// @notice Emitted when an auction ends, either because all lots were sold or the time limit was reached
@@ -64,10 +52,7 @@ interface ISafetyModule is IRewardContract {
     /// @param underlyingToken Address of the underlying token being sold in the auction
     /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
     event AuctionEnded(
-        uint256 indexed auctionId,
-        address stakingToken,
-        address underlyingToken,
-        uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
     /// @notice Error returned a caller other than a registered staking token tries to call a restricted function
@@ -94,11 +79,7 @@ interface ISafetyModule is IRewardContract {
     /// @param token The underlying ERC20 token
     /// @param amount The initial lot size multiplied by the number of lots
     /// @param maxAmount The maximum auctionable amount of underlying tokens
-    error SafetyModule_InsufficientSlashedTokensForAuction(
-        IERC20 token,
-        uint256 amount,
-        uint256 maxAmount
-    );
+    error SafetyModule_InsufficientSlashedTokensForAuction(IERC20 token, uint256 amount, uint256 maxAmount);
 
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
@@ -116,9 +97,7 @@ interface ISafetyModule is IRewardContract {
     /// @notice Gets the StakedToken contract that was slashed for the given auction
     /// @param auctionId ID of the auction
     /// @return StakedToken contract that was slashed
-    function stakingTokenByAuctionId(
-        uint256 auctionId
-    ) external view returns (IStakedToken);
+    function stakingTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
 
     /// @notice Gets the number of staking tokens registered in the SafetyModule
     /// @return Number of staking tokens
@@ -160,10 +139,7 @@ interface ISafetyModule is IRewardContract {
     /// underlying tokens from the auction to the StakedToken
     /// @param _auctionId ID of the auction
     /// @param _remainingBalance Amount of underlying tokens remaining from the auction
-    function auctionEnded(
-        uint256 _auctionId,
-        uint256 _remainingBalance
-    ) external;
+    function auctionEnded(uint256 _auctionId, uint256 _remainingBalance) external;
 
     /// @notice Donates underlying tokens to a StakedToken contract, raising its exchange rate
     /// @dev Unsold tokens are returned automatically from the AuctionModule when one ends, so this is meant
@@ -171,11 +147,7 @@ interface ISafetyModule is IRewardContract {
     /// @param _stakingToken Address of the StakedToken contract to return underlying tokens to
     /// @param _from Address of the account to transfer funds from
     /// @param _amount Amount of underlying tokens to return
-    function returnFunds(
-        address _stakingToken,
-        address _from,
-        uint256 _amount
-    ) external;
+    function returnFunds(address _stakingToken, address _from, uint256 _amount) external;
 
     /// @notice Sends payment tokens raised in auctions from the AuctionModule to the governance treasury
     /// @param _amount Amount of payment tokens to withdraw
@@ -187,9 +159,7 @@ interface ISafetyModule is IRewardContract {
 
     /// @notice Sets the address of the SMRewardDistributor contract
     /// @param _newRewardDistributor Address of the SMRewardDistributor contract
-    function setRewardDistributor(
-        ISMRewardDistributor _newRewardDistributor
-    ) external;
+    function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external;
 
     /// @notice Adds a new staking token to the SafetyModule's stakingTokens array
     /// @param _stakingToken Address of the new staking token

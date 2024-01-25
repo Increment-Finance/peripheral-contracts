@@ -47,11 +47,7 @@ interface ITemporarilyPausable {
     function getPausedState()
         external
         view
-        returns (
-            bool paused,
-            uint256 pauseWindowEndTime,
-            uint256 bufferPeriodEndTime
-        );
+        returns (bool paused, uint256 pauseWindowEndTime, uint256 bufferPeriodEndTime);
 }
 
 interface IWETH is IERC20 {
@@ -61,18 +57,14 @@ interface IWETH is IERC20 {
 }
 
 interface IAsset {
-    // solhint-disable-previous-line no-empty-blocks
+// solhint-disable-previous-line no-empty-blocks
 }
 
 interface IAuthorizer {
     /**
      * @dev Returns true if `account` can perform the action described by `actionId` in the contract `where`.
      */
-    function canPerform(
-        bytes32 actionId,
-        address account,
-        address where
-    ) external view returns (bool);
+    function canPerform(bytes32 actionId, address account, address where) external view returns (bool);
 }
 
 interface IFlashLoanRecipient {
@@ -97,25 +89,17 @@ interface IProtocolFeesCollector {
     event SwapFeePercentageChanged(uint256 newSwapFeePercentage);
     event FlashLoanFeePercentageChanged(uint256 newFlashLoanFeePercentage);
 
-    function withdrawCollectedFees(
-        IERC20[] calldata tokens,
-        uint256[] calldata amounts,
-        address recipient
-    ) external;
+    function withdrawCollectedFees(IERC20[] calldata tokens, uint256[] calldata amounts, address recipient) external;
 
     function setSwapFeePercentage(uint256 newSwapFeePercentage) external;
 
-    function setFlashLoanFeePercentage(
-        uint256 newFlashLoanFeePercentage
-    ) external;
+    function setFlashLoanFeePercentage(uint256 newFlashLoanFeePercentage) external;
 
     function getSwapFeePercentage() external view returns (uint256);
 
     function getFlashLoanFeePercentage() external view returns (uint256);
 
-    function getCollectedFeeAmounts(
-        IERC20[] memory tokens
-    ) external view returns (uint256[] memory feeAmounts);
+    function getCollectedFeeAmounts(IERC20[] memory tokens) external view returns (uint256[] memory feeAmounts);
 
     function getAuthorizer() external view returns (IAuthorizer);
 
@@ -126,11 +110,7 @@ interface IProtocolFeesCollector {
  * @dev Full external interface for the Vault core contract - no external or public methods exist in the contract that
  * don't override one of these declarations.
  */
-interface IVault is
-    ISignaturesValidator,
-    ITemporarilyPausable,
-    IAuthentication
-{
+interface IVault is ISignaturesValidator, ITemporarilyPausable, IAuthentication {
     // Generalities about the Vault:
     //
     // - Whenever documentation refers to 'tokens', it strictly refers to ERC20-compliant token contracts. Tokens are
@@ -186,30 +166,19 @@ interface IVault is
     /**
      * @dev Returns true if `user` has approved `relayer` to act as a relayer for them.
      */
-    function hasApprovedRelayer(
-        address user,
-        address relayer
-    ) external view returns (bool);
+    function hasApprovedRelayer(address user, address relayer) external view returns (bool);
 
     /**
      * @dev Allows `relayer` to act as a relayer for `sender` if `approved` is true, and disallows it otherwise.
      *
      * Emits a `RelayerApprovalChanged` event.
      */
-    function setRelayerApproval(
-        address sender,
-        address relayer,
-        bool approved
-    ) external;
+    function setRelayerApproval(address sender, address relayer, bool approved) external;
 
     /**
      * @dev Emitted every time a relayer is approved or disapproved by `setRelayerApproval`.
      */
-    event RelayerApprovalChanged(
-        address indexed relayer,
-        address indexed sender,
-        bool approved
-    );
+    event RelayerApprovalChanged(address indexed relayer, address indexed sender, bool approved);
 
     // Internal Balance
     //
@@ -224,10 +193,7 @@ interface IVault is
     /**
      * @dev Returns `user`'s Internal Balance for a set of tokens.
      */
-    function getInternalBalance(
-        address user,
-        IERC20[] memory tokens
-    ) external view returns (uint256[] memory);
+    function getInternalBalance(address user, IERC20[] memory tokens) external view returns (uint256[] memory);
 
     /**
      * @dev Performs a set of user balance operations, which involve Internal Balance (deposit, withdraw or transfer)
@@ -240,7 +206,7 @@ interface IVault is
 
     /**
      * @dev Data for `manageUserBalance` operations, which include the possibility for ETH to be sent and received
-     without manual WETH wrapping or unwrapping.
+     *  without manual WETH wrapping or unwrapping.
      */
     struct UserBalanceOp {
         UserBalanceOpKind kind;
@@ -302,21 +268,12 @@ interface IVault is
      * Because Internal Balance works exclusively with ERC20 tokens, ETH deposits and withdrawals will use the WETH
      * address.
      */
-    event InternalBalanceChanged(
-        address indexed user,
-        IERC20 indexed token,
-        int256 delta
-    );
+    event InternalBalanceChanged(address indexed user, IERC20 indexed token, int256 delta);
 
     /**
      * @dev Emitted when a user's Vault ERC20 allowance is used by the Vault to transfer tokens to an external account.
      */
-    event ExternalBalanceTransfer(
-        IERC20 indexed token,
-        address indexed sender,
-        address recipient,
-        uint256 amount
-    );
+    event ExternalBalanceTransfer(IERC20 indexed token, address indexed sender, address recipient, uint256 amount);
 
     // Pools
     //
@@ -354,25 +311,17 @@ interface IVault is
      *
      * Emits a `PoolRegistered` event.
      */
-    function registerPool(
-        PoolSpecialization specialization
-    ) external returns (bytes32);
+    function registerPool(PoolSpecialization specialization) external returns (bytes32);
 
     /**
      * @dev Emitted when a Pool is registered by calling `registerPool`.
      */
-    event PoolRegistered(
-        bytes32 indexed poolId,
-        address indexed poolAddress,
-        PoolSpecialization specialization
-    );
+    event PoolRegistered(bytes32 indexed poolId, address indexed poolAddress, PoolSpecialization specialization);
 
     /**
      * @dev Returns a Pool's contract address and specialization setting.
      */
-    function getPool(
-        bytes32 poolId
-    ) external view returns (address, PoolSpecialization);
+    function getPool(bytes32 poolId) external view returns (address, PoolSpecialization);
 
     /**
      * @dev Registers `tokens` for the `poolId` Pool. Must be called by the Pool's contract.
@@ -396,20 +345,12 @@ interface IVault is
      *
      * Emits a `TokensRegistered` event.
      */
-    function registerTokens(
-        bytes32 poolId,
-        IERC20[] memory tokens,
-        address[] memory assetManagers
-    ) external;
+    function registerTokens(bytes32 poolId, IERC20[] memory tokens, address[] memory assetManagers) external;
 
     /**
      * @dev Emitted when a Pool registers tokens by calling `registerTokens`.
      */
-    event TokensRegistered(
-        bytes32 indexed poolId,
-        IERC20[] tokens,
-        address[] assetManagers
-    );
+    event TokensRegistered(bytes32 indexed poolId, IERC20[] tokens, address[] assetManagers);
 
     /**
      * @dev Deregisters `tokens` for the `poolId` Pool. Must be called by the Pool's contract.
@@ -446,18 +387,10 @@ interface IVault is
      *
      * `assetManager` is the Pool's token Asset Manager.
      */
-    function getPoolTokenInfo(
-        bytes32 poolId,
-        IERC20 token
-    )
+    function getPoolTokenInfo(bytes32 poolId, IERC20 token)
         external
         view
-        returns (
-            uint256 cash,
-            uint256 managed,
-            uint256 lastChangeBlock,
-            address assetManager
-        );
+        returns (uint256 cash, uint256 managed, uint256 lastChangeBlock, address assetManager);
 
     /**
      * @dev Returns a Pool's registered tokens, the total balance for each, and the latest block when *any* of
@@ -473,16 +406,10 @@ interface IVault is
      * the amounts used by joins, exits and swaps. For a detailed breakdown of token balances, use `getPoolTokenInfo`
      * instead.
      */
-    function getPoolTokens(
-        bytes32 poolId
-    )
+    function getPoolTokens(bytes32 poolId)
         external
         view
-        returns (
-            IERC20[] memory tokens,
-            uint256[] memory balances,
-            uint256 lastChangeBlock
-        );
+        returns (IERC20[] memory tokens, uint256[] memory balances, uint256 lastChangeBlock);
 
     /**
      * @dev Called by users to join a Pool, which transfers tokens from `sender` into the Pool's balance. This will
@@ -516,12 +443,9 @@ interface IVault is
      *
      * Emits a `PoolBalanceChanged` event.
      */
-    function joinPool(
-        bytes32 poolId,
-        address sender,
-        address recipient,
-        JoinPoolRequest memory request
-    ) external payable;
+    function joinPool(bytes32 poolId, address sender, address recipient, JoinPoolRequest memory request)
+        external
+        payable;
 
     struct JoinPoolRequest {
         IAsset[] assets;
@@ -565,12 +489,8 @@ interface IVault is
      *
      * Emits a `PoolBalanceChanged` event.
      */
-    function exitPool(
-        bytes32 poolId,
-        address sender,
-        address payable recipient,
-        ExitPoolRequest memory request
-    ) external;
+    function exitPool(bytes32 poolId, address sender, address payable recipient, ExitPoolRequest memory request)
+        external;
 
     struct ExitPoolRequest {
         IAsset[] assets;
@@ -660,12 +580,10 @@ interface IVault is
      *
      * Emits a `Swap` event.
      */
-    function swap(
-        SingleSwap memory singleSwap,
-        FundManagement memory funds,
-        uint256 limit,
-        uint256 deadline
-    ) external payable returns (uint256);
+    function swap(SingleSwap memory singleSwap, FundManagement memory funds, uint256 limit, uint256 deadline)
+        external
+        payable
+        returns (uint256);
 
     /**
      * @dev Data for a single swap executed by `swap`. `amount` is either `amountIn` or `amountOut` depending on
@@ -746,11 +664,7 @@ interface IVault is
      * @dev Emitted for each individual swap performed by `swap` or `batchSwap`.
      */
     event Swap(
-        bytes32 indexed poolId,
-        IERC20 indexed tokenIn,
-        IERC20 indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOut
+        bytes32 indexed poolId, IERC20 indexed tokenIn, IERC20 indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
     /**
@@ -823,12 +737,7 @@ interface IVault is
     /**
      * @dev Emitted for each individual flash loan performed by `flashLoan`.
      */
-    event FlashLoan(
-        IFlashLoanRecipient indexed recipient,
-        IERC20 indexed token,
-        uint256 amount,
-        uint256 feeAmount
-    );
+    event FlashLoan(IFlashLoanRecipient indexed recipient, IERC20 indexed token, uint256 amount, uint256 feeAmount);
 
     // Asset Management
     //
@@ -904,10 +813,7 @@ interface IVault is
     /**
      * @dev Returns the current protocol fee module.
      */
-    function getProtocolFeesCollector()
-        external
-        view
-        returns (IProtocolFeesCollector);
+    function getProtocolFeesCollector() external view returns (IProtocolFeesCollector);
 
     /**
      * @dev Safety mechanism to pause most Vault operations in the event of an emergency - typically detection of an

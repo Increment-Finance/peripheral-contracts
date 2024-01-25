@@ -13,18 +13,12 @@ interface ISMRewardDistributor is IRewardDistributor, IRewardContract {
     /// @notice Emitted when the max reward multiplier is updated by governance
     /// @param oldMaxRewardMultiplier Old max reward multiplier
     /// @param newMaxRewardMultiplier New max reward multiplier
-    event MaxRewardMultiplierUpdated(
-        uint256 oldMaxRewardMultiplier,
-        uint256 newMaxRewardMultiplier
-    );
+    event MaxRewardMultiplierUpdated(uint256 oldMaxRewardMultiplier, uint256 newMaxRewardMultiplier);
 
     /// @notice Emitted when the smoothing value is updated by governance
     /// @param oldSmoothingValue Old smoothing value
     /// @param newSmoothingValue New smoothing value
-    event SmoothingValueUpdated(
-        uint256 oldSmoothingValue,
-        uint256 newSmoothingValue
-    );
+    event SmoothingValueUpdated(uint256 oldSmoothingValue, uint256 newSmoothingValue);
 
     /// @notice Emitted when the SafetyModule contract is updated by governance
     /// @param oldSafetyModule Address of the old SafetyModule contract
@@ -70,20 +64,14 @@ interface ISMRewardDistributor is IRewardDistributor, IRewardContract {
     /// @notice Gets the starting timestamp used to calculate the user's reward multiplier for a given staking token
     /// @param user Address of the user
     /// @param stakingToken Address of the staking token
-    function multiplierStartTimeByUser(
-        address user,
-        address stakingToken
-    ) external view returns (uint256);
+    function multiplierStartTimeByUser(address user, address stakingToken) external view returns (uint256);
 
     /// @notice Computes the user's reward multiplier for the given staking token
     /// @dev Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)
     /// @param _user Address of the staker
     /// @param _stakingToken Address of staking token earning rewards
     /// @return User's reward multiplier, scaled by 1e18
-    function computeRewardMultiplier(
-        address _user,
-        address _stakingToken
-    ) external view returns (uint256);
+    function computeRewardMultiplier(address _user, address _stakingToken) external view returns (uint256);
 
     /// @notice Replaces the SafetyModule contract
     /// @param _newSafetyModule Address of the new SafetyModule contract
