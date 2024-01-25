@@ -27,13 +27,13 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @notice The starting timestamp used to calculate the user's reward multiplier for a given staking token
     /// @dev First address is user, second is staking token
-    mapping(address => mapping(address => uint256))
-        public multiplierStartTimeByUser;
+    mapping(address => mapping(address => uint256)) public multiplierStartTimeByUser;
 
     /// @notice Modifier for functions that should only be called by the SafetyModule
     modifier onlySafetyModule() {
-        if (msg.sender != address(safetyModule))
+        if (msg.sender != address(safetyModule)) {
             revert SMRD_CallerIsNotSafetyModule(msg.sender);
+        }
         _;
     }
 
@@ -64,10 +64,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
-    function updatePosition(
-        address market,
-        address user
-    )
+    function updatePosition(address market, address user)
         external
         virtual
         override(IRewardContract, RewardDistributor)
@@ -76,24 +73,16 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         _updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
         uint256 newPosition = _getCurrentPosition(user, market);
-        totalLiquidityPerMarket[market] =
-            totalLiquidityPerMarket[market] +
-            newPosition -
-            prevPosition;
+        totalLiquidityPerMarket[market] = totalLiquidityPerMarket[market] + newPosition - prevPosition;
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ) {
+        for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
-            uint256 newRewards = prevPosition
-                .mul(
-                    cumulativeRewardPerLpToken[token][market] -
-                        cumulativeRewardPerLpTokenPerUser[user][token][market]
-                )
-                .mul(rewardMultiplier);
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
+            uint256 newRewards = prevPosition.mul(
+                cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
+            ).mul(rewardMultiplier);
+            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
                     ++i;
@@ -105,10 +94,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(
-                    token,
-                    totalUnclaimedRewards[token] - rewardTokenBalance
-                );
+                emit RewardTokenShortfall(token, totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
                 ++i;
@@ -129,10 +115,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             // and then staking a large amount once their multiplier is very high in order to claim a large
             // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
             // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
-            multiplierStartTimeByUser[user][market] += (block.timestamp -
-                multiplierStartTimeByUser[user][market]).mul(
-                    (newPosition - prevPosition).div(newPosition)
-                );
+            multiplierStartTimeByUser[user][market] += (block.timestamp - multiplierStartTimeByUser[user][market]).mul(
+                (newPosition - prevPosition).div(newPosition)
+            );
         }
         lpPositionsPerUser[user][market] = newPosition;
         emit PositionUpdated(user, market, prevPosition, newPosition);
@@ -154,10 +139,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /* ******************* */
 
     /// @inheritdoc ISMRewardDistributor
-    function computeRewardMultiplier(
-        address _user,
-        address _stakingToken
-    ) public view returns (uint256) {
+    function computeRewardMultiplier(address _user, address _stakingToken) public view returns (uint256) {
         uint256 startTime = multiplierStartTimeByUser[_user][_stakingToken];
         // If the user has never staked, return zero
         if (startTime == 0) return 0;
@@ -168,12 +150,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
          * = maxRewardMultiplier - smoothingValue / (deltaDays + (smoothingValue / (maxRewardMultiplier - 1)))
          * = maxRewardMultiplier - (smoothingValue * (maxRewardMultiplier - 1)) / ((deltaDays * (maxRewardMultiplier - 1)) + smoothingValue)
          */
-        return
-            maxRewardMultiplier -
-            (smoothingValue * (maxRewardMultiplier - 1e18)) /
-            ((deltaDays * (maxRewardMultiplier - 1e18)) /
-                1e18 +
-                smoothingValue);
+        return maxRewardMultiplier
+            - (smoothingValue * (maxRewardMultiplier - 1e18))
+                / ((deltaDays * (maxRewardMultiplier - 1e18)) / 1e18 + smoothingValue);
     }
 
     /* ******************* */
@@ -182,15 +161,14 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by the SafetyModule
-    function initMarketStartTime(
-        address _market
-    )
+    function initMarketStartTime(address _market)
         external
         override(IRewardDistributor, RewardDistributor)
         onlySafetyModule
     {
-        if (timeOfLastCumRewardUpdate[_market] != 0)
+        if (timeOfLastCumRewardUpdate[_market] != 0) {
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
+        }
         timeOfLastCumRewardUpdate[_market] = block.timestamp;
     }
 
@@ -200,46 +178,34 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc ISMRewardDistributor
     /// @dev Only callable by governance
-    function setSafetyModule(
-        ISafetyModule _newSafetyModule
-    ) external onlyRole(GOVERNANCE) {
-        if (address(_newSafetyModule) == address(0))
+    function setSafetyModule(ISafetyModule _newSafetyModule) external onlyRole(GOVERNANCE) {
+        if (address(_newSafetyModule) == address(0)) {
             revert RewardDistributor_InvalidZeroAddress();
-        emit SafetyModuleUpdated(
-            address(safetyModule),
-            address(_newSafetyModule)
-        );
+        }
+        emit SafetyModuleUpdated(address(safetyModule), address(_newSafetyModule));
         safetyModule = _newSafetyModule;
     }
 
     /// @inheritdoc ISMRewardDistributor
     /// @dev Only callable by governance, reverts if the new value is less than 1e18 (100%) or greater than 10e18 (1000%)
-    function setMaxRewardMultiplier(
-        uint256 _maxRewardMultiplier
-    ) external onlyRole(GOVERNANCE) {
-        if (_maxRewardMultiplier < 1e18)
+    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external onlyRole(GOVERNANCE) {
+        if (_maxRewardMultiplier < 1e18) {
             revert SMRD_InvalidMaxMultiplierTooLow(_maxRewardMultiplier, 1e18);
-        else if (_maxRewardMultiplier > 10e18)
-            revert SMRD_InvalidMaxMultiplierTooHigh(
-                _maxRewardMultiplier,
-                10e18
-            );
-        emit MaxRewardMultiplierUpdated(
-            maxRewardMultiplier,
-            _maxRewardMultiplier
-        );
+        } else if (_maxRewardMultiplier > 10e18) {
+            revert SMRD_InvalidMaxMultiplierTooHigh(_maxRewardMultiplier, 10e18);
+        }
+        emit MaxRewardMultiplierUpdated(maxRewardMultiplier, _maxRewardMultiplier);
         maxRewardMultiplier = _maxRewardMultiplier;
     }
 
     /// @inheritdoc ISMRewardDistributor
     /// @dev Only callable by governance, reverts if the new value is less than 10e18 or greater than 100e18
-    function setSmoothingValue(
-        uint256 _smoothingValue
-    ) external onlyRole(GOVERNANCE) {
-        if (_smoothingValue < 10e18)
+    function setSmoothingValue(uint256 _smoothingValue) external onlyRole(GOVERNANCE) {
+        if (_smoothingValue < 10e18) {
             revert SMRD_InvalidSmoothingValueTooLow(_smoothingValue, 10e18);
-        else if (_smoothingValue > 100e18)
+        } else if (_smoothingValue > 100e18) {
             revert SMRD_InvalidSmoothingValueTooHigh(_smoothingValue, 100e18);
+        }
         emit SmoothingValueUpdated(smoothingValue, _smoothingValue);
         smoothingValue = _smoothingValue;
     }
@@ -266,16 +232,12 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     }
 
     /// @inheritdoc RewardDistributor
-    function _getMarketAddress(
-        uint256 index
-    ) internal view virtual override returns (address) {
+    function _getMarketAddress(uint256 index) internal view virtual override returns (address) {
         return address(safetyModule.stakingTokens(index));
     }
 
     /// @inheritdoc RewardDistributor
-    function _getMarketIdx(
-        uint256 i
-    ) internal view virtual override returns (uint256) {
+    function _getMarketIdx(uint256 i) internal view virtual override returns (uint256) {
         return i;
     }
 
@@ -283,10 +245,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @param staker Address of the user
     /// @param token Address of the staking token
     /// @return Current balance of the user in the staking token
-    function _getCurrentPosition(
-        address staker,
-        address token
-    ) internal view virtual override returns (uint256) {
+    function _getCurrentPosition(address staker, address token) internal view virtual override returns (uint256) {
         return IStakedToken(token).balanceOf(staker);
     }
 
@@ -295,35 +254,23 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// stake position is handled by `updatePosition`
     /// @param market Address of the token in `stakingTokens`
     /// @param user Address of the user
-    function _accrueRewards(
-        address market,
-        address user
-    ) internal virtual override {
+    function _accrueRewards(address market, address user) internal virtual override {
         uint256 userPosition = lpPositionsPerUser[user][market];
-        if (userPosition != _getCurrentPosition(user, market))
+        if (userPosition != _getCurrentPosition(user, market)) {
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
             // since updating stake position calls updatePosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                userPosition,
-                _getCurrentPosition(user, market)
-            );
+            revert RewardDistributor_UserPositionMismatch(user, market, userPosition, _getCurrentPosition(user, market));
+        }
         if (totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ) {
+        for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            uint256 newRewards = userPosition
-                .mul(
-                    cumulativeRewardPerLpToken[token][market] -
-                        cumulativeRewardPerLpTokenPerUser[user][token][market]
-                )
-                .mul(rewardMultiplier);
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
+            uint256 newRewards = userPosition.mul(
+                cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
+            ).mul(rewardMultiplier);
+            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
                     ++i;
@@ -335,10 +282,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(
-                    token,
-                    totalUnclaimedRewards[token] - rewardTokenBalance
-                );
+                emit RewardTokenShortfall(token, totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
                 ++i;

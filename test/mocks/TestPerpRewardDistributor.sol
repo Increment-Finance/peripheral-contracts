@@ -27,7 +27,7 @@ contract TestPerpRewardDistributor is PerpRewardDistributor {
 
     function accrueRewards(address user) external {
         uint256 numMarkets = _getNumMarkets();
-        for (uint i; i < numMarkets; ) {
+        for (uint256 i; i < numMarkets;) {
             _accrueRewards(_getMarketAddress(_getMarketIdx(i)), user);
             unchecked {
                 ++i;

@@ -48,13 +48,7 @@ interface IAuctionModule {
     /// @param numLots Number of lots sold
     /// @param lotSize Size of the lot sold
     /// @param lotPrice Price of the lot sold
-    event LotsSold(
-        uint256 indexed auctionId,
-        address indexed buyer,
-        uint8 numLots,
-        uint256 lotSize,
-        uint128 lotPrice
-    );
+    event LotsSold(uint256 indexed auctionId, address indexed buyer, uint8 numLots, uint256 lotSize, uint128 lotPrice);
 
     /// @notice Emitted when the payment token is changed
     /// @param oldPaymentToken Address of the old payment token
@@ -94,10 +88,7 @@ interface IAuctionModule {
     /// @notice Error returned when a user tries to buy more than the number of lots remaining
     /// @param auctionId ID of the auction
     /// @param lotsRemaining Number of lots remaining
-    error AuctionModule_NotEnoughLotsRemaining(
-        uint256 auctionId,
-        uint256 lotsRemaining
-    );
+    error AuctionModule_NotEnoughLotsRemaining(uint256 auctionId, uint256 lotsRemaining);
 
     /// @notice Returns the SafetyModule contract which manages this contract
     /// @return SafetyModule contract
@@ -114,16 +105,12 @@ interface IAuctionModule {
     /// @notice Returns the number of tokens sold in the auction
     /// @param _auctionId ID of the auction
     /// @return Number of tokens sold
-    function tokensSoldPerAuction(
-        uint256 _auctionId
-    ) external view returns (uint256);
+    function tokensSoldPerAuction(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the amount of funds raised in the auction
     /// @param _auctionId ID of the auction
     /// @return Number of payment tokens raised
-    function fundsRaisedPerAuction(
-        uint256 _auctionId
-    ) external view returns (uint256);
+    function fundsRaisedPerAuction(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the current lot size of the auction
     /// @dev Lot size starts at `auction.initialLotSize` and increases by `auction.lotIncreaseIncrement` every
@@ -131,16 +118,12 @@ interface IAuctionModule {
     /// contract's total balance of tokens, then the size remains fixed at `totalBalance / auction.remainingLots`
     /// @param _auctionId ID of the auction
     /// @return Current number of tokens per lot
-    function getCurrentLotSize(
-        uint256 _auctionId
-    ) external view returns (uint256);
+    function getCurrentLotSize(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the number of lots still available for sale in the auction
     /// @param _auctionId ID of the auction
     /// @return Number of lots still available for sale
-    function getRemainingLots(
-        uint256 _auctionId
-    ) external view returns (uint256);
+    function getRemainingLots(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the price of each lot in the auction
     /// @param _auctionId ID of the auction
@@ -150,16 +133,12 @@ interface IAuctionModule {
     /// @notice Returns the number of tokens by which the lot size increases each period
     /// @param _auctionId ID of the auction
     /// @return Size of each lot increase
-    function getLotIncreaseIncrement(
-        uint256 _auctionId
-    ) external view returns (uint256);
+    function getLotIncreaseIncrement(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the amount of time between each lot size increase
     /// @param _auctionId ID of the auction
     /// @return Number of seconds between each lot size increase
-    function getLotIncreasePeriod(
-        uint256 _auctionId
-    ) external view returns (uint256);
+    function getLotIncreasePeriod(uint256 _auctionId) external view returns (uint256);
 
     /// @notice Returns the address of the token being auctioned
     /// @param _auctionId ID of the auction

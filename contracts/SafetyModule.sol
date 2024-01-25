@@ -19,12 +19,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @author webthethird
 /// @notice Handles reward accrual and distribution for staking tokens, and allows governance to auction a
 /// percentage of user funds in the event of an insolvency in the vault
-contract SafetyModule is
-    ISafetyModule,
-    IncreAccessControl,
-    Pausable,
-    ReentrancyGuard
-{
+contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, ReentrancyGuard {
     using PRBMathUD60x18 for uint256;
     using SafeERC20 for IERC20;
 
@@ -44,7 +39,7 @@ contract SafetyModule is
     /// i.e., `updatePosition`
     modifier onlyStakingToken() {
         bool isStakingToken;
-        for (uint i; i < stakingTokens.length; ) {
+        for (uint256 i; i < stakingTokens.length;) {
             if (msg.sender == address(stakingTokens[i])) {
                 isStakingToken = true;
                 break;
@@ -53,16 +48,18 @@ contract SafetyModule is
                 ++i;
             }
         }
-        if (!isStakingToken)
+        if (!isStakingToken) {
             revert SafetyModule_CallerIsNotStakingToken(msg.sender);
+        }
         _;
     }
 
     /// @notice Modifier for functions that can only be called by the AuctionModule contract,
     /// i.e., `auctionEnded`
     modifier onlyAuctionModule() {
-        if (msg.sender != address(auctionModule))
+        if (msg.sender != address(auctionModule)) {
             revert SafetyModule_CallerIsNotAuctionModule(msg.sender);
+        }
         _;
     }
 
@@ -88,7 +85,7 @@ contract SafetyModule is
     /// @inheritdoc ISafetyModule
     function getStakingTokenIdx(address token) public view returns (uint256) {
         uint256 numTokens = stakingTokens.length;
-        for (uint256 i; i < numTokens; ) {
+        for (uint256 i; i < numTokens;) {
             if (address(stakingTokens[i]) == token) return i;
             unchecked {
                 ++i;
@@ -105,10 +102,7 @@ contract SafetyModule is
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
-    function updatePosition(
-        address market,
-        address user
-    ) external override nonReentrant onlyStakingToken {
+    function updatePosition(address market, address user) external override nonReentrant onlyStakingToken {
         smRewardDistributor.updatePosition(market, user);
     }
 
@@ -118,23 +112,14 @@ contract SafetyModule is
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by the auction module
-    function auctionEnded(
-        uint256 _auctionId,
-        uint256 _remainingBalance
-    ) external onlyAuctionModule {
+    function auctionEnded(uint256 _auctionId, uint256 _remainingBalance) external onlyAuctionModule {
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        if (_remainingBalance != 0)
-            _returnFunds(
-                stakingToken,
-                address(auctionModule),
-                _remainingBalance
-            );
+        if (_remainingBalance != 0) {
+            _returnFunds(stakingToken, address(auctionModule), _remainingBalance);
+        }
         _settleSlashing(stakingToken);
         emit AuctionEnded(
-            _auctionId,
-            address(stakingToken),
-            address(stakingToken.getUnderlyingToken()),
-            _remainingBalance
+            _auctionId, address(stakingToken), address(stakingToken.getUnderlyingToken()), _remainingBalance
         );
     }
 
@@ -154,28 +139,23 @@ contract SafetyModule is
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
-        if (_slashPercent > 1e18)
+        if (_slashPercent > 1e18) {
             revert SafetyModule_InvalidSlashPercentTooHigh();
+        }
 
-        IStakedToken stakedToken = stakingTokens[
-            getStakingTokenIdx(_stakedToken)
-        ];
+        IStakedToken stakedToken = stakingTokens[getStakingTokenIdx(_stakedToken)];
 
         // Slash the staked tokens and transfer the underlying tokens to the auction module
         uint256 slashAmount = stakedToken.totalSupply().mul(_slashPercent);
-        uint256 underlyingAmount = stakedToken.slash(
-            address(auctionModule),
-            slashAmount
-        );
+        uint256 underlyingAmount = stakedToken.slash(address(auctionModule), slashAmount);
 
         // Make sure the amount of underlying tokens transferred to the auction module is enough to
         // cover the initial lot size and number of lots to auction
-        if (underlyingAmount < uint256(_initialLotSize) * uint256(_numLots))
+        if (underlyingAmount < uint256(_initialLotSize) * uint256(_numLots)) {
             revert SafetyModule_InsufficientSlashedTokensForAuction(
-                stakedToken.getUnderlyingToken(),
-                uint256(_initialLotSize) * uint256(_numLots),
-                underlyingAmount
+                stakedToken.getUnderlyingToken(), uint256(_initialLotSize) * uint256(_numLots), underlyingAmount
             );
+        }
 
         // Start the auction and return the auction ID
         // Note: the AuctionModule contract will revert if zero is passed for any of the parameters
@@ -189,105 +169,63 @@ contract SafetyModule is
             _timeLimit
         );
         stakingTokenByAuctionId[auctionId] = stakedToken;
-        emit TokensSlashedForAuction(
-            _stakedToken,
-            slashAmount,
-            underlyingAmount,
-            auctionId
-        );
+        emit TokensSlashedForAuction(_stakedToken, slashAmount, underlyingAmount, auctionId);
         return auctionId;
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function terminateAuction(
-        uint256 _auctionId
-    ) external onlyRole(GOVERNANCE) {
+    function terminateAuction(uint256 _auctionId) external onlyRole(GOVERNANCE) {
         auctionModule.terminateAuction(_auctionId);
         IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
         IStakedToken stakingToken = stakingTokenByAuctionId[_auctionId];
-        uint256 remainingBalance = auctionToken.balanceOf(
-            address(auctionModule)
-        );
+        uint256 remainingBalance = auctionToken.balanceOf(address(auctionModule));
         // Remaining balance should always be non-zero, since the only way the auction module could run out
         // of auction tokens is if they are all sold, in which case the auction would have ended on its own
         // But just in case, check to avoid reverting
-        if (remainingBalance != 0)
-            _returnFunds(
-                stakingToken,
-                address(auctionModule),
-                remainingBalance
-            );
+        if (remainingBalance != 0) {
+            _returnFunds(stakingToken, address(auctionModule), remainingBalance);
+        }
         _settleSlashing(stakingToken);
-        emit AuctionTerminated(
-            _auctionId,
-            address(stakingToken),
-            address(auctionToken),
-            remainingBalance
-        );
+        emit AuctionTerminated(_auctionId, address(stakingToken), address(auctionToken), remainingBalance);
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function returnFunds(
-        address _stakingToken,
-        address _from,
-        uint256 _amount
-    ) external onlyRole(GOVERNANCE) {
-        IStakedToken stakingToken = stakingTokens[
-            getStakingTokenIdx(_stakingToken)
-        ];
+    function returnFunds(address _stakingToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE) {
+        IStakedToken stakingToken = stakingTokens[getStakingTokenIdx(_stakingToken)];
         _returnFunds(stakingToken, _from, _amount);
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function withdrawFundsRaisedFromAuction(
-        uint256 _amount
-    ) external onlyRole(GOVERNANCE) {
+    function withdrawFundsRaisedFromAuction(uint256 _amount) external onlyRole(GOVERNANCE) {
         IERC20 paymentToken = auctionModule.paymentToken();
-        paymentToken.safeTransferFrom(
-            address(auctionModule),
-            msg.sender,
-            _amount
-        );
+        paymentToken.safeTransferFrom(address(auctionModule), msg.sender, _amount);
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function setAuctionModule(
-        IAuctionModule _newAuctionModule
-    ) external onlyRole(GOVERNANCE) {
-        emit AuctionModuleUpdated(
-            address(auctionModule),
-            address(_newAuctionModule)
-        );
+    function setAuctionModule(IAuctionModule _newAuctionModule) external onlyRole(GOVERNANCE) {
+        emit AuctionModuleUpdated(address(auctionModule), address(_newAuctionModule));
         auctionModule = _newAuctionModule;
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function setRewardDistributor(
-        ISMRewardDistributor _newRewardDistributor
-    ) external onlyRole(GOVERNANCE) {
-        emit RewardDistributorUpdated(
-            address(smRewardDistributor),
-            address(_newRewardDistributor)
-        );
+    function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external onlyRole(GOVERNANCE) {
+        emit RewardDistributorUpdated(address(smRewardDistributor), address(_newRewardDistributor));
         smRewardDistributor = _newRewardDistributor;
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance, reverts if the staking token is already registered
-    function addStakingToken(
-        IStakedToken _stakingToken
-    ) external onlyRole(GOVERNANCE) {
+    function addStakingToken(IStakedToken _stakingToken) external onlyRole(GOVERNANCE) {
         uint256 numTokens = stakingTokens.length;
-        for (uint i; i < numTokens; ) {
-            if (stakingTokens[i] == _stakingToken)
-                revert SafetyModule_StakingTokenAlreadyRegistered(
-                    address(_stakingToken)
-                );
+        for (uint256 i; i < numTokens;) {
+            if (stakingTokens[i] == _stakingToken) {
+                revert SafetyModule_StakingTokenAlreadyRegistered(address(_stakingToken));
+            }
             unchecked {
                 ++i;
             }
@@ -313,11 +251,7 @@ contract SafetyModule is
     /*      Internal      */
     /* ****************** */
 
-    function _returnFunds(
-        IStakedToken _stakingToken,
-        address _from,
-        uint256 _amount
-    ) internal {
+    function _returnFunds(IStakedToken _stakingToken, address _from, uint256 _amount) internal {
         _stakingToken.returnFunds(_from, _amount);
     }
 

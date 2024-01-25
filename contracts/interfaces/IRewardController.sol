@@ -21,37 +21,23 @@ interface IRewardController {
     /// @param rewardToken The reward token address
     /// @param unclaimedRewards The amount of reward tokens still claimable
     /// @param remainingBalance The remaining balance of the reward token, sent to governance
-    event RewardTokenRemoved(
-        address indexed rewardToken,
-        uint256 unclaimedRewards,
-        uint256 remainingBalance
-    );
+    event RewardTokenRemoved(address indexed rewardToken, uint256 unclaimedRewards, uint256 remainingBalance);
 
     /// @notice Emitted when a reward token is removed from a market's list of rewards
     /// @param market The market address
     /// @param rewardToken The reward token address
-    event MarketRemovedFromRewards(
-        address indexed market,
-        address indexed rewardToken
-    );
+    event MarketRemovedFromRewards(address indexed market, address indexed rewardToken);
 
     /// @notice Emitted when the contract runs out of a reward token
     /// @param rewardToken The reward token address
     /// @param shortfallAmount The amount of reward tokens needed to fulfill all rewards
-    event RewardTokenShortfall(
-        address indexed rewardToken,
-        uint256 shortfallAmount
-    );
+    event RewardTokenShortfall(address indexed rewardToken, uint256 shortfallAmount);
 
     /// @notice Emitted when a gauge weight is updated
     /// @param market The address of the perp market or staked token
     /// @param rewardToken The reward token address
     /// @param newWeight The new weight value
-    event NewWeight(
-        address indexed market,
-        address indexed rewardToken,
-        uint256 newWeight
-    );
+    event NewWeight(address indexed market, address indexed rewardToken, uint256 newWeight);
 
     /// @notice Emitted when a new inflation rate is set by governance
     /// @param newRate The new inflation rate
@@ -82,18 +68,12 @@ interface IRewardController {
     /// @notice Error returned when trying to set the reward weights with markets and weights arrays of different lengths
     /// @param actual The length of the weights array provided
     /// @param expected The length of the markets array provided
-    error RewardController_IncorrectWeightsCount(
-        uint256 actual,
-        uint256 expected
-    );
+    error RewardController_IncorrectWeightsCount(uint256 actual, uint256 expected);
 
     /// @notice Error returned when the sum of the weights provided is not equal to 100% (in basis points)
     /// @param actual The sum of the weights provided
     /// @param expected The expected sum of the weights (i.e., 10000)
-    error RewardController_IncorrectWeightsSum(
-        uint256 actual,
-        uint256 expected
-    );
+    error RewardController_IncorrectWeightsSum(uint256 actual, uint256 expected);
 
     /// @notice Error returned when one of the weights provided is greater than the maximum allowed weight (i.e., 100% in basis points)
     /// @param weight The weight that was passed
@@ -112,40 +92,29 @@ interface IRewardController {
     /// @notice Gets the timestamp when a reward token was registered
     /// @param rewardToken Address of the reward token
     /// @return Timestamp when the reward token was registered
-    function getInitialTimestamp(
-        address rewardToken
-    ) external view returns (uint256);
+    function getInitialTimestamp(address rewardToken) external view returns (uint256);
 
     /// @notice Gets the inflation rate of a reward token (w/o factoring in reduction factor)
     /// @param rewardToken Address of the reward token
     /// @return Initial inflation rate of the reward token
-    function getInitialInflationRate(
-        address rewardToken
-    ) external view returns (uint256);
+    function getInitialInflationRate(address rewardToken) external view returns (uint256);
 
     /// @notice Gets the current inflation rate of a reward token (factoring in reduction factor)
     /// @dev `inflationRate = initialInflationRate / reductionFactor^((block.timestamp - initialTimestamp) / secondsPerYear)`
     /// @param rewardToken Address of the reward token
     /// @return Current inflation rate of the reward token
-    function getInflationRate(
-        address rewardToken
-    ) external view returns (uint256);
+    function getInflationRate(address rewardToken) external view returns (uint256);
 
     /// @notice Gets the reduction factor of a reward token
     /// @param rewardToken Address of the reward token
     /// @return Reduction factor of the reward token
-    function getReductionFactor(
-        address rewardToken
-    ) external view returns (uint256);
+    function getReductionFactor(address rewardToken) external view returns (uint256);
 
     /// @notice Gets the reward weight of a given market for a reward token
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
     /// @return The reward weight of the market in basis points
-    function getRewardWeight(
-        address rewardToken,
-        address market
-    ) external view returns (uint256);
+    function getRewardWeight(address rewardToken, address market) external view returns (uint256);
 
     /// @notice Gets whether a reward token is paused
     /// @param rewardToken Address of the reward token
@@ -156,28 +125,19 @@ interface IRewardController {
     /// @param rewardToken Address of the reward token
     /// @param markets List of market addresses to receive rewards
     /// @param weights List of weights for each market
-    function updateRewardWeights(
-        address rewardToken,
-        address[] calldata markets,
-        uint256[] calldata weights
-    ) external;
+    function updateRewardWeights(address rewardToken, address[] calldata markets, uint256[] calldata weights)
+        external;
 
     /// @notice Sets the initial inflation rate used to calculate emissions over time for a given reward token
     /// @dev Current inflation rate still factors in the reduction factor and time elapsed since the initial timestamp
     /// @param rewardToken Address of the reward token
     /// @param newInitialInflationRate The new inflation rate in tokens/year, scaled by 1e18
-    function updateInitialInflationRate(
-        address rewardToken,
-        uint88 newInitialInflationRate
-    ) external;
+    function updateInitialInflationRate(address rewardToken, uint88 newInitialInflationRate) external;
 
     /// @notice Sets the reduction factor used to reduce emissions over time for a given reward token
     /// @param rewardToken Address of the reward token
     /// @param newReductionFactor The new reduction factor, scaled by 1e18
-    function updateReductionFactor(
-        address rewardToken,
-        uint88 newReductionFactor
-    ) external;
+    function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external;
 
     /// @notice Pause the contract
     function pause() external;

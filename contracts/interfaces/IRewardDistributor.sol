@@ -14,52 +14,31 @@ interface IRewardDistributor {
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
     /// @param reward Amount of reward accrued
-    event RewardAccruedToUser(
-        address indexed user,
-        address rewardToken,
-        address market,
-        uint256 reward
-    );
+    event RewardAccruedToUser(address indexed user, address rewardToken, address market, uint256 reward);
 
     /// @notice Emitted when rewards are accrued to a market
     /// @param market Address of the market
     /// @param rewardToken Address of the reward token
     /// @param reward Amount of reward accrued
-    event RewardAccruedToMarket(
-        address indexed market,
-        address rewardToken,
-        uint256 reward
-    );
+    event RewardAccruedToMarket(address indexed market, address rewardToken, uint256 reward);
 
     /// @notice Emitted when a user claims their accrued rewards
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
     /// @param reward Amount of reward claimed
-    event RewardClaimed(
-        address indexed user,
-        address rewardToken,
-        uint256 reward
-    );
+    event RewardClaimed(address indexed user, address rewardToken, uint256 reward);
 
     /// @notice Emitted when a user's position is changed in the reward distributor
     /// @param user Address of the user
     /// @param market Address of the market
     /// @param prevPosition Previous position of the user
     /// @param newPosition New position of the user
-    event PositionUpdated(
-        address indexed user,
-        address market,
-        uint256 prevPosition,
-        uint256 newPosition
-    );
+    event PositionUpdated(address indexed user, address market, uint256 prevPosition, uint256 newPosition);
 
     /// @notice Emitted when the address of the ecosystem reserve for storing reward tokens is updated
     /// @param prevEcosystemReserve Address of the previous ecosystem reserve
     /// @param newEcosystemReserve Address of the new ecosystem reserve
-    event EcosystemReserveUpdated(
-        address prevEcosystemReserve,
-        address newEcosystemReserve
-    );
+    event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystemReserve);
 
     /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
     /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
@@ -77,11 +56,7 @@ interface IRewardDistributor {
     /// @param user Address of the user
     /// @param market Address of the market
     /// @param position Position of the user
-    error RewardDistributor_PositionAlreadyRegistered(
-        address user,
-        address market,
-        uint256 position
-    );
+    error RewardDistributor_PositionAlreadyRegistered(address user, address market, uint256 position);
 
     /// @notice Error returned if a user's position stored in the RewardDistributor does not match their current position in a given market
     /// @dev Only possible when the user had a pre-existing position in the market before the RewardDistributor
@@ -91,10 +66,7 @@ interface IRewardDistributor {
     /// @param storedPosition Position stored in the RewardDistributor
     /// @param actualPosition Current position of the user
     error RewardDistributor_UserPositionMismatch(
-        address user,
-        address market,
-        uint256 storedPosition,
-        uint256 actualPosition
+        address user, address market, uint256 storedPosition, uint256 actualPosition
     );
 
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
@@ -108,61 +80,45 @@ interface IRewardDistributor {
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
     /// @return Rewards accrued and not yet claimed by user
-    function rewardsAccruedByUser(
-        address user,
-        address rewardToken
-    ) external view returns (uint256);
+    function rewardsAccruedByUser(address user, address rewardToken) external view returns (uint256);
 
     /// @notice Total rewards accrued and not claimed by all users
     /// @param rewardToken Address of the reward token
     /// @return Total rewards accrued and not claimed by all users
-    function totalUnclaimedRewards(
-        address rewardToken
-    ) external view returns (uint256);
+    function totalUnclaimedRewards(address rewardToken) external view returns (uint256);
 
     /// @notice Latest LP/staking positions per user and market
     /// @param user Address of the user
     /// @param market Address of the market
     /// @return Stored position of the user in the market
-    function lpPositionsPerUser(
-        address user,
-        address market
-    ) external view returns (uint256);
+    function lpPositionsPerUser(address user, address market) external view returns (uint256);
 
     /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens per
     /// LP/staked token
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
     /// @return Number of reward tokens per LP/staking token
-    function cumulativeRewardPerLpToken(
-        address rewardToken,
-        address market
-    ) external view returns (uint256);
+    function cumulativeRewardPerLpToken(address rewardToken, address market) external view returns (uint256);
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
     /// @param market Address of the market
     /// @return Number of reward tokens per Led token when user rewards were last updated
-    function cumulativeRewardPerLpTokenPerUser(
-        address user,
-        address rewardToken,
-        address market
-    ) external view returns (uint256);
+    function cumulativeRewardPerLpTokenPerUser(address user, address rewardToken, address market)
+        external
+        view
+        returns (uint256);
 
     /// @notice Gets the timestamp of the most recent update to the per-market reward accumulator
     /// @param market Address of the market
     /// @return Timestamp of the most recent update to the per-market reward accumulator
-    function timeOfLastCumRewardUpdate(
-        address market
-    ) external view returns (uint256);
+    function timeOfLastCumRewardUpdate(address market) external view returns (uint256);
 
     /// @notice Total LP/staked tokens registered for rewards per market
     /// @param market Address of the market
     /// @return Stored total number of tokens per market
-    function totalLiquidityPerMarket(
-        address market
-    ) external view returns (uint256);
+    function totalLiquidityPerMarket(address market) external view returns (uint256);
 
     /// @notice Adds a new reward token
     /// @param _rewardToken Address of the reward token
@@ -207,8 +163,5 @@ interface IRewardDistributor {
     /// to the given user
     /// @param _user Address of the user to claim rewards for
     /// @param _rewardTokens Addresses of the reward tokens to claim rewards for
-    function claimRewardsFor(
-        address _user,
-        address[] memory _rewardTokens
-    ) external;
+    function claimRewardsFor(address _user, address[] memory _rewardTokens) external;
 }

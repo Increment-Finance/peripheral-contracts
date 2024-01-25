@@ -28,8 +28,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., `updatePosition`
     modifier onlyClearingHouse() {
-        if (msg.sender != address(clearingHouse))
+        if (msg.sender != address(clearingHouse)) {
             revert PerpRewardDistributor_CallerIsNotClearingHouse(msg.sender);
+        }
         _;
     }
 
@@ -50,49 +51,32 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 _earlyWithdrawalThreshold,
         uint256[] memory _initialRewardWeights
     ) payable RewardDistributor(_ecosystemReserve) {
-        if (_initialInflationRate > MAX_INFLATION_RATE)
-            revert RewardController_AboveMaxInflationRate(
-                _initialInflationRate,
-                MAX_INFLATION_RATE
-            );
-        if (MIN_REDUCTION_FACTOR > _initialReductionFactor)
-            revert RewardController_BelowMinReductionFactor(
-                _initialReductionFactor,
-                MIN_REDUCTION_FACTOR
-            );
+        if (_initialInflationRate > MAX_INFLATION_RATE) {
+            revert RewardController_AboveMaxInflationRate(_initialInflationRate, MAX_INFLATION_RATE);
+        }
+        if (MIN_REDUCTION_FACTOR > _initialReductionFactor) {
+            revert RewardController_BelowMinReductionFactor(_initialReductionFactor, MIN_REDUCTION_FACTOR);
+        }
         clearingHouse = IClearingHouse(_clearingHouse);
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
         rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
-        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(
-            block.timestamp
-        );
-        rewardInfoByToken[_rewardToken]
-            .initialInflationRate = _initialInflationRate;
-        rewardInfoByToken[_rewardToken]
-            .reductionFactor = _initialReductionFactor;
-        rewardInfoByToken[_rewardToken].marketAddresses = new address[](
-            numMarkets
-        );
-        for (uint256 i; i < numMarkets; ) {
+        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
+        rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
+        rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
+        rewardInfoByToken[_rewardToken].marketAddresses = new address[](numMarkets);
+        for (uint256 i; i < numMarkets;) {
             address market = _getMarketAddress(_getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
-            marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[
-                i
-            ];
+            marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[i];
             timeOfLastCumRewardUpdate[market] = block.timestamp;
             unchecked {
                 ++i;
             }
         }
         rewardTokens.push(_rewardToken);
-        emit RewardTokenAdded(
-            _rewardToken,
-            block.timestamp,
-            _initialInflationRate,
-            _initialReductionFactor
-        );
+        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
 
     /* ****************** */
@@ -103,65 +87,46 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @dev Executes whenever a user's liquidity is updated for any reason
     /// @param market Address of the perpetual market
     /// @param user Address of the liquidity provier
-    function updatePosition(
-        address market,
-        address user
-    ) external virtual override onlyClearingHouse {
+    function updatePosition(address market, address user) external virtual override onlyClearingHouse {
         _updateMarketRewards(market);
         uint256 prevLpPosition = lpPositionsPerUser[user][market];
         uint256 newLpPosition = _getCurrentPosition(user, market);
         uint256 numTokens = rewardTokens.length;
-        for (uint256 i; i < numTokens; ) {
+        for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             // newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevLpPosition.mul(
-                cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market]
+                cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity - reset early withdrawal timer
-                withdrawTimerStartByUserByMarket[user][market] = block
-                    .timestamp;
+                withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
-                uint256 deltaTime = block.timestamp -
-                    withdrawTimerStartByUserByMarket[user][market];
+                uint256 deltaTime = block.timestamp - withdrawTimerStartByUserByMarket[user][market];
                 if (deltaTime < earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
-                    newRewards -=
-                        (newRewards * (earlyWithdrawalThreshold - deltaTime)) /
-                        earlyWithdrawalThreshold;
+                    newRewards -= (newRewards * (earlyWithdrawalThreshold - deltaTime)) / earlyWithdrawalThreshold;
                 }
                 if (newLpPosition != 0) {
                     // Reset timer
-                    withdrawTimerStartByUserByMarket[user][market] = block
-                        .timestamp;
+                    withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
                 } else {
                     // Full withdrawal, so next deposit is an initial deposit
                     withdrawTimerStartByUserByMarket[user][market] = 0;
                 }
             }
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
+            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
             if (newRewards != 0) {
                 rewardsAccruedByUser[user][token] += newRewards;
                 totalUnclaimedRewards[token] += newRewards;
-                emit RewardAccruedToUser(
-                    user,
-                    token,
-                    address(market),
-                    newRewards
-                );
+                emit RewardAccruedToUser(user, token, address(market), newRewards);
             }
             unchecked {
                 ++i;
             }
         }
-        totalLiquidityPerMarket[market] =
-            totalLiquidityPerMarket[market] +
-            newLpPosition -
-            prevLpPosition;
+        totalLiquidityPerMarket[market] = totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
         lpPositionsPerUser[user][market] = newLpPosition;
         emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
     }
@@ -183,25 +148,15 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
-    function setClearingHouse(
-        IClearingHouse _newClearingHouse
-    ) external onlyRole(GOVERNANCE) {
-        emit ClearingHouseUpdated(
-            address(clearingHouse),
-            address(_newClearingHouse)
-        );
+    function setClearingHouse(IClearingHouse _newClearingHouse) external onlyRole(GOVERNANCE) {
+        emit ClearingHouseUpdated(address(clearingHouse), address(_newClearingHouse));
         clearingHouse = _newClearingHouse;
     }
 
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
-    function setEarlyWithdrawalThreshold(
-        uint256 _newEarlyWithdrawalThreshold
-    ) external onlyRole(GOVERNANCE) {
-        emit EarlyWithdrawalThresholdUpdated(
-            earlyWithdrawalThreshold,
-            _newEarlyWithdrawalThreshold
-        );
+    function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold) external onlyRole(GOVERNANCE) {
+        emit EarlyWithdrawalThresholdUpdated(earlyWithdrawalThreshold, _newEarlyWithdrawalThreshold);
         earlyWithdrawalThreshold = _newEarlyWithdrawalThreshold;
     }
 
@@ -215,9 +170,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     }
 
     /// @inheritdoc RewardController
-    function _getMarketAddress(
-        uint256 idx
-    ) internal view override returns (address) {
+    function _getMarketAddress(uint256 idx) internal view override returns (address) {
         return address(clearingHouse.perpetuals(idx));
     }
 
@@ -227,10 +180,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     }
 
     /// @inheritdoc RewardController
-    function _getCurrentPosition(
-        address user,
-        address market
-    ) internal view override returns (uint256) {
+    function _getCurrentPosition(address user, address market) internal view override returns (uint256) {
         return IPerpetual(market).getLpLiquidity(user);
     }
 
@@ -239,40 +189,27 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// LP position is handled by `updatePosition`
     /// @param market Address of the market in `ClearingHouse.perpetuals`
     /// @param user Address of the user
-    function _accrueRewards(
-        address market,
-        address user
-    ) internal virtual override {
+    function _accrueRewards(address market, address user) internal virtual override {
         // Do not accrue rewards for the given market before the early withdrawal threshold has passed
-        if (
-            block.timestamp <
-            withdrawTimerStartByUserByMarket[user][market] +
-                earlyWithdrawalThreshold
-        ) return;
+        if (block.timestamp < withdrawTimerStartByUserByMarket[user][market] + earlyWithdrawalThreshold) return;
         uint256 lpPosition = lpPositionsPerUser[user][market];
-        if (lpPosition != _getCurrentPosition(user, market))
+        if (lpPosition != _getCurrentPosition(user, market)) {
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
             // since updating LP position calls updatePosition which updates lpPositionsPerUser
-            revert RewardDistributor_UserPositionMismatch(
-                user,
-                market,
-                lpPosition,
-                _getCurrentPosition(user, market)
-            );
+            revert RewardDistributor_UserPositionMismatch(user, market, lpPosition, _getCurrentPosition(user, market));
+        }
         if (totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
         uint256 numTokens = rewardTokens.length;
-        for (uint i; i < numTokens; ) {
+        for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            uint256 newRewards = (lpPosition *
-                (cumulativeRewardPerLpToken[token][market] -
-                    cumulativeRewardPerLpTokenPerUser[user][token][market])) /
-                1e18;
+            uint256 newRewards = (
+                lpPosition
+                    * (cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market])
+            ) / 1e18;
             rewardsAccruedByUser[user][token] += newRewards;
             totalUnclaimedRewards[token] += newRewards;
-            cumulativeRewardPerLpTokenPerUser[user][token][
-                market
-            ] = cumulativeRewardPerLpToken[token][market];
+            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
             emit RewardAccruedToUser(user, token, market, newRewards);
             unchecked {
                 ++i;
