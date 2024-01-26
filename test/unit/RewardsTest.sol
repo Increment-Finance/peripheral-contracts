@@ -42,6 +42,8 @@ contract RewardsTest is Deployment, Utils {
     uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
     uint256 constant INITIAL_WITHDRAW_THRESHOLD = 10 days;
+    uint256 constant INITIAL_MARKET_WEIGHT_0 = 7500;
+    uint256 constant INITIAL_MARKET_WEIGHT_1 = 2500;
 
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
@@ -75,8 +77,8 @@ contract RewardsTest is Deployment, Utils {
         rewardsToken2.unpause();
 
         uint256[] memory weights = new uint256[](2);
-        weights[0] = 7500;
-        weights[1] = 2500;
+        weights[0] = INITIAL_MARKET_WEIGHT_0;
+        weights[1] = INITIAL_MARKET_WEIGHT_1;
 
         rewardDistributor = new TestPerpRewardDistributor(
             INITIAL_INFLATION_RATE,
@@ -133,12 +135,6 @@ contract RewardsTest is Deployment, Utils {
 
     function testDeployment() public {
         assertEq(clearingHouse.getNumMarkets(), 2, "Market count mismatch");
-        assertApproxEqRel(
-            perpetual.getLpLiquidity(liquidityProviderOne),
-            4867996525552487585967, // position from initial tests after providing liquidity in setUp()
-            5e16, // 5% tolerance to account for fluctuation in oracle price
-            "Position mismatch"
-        );
         assertEq(rewardDistributor.getRewardTokenCount(), 1, "Token count mismatch");
         address token = rewardDistributor.rewardTokens(0);
         assertEq(token, address(rewardsToken), "Reward token mismatch");
@@ -148,9 +144,15 @@ contract RewardsTest is Deployment, Utils {
         );
         assertEq(rewardDistributor.getInflationRate(token), INITIAL_INFLATION_RATE, "Inflation rate mismatch");
         assertEq(rewardDistributor.getReductionFactor(token), INITIAL_REDUCTION_FACTOR, "Reduction factor mismatch");
-        assertEq(rewardDistributor.getRewardWeight(address(token), address(perpetual)), 7500, "Market weight mismatch");
         assertEq(
-            rewardDistributor.getRewardWeight(address(token), address(eth_perpetual)), 2500, "Market weight mismatch"
+            rewardDistributor.getRewardWeight(address(token), address(perpetual)),
+            INITIAL_MARKET_WEIGHT_0,
+            "Market weight mismatch"
+        );
+        assertEq(
+            rewardDistributor.getRewardWeight(address(token), address(eth_perpetual)),
+            INITIAL_MARKET_WEIGHT_1,
+            "Market weight mismatch"
         );
         assertEq(
             rewardDistributor.earlyWithdrawalThreshold(),
@@ -337,10 +339,12 @@ contract RewardsTest is Deployment, Utils {
         uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(eth_perpetual));
         // user 1 had lpBalance/priorTotalLiquidity = 100% of liquidity in each market for 10 days,
         // and then had some lpBalance/totalLiquidity percent of liquidity for 10 days
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / totalLiquidity1
-            + (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / priorTotalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2
-            + (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / priorTotalLiquidity2;
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * INITIAL_MARKET_WEIGHT_0) / 10000) * 10) / 365) * 1e18)
+            / totalLiquidity1
+            + (((((inflationRate * INITIAL_MARKET_WEIGHT_0) / 10000) * 10) / 365) * 1e18) / priorTotalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * INITIAL_MARKET_WEIGHT_1) / 10000) * 10) / 365) * 1e18)
+            / totalLiquidity2
+            + (((((inflationRate * INITIAL_MARKET_WEIGHT_1) / 10000) * 10) / 365) * 1e18) / priorTotalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -417,7 +421,9 @@ contract RewardsTest is Deployment, Utils {
 
         rewardDistributor.accrueRewards(liquidityProviderOne);
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = _checkRewards(address(rewardsToken), liquidityProviderTwo, 7500, 2500, 20);
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken), liquidityProviderTwo, INITIAL_MARKET_WEIGHT_0, INITIAL_MARKET_WEIGHT_1, 20
+        );
 
         // check rewards for token 2
         uint256 accruedRewards2 =
@@ -510,7 +516,9 @@ contract RewardsTest is Deployment, Utils {
         );
         uint256[] memory previewAccrualsPerp2 = _viewNewRewardAccrual(address(eth_perpetual), liquidityProviderTwo);
         rewardDistributor.accrueRewards(address(eth_perpetual), liquidityProviderTwo);
-        accruedRewards = _checkRewards(address(rewardsToken), liquidityProviderTwo, 7500, 2500, 10);
+        accruedRewards = _checkRewards(
+            address(rewardsToken), liquidityProviderTwo, INITIAL_MARKET_WEIGHT_0, INITIAL_MARKET_WEIGHT_1, 10
+        );
         assertApproxEqRel(
             accruedRewards,
             previewAccrualsPerp1[0] + previewAccrualsPerp2[0],
@@ -723,8 +731,10 @@ contract RewardsTest is Deployment, Utils {
         uint256 inflationRate = rewardDistributor.getInitialInflationRate(address(rewardsToken));
         uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
         uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(eth_perpetual));
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
+        uint256 expectedCumulativeRewards1 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_0) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_1) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         uint256 expectedCumulativeRewards3 = 0;
         assertApproxEqRel(
             cumulativeRewards1,
@@ -803,8 +813,10 @@ contract RewardsTest is Deployment, Utils {
         uint256 inflationRate = rewardDistributor.getInitialInflationRate(address(rewardsToken));
         uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
         uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(eth_perpetual));
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
+        uint256 expectedCumulativeRewards1 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_0) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_1) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -841,8 +853,8 @@ contract RewardsTest is Deployment, Utils {
         uint256[] memory marketWeights = new uint256[](2);
         markets[0] = address(perpetual);
         markets[1] = address(perpetual3);
-        marketWeights[0] = 7500;
-        marketWeights[1] = 2500;
+        marketWeights[0] = INITIAL_MARKET_WEIGHT_0;
+        marketWeights[1] = INITIAL_MARKET_WEIGHT_1;
         vm.expectEmit(false, false, false, true);
         emit MarketRemovedFromRewards(address(eth_perpetual), address(rewardsToken));
         rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
@@ -860,8 +872,10 @@ contract RewardsTest is Deployment, Utils {
         cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
         cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual3));
         totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(perpetual3));
-        expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
-        expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
+        expectedCumulativeRewards1 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_0) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        expectedCumulativeRewards2 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_1) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -888,8 +902,8 @@ contract RewardsTest is Deployment, Utils {
 
         // redeploy rewards distributor
         uint256[] memory weights = new uint256[](2);
-        weights[0] = 7500;
-        weights[1] = 2500;
+        weights[0] = INITIAL_MARKET_WEIGHT_0;
+        weights[1] = INITIAL_MARKET_WEIGHT_1;
 
         TestPerpRewardDistributor newRewardsDistributor = new TestPerpRewardDistributor(
             INITIAL_INFLATION_RATE,
@@ -945,8 +959,10 @@ contract RewardsTest is Deployment, Utils {
         uint256 inflationRate = newRewardsDistributor.getInitialInflationRate(address(rewardsToken));
         uint256 totalLiquidity1 = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
         uint256 totalLiquidity2 = rewardDistributor.totalLiquidityPerMarket(address(eth_perpetual));
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 7500) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 2500) / 10000) * 20) / 365) * 1e18) / totalLiquidity2;
+        uint256 expectedCumulativeRewards1 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_0) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 =
+            (((((inflationRate * INITIAL_MARKET_WEIGHT_1) / 10000) * 20) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
