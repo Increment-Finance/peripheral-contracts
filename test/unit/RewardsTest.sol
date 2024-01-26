@@ -2,16 +2,16 @@
 pragma solidity 0.8.16;
 
 // contracts
-import "../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
-import "../lib/increment-protocol/test/helpers/Utils.sol";
+import "../../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
+import "../../lib/increment-protocol/test/helpers/Utils.sol";
 import "increment-protocol/ClearingHouse.sol";
-import "../lib/increment-protocol/test/mocks/TestPerpetual.sol";
+import "../../lib/increment-protocol/test/mocks/TestPerpetual.sol";
 import "increment-protocol/tokens/UA.sol";
 import "increment-protocol/tokens/VBase.sol";
 import "increment-protocol/tokens/VQuote.sol";
 import {IncrementToken} from "@increment-governance/IncrementToken.sol";
-import {TestPerpRewardDistributor, IRewardDistributor} from "./mocks/TestPerpRewardDistributor.sol";
-import {EcosystemReserve} from "../contracts/EcosystemReserve.sol";
+import {TestPerpRewardDistributor, IRewardDistributor} from "../mocks/TestPerpRewardDistributor.sol";
+import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 
 // interfaces
 import "increment-protocol/interfaces/ICryptoSwap.sol";
@@ -1226,7 +1226,7 @@ contract RewardsTest is Deployment, Utils {
         internal
         returns (uint256 proposedAmount)
     {
-        LibPerpetual.LiquidityProviderPosition memory lp = perpetual.getLpPosition(user);
+        LibPerpetual.LiquidityProviderPosition memory lp = perp.getLpPosition(user);
         if (lp.liquidityBalance == 0) revert("No liquidity provided");
         uint256 idx = perp == perpetual ? 0 : perp == perpetual2 ? 1 : 2;
         return viewer.getLpProposedAmount(idx, user, reductionRatio, 100, [uint256(0), uint256(0)], 0);

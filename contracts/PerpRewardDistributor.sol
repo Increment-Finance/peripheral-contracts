@@ -21,6 +21,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 public override earlyWithdrawalThreshold;
 
+    /// @notice Last timestamp when user withdrew liquidity from a market
+    /// @dev First address is user, second is the market
+    mapping(address => mapping(address => uint256)) public withdrawTimerStartByUserByMarket;
+
     /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., `updatePosition`
     modifier onlyClearingHouse() {
         if (msg.sender != address(clearingHouse)) {
@@ -123,6 +127,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         }
         totalLiquidityPerMarket[market] = totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
         lpPositionsPerUser[user][market] = newLpPosition;
+        emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
     }
 
     /* ****************** */

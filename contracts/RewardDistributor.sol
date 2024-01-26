@@ -39,10 +39,6 @@ abstract contract RewardDistributor is IRewardDistributor, IRewardContract, Rewa
     /// @dev Address is reward token
     mapping(address => uint256) public totalUnclaimedRewards;
 
-    /// @notice Last timestamp when user withdrew liquidity from a market
-    /// @dev First address is user, second is the market
-    mapping(address => mapping(address => uint256)) public withdrawTimerStartByUserByMarket;
-
     /// @notice Latest LP/staking positions per user and market
     /// @dev First address is user, second is the market
     mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
@@ -348,8 +344,10 @@ abstract contract RewardDistributor is IRewardDistributor, IRewardContract, Rewa
             revert RewardDistributor_PositionAlreadyRegistered(_user, _market, lpPositionsPerUser[_user][_market]);
         }
         uint256 lpPosition = _getCurrentPosition(_user, _market);
+        if (lpPosition == 0) return;
         lpPositionsPerUser[_user][_market] = lpPosition;
         totalLiquidityPerMarket[_market] += lpPosition;
+        emit PositionUpdated(_user, _market, 0, lpPosition);
     }
 
     /// @inheritdoc RewardController

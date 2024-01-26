@@ -120,6 +120,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             );
         }
         lpPositionsPerUser[user][market] = newPosition;
+        emit PositionUpdated(user, market, prevPosition, newPosition);
     }
 
     /* ****************** */
