@@ -338,8 +338,6 @@ contract RewardsTest is Deployment, Utils {
         inflationRate2 = uint88(bound(inflationRate2, 1e20, 5e24));
         reductionFactor2 = uint88(bound(reductionFactor2, 1e18, 5e18));
         marketWeight1 = marketWeight1 % 10000;
-        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
-        require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
@@ -347,7 +345,6 @@ contract RewardsTest is Deployment, Utils {
         skip(10 days);
 
         // add a new reward token
-        vm.startPrank(address(this));
         address[] memory markets = new address[](2);
         markets[0] = address(perpetual);
         markets[1] = address(eth_perpetual);
@@ -361,40 +358,31 @@ contract RewardsTest is Deployment, Utils {
         // skip some more time
         skip(10 days);
 
-        // check rewards for token 1
-        uint256[] memory previewAccruals1 = _viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
-        uint256[] memory previewAccruals2 = _viewNewRewardAccrual(address(eth_perpetual), liquidityProviderTwo);
-        uint256[] memory previewAccruals = new uint256[](2);
-        previewAccruals[0] = previewAccruals1[0] + previewAccruals2[0];
-        if (previewAccruals1.length > 1) {
-            previewAccruals[1] = previewAccruals1[1];
-        }
-        if (previewAccruals2.length > 1) {
-            previewAccruals[1] += previewAccruals2[1];
-        }
-
+        // accrue rewards for both tokens and users
+        uint256[] memory previewAccruals1 = _viewNewRewardAccrual(liquidityProviderOne);
+        uint256[] memory previewAccruals2 = _viewNewRewardAccrual(liquidityProviderTwo);
         rewardDistributor.accrueRewards(liquidityProviderOne);
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = _checkRewards(address(rewardsToken), liquidityProviderTwo, 20, 0);
 
-        // check rewards for token 2
-        uint256 accruedRewards2 = _checkRewards(address(rewardsToken2), liquidityProviderTwo, 10, 0);
-        uint256 accruedRewards21 = _checkRewards(address(rewardsToken2), liquidityProviderOne, 10, 0);
-        assertApproxEqRel(
-            accruedRewards,
-            previewAccruals[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1"
-        );
-        assertApproxEqRel(
-            accruedRewards2,
-            previewAccruals[1],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 2"
-        );
+        // check that accrued rewards are correct for both tokens and users
+        uint256[][] memory accruedRewards = new uint256[][](2);
+        for (uint256 i; i < 2; i++) {
+            accruedRewards[i] = new uint256[](2);
+            address token = i == 0 ? address(rewardsToken) : address(rewardsToken2);
+            uint256 numDays = i == 0 ? 20 : 10;
+            for (uint256 j; j < 2; j++) {
+                address user = j == 0 ? liquidityProviderOne : liquidityProviderTwo;
+                accruedRewards[i][j] = _checkRewards(token, user, numDays, 0);
+                assertApproxEqRel(
+                    accruedRewards[i][j],
+                    j == 0 ? previewAccruals1[i] : previewAccruals2[i],
+                    1e15, // 0.1%
+                    "Incorrect accrued rewards preview"
+                );
+            }
+        }
 
         // remove reward token 2
-        vm.startPrank(address(this));
         rewardDistributor.removeRewardToken(address(rewardsToken2));
 
         // claim rewards
@@ -405,14 +393,21 @@ contract RewardsTest is Deployment, Utils {
         rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
         // try claiming twice in a row to ensure rewards aren't distributed twice
         rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
-        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards, "Incorrect claimed balance");
-        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), accruedRewards2, "Incorrect claimed balance");
+
+        // check claimed rewards for user 2
+        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards[0][1], "Incorrect claimed balance");
+        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), accruedRewards[1][1], "Incorrect claimed balance");
+
+        // make sure user 1's accrued rewards are still available after removing token 2,
+        // while the rest of the supply of token 2 has been transfered back to governance
         assertEq(
-            rewardsToken2.balanceOf(address(ecosystemReserve)), accruedRewards21, "Incorrect remaining accrued balance"
+            rewardsToken2.balanceOf(address(ecosystemReserve)),
+            accruedRewards[1][0],
+            "Incorrect remaining accrued balance"
         );
         assertEq(
             rewardsToken2.balanceOf(address(this)),
-            20000000e18 - accruedRewards2 - accruedRewards21,
+            20000000e18 - accruedRewards[1][1] - accruedRewards[1][0],
             "Incorrect returned balance"
         );
     }
@@ -1126,7 +1121,21 @@ contract RewardsTest is Deployment, Utils {
         return viewer.getLpProposedAmount(idx, user, reductionRatio, 100, [uint256(0), uint256(0)], 0);
     }
 
-    function _viewNewRewardAccrual(address market, address user) public view returns (uint256[] memory) {
+    function _viewNewRewardAccrual(address user) internal view returns (uint256[] memory) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256 numTokens = rewardDistributor.getRewardTokenCount();
+        uint256[] memory newRewards = new uint256[](numTokens);
+        for (uint256 i; i < numMarkets; ++i) {
+            address market = address(clearingHouse.perpetuals(clearingHouse.id(i)));
+            uint256[] memory marketRewards = _viewNewRewardAccrual(market, user);
+            for (uint256 j; j < numTokens; ++j) {
+                newRewards[j] += marketRewards[j];
+            }
+        }
+        return newRewards;
+    }
+
+    function _viewNewRewardAccrual(address market, address user) internal view returns (uint256[] memory) {
         uint256 numTokens = rewardDistributor.getRewardTokenCount();
         uint256[] memory newRewards = new uint256[](numTokens);
         for (uint256 i; i < numTokens; ++i) {
