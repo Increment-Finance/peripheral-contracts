@@ -289,7 +289,7 @@ contract RewardsTest is Deployment, Utils {
             _calcExpectedCumulativeRewards(address(rewardsToken), address(eth_perpetual), 10);
 
         // provide liquidity from user 2
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // skip some more time
         skip(10 days);
@@ -349,7 +349,7 @@ contract RewardsTest is Deployment, Utils {
         require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
         require(providedLiquidity2 >= 100e18 && providedLiquidity2 <= 10_000e18);
 
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // skip some time
         skip(10 days);
@@ -439,7 +439,7 @@ contract RewardsTest is Deployment, Utils {
         reductionFactor2 = uint88(bound(reductionFactor2, 1e18, 5e18));
         marketWeight1 = marketWeight1 % 10000;
 
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // add a new reward token with a low total supply
         address[] memory markets = new address[](2);
@@ -496,7 +496,7 @@ contract RewardsTest is Deployment, Utils {
         skip(10 days);
 
         // accrue more rewards by adding more liquidity
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // check that rewards are still accruing for token 2
         uint256 accruedRewards2_2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
@@ -530,7 +530,7 @@ contract RewardsTest is Deployment, Utils {
 
         rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
 
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
         uint256 lpBalance1 = perpetual.getLpLiquidity(liquidityProviderTwo);
         uint256 lpBalance2 = eth_perpetual.getLpLiquidity(liquidityProviderTwo);
 
@@ -592,7 +592,7 @@ contract RewardsTest is Deployment, Utils {
         );
 
         // check that early withdrawal timer is reset after adding liquidity
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
         assertEq(
             rewardDistributor.withdrawTimerStartByUserByMarket(liquidityProviderTwo, address(perpetual)),
             block.timestamp,
@@ -646,7 +646,7 @@ contract RewardsTest is Deployment, Utils {
         providedLiquidity3 = bound(providedLiquidity3, 100e18, 10_000e18);
 
         // add liquidity to first two perpetuals
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // deploy new market contracts
         TestPerpetual perpetual3 = _deployTestPerpetual();
@@ -742,7 +742,7 @@ contract RewardsTest is Deployment, Utils {
         providedLiquidity3 = bound(providedLiquidity3, 100e18, 10_000e18);
 
         // add liquidity to first two perpetuals
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // skip some time
         skip(10 days);
@@ -833,7 +833,7 @@ contract RewardsTest is Deployment, Utils {
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
 
         // add liquidity to first two perpetuals
-        _provideLiquidityBothPerps(providedLiquidity1, providedLiquidity2);
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // redeploy rewards distributor
         uint256[] memory weights = new uint256[](2);
@@ -1036,16 +1036,16 @@ contract RewardsTest is Deployment, Utils {
         return weightedInflation.wadDiv(totalLiquidity);
     }
 
-    function _provideLiquidityBothPerps(uint256 providedLiquidity1, uint256 providedLiquidity2)
+    function _provideLiquidityBothPerps(address user, uint256 amount1, uint256 amount2)
         internal
         returns (uint256 percentOfLiquidity1, uint256 percentOfLiquidity2)
     {
         // provide some liquidity
-        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity1 + providedLiquidity2, vault, ua);
-        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
-        _provideLiquidity(providedLiquidity2, liquidityProviderTwo, eth_perpetual);
-        percentOfLiquidity1 = (providedLiquidity1 * 1e18) / (10_000e18 + providedLiquidity1);
-        percentOfLiquidity2 = (providedLiquidity2 * 1e18) / (10_000e18 + providedLiquidity2);
+        fundAndPrepareAccount(user, amount1 + amount2, vault, ua);
+        _provideLiquidity(amount1, user, perpetual);
+        _provideLiquidity(amount2, user, eth_perpetual);
+        percentOfLiquidity1 = (amount1 * 1e18) / (10_000e18 + amount1);
+        percentOfLiquidity2 = (amount2 * 1e18) / (10_000e18 + amount2);
     }
 
     function _provideLiquidity(uint256 depositAmount, address user, TestPerpetual perp) internal {
