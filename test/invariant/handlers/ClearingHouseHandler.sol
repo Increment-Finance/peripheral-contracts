@@ -18,6 +18,9 @@ contract ClearingHouseHandler is Test {
     using LibMath for uint256;
     using LibMath for int256;
 
+    uint256 internal constant VQUOTE_INDEX = 0; // index of quote asset in curve pool
+    uint256 internal constant VBASE_INDEX = 1; // index of base asset in curve pool
+
     TestClearingHouse public clearingHouse;
     TestClearingHouseViewer public viewer;
 
@@ -106,20 +109,22 @@ contract ClearingHouseHandler is Test {
         usePerp(perpIndexSeed)
     {
         reductionRatio = bound(reductionRatio, 1e16, 1e18);
-        LibPerpetual.LiquidityProviderPosition memory position =
-            currentMarket.getLpPosition(currentActor);
+        LibPerpetual.LiquidityProviderPosition memory position = currentMarket.getLpPosition(currentActor);
         uint256 lpBalance = position.liquidityBalance;
         uint256 lockPeriod = currentMarket.lockPeriod();
         if (lpBalance == 0) return;
         uint256 amount = lpBalance.wadMul(reductionRatio);
+        uint256[2] memory expectedAmountsOut =
+            viewer.getExpectedVirtualTokenAmountsFromLpTokenAmount(idx, currentActor, amount);
+        if (
+            currentMarket.vBase().balanceOf(address(currentMarket.market())) <= expectedAmountsOut[VBASE_INDEX] + 1
+                || currentMarket.vQuote().balanceOf(address(currentMarket.market())) <= expectedAmountsOut[VQUOTE_INDEX] + 1
+        ) return;
         uint256 proposedAmount =
             viewer.getLpProposedAmount(idx, currentActor, reductionRatio, 100, [uint256(0), uint256(0)], 0);
         if (block.timestamp < position.depositTime + lockPeriod) {
             vm.expectRevert(
-                abi.encodeWithSignature(
-                    "Perpetual_LockPeriodNotReached(uint256)",
-                    position.depositTime + lockPeriod
-                )
+                abi.encodeWithSignature("Perpetual_LockPeriodNotReached(uint256)", position.depositTime + lockPeriod)
             );
         }
         clearingHouse.removeLiquidity(idx, amount, [uint256(0), uint256(0)], proposedAmount, 0);
