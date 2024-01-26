@@ -41,6 +41,7 @@ contract RewardsTest is Deployment, Utils {
 
     uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
     uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint256 constant INITIAL_WITHDRAW_THRESHOLD = 10 days;
 
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
@@ -57,7 +58,8 @@ contract RewardsTest is Deployment, Utils {
         deal(liquidityProviderTwo, 100 ether);
         deal(traderOne, 100 ether);
 
-        // increment-protocol/test/foundry/helpers/Deployment.sol:setUp()
+        // Deploy protocol
+        // increment-protocol/test/helpers/Deployment.MainnetFork.sol:setUp()
         super.setUp();
 
         // Deploy second perpetual contract
@@ -82,7 +84,7 @@ contract RewardsTest is Deployment, Utils {
             address(rewardsToken),
             address(clearingHouse),
             address(ecosystemReserve),
-            10 days,
+            INITIAL_WITHDRAW_THRESHOLD,
             weights
         );
         rewardDistributor.setClearingHouse(clearingHouse); // just for coverage, will likely never happen
@@ -103,7 +105,6 @@ contract RewardsTest is Deployment, Utils {
         rewardDistributor.registerPositions(markets);
 
         // Connect ClearingHouse to RewardsDistributor
-        vm.startPrank(address(this));
         clearingHouse.addRewardContract(rewardDistributor);
 
         // Update ClearingHouse params to remove min open notional
@@ -151,7 +152,11 @@ contract RewardsTest is Deployment, Utils {
         assertEq(
             rewardDistributor.getRewardWeight(address(token), address(eth_perpetual)), 2500, "Market weight mismatch"
         );
-        assertEq(rewardDistributor.earlyWithdrawalThreshold(), 10 days, "Early withdrawal threshold mismatch");
+        assertEq(
+            rewardDistributor.earlyWithdrawalThreshold(),
+            INITIAL_WITHDRAW_THRESHOLD,
+            "Early withdrawal threshold mismatch"
+        );
     }
 
     function testInflationAndReduction(
@@ -892,7 +897,7 @@ contract RewardsTest is Deployment, Utils {
             address(rewardsToken),
             address(clearingHouse),
             address(ecosystemReserve),
-            10 days,
+            INITIAL_WITHDRAW_THRESHOLD,
             weights
         );
         vm.startPrank(address(this));
@@ -1139,6 +1144,7 @@ contract RewardsTest is Deployment, Utils {
         clearingHouse.provideLiquidity(
             perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2, [quoteAmount, baseAmount], 0
         );
+        vm.stopPrank();
     }
 
     function _removeAllLiquidity(address user, TestPerpetual perp) internal {
