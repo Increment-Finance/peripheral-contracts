@@ -1026,7 +1026,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Check that the auction is no longer active
         assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after timing out");
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+        _expectAuctionNotActive(auctionId);
         auctionModule.buyLots(auctionId, 1);
 
         // Complete the auction and check that all tokens were returned
@@ -1107,9 +1107,9 @@ contract SafetyModuleTest is Deployment, Utils {
             "Staked token should not be in post slashing state after settling slashing"
         );
         vm.startPrank(liquidityProviderOne);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+        _expectAuctionNotActive(auctionId);
         auctionModule.buyLots(auctionId, 1);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+        _expectAuctionNotActive(auctionId);
         auctionModule.completeAuction(auctionId);
         vm.stopPrank();
     }
@@ -1132,36 +1132,29 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.assume(uint256(numLots) * uint256(lotSize) > stakedToken1.totalSupply());
 
         // test staking token already registered
-        vm.expectRevert(
-            abi.encodeWithSignature("SafetyModule_StakingTokenAlreadyRegistered(address)", address(stakedToken1))
-        );
+        _expectStakingTokenAlreadyRegistered(address(stakedToken1));
         safetyModule.addStakingToken(stakedToken1);
 
         // test invalid staking token
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_InvalidStakingToken(address)", invalidMarket));
+        _expectInvalidStakingToken(invalidMarket);
         safetyModule.getStakingTokenIdx(invalidMarket);
         vm.startPrank(invalidMarket);
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotStakingToken(address)", invalidMarket));
+        _expectCallerIsNotStakingToken(invalidMarket);
         safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
         vm.stopPrank();
 
         // test insufficient auctionable funds
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "SafetyModule_InsufficientSlashedTokensForAuction(address,uint256,uint256)",
-                address(stakedToken1.getUnderlyingToken()),
-                uint256(numLots) * uint256(lotSize),
-                stakedToken1.totalSupply()
-            )
+        _expectInsufficientSlashedTokensForAuction(
+            address(stakedToken1.getUnderlyingToken()), uint256(numLots) * uint256(lotSize), stakedToken1.totalSupply()
         );
         safetyModule.slashAndStartAuction(address(stakedToken1), numLots, 0, lotSize, 1e18, 0, 0, 1 days);
 
         // test slash percent too high
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_InvalidSlashPercentTooHigh()"));
+        _expectInvalidSlashPercentTooHigh();
         safetyModule.slashAndStartAuction(address(stakedToken1), numLots, 0, lotSize, 1e18 + 1, 0, 0, 1 days);
 
         // test invalid caller not auction module
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotAuctionModule(address)", address(this)));
+        _expectCallerIsNotAuctionModule(address(this));
         safetyModule.auctionEnded(0, 0);
     }
 
@@ -1178,30 +1171,20 @@ contract SafetyModuleTest is Deployment, Utils {
         highSmoothingValue = bound(highSmoothingValue, 100e18 + 1, type(uint256).max);
 
         // test governor-controlled params out of bounds
-        vm.expectRevert(
-            abi.encodeWithSignature("SMRD_InvalidMaxMultiplierTooLow(uint256,uint256)", lowMaxMultiplier, 1e18)
-        );
+        _expectInvalidMaxMultiplierTooLow(lowMaxMultiplier, 1e18);
         rewardDistributor.setMaxRewardMultiplier(lowMaxMultiplier);
-        vm.expectRevert(
-            abi.encodeWithSignature("SMRD_InvalidMaxMultiplierTooHigh(uint256,uint256)", highMaxMultiplier, 10e18)
-        );
+        _expectInvalidMaxMultiplierTooHigh(highMaxMultiplier, 10e18);
         rewardDistributor.setMaxRewardMultiplier(highMaxMultiplier);
-        vm.expectRevert(
-            abi.encodeWithSignature("SMRD_InvalidSmoothingValueTooLow(uint256,uint256)", lowSmoothingValue, 10e18)
-        );
+        _expectInvalidSmoothingValueTooLow(lowSmoothingValue, 10e18);
         rewardDistributor.setSmoothingValue(lowSmoothingValue);
-        vm.expectRevert(
-            abi.encodeWithSignature("SMRD_InvalidSmoothingValueTooHigh(uint256,uint256)", highSmoothingValue, 100e18)
-        );
+        _expectInvalidSmoothingValueTooHigh(highSmoothingValue, 100e18);
         rewardDistributor.setSmoothingValue(highSmoothingValue);
-        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()"));
+        _expectRewardDistributorInvalidZeroAddress();
         rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
         // test already initialized market
         vm.startPrank(address(safetyModule));
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", address(stakedToken1))
-        );
+        _expectAlreadyInitializedStartTime(address(stakedToken1));
         rewardDistributor.initMarketStartTime(address(stakedToken1));
         vm.stopPrank();
 
@@ -1234,56 +1217,44 @@ contract SafetyModuleTest is Deployment, Utils {
         );
 
         // test zero amount
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
+        _expectStakedTokenInvalidZeroAmount();
         stakedToken1.stakeOnBehalfOf(liquidityProviderOne, 0);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
+        _expectStakedTokenInvalidZeroAmount();
         stakedToken1.redeemTo(liquidityProviderOne, 0);
         vm.startPrank(address(safetyModule));
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
+        _expectStakedTokenInvalidZeroAmount();
         stakedToken1.slash(address(safetyModule), 0);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
+        _expectStakedTokenInvalidZeroAmount();
         stakedToken1.returnFunds(address(safetyModule), 0);
 
         // test zero address
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAddress()"));
+        _expectStakedTokenInvalidZeroAddress();
         stakedToken1.stakeOnBehalfOf(address(0), 1);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAddress()"));
+        _expectStakedTokenInvalidZeroAddress();
         stakedToken1.redeemTo(address(0), 1);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAddress()"));
+        _expectStakedTokenInvalidZeroAddress();
         stakedToken1.slash(address(0), 1);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAddress()"));
+        _expectStakedTokenInvalidZeroAddress();
         stakedToken1.returnFunds(address(0), 1);
         vm.stopPrank();
 
         // test zero balance
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()"));
+        _expectZeroBalanceAtCooldown();
         stakedToken1.cooldown();
 
         // test above max stake amount
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
-                MAX_STAKE_AMOUNT_1,
-                MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
-            )
+        _expectAboveMaxStakeAmount(
+            MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
         );
         stakedToken1.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
-                MAX_STAKE_AMOUNT_2,
-                MAX_STAKE_AMOUNT_2 - stakedToken2.balanceOf(liquidityProviderOne)
-            )
+        _expectAboveMaxStakeAmount(
+            MAX_STAKE_AMOUNT_2, MAX_STAKE_AMOUNT_2 - stakedToken2.balanceOf(liquidityProviderOne)
         );
         stakedToken2.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount2);
         deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount1);
         vm.startPrank(liquidityProviderTwo);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "StakedToken_AboveMaxStakeAmount(uint256,uint256)",
-                MAX_STAKE_AMOUNT_1,
-                MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
-            )
+        _expectAboveMaxStakeAmount(
+            MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
         );
         stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
         // change max stake amount and try again, expecting it to succeed
@@ -1301,16 +1272,12 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.cooldown();
         uint256 cooldownStartTimestamp = block.timestamp;
         uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
-        vm.expectRevert(
-            abi.encodeWithSignature("StakedToken_InsufficientCooldown(uint256)", cooldownStartTimestamp + 1 days)
-        );
+        _expectInsufficientCooldown(cooldownStartTimestamp + 1 days);
         stakedToken1.redeem(stakedBalance);
 
         // test unstake window finished
         skip(20 days);
-        vm.expectRevert(
-            abi.encodeWithSignature("StakedToken_UnstakeWindowFinished(uint256)", cooldownStartTimestamp + 11 days)
-        );
+        _expectUnstakeWindowFinished(cooldownStartTimestamp + 11 days);
         stakedToken1.redeem(stakedBalance);
         // redeem correctly
         stakedToken1.cooldown();
@@ -1323,16 +1290,16 @@ contract SafetyModuleTest is Deployment, Utils {
         }
         // restake, then try redeeming without cooldown
         stakedToken1.stake(stakedBalance);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_UnstakeWindowFinished(uint256)", 11 days));
+        _expectUnstakeWindowFinished(11 days);
         stakedToken1.redeem(stakedBalance);
         vm.stopPrank();
 
         // test invalid caller not safety module
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_CallerIsNotSafetyModule(address)", address(this)));
+        _expectStakedTokenCallerIsNotSafetyModule(address(this));
         stakedToken1.slash(address(this), 0);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_CallerIsNotSafetyModule(address)", address(this)));
+        _expectStakedTokenCallerIsNotSafetyModule(address(this));
         stakedToken1.returnFunds(address(this), 0);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_CallerIsNotSafetyModule(address)", address(this)));
+        _expectStakedTokenCallerIsNotSafetyModule(address(this));
         stakedToken1.settleSlashing();
 
         // test zero exchange rate
@@ -1345,9 +1312,9 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(stakedToken1.previewStake(1e18), 0, "Preview stake should be 0 when exchange rate is 0");
         assertEq(stakedToken1.previewRedeem(1e18), 0, "Preview redeem should be 0 when exchange rate is 0");
         // staking and redeeming should fail due to zero exchange rate
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_ZeroExchangeRate()"));
+        _expectZeroExchangeRate();
         stakedToken1.stake(1);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_ZeroExchangeRate()"));
+        _expectZeroExchangeRate();
         stakedToken1.redeem(1);
 
         // test features disabled in post-slashing state
@@ -1356,12 +1323,12 @@ contract SafetyModuleTest is Deployment, Utils {
         // return all slashed funds, but do not settle slashing yet
         stakedToken1.returnFunds(address(this), slashedTokens);
         // slashing, staking and cooldown should fail due to post-slashing state
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_SlashingDisabledInPostSlashingState()"));
+        _expectSlashingDisabledInPostSlashingState();
         stakedToken1.slash(address(this), slashedTokens);
         vm.startPrank(liquidityProviderOne);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
+        _expectStakingDisabledInPostSlashingState();
         stakedToken1.stake(1);
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_CooldownDisabledInPostSlashingState()"));
+        _expectCooldownDisabledInPostSlashingState();
         stakedToken1.cooldown();
         vm.stopPrank();
 
@@ -1394,37 +1361,37 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // test invalid zero arguments
         vm.startPrank(address(safetyModule));
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroAddress(uint256)", 0));
+        _expectInvalidZeroArgument(0);
         auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 1));
+        _expectInvalidZeroArgument(1);
         auctionModule.startAuction(rewardsToken, 0, 0, 0, 0, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 2));
+        _expectInvalidZeroArgument(2);
         auctionModule.startAuction(rewardsToken, 1, 0, 0, 0, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 3));
+        _expectInvalidZeroArgument(3);
         auctionModule.startAuction(rewardsToken, 1, 1, 0, 0, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 4));
+        _expectInvalidZeroArgument(4);
         auctionModule.startAuction(rewardsToken, 1, 1, 1, 0, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 5));
+        _expectInvalidZeroArgument(5);
         auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 6));
+        _expectInvalidZeroArgument(6);
         auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 1, 0);
         vm.stopPrank();
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroAddress(uint256)", 0));
+        _expectInvalidZeroAddress(0);
         auctionModule.setPaymentToken(IERC20(address(0)));
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroAddress(uint256)", 0));
+        _expectInvalidZeroAddress(0);
         auctionModule.setSafetyModule(ISafetyModule(address(0)));
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", 1));
+        _expectInvalidZeroArgument(1);
         auctionModule.buyLots(auctionId, 0);
 
         // test invalid auction ID
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", 1));
+        _expectInvalidAuctionId(1);
         auctionModule.buyLots(1, 1);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", 1));
+        _expectInvalidAuctionId(1);
         auctionModule.completeAuction(1);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", 1));
+        _expectInvalidAuctionId(1);
         auctionModule.getCurrentLotSize(1);
         vm.startPrank(address(safetyModule));
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", 1));
+        _expectInvalidAuctionId(1);
         auctionModule.terminateAuction(1);
         vm.stopPrank();
 
@@ -1453,35 +1420,31 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.unpause();
 
         // test not enough lots remaining
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_NotEnoughLotsRemaining(uint256,uint256)", auctionId, 1));
+        _expectNotEnoughLotsRemaining(auctionId, 1);
         auctionModule.buyLots(auctionId, 2);
 
         // test invalid caller not safety module
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_CallerIsNotSafetyModule(address)", address(this)));
+        _expectAuctionModuleCallerIsNotSafetyModule(address(this));
         auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_CallerIsNotSafetyModule(address)", address(this)));
+        _expectAuctionModuleCallerIsNotSafetyModule(address(this));
         auctionModule.terminateAuction(auctionId);
 
         // test auction still active
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "AuctionModule_AuctionStillActive(uint256,uint256)", auctionId, block.timestamp + 10 days
-            )
-        );
+        _expectAuctionStillActive(auctionId, block.timestamp + 10 days);
         auctionModule.completeAuction(auctionId);
 
         // skip to auction end time
         skip(10 days);
 
         // test auction not active
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+        _expectAuctionNotActive(auctionId);
         auctionModule.buyLots(auctionId, 1); // reverts due to timestamp check, not active flag
         // complete auction manually, setting active flag to false
         auctionModule.completeAuction(auctionId);
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+        _expectAuctionNotActive(auctionId);
         auctionModule.completeAuction(auctionId);
         vm.startPrank(address(safetyModule));
-        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+        _expectAuctionNotActive(auctionId);
         auctionModule.terminateAuction(auctionId);
         vm.stopPrank();
     }
@@ -1585,5 +1548,137 @@ contract SafetyModuleTest is Deployment, Utils {
             (newCumRewardPerLpToken - rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, market))
         ).wadMul(rewardDistributor.computeRewardMultiplier(user, market));
         return newUserRewards;
+    }
+
+    /* ***************** */
+    /*   Error Helpers   */
+    /* ***************** */
+
+    function _expectStakedTokenCallerIsNotSafetyModule(address caller) internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_CallerIsNotSafetyModule(address)", caller));
+    }
+
+    function _expectAuctionModuleCallerIsNotSafetyModule(address caller) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_CallerIsNotSafetyModule(address)", caller));
+    }
+
+    function _expectCallerIsNotStakingToken(address caller) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotStakingToken(address)", caller));
+    }
+
+    function _expectCallerIsNotAuctionModule(address caller) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotAuctionModule(address)", caller));
+    }
+
+    function _expectStakingTokenAlreadyRegistered(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_StakingTokenAlreadyRegistered(address)", token));
+    }
+
+    function _expectInvalidStakingToken(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_InvalidStakingToken(address)", token));
+    }
+
+    function _expectInsufficientSlashedTokensForAuction(address token, uint256 expected, uint256 actual) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "SafetyModule_InsufficientSlashedTokensForAuction(address,uint256,uint256)", token, expected, actual
+            )
+        );
+    }
+
+    function _expectInvalidSlashPercentTooHigh() internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_InvalidSlashPercentTooHigh()"));
+    }
+
+    function _expectInvalidMaxMultiplierTooLow(uint256 value, uint256 min) internal {
+        vm.expectRevert(abi.encodeWithSignature("SMRD_InvalidMaxMultiplierTooLow(uint256,uint256)", value, min));
+    }
+
+    function _expectInvalidMaxMultiplierTooHigh(uint256 value, uint256 max) internal {
+        vm.expectRevert(abi.encodeWithSignature("SMRD_InvalidMaxMultiplierTooHigh(uint256,uint256)", value, max));
+    }
+
+    function _expectInvalidSmoothingValueTooLow(uint256 value, uint256 min) internal {
+        vm.expectRevert(abi.encodeWithSignature("SMRD_InvalidSmoothingValueTooLow(uint256,uint256)", value, min));
+    }
+
+    function _expectInvalidSmoothingValueTooHigh(uint256 value, uint256 max) internal {
+        vm.expectRevert(abi.encodeWithSignature("SMRD_InvalidSmoothingValueTooHigh(uint256,uint256)", value, max));
+    }
+
+    function _expectRewardDistributorInvalidZeroAddress() internal {
+        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()"));
+    }
+
+    function _expectAlreadyInitializedStartTime(address market) internal {
+        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", market));
+    }
+
+    function _expectStakedTokenInvalidZeroAmount() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
+    }
+
+    function _expectStakedTokenInvalidZeroAddress() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAddress()"));
+    }
+
+    function _expectZeroBalanceAtCooldown() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_ZeroBalanceAtCooldown()"));
+    }
+
+    function _expectAboveMaxStakeAmount(uint256 max, uint256 amount) internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_AboveMaxStakeAmount(uint256,uint256)", max, amount));
+    }
+
+    function _expectInsufficientCooldown(uint256 endTime) internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_InsufficientCooldown(uint256)", endTime));
+    }
+
+    function _expectUnstakeWindowFinished(uint256 endTime) internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_UnstakeWindowFinished(uint256)", endTime));
+    }
+
+    function _expectZeroExchangeRate() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_ZeroExchangeRate()"));
+    }
+
+    function _expectSlashingDisabledInPostSlashingState() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_SlashingDisabledInPostSlashingState()"));
+    }
+
+    function _expectStakingDisabledInPostSlashingState() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
+    }
+
+    function _expectCooldownDisabledInPostSlashingState() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_CooldownDisabledInPostSlashingState()"));
+    }
+
+    function _expectInvalidZeroArgument(uint256 argIdx) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroArgument(uint256)", argIdx));
+    }
+
+    function _expectInvalidZeroAddress(uint256 argIdx) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidZeroAddress(uint256)", argIdx));
+    }
+
+    function _expectInvalidAuctionId(uint256 auctionId) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", auctionId));
+    }
+
+    function _expectNotEnoughLotsRemaining(uint256 auctionId, uint256 lotsRemaining) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature("AuctionModule_NotEnoughLotsRemaining(uint256,uint256)", auctionId, lotsRemaining)
+        );
+    }
+
+    function _expectAuctionStillActive(uint256 auctionId, uint256 endTime) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature("AuctionModule_AuctionStillActive(uint256,uint256)", auctionId, endTime)
+        );
+    }
+
+    function _expectAuctionNotActive(uint256 auctionId) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
     }
 }

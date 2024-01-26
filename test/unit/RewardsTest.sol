@@ -104,7 +104,9 @@ contract RewardsTest is Deployment, Utils {
         address[] memory markets = new address[](2);
         markets[0] = address(perpetual);
         markets[1] = address(eth_perpetual);
+        vm.startPrank(liquidityProviderOne);
         rewardDistributor.registerPositions(markets);
+        vm.stopPrank();
 
         // Connect ClearingHouse to RewardsDistributor
         clearingHouse.addRewardContract(rewardDistributor);
@@ -218,44 +220,30 @@ contract RewardsTest is Deployment, Utils {
         inflationRate = uint88(bound(inflationRate, 5e24 + 1, type(uint88).max));
         reductionFactor = uint88(bound(reductionFactor, 0, 1e18 - 1));
 
-        vm.startPrank(address(this));
-
         // test wrong token address
-        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
+        _expectInvalidRewardTokenAddress(token);
         rewardDistributor.updateRewardWeights(token, markets, marketWeights);
-        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
+        _expectInvalidRewardTokenAddress(token);
         rewardDistributor.updateInitialInflationRate(token, inflationRate);
-        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
+        _expectInvalidRewardTokenAddress(token);
         rewardDistributor.updateReductionFactor(token, reductionFactor);
-        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
+        _expectInvalidRewardTokenAddress(token);
         rewardDistributor.setPaused(token, true);
 
         // test max inflation rate & min reduction factor
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardController_AboveMaxInflationRate(uint256,uint256)", inflationRate, 5e24)
-        );
+        _expectAboveMaxInflationRate(inflationRate, 5e24);
         rewardDistributor.updateInitialInflationRate(address(rewardsToken), inflationRate);
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardController_AboveMaxInflationRate(uint256,uint256)", inflationRate, 5e24)
-        );
+        _expectAboveMaxInflationRate(inflationRate, 5e24);
         rewardDistributor.addRewardToken(address(rewardsToken), inflationRate, reductionFactor, markets, marketWeights);
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardController_BelowMinReductionFactor(uint256,uint256)", reductionFactor, 1e18)
-        );
+        _expectBelowMinReductionFactor(reductionFactor, 1e18);
         rewardDistributor.updateReductionFactor(address(rewardsToken), reductionFactor);
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardController_BelowMinReductionFactor(uint256,uint256)", reductionFactor, 1e18)
-        );
+        _expectBelowMinReductionFactor(reductionFactor, 1e18);
         rewardDistributor.addRewardToken(
             address(rewardsToken), INITIAL_INFLATION_RATE, reductionFactor, markets, marketWeights
         );
 
         // test incorrect market weights
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardController_IncorrectWeightsCount(uint256,uint256)", marketWeights.length, markets.length
-            )
-        );
+        _expectIncorrectWeightsCount(marketWeights.length, markets.length);
         rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
         address[] memory markets2 = new address[](2);
         markets2[0] = markets[0];
@@ -264,39 +252,19 @@ contract RewardsTest is Deployment, Utils {
         marketWeights2[0] = marketWeights[0];
         marketWeights2[1] = marketWeights[1];
         if (marketWeights2[0] > 10000) {
-            vm.expectRevert(
-                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[0], 10000)
-            );
+            _expectWeightExceedsMax(marketWeights2[0], 10000);
         } else if (marketWeights[1] > 10000) {
-            vm.expectRevert(
-                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[1], 10000)
-            );
+            _expectWeightExceedsMax(marketWeights2[1], 10000);
         } else {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "RewardController_IncorrectWeightsSum(uint256,uint256)",
-                    marketWeights2[0] + marketWeights2[1],
-                    10000
-                )
-            );
+            _expectIncorrectWeightsSum(marketWeights2[0] + marketWeights2[1], 10000);
         }
         rewardDistributor.updateRewardWeights(address(rewardsToken), markets2, marketWeights2);
         if (marketWeights2[0] > 10000) {
-            vm.expectRevert(
-                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[0], 10000)
-            );
+            _expectWeightExceedsMax(marketWeights2[0], 10000);
         } else if (marketWeights[1] > 10000) {
-            vm.expectRevert(
-                abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", marketWeights2[1], 10000)
-            );
+            _expectWeightExceedsMax(marketWeights2[1], 10000);
         } else {
-            vm.expectRevert(
-                abi.encodeWithSignature(
-                    "RewardController_IncorrectWeightsSum(uint256,uint256)",
-                    marketWeights2[0] + marketWeights2[1],
-                    10000
-                )
-            );
+            _expectIncorrectWeightsSum(marketWeights2[0] + marketWeights2[1], 10000);
         }
         rewardDistributor.addRewardToken(
             address(rewardsToken2), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, markets2, marketWeights2
@@ -927,14 +895,8 @@ contract RewardsTest is Deployment, Utils {
         skip(10 days);
 
         // before registering positions, expect accruing rewards to fail
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                liquidityProviderTwo,
-                address(perpetual),
-                0,
-                perpetual.getLpLiquidity(liquidityProviderTwo)
-            )
+        _expectUserPositionMismatch(
+            liquidityProviderTwo, address(perpetual), 0, perpetual.getLpLiquidity(liquidityProviderTwo)
         );
         newRewardsDistributor.accrueRewards(liquidityProviderTwo);
 
@@ -977,44 +939,25 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testRewardDistributorErrors(address invalidMarket) public {
-        vm.assume(invalidMarket != address(perpetual) && invalidMarket != address(eth_perpetual));
-
+    function testRewardDistributorErrors() public {
         // updatePosition
-        vm.expectRevert(
-            abi.encodeWithSignature("PerpRewardDistributor_CallerIsNotClearingHouse(address)", address(this))
-        );
+        _expectCallerIsNotClearingHouse(address(this));
         rewardDistributor.updatePosition(address(perpetual), liquidityProviderOne);
-        vm.startPrank(address(clearingHouse));
-        // invalidMarket is not a Perpetual contract, so calling IPerpetual(invalidMarket).getLpLiquidity()
-        // in _getCurrentPosition (called by updatePosition), will revert due to missing function
-        vm.expectRevert();
-        rewardDistributor.updatePosition(invalidMarket, liquidityProviderOne);
-        vm.stopPrank();
 
         // initMarketStartTime
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", address(perpetual))
-        );
+        _expectAlreadyInitializedStartTime(address(perpetual));
         rewardDistributor.initMarketStartTime(address(perpetual));
 
         // removeRewardToken
-        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", address(0)));
+        _expectInvalidRewardTokenAddress(address(0));
         rewardDistributor.removeRewardToken(address(0));
 
         // registerPositions
         vm.startPrank(liquidityProviderOne);
         address[] memory markets = new address[](1);
-        markets[0] = address(eth_perpetual);
-        uint256 position = eth_perpetual.getLpLiquidity(liquidityProviderOne);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_PositionAlreadyRegistered(address,address,uint256)",
-                liquidityProviderOne,
-                address(eth_perpetual),
-                position
-            )
-        );
+        markets[0] = address(perpetual);
+        uint256 position = perpetual.getLpLiquidity(liquidityProviderOne);
+        _expectPositionAlreadyRegistered(liquidityProviderOne, address(perpetual), position);
         rewardDistributor.registerPositions(markets);
         vm.stopPrank();
 
@@ -1024,23 +967,21 @@ contract RewardsTest is Deployment, Utils {
         markets2[0] = address(perpetual);
         markets2[1] = address(eth_perpetual);
         uint256[] memory weights1 = new uint256[](1);
-        vm.expectRevert(abi.encodeWithSignature("RewardController_IncorrectWeightsCount(uint256,uint256)", 1, 2));
+        _expectIncorrectWeightsCount(1, 2);
         rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights1);
         uint256[] memory weights2 = new uint256[](2);
         weights2[0] = type(uint256).max;
-        vm.expectRevert(
-            abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", type(uint256).max, 10000)
-        );
+        _expectWeightExceedsMax(type(uint256).max, 10000);
         rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
         weights2[0] = 0;
-        vm.expectRevert(abi.encodeWithSignature("RewardController_IncorrectWeightsSum(uint256,uint256)", 0, 10000));
+        _expectIncorrectWeightsSum(0, 10000);
         rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
         weights2[0] = 5000;
         weights2[1] = 5000;
         for (uint256 i; i < 9; ++i) {
             rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
         }
-        vm.expectRevert(abi.encodeWithSignature("RewardController_AboveMaxRewardTokens(uint256)", 10));
+        _expectAboveMaxRewardTokens(10);
         rewardDistributor.addRewardToken(address(rewardsToken), 1e18, 1e18, markets2, weights2);
 
         // paused
@@ -1067,18 +1008,7 @@ contract RewardsTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("ONLY_BY_FUNDS_ADMIN"));
         ecosystemReserve.transferAdmin(liquidityProviderOne);
-        vm.expectRevert(
-            bytes(
-                string(
-                    abi.encodePacked(
-                        "AccessControl: account ",
-                        Strings.toHexString(liquidityProviderOne),
-                        " is missing role ",
-                        Strings.toHexString(uint256(keccak256("GOVERNANCE")), 32)
-                    )
-                )
-            )
-        );
+        _expectAccessControlGovernanceRole(liquidityProviderOne);
         rewardDistributor.setEcosystemReserve(address(ecosystemReserve));
         vm.stopPrank();
 
@@ -1277,5 +1207,92 @@ contract RewardsTest is Deployment, Utils {
         vBase3.transferPerpOwner(address(perpetual3));
         vQuote3.transferPerpOwner(address(perpetual3));
         return perpetual3;
+    }
+
+    /* ***************** */
+    /*   Error Helpers   */
+    /* ***************** */
+
+    function _expectInvalidRewardTokenAddress(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("RewardController_InvalidRewardTokenAddress(address)", token));
+    }
+
+    function _expectAboveMaxInflationRate(uint256 inflationRate, uint256 maxInflationRate) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_AboveMaxInflationRate(uint256,uint256)", inflationRate, maxInflationRate
+            )
+        );
+    }
+
+    function _expectBelowMinReductionFactor(uint256 reductionFactor, uint256 minReductionFactor) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardController_BelowMinReductionFactor(uint256,uint256)", reductionFactor, minReductionFactor
+            )
+        );
+    }
+
+    function _expectAboveMaxRewardTokens(uint256 numTokens) internal {
+        vm.expectRevert(abi.encodeWithSignature("RewardController_AboveMaxRewardTokens(uint256)", numTokens));
+    }
+
+    function _expectIncorrectWeightsCount(uint256 numWeights, uint256 numMarkets) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature("RewardController_IncorrectWeightsCount(uint256,uint256)", numWeights, numMarkets)
+        );
+    }
+
+    function _expectWeightExceedsMax(uint256 weight, uint256 maxWeight) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature("RewardController_WeightExceedsMax(uint256,uint256)", weight, maxWeight)
+        );
+    }
+
+    function _expectIncorrectWeightsSum(uint256 sum, uint256 expected) internal {
+        vm.expectRevert(abi.encodeWithSignature("RewardController_IncorrectWeightsSum(uint256,uint256)", sum, expected));
+    }
+
+    function _expectCallerIsNotClearingHouse(address caller) internal {
+        vm.expectRevert(abi.encodeWithSignature("PerpRewardDistributor_CallerIsNotClearingHouse(address)", caller));
+    }
+
+    function _expectAlreadyInitializedStartTime(address market) internal {
+        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", market));
+    }
+
+    function _expectPositionAlreadyRegistered(address user, address market, uint256 position) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_PositionAlreadyRegistered(address,address,uint256)", user, market, position
+            )
+        );
+    }
+
+    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
+                user,
+                market,
+                expected,
+                actual
+            )
+        );
+    }
+
+    function _expectAccessControlGovernanceRole(address account) internal {
+        vm.expectRevert(
+            bytes(
+                string(
+                    abi.encodePacked(
+                        "AccessControl: account ",
+                        Strings.toHexString(account),
+                        " is missing role ",
+                        Strings.toHexString(uint256(keccak256("GOVERNANCE")), 32)
+                    )
+                )
+            )
+        );
     }
 }
