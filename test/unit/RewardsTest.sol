@@ -35,7 +35,8 @@ contract RewardsTest is Deployment, Utils {
     using LibMath for uint256;
 
     event MarketRemovedFromRewards(address indexed market, address indexed rewardToken);
-
+    event RewardTokenRemoved(address indexed rewardToken, uint256 unclaimedRewards, uint256 remainingBalance);
+    event RewardTokenShortfall(address indexed rewardToken, uint256 shortfallAmount);
     event NewFundsAdmin(address indexed fundsAdmin);
     event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystemReserve);
 
@@ -375,6 +376,12 @@ contract RewardsTest is Deployment, Utils {
         }
 
         // remove reward token 2
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenRemoved(
+            address(rewardsToken2),
+            accruedRewards[1][0] + accruedRewards[1][1],
+            20000000e18 - accruedRewards[1][0] - accruedRewards[1][1]
+        );
         rewardDistributor.removeRewardToken(address(rewardsToken2));
 
         // claim rewards
@@ -445,6 +452,8 @@ contract RewardsTest is Deployment, Utils {
         );
 
         // claim rewards, causing shortfall for token 2
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenShortfall(address(rewardsToken2), accruedRewards2 - 10e18);
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards1, "Incorrect claimed balance");
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance");
