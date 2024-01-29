@@ -502,20 +502,14 @@ contract RewardsTest is Deployment, Utils {
         thresholdTime = bound(thresholdTime, 1 days, 10 days);
         skipTime = bound(skipTime, thresholdTime / 10, thresholdTime / 2);
 
+        // set early withdrawal threshold and provide liquidity
         rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
-
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // store initial state before removing liquidity
-        uint256[] memory balances = new uint256[](2);
-        balances[0] = perpetual.getLpLiquidity(liquidityProviderTwo);
-        balances[1] = eth_perpetual.getLpLiquidity(liquidityProviderTwo);
-        uint256[] memory prevCumRewards = new uint256[](2);
-        prevCumRewards[0] = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
-        prevCumRewards[1] = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(eth_perpetual));
-        uint256[] memory prevTotalLiquidity = new uint256[](2);
-        prevTotalLiquidity[0] = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
-        prevTotalLiquidity[1] = rewardDistributor.totalLiquidityPerMarket(address(eth_perpetual));
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket();
 
         // skip some time
         skip(skipTime);
@@ -537,10 +531,8 @@ contract RewardsTest is Deployment, Utils {
 
         // store updated balance and cumulative rewards per lp token before removing more liquidity
         balances[0] = perpetual.getLpLiquidity(liquidityProviderTwo);
-        prevCumRewards[0] = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
-        prevCumRewards[1] = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(eth_perpetual));
-        prevTotalLiquidity[0] = rewardDistributor.totalLiquidityPerMarket(address(perpetual));
-        prevTotalLiquidity[1] = rewardDistributor.totalLiquidityPerMarket(address(eth_perpetual));
+        prevCumRewards = _getCumulativeRewardsByToken(address(rewardsToken));
+        prevTotalLiquidity = _getTotalLiquidityPerMarket();
 
         // remove some liquidity again from first perpetual
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
@@ -1007,6 +999,36 @@ contract RewardsTest is Deployment, Utils {
             "Incorrect user rewards"
         );
         return accruedRewards;
+    }
+
+    function _getUserBalances(address user) internal view returns (uint256[] memory) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256[] memory balances = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; ++i) {
+            balances[i] = clearingHouse.perpetuals(clearingHouse.id(i)).getLpLiquidity(user);
+        }
+        return balances;
+    }
+
+    function _getCumulativeRewardsByToken(address token) internal view returns (uint256[] memory) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256[] memory cumulativeRewards = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; ++i) {
+            cumulativeRewards[i] = rewardDistributor.cumulativeRewardPerLpToken(
+                token, address(clearingHouse.perpetuals(clearingHouse.id(i)))
+            );
+        }
+        return cumulativeRewards;
+    }
+
+    function _getTotalLiquidityPerMarket() internal view returns (uint256[] memory) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256[] memory totalLiquidity = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; ++i) {
+            totalLiquidity[i] =
+                rewardDistributor.totalLiquidityPerMarket(address(clearingHouse.perpetuals(clearingHouse.id(i))));
+        }
+        return totalLiquidity;
     }
 
     function _checkRewards(address token, address user, uint256 skipTime, uint256 initialRewards)
