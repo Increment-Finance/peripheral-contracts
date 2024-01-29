@@ -345,15 +345,7 @@ contract RewardsTest is Deployment, Utils {
         skip(10 days);
 
         // add a new reward token
-        address[] memory markets = new address[](2);
-        markets[0] = address(perpetual);
-        markets[1] = address(eth_perpetual);
-        uint256[] memory marketWeights = new uint256[](2);
-        marketWeights[0] = marketWeight1;
-        marketWeights[1] = 10000 - marketWeight1;
-        rewardDistributor.addRewardToken(
-            address(rewardsToken2), inflationRate2, reductionFactor2, markets, marketWeights
-        );
+        rewardsToken2 = _addRewardToken(marketWeight1, 20000000e18, inflationRate2, reductionFactor2);
 
         // skip some more time
         skip(10 days);
@@ -429,49 +421,32 @@ contract RewardsTest is Deployment, Utils {
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // add a new reward token with a low total supply
-        address[] memory markets = new address[](2);
-        markets[0] = address(perpetual);
-        markets[1] = address(eth_perpetual);
-        uint256[] memory marketWeights = new uint256[](2);
-        marketWeights[0] = marketWeight1;
-        marketWeights[1] = 10000 - marketWeight1;
-        rewardsToken2 = new IncrementToken(10e18, address(this));
-        rewardsToken2.unpause();
-        rewardDistributor.addRewardToken(
-            address(rewardsToken2), inflationRate2, reductionFactor2, markets, marketWeights
-        );
-        rewardsToken2.transfer(address(ecosystemReserve), rewardsToken2.totalSupply());
-        ecosystemReserve.approve(rewardsToken2, address(rewardDistributor), type(uint256).max);
+        rewardsToken2 = _addRewardToken(marketWeight1, 10e18, inflationRate2, reductionFactor2);
 
         // skip some time
         skip(10 days);
 
-        // check previews and rewards for token 1
-        uint256[] memory previewAccrualsPerp1 = _viewNewRewardAccrual(address(perpetual), liquidityProviderTwo);
-        rewardDistributor.accrueRewards(address(perpetual), liquidityProviderTwo);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
+        // check previews and rewards for both tokens
+        uint256[] memory previewAccruals = _viewNewRewardAccrual(liquidityProviderTwo);
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards1 = _checkRewards(address(rewardsToken), liquidityProviderTwo, 10, 0);
         assertApproxEqRel(
-            accruedRewards,
-            previewAccrualsPerp1[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1 perp 1"
-        );
-        uint256[] memory previewAccrualsPerp2 = _viewNewRewardAccrual(address(eth_perpetual), liquidityProviderTwo);
-        rewardDistributor.accrueRewards(address(eth_perpetual), liquidityProviderTwo);
-        accruedRewards = _checkRewards(address(rewardsToken), liquidityProviderTwo, 10, 0);
-        assertApproxEqRel(
-            accruedRewards,
-            previewAccrualsPerp1[0] + previewAccrualsPerp2[0],
+            accruedRewards1,
+            previewAccruals[0],
             1e15, // 0.1%
             "Incorrect accrued rewards preview: token 1"
         );
-
-        // check rewards for token 2
         uint256 accruedRewards2 = _checkRewards(address(rewardsToken2), liquidityProviderTwo, 10, 0);
+        assertApproxEqRel(
+            accruedRewards2,
+            previewAccruals[1],
+            1e15, // 0.1%
+            "Incorrect accrued rewards preview: token 2"
+        );
 
-        // claim rewards
+        // claim rewards, causing shortfall for token 2
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards, "Incorrect claimed balance");
+        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards1, "Incorrect claimed balance");
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
@@ -486,15 +461,19 @@ contract RewardsTest is Deployment, Utils {
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // check that rewards are still accruing for token 2
-        uint256 accruedRewards2_2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
-        assertGt(accruedRewards2_2, accruedRewards2, "Rewards not accrued after adding more liquidity");
+        assertGt(
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2)),
+            accruedRewards2,
+            "Rewards not accrued after adding more liquidity"
+        );
+        accruedRewards2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
 
         // fail to claim rewards again after token 2 is depleted
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Tokens claimed after token 2 depleted");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
-            accruedRewards2_2,
+            accruedRewards2,
             "Incorrect unclaimed rewards after second accrual"
         );
     }
@@ -1158,6 +1137,23 @@ contract RewardsTest is Deployment, Utils {
             (newCumRewardPerLpToken - rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, market))
         );
         return newUserRewards;
+    }
+
+    function _addRewardToken(uint256 marketWeight1, uint256 totalSupply, uint88 inflationRate, uint88 reductionFactor)
+        internal
+        returns (IncrementToken token)
+    {
+        address[] memory markets = new address[](2);
+        markets[0] = address(perpetual);
+        markets[1] = address(eth_perpetual);
+        uint256[] memory marketWeights = new uint256[](2);
+        marketWeights[0] = marketWeight1;
+        marketWeights[1] = 10000 - marketWeight1;
+        token = new IncrementToken(totalSupply, address(this));
+        token.unpause();
+        rewardDistributor.addRewardToken(address(token), inflationRate, reductionFactor, markets, marketWeights);
+        token.transfer(address(ecosystemReserve), token.totalSupply());
+        ecosystemReserve.approve(token, address(rewardDistributor), type(uint256).max);
     }
 
     function _deployTestPerpetual() internal returns (TestPerpetual) {
