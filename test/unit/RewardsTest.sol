@@ -276,7 +276,7 @@ contract RewardsTest is Deployment, Utils {
     /*  RewardDistributor  */
     /* ******************* */
 
-    function testDelayedDepositScenario(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
+    function testDelayedDeposit(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
@@ -327,7 +327,7 @@ contract RewardsTest is Deployment, Utils {
         _accrueAndCheckUserRewards(address(rewardsToken), liquidityProviderTwo, 0);
     }
 
-    function testMultipleRewardScenario(
+    function testMultipleRewardTokens(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint88 inflationRate2,
@@ -412,7 +412,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testMultipleRewardShortfallScenario(
+    function testShortfallMultipleRewards(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint88 inflationRate2,
@@ -488,7 +488,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testEarlyWithdrawScenario(
+    function testEarlyWithdrawal(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint256 reductionRatio,
