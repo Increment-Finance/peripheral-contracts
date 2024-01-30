@@ -916,18 +916,14 @@ contract RewardsTest is Deployment, Utils {
         returns (uint256)
     {
         uint256 numMarkets = clearingHouse.getNumMarkets();
-        uint256[] memory priorCumRewards = new uint256[](numMarkets);
-        IPerpetual[] memory markets = new IPerpetual[](numMarkets);
-        for (uint256 i; i < numMarkets; ++i) {
-            markets[i] = clearingHouse.perpetuals(clearingHouse.id(i));
-            priorCumRewards[i] = rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, address(markets[i]));
-        }
+        uint256[] memory priorCumRewards = _getCumulativeRewardsByUserByToken(rewardDistributor, token, user);
+        address[] memory markets = _getMarkets();
         rewardDistributor.accrueRewards(user);
         uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(user, token);
         assertGt(accruedRewards, 0, "Rewards not accrued");
         uint256 expectedAccruedRewards = initialRewards;
         for (uint256 i; i < numMarkets; ++i) {
-            IPerpetual market = markets[i];
+            IPerpetual market = IPerpetual(markets[i]);
             uint256 cumulativeRewards = rewardDistributor.cumulativeRewardPerLpToken(token, address(market));
             expectedAccruedRewards += (cumulativeRewards - priorCumRewards[i]).wadMul(market.getLpLiquidity(user));
         }
@@ -981,6 +977,21 @@ contract RewardsTest is Deployment, Utils {
         for (uint256 i; i < numMarkets; ++i) {
             cumulativeRewards[i] =
                 distributor.cumulativeRewardPerLpToken(token, address(clearingHouse.perpetuals(clearingHouse.id(i))));
+        }
+        return cumulativeRewards;
+    }
+
+    function _getCumulativeRewardsByUserByToken(TestPerpRewardDistributor distributor, address token, address user)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256[] memory cumulativeRewards = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; ++i) {
+            cumulativeRewards[i] = distributor.cumulativeRewardPerLpTokenPerUser(
+                user, token, address(clearingHouse.perpetuals(clearingHouse.id(i)))
+            );
         }
         return cumulativeRewards;
     }
