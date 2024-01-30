@@ -345,8 +345,24 @@ abstract contract RewardDistributor is IRewardDistributor, IRewardContract, Rewa
         }
         uint256 lpPosition = _getCurrentPosition(_user, _market);
         if (lpPosition == 0) return;
+        _updateMarketRewards(_market);
         lpPositionsPerUser[_user][_market] = lpPosition;
         totalLiquidityPerMarket[_market] += lpPosition;
+        uint256 numTokens = rewardTokens.length;
+        for (uint256 i; i < numTokens;) {
+            address token = rewardTokens[i];
+            uint256 cumulativeReward = cumulativeRewardPerLpToken[token][_market];
+            if (cumulativeReward == 0) {
+                unchecked {
+                    ++i;
+                }
+                continue;
+            }
+            cumulativeRewardPerLpTokenPerUser[_user][token][_market] = cumulativeReward;
+            unchecked {
+                ++i;
+            }
+        }
         emit PositionUpdated(_user, _market, 0, lpPosition);
     }
 
