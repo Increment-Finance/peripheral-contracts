@@ -352,12 +352,6 @@ abstract contract RewardDistributor is IRewardDistributor, IRewardContract, Rewa
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             uint256 cumulativeReward = cumulativeRewardPerLpToken[token][_market];
-            if (cumulativeReward == 0) {
-                unchecked {
-                    ++i;
-                }
-                continue;
-            }
             cumulativeRewardPerLpTokenPerUser[_user][token][_market] = cumulativeReward;
             unchecked {
                 ++i;
