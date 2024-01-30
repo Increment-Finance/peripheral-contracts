@@ -1379,7 +1379,7 @@ contract RewardsTest is Deployment, Utils {
         uint256 newMarketRewards =
             (((rewardDistributor.getInflationRate(token) * marketWeight) / 10000) * deltaTime) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor.cumulativeRewardPerLpToken(token, market)
-            + (newMarketRewards * 1e18) / rewardDistributor.totalLiquidityPerMarket(market);
+            + newMarketRewards.wadDiv(rewardDistributor.totalLiquidityPerMarket(market));
         uint256 newUserRewards = rewardDistributor.lpPositionsPerUser(user, market).wadMul(
             (newCumRewardPerLpToken - rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, market))
         );
