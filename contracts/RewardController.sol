@@ -221,7 +221,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(rewardToken);
         }
-        if (rewardInfoByToken[rewardToken].paused == false) {
+        if (paused && !rewardInfoByToken[rewardToken].paused) {
             // If not currently paused, accrue rewards before pausing
             uint256 numMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
             for (uint256 i; i < numMarkets;) {
