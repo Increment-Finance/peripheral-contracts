@@ -221,7 +221,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _stake(stakedToken2, liquidityProviderOne, balancerPool.balanceOf(liquidityProviderOne));
     }
 
-    function testDeployment() public {
+    function test_Deployment() public {
         assertEq(safetyModule.getNumStakingTokens(), 2, "Staking token count mismatch");
         assertEq(address(safetyModule.stakingTokens(0)), address(stakedToken1), "Market address mismatch");
         assertEq(safetyModule.getStakingTokenIdx(address(stakedToken2)), 1, "Staking token index mismatch");
@@ -247,7 +247,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*   Staking Rewards   */
     /* ******************* */
 
-    function testRewardMultiplier() public {
+    function test_RewardMultiplier() public {
         // Test with smoothing value of 30 and max multiplier of 4
         // These values match those in the spreadsheet used to design the SM rewards
         _stake(stakedToken1, liquidityProviderTwo, 100 ether);
@@ -331,7 +331,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
-    function testMultipliedRewardAccrual(uint256 stakeAmount) public {
+    function testFuzz_MultipliedRewardAccrual(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
 
@@ -394,7 +394,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
-    function testPreExistingBalances(uint256 maxTokenAmountIntoBalancer) public {
+    function testFuzz_PreExistingBalances(uint256 maxTokenAmountIntoBalancer) public {
         // liquidityProvider2 starts with 10,000 INCR and 10 WETH
         maxTokenAmountIntoBalancer = bound(maxTokenAmountIntoBalancer, 100e18, 9_000e18);
 
@@ -511,7 +511,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _claimAndRedeemAll(stakedTokens, newRewardDistributor, liquidityProviderTwo);
     }
 
-    function testRewardTokenShortfall(uint256 stakeAmount) public {
+    function testFuzz_RewardTokenShortfall(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
 
@@ -576,7 +576,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
-    function testStakedTokenZeroLiquidity() public {
+    function test_StakedTokenZeroLiquidity() public {
         // Deploy a third staked token
         StakedToken stakedToken3 = new StakedToken(
             rewardsToken, safetyModule, COOLDOWN_SECONDS, UNSTAKE_WINDOW, MAX_STAKE_AMOUNT_1, "Staked INCR 2", "stINCR2"
@@ -616,7 +616,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
-    function testStakedTokenTransfer(uint256 stakeAmount) public {
+    function testFuzz_StakedTokenTransfer(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
 
@@ -731,7 +731,7 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardDistributor.claimRewardsFor(liquidityProviderOne);
     }
 
-    function testNextCooldownTimestamp() public {
+    function test_NextCooldownTimestamp() public {
         // When user first stakes, next cooldown timestamp should be 0
         assertEq(
             stakedToken1.getNextCooldownTimestamp(
@@ -822,7 +822,9 @@ contract SafetyModuleTest is Deployment, Utils {
     /*  Slashing/Auctions  */
     /* ******************* */
 
-    function testStakedTokenExchangeRate(uint256 donatePercent, uint256 slashPercent, uint256 stakeAmount) public {
+    function testFuzz_StakedTokenExchangeRate(uint256 donatePercent, uint256 slashPercent, uint256 stakeAmount)
+        public
+    {
         /* bounds */
         donatePercent = bound(donatePercent, 1e16, 1e18);
         slashPercent = bound(slashPercent, 1e16, 1e18);
@@ -899,7 +901,9 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning slashed amount");
     }
 
-    function testAuctionSoldOut(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent) public {
+    function testFuzz_AuctionSoldOut(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent)
+        public
+    {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
@@ -979,7 +983,9 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
-    function testAuctionTimeOut(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent) public {
+    function testFuzz_AuctionTimeOut(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent)
+        public
+    {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
@@ -1047,9 +1053,12 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
     }
 
-    function testTerminateAuctionEarly(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent)
-        public
-    {
+    function testFuzz_TerminateAuctionEarly(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent
+    ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
@@ -1117,7 +1126,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*    Custom Errors    */
     /* ******************* */
 
-    function testSafetyModuleErrors(
+    function testFuzz_SafetyModuleErrors(
         uint256 invalidMarketIdx,
         address invalidMarket,
         address invalidRewardToken,
@@ -1157,7 +1166,7 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.auctionEnded(0, 0);
     }
 
-    function testSMRDErrors(
+    function testFuzz_SMRDErrors(
         uint256 lowMaxMultiplier,
         uint256 highMaxMultiplier,
         uint256 lowSmoothingValue,
@@ -1202,7 +1211,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused when safety module is unpaused");
     }
 
-    function testStakedTokenErrors(uint256 invalidStakeAmount1, uint256 invalidStakeAmount2) public {
+    function testFuzz_StakedTokenErrors(uint256 invalidStakeAmount1, uint256 invalidStakeAmount2) public {
         /* bounds */
         invalidStakeAmount1 = bound(
             invalidStakeAmount1,
@@ -1352,7 +1361,7 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.unpause();
     }
 
-    function testAuctionModuleErrors() public {
+    function test_AuctionModuleErrors() public {
         // start an auction successfully for later tests
         uint256 auctionId = safetyModule.slashAndStartAuction(
             address(stakedToken1), 1, 1 ether, 1e18, 0.5e18, 0.1 ether, 1 hours, 10 days

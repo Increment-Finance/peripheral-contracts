@@ -134,7 +134,7 @@ contract RewardsTest is Deployment, Utils {
 
     // run tests via source .env && forge test --match <TEST_NAME> --fork-url $ETH_NODE_URI_MAINNET -vv
 
-    function testDeployment() public {
+    function test_Deployment() public {
         assertEq(clearingHouse.getNumMarkets(), 2, "Market count mismatch");
         assertEq(rewardDistributor.getRewardTokenCount(), 1, "Token count mismatch");
         address token = rewardDistributor.rewardTokens(0);
@@ -162,7 +162,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testInflationAndReduction(
+    function testFuzz_InflationAndReduction(
         uint256 timeIncrement,
         uint88 initialInflationRate,
         uint88 initialReductionFactor
@@ -203,7 +203,7 @@ contract RewardsTest is Deployment, Utils {
         assertApproxEqRel(accruedRewards, approxRewards, 5e16, "Incorrect annual rewards");
     }
 
-    function testRewardControllerErrors(
+    function testFuzz_RewardControllerErrors(
         uint88 inflationRate,
         uint88 reductionFactor,
         address[] memory markets,
@@ -274,7 +274,7 @@ contract RewardsTest is Deployment, Utils {
     /*  RewardDistributor  */
     /* ******************* */
 
-    function testDelayedDeposit(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
+    function testFuzz_DelayedDeposit(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
@@ -325,7 +325,7 @@ contract RewardsTest is Deployment, Utils {
         _accrueAndCheckUserRewards(address(rewardsToken), liquidityProviderTwo, 0);
     }
 
-    function testMultipleRewardTokens(
+    function testFuzz_MultipleRewardTokens(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint88 inflationRate2,
@@ -410,7 +410,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testShortfallMultipleRewards(
+    function testFuzz_ShortfallMultipleRewards(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint88 inflationRate2,
@@ -486,7 +486,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testEarlyWithdrawal(
+    function testFuzz_EarlyWithdrawal(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
         uint256 reductionRatio,
@@ -570,7 +570,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testPausingAccrual(uint256 providedLiquidity1) public {
+    function testFuzz_PausingAccrual(uint256 providedLiquidity1) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
@@ -607,7 +607,7 @@ contract RewardsTest is Deployment, Utils {
         assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
     }
 
-    function testAddNewMarket(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
+    function testFuzz_AddNewMarket(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
         public
     {
         /* bounds */
@@ -681,9 +681,11 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testDelistAndReplace(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
-        public
-    {
+    function testFuzz_DelistAndReplace(
+        uint256 providedLiquidity1,
+        uint256 providedLiquidity2,
+        uint256 providedLiquidity3
+    ) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
@@ -756,7 +758,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testPreExistingLiquidity(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
+    function testFuzz_PreExistingLiquidity(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
         providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
@@ -820,7 +822,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testRewardDistributorErrors() public {
+    function test_RewardDistributorErrors() public {
         // updatePosition
         _expectCallerIsNotClearingHouse(address(this));
         rewardDistributor.updatePosition(address(perpetual), liquidityProviderOne);
@@ -882,7 +884,7 @@ contract RewardsTest is Deployment, Utils {
         assertTrue(!rewardDistributor.paused(), "Reward distributor not unpaused directly");
     }
 
-    function testEcosystemReserve() public {
+    function test_EcosystemReserve() public {
         // access control errors
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("ONLY_BY_FUNDS_ADMIN"));
