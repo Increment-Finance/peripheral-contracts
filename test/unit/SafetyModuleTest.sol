@@ -481,7 +481,6 @@ contract SafetyModuleTest is Deployment, Utils {
         skip(10 days);
 
         // check that rewards were accrued correctly
-
         newRewardDistributor.accrueRewards(liquidityProviderTwo);
         uint256 cumulativeRewards1 =
             newRewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(stakedToken1));
@@ -490,8 +489,8 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 inflationRate = newRewardDistributor.getInitialInflationRate(address(rewardsToken));
         uint256 totalLiquidity1 = newRewardDistributor.totalLiquidityPerMarket(address(stakedToken1));
         uint256 totalLiquidity2 = newRewardDistributor.totalLiquidityPerMarket(address(stakedToken2));
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 5000) / 10000) * 20) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 5000) / 10000) * 20) / 365) * 1e18) / totalLiquidity2;
+        uint256 expectedCumulativeRewards1 = (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
+        uint256 expectedCumulativeRewards2 = (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
         assertApproxEqRel(
             cumulativeRewards1,
             expectedCumulativeRewards1,
@@ -1361,7 +1360,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // test invalid zero arguments
         vm.startPrank(address(safetyModule));
-        _expectInvalidZeroArgument(0);
+        _expectInvalidZeroAddress(0);
         auctionModule.startAuction(IERC20(address(0)), 0, 0, 0, 0, 0, 0);
         _expectInvalidZeroArgument(1);
         auctionModule.startAuction(rewardsToken, 0, 0, 0, 0, 0, 0);
