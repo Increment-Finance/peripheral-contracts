@@ -504,28 +504,27 @@ contract RewardsTest is Deployment, Utils {
         rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
+        // skip some time
+        skip(skipTime);
+
         // store initial state before removing liquidity
         uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
         uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(address(rewardsToken));
         uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket();
-
-        // skip some time
-        skip(skipTime);
+        uint256[] memory skipTimes = _getSkipTimes();
+        skipTimes[1] = 0; // removing liquidity will only accrue rewards for the first market
 
         // remove some liquidity from and accrue rewards for first perpetual
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // check that early withdrawal penalty was applied to rewards
-        uint256[] memory skipTimes = new uint256[](2);
-        skipTimes[0] = skipTime;
         uint256 accruedRewards = _checkRewards(
             address(rewardsToken), liquidityProviderTwo, skipTimes, balances, prevCumRewards, prevTotalLiquidity, 0
         );
 
         // skip to the end of the early withdrawal window
         skip(thresholdTime - skipTime);
-        skipTimes[0] = thresholdTime - skipTime;
-        skipTimes[1] = thresholdTime;
+        skipTimes = _getSkipTimes();
 
         // store updated balance and cumulative rewards per lp token before removing more liquidity
         balances[0] = perpetual.getLpLiquidity(liquidityProviderTwo);
@@ -622,6 +621,7 @@ contract RewardsTest is Deployment, Utils {
         // deploy new market contracts
         TestPerpetual perpetual3 = _deployTestPerpetual();
         clearingHouse.allowListPerpetual(perpetual3);
+        rewardDistributor.initMarketStartTime(address(perpetual3));
 
         // skip some time
         skip(10 days);
@@ -631,10 +631,7 @@ contract RewardsTest is Deployment, Utils {
         uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(address(rewardsToken));
         uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket();
         uint256[] memory prevWeights = _getRewardWeights(address(rewardsToken));
-        uint256[] memory skipTimes = new uint256[](3);
-        skipTimes[0] = 10 days;
-        skipTimes[1] = 10 days;
-        skipTimes[2] = 10 days;
+        uint256[] memory skipTimes = _getSkipTimes();
 
         // set new market weights, which also accrues rewards to the first two markets
         address[] memory markets = _getMarkets();
@@ -698,40 +695,28 @@ contract RewardsTest is Deployment, Utils {
         // skip some time
         skip(10 days);
 
+        // store initial state before accruing rewards
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket();
+        uint256[] memory marketWeights = _getRewardWeights(address(rewardsToken));
+        uint256[] memory skipTimes = _getSkipTimes();
+
         // check that rewards were accrued to first two perpetuals at previous weights
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 cumulativeRewards1 =
-            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
-        uint256 cumulativeRewards2 =
-            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(eth_perpetual));
-        uint256 expectedCumulativeRewards1 =
-            _calcExpectedCumulativeRewards(address(rewardsToken), address(perpetual), 10 days);
-        uint256 expectedCumulativeRewards2 =
-            _calcExpectedCumulativeRewards(address(rewardsToken), address(eth_perpetual), 10 days);
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken), liquidityProviderTwo, skipTimes, balances, prevCumRewards, prevTotalLiquidity, 0
         );
 
         // delist second perpertual
-        console.log("Delisting second perpetual: %s", address(eth_perpetual));
-        vm.startPrank(address(this));
         clearingHouse.delistPerpetual(eth_perpetual);
 
         // replace it with a new perpetual
         TestPerpetual perpetual3 = _deployTestPerpetual();
         clearingHouse.allowListPerpetual(perpetual3);
-        console.log("Added new perpetual: %s", address(perpetual3));
         assertEq(clearingHouse.getNumMarkets(), 2, "Incorrect number of markets");
 
+        // check that the new perpetual does not accrue rewards with zero liquidity
         rewardDistributor.initMarketStartTime(address(perpetual3));
         assertEq(
             _viewNewRewardAccrual(address(perpetual3), liquidityProviderTwo, address(rewardsToken)),
@@ -739,40 +724,35 @@ contract RewardsTest is Deployment, Utils {
             "Incorrect accrued rewards preview for new perp without liquidity"
         );
 
-        // set new market weights
+        // set new market weights, same as the old but with the new market in place of eth_perpetual
         address[] memory markets = _getMarkets();
-        uint256[] memory marketWeights = new uint256[](2);
-        marketWeights[0] = INITIAL_MARKET_WEIGHT_0;
-        marketWeights[1] = INITIAL_MARKET_WEIGHT_1;
         vm.expectEmit(false, false, false, true);
         emit MarketRemovedFromRewards(address(eth_perpetual), address(rewardsToken));
         rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
 
-        // provide liquidity to new perpetual
+        // provide liquidity to new perpetual from both users, using providedLiquidity3 for user 2
         _provideLiquidity(10_000e18, liquidityProviderOne, perpetual3);
         fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity3, vault, ua);
         _provideLiquidity(providedLiquidity3, liquidityProviderTwo, perpetual3);
 
-        // skip some time
+        // skip some more time
         skip(10 days);
+
+        // update stored state before accruing rewards again
+        balances = _getUserBalances(liquidityProviderTwo);
+        prevCumRewards = _getCumulativeRewardsByToken(address(rewardsToken));
+        prevTotalLiquidity = _getTotalLiquidityPerMarket();
 
         // check that rewards were accrued to first perpetual and new one at previous weights
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        cumulativeRewards1 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual));
-        cumulativeRewards2 = rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(perpetual3));
-        expectedCumulativeRewards1 = _calcExpectedCumulativeRewards(address(rewardsToken), address(perpetual), 20 days);
-        expectedCumulativeRewards2 = _calcExpectedCumulativeRewards(address(rewardsToken), address(perpetual3), 10 days);
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
+        accruedRewards = _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            accruedRewards
         );
     }
 
@@ -1018,6 +998,16 @@ contract RewardsTest is Deployment, Utils {
                 rewardDistributor.totalLiquidityPerMarket(address(clearingHouse.perpetuals(clearingHouse.id(i))));
         }
         return totalLiquidity;
+    }
+
+    function _getSkipTimes() internal view returns (uint256[] memory) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        uint256[] memory skipTimes = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; ++i) {
+            skipTimes[i] = block.timestamp
+                - rewardDistributor.timeOfLastCumRewardUpdate(address(clearingHouse.perpetuals(clearingHouse.id(i))));
+        }
+        return skipTimes;
     }
 
     function _checkRewards(address token, address user, uint256 skipTime, uint256 initialRewards)
