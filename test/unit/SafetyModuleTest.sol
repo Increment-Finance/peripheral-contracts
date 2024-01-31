@@ -414,7 +414,7 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256[] memory skipTimes = _getSkipTimes(newRewardDistributor);
         uint256[] memory multipliers = _getRewardMultipliers(newRewardDistributor, liquidityProviderTwo);
 
-        // check that rewards were accrued correctly
+        // check that the user only accrues rewards for the 10 days since registering
         newRewardDistributor.accrueRewards(liquidityProviderTwo);
         _checkRewards(
             newRewardDistributor,
@@ -429,8 +429,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
 
         // redeem all staked tokens and claim rewards (for gas measurement)
-        IStakedToken[] memory stakedTokens = _getStakedTokens();
-        _claimAndRedeemAll(stakedTokens, newRewardDistributor, liquidityProviderTwo);
+        _claimAndRedeemAll(_getStakedTokens(), newRewardDistributor, liquidityProviderTwo);
     }
 
     function testFuzz_RewardTokenShortfall(uint256 stakeAmount) public {
@@ -508,18 +507,19 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.addStakingToken(stakedToken3);
 
         // Update the reward weights
-        address[] memory stakingTokens = new address[](3);
-        stakingTokens[0] = address(stakedToken1);
-        stakingTokens[1] = address(stakedToken2);
-        stakingTokens[2] = address(stakedToken3);
+        address[] memory stakingTokens = _getMarkets();
         uint256[] memory rewardWeights = new uint256[](3);
         rewardWeights[0] = 3333;
         rewardWeights[1] = 3334;
         rewardWeights[2] = 3333;
         rewardDistributor.updateRewardWeights(address(rewardsToken), stakingTokens, rewardWeights);
 
-        // Check that rewardToken was added to the list of reward tokens for the new staked token
-        assertEq(rewardDistributor.rewardTokens(0), address(rewardsToken), "Reward token missing for new staked token");
+        // Check that stakedToken3 was added to the list of markets for rewards
+        assertEq(
+            rewardDistributor.getRewardMarkets(address(rewardsToken))[2],
+            address(stakedToken3),
+            "Reward token missing for new staked token"
+        );
 
         // Skip some time
         skip(10 days);
