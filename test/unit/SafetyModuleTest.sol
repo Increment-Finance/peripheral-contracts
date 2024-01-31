@@ -1452,6 +1452,100 @@ contract SafetyModuleTest is Deployment, Utils {
         return markets;
     }
 
+    function _getStakedTokens() internal view returns (IStakedToken[] memory) {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        IStakedToken[] memory markets = new IStakedToken[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            markets[i] = safetyModule.stakingTokens(i);
+        }
+        return markets;
+    }
+
+    function _getUserBalances(address user) internal view returns (uint256[] memory) {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory balances = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            balances[i] = safetyModule.stakingTokens(i).balanceOf(user);
+        }
+        return balances;
+    }
+
+    function _getRewardWeights(TestSMRewardDistributor distributor, address token)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory weights = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            weights[i] = distributor.getRewardWeight(token, address(safetyModule.stakingTokens(i)));
+        }
+        return weights;
+    }
+
+    function _getRewardMultipliers(TestSMRewardDistributor distributor, address user)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory multipliers = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            multipliers[i] = distributor.computeRewardMultiplier(user, address(safetyModule.stakingTokens(i)));
+        }
+        return multipliers;
+    }
+
+    function _getCumulativeRewardsByToken(TestSMRewardDistributor distributor, address token)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory rewards = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            rewards[i] = distributor.cumulativeRewardPerLpToken(token, address(safetyModule.stakingTokens(i)));
+        }
+        return rewards;
+    }
+
+    function _getCumulativeRewardsByUserByToken(TestSMRewardDistributor distributor, address token, address user)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory rewards = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            rewards[i] =
+                distributor.cumulativeRewardPerLpTokenPerUser(user, token, address(safetyModule.stakingTokens(i)));
+        }
+        return rewards;
+    }
+
+    function _getTotalLiquidityPerMarket(TestSMRewardDistributor distributor)
+        internal
+        view
+        returns (uint256[] memory)
+    {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory totalLiquidity = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            totalLiquidity[i] = distributor.totalLiquidityPerMarket(address(safetyModule.stakingTokens(i)));
+        }
+        return totalLiquidity;
+    }
+
+    function _getSkipTimes(TestSMRewardDistributor distributor) internal view returns (uint256[] memory) {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256[] memory skipTimes = new uint256[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            skipTimes[i] =
+                block.timestamp - distributor.timeOfLastCumRewardUpdate(address(safetyModule.stakingTokens(i)));
+        }
+        return skipTimes;
+    }
+
     function _dealAndBuyLots(address buyer, uint256 auctionId, uint8 numLots, uint128 lotPrice) internal {
         IERC20 paymentToken = auctionModule.paymentToken();
         IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(auctionId);
@@ -1553,11 +1647,248 @@ contract SafetyModuleTest is Deployment, Utils {
                 * deltaTime
         ) / 365 days;
         uint256 newCumRewardPerLpToken = rewardDistributor.cumulativeRewardPerLpToken(token, market)
-            + (newMarketRewards * 1e18) / rewardDistributor.totalLiquidityPerMarket(market);
+            + newMarketRewards.wadDiv(rewardDistributor.totalLiquidityPerMarket(market));
         uint256 newUserRewards = rewardDistributor.lpPositionsPerUser(user, market).wadMul(
             (newCumRewardPerLpToken - rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, market))
         ).wadMul(rewardDistributor.computeRewardMultiplier(user, market));
         return newUserRewards;
+    }
+
+    function _checkRewards(
+        address token,
+        address user,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity,
+        uint256 initialUserRewards
+    ) internal returns (uint256) {
+        uint256[] memory weights = _getRewardWeights(rewardDistributor, token);
+        return _checkRewards(
+            token,
+            user,
+            multipliers,
+            skipTimes,
+            balances,
+            initialCumRewards,
+            priorTotalLiquidity,
+            weights,
+            initialUserRewards
+        );
+    }
+
+    function _checkRewards(
+        address token,
+        address user,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity,
+        uint256[] memory weights,
+        uint256 initialUserRewards
+    ) internal returns (uint256) {
+        return _checkRewards(
+            rewardDistributor,
+            token,
+            user,
+            multipliers,
+            skipTimes,
+            balances,
+            initialCumRewards,
+            priorTotalLiquidity,
+            weights,
+            initialUserRewards
+        );
+    }
+
+    function _checkRewards(
+        TestSMRewardDistributor distributor,
+        address token,
+        address user,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity,
+        uint256 initialUserRewards
+    ) internal returns (uint256) {
+        uint256[] memory weights = _getRewardWeights(distributor, token);
+        return _checkRewards(
+            distributor,
+            token,
+            user,
+            multipliers,
+            skipTimes,
+            balances,
+            initialCumRewards,
+            priorTotalLiquidity,
+            weights,
+            initialUserRewards
+        );
+    }
+
+    function _checkRewards(
+        TestSMRewardDistributor distributor,
+        address token,
+        address user,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity,
+        uint256[] memory weights,
+        uint256 initialUserRewards
+    ) internal returns (uint256) {
+        require(skipTimes.length == balances.length, "Invalid input");
+        require(skipTimes.length == initialCumRewards.length, "Invalid input");
+        require(skipTimes.length == priorTotalLiquidity.length, "Invalid input");
+
+        uint256 accruedRewards = distributor.rewardsAccruedByUser(user, token);
+        assertGt(accruedRewards, 0, "Rewards not accrued");
+        uint256 expectedAccruedRewards = _checkMarketRewards(
+            distributor,
+            token,
+            initialUserRewards,
+            multipliers,
+            skipTimes,
+            balances,
+            initialCumRewards,
+            priorTotalLiquidity,
+            weights
+        );
+        assertApproxEqRel(
+            accruedRewards,
+            expectedAccruedRewards,
+            1e15, // 0.1%
+            "Incorrect user rewards"
+        );
+        return accruedRewards;
+    }
+
+    function _checkMarketRewards(
+        address token,
+        uint256 initialUserRewards,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity
+    ) internal returns (uint256) {
+        uint256[] memory weights = _getRewardWeights(rewardDistributor, token);
+        return _checkMarketRewards(
+            token, initialUserRewards, multipliers, skipTimes, balances, initialCumRewards, priorTotalLiquidity, weights
+        );
+    }
+
+    function _checkMarketRewards(
+        address token,
+        uint256 initialUserRewards,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity,
+        uint256[] memory weights
+    ) internal returns (uint256) {
+        return _checkMarketRewards(
+            rewardDistributor,
+            token,
+            initialUserRewards,
+            multipliers,
+            skipTimes,
+            balances,
+            initialCumRewards,
+            priorTotalLiquidity,
+            weights
+        );
+    }
+
+    function _checkMarketRewards(
+        TestSMRewardDistributor distributor,
+        address token,
+        uint256 initialUserRewards,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity
+    ) internal returns (uint256) {
+        uint256[] memory weights = _getRewardWeights(distributor, token);
+        return _checkMarketRewards(
+            distributor,
+            token,
+            initialUserRewards,
+            multipliers,
+            skipTimes,
+            balances,
+            initialCumRewards,
+            priorTotalLiquidity,
+            weights
+        );
+    }
+
+    function _checkMarketRewards(
+        TestSMRewardDistributor distributor,
+        address token,
+        uint256 initialUserRewards,
+        uint256[] memory multipliers,
+        uint256[] memory skipTimes,
+        uint256[] memory balances,
+        uint256[] memory initialCumRewards,
+        uint256[] memory priorTotalLiquidity,
+        uint256[] memory weights
+    ) internal returns (uint256) {
+        uint256 expectedAccruedRewards = initialUserRewards;
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        require(numMarkets == skipTimes.length, "Invalid input");
+        for (uint256 i; i < numMarkets; ++i) {
+            uint256 cumulativeRewards = distributor.cumulativeRewardPerLpToken(
+                token, address(safetyModule.stakingTokens(i))
+            ) - initialCumRewards[i];
+            uint256 expectedCumulativeRewards =
+                _calcExpectedCumulativeRewards(token, skipTimes[i], priorTotalLiquidity[i], weights[i]);
+            assertApproxEqRel(
+                cumulativeRewards,
+                expectedCumulativeRewards,
+                5e16, // 5%, accounts for reduction factor
+                "Incorrect cumulative rewards"
+            );
+            expectedAccruedRewards += cumulativeRewards.wadMul(balances[i]).wadMul(multipliers[i]);
+        }
+        return expectedAccruedRewards;
+    }
+
+    function _calcExpectedCumulativeRewards(address token, address market, uint256 skipTime)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 totalLiquidity = rewardDistributor.totalLiquidityPerMarket(market);
+        return _calcExpectedCumulativeRewards(token, market, skipTime, totalLiquidity);
+    }
+
+    function _calcExpectedCumulativeRewards(address token, address market, uint256 skipTime, uint256 totalLiquidity)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 marketWeight = rewardDistributor.getRewardWeight(token, market);
+        return _calcExpectedCumulativeRewards(token, skipTime, totalLiquidity, marketWeight);
+    }
+
+    function _calcExpectedCumulativeRewards(
+        address token,
+        uint256 skipTime,
+        uint256 totalLiquidity,
+        uint256 marketWeight
+    ) internal view returns (uint256) {
+        if (totalLiquidity == 0) return 0;
+        uint256 inflationRate = rewardDistributor.getInflationRate(token);
+        uint256 weightedAnnualInflationRate = inflationRate * marketWeight / 10000; // basis points
+        uint256 weightedInflation = weightedAnnualInflationRate * skipTime / 365 days;
+        return weightedInflation.wadDiv(totalLiquidity);
     }
 
     /* ***************** */
@@ -1622,6 +1953,18 @@ contract SafetyModuleTest is Deployment, Utils {
 
     function _expectAlreadyInitializedStartTime(address market) internal {
         vm.expectRevert(abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", market));
+    }
+
+    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
+                user,
+                market,
+                expected,
+                actual
+            )
+        );
     }
 
     function _expectStakedTokenInvalidZeroAmount() internal {
