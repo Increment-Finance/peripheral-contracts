@@ -373,58 +373,27 @@ contract SafetyModuleTest is Deployment, Utils {
         _stake(stakedToken1, liquidityProviderTwo, rewardsToken.balanceOf(liquidityProviderTwo));
         _stake(stakedToken2, liquidityProviderTwo, balancerPool.balanceOf(liquidityProviderTwo));
 
-        // redeploy safety module
-        uint16[] memory weights = new uint16[](2);
-        weights[0] = 5000;
-        weights[1] = 5000;
-
-        console.log("deploying new safety module");
-        SafetyModule newSafetyModule = new SafetyModule(address(0), address(0));
-        AuctionModule newAuctionModule = new AuctionModule(ISafetyModule(address(0)), IERC20(address(usdc)));
-        newSafetyModule.setAuctionModule(newAuctionModule);
-        newAuctionModule.setSafetyModule(newSafetyModule);
+        // redeploy reward distributor so it doesn't know of pre-existing balances
         TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
-            ISafetyModule(address(0)), INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(rewardVault)
+            ISafetyModule(address(0)), INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(ecosystemReserve)
         );
-        newSafetyModule.setRewardDistributor(newRewardDistributor);
-        newRewardDistributor.setSafetyModule(newSafetyModule);
+        safetyModule.setRewardDistributor(newRewardDistributor);
+        newRewardDistributor.setSafetyModule(safetyModule);
         ecosystemReserve.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
 
-        rewardVault.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
-
-        // add staking tokens to new safety module
-        console.log("adding staking tokens to new safety module");
-        newSafetyModule.addStakingToken(stakedToken1);
-        newSafetyModule.addStakingToken(stakedToken2);
-        address[] memory stakingTokens = new address[](2);
-        stakingTokens[0] = address(stakedToken1);
-        stakingTokens[1] = address(stakedToken2);
-        uint256[] memory rewardWeights = new uint256[](2);
-        rewardWeights[0] = 5000;
-        rewardWeights[1] = 5000;
+        // add reward token to new reward distributor
+        address[] memory stakingTokens = _getMarkets();
+        uint256[] memory rewardWeights = _getRewardWeights(rewardDistributor, address(rewardsToken));
         newRewardDistributor.addRewardToken(
             address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakingTokens, rewardWeights
         );
 
-        // connect staking tokens to new safety module
-        console.log("updating safety module in staked tokens");
-        stakedToken1.setSafetyModule(address(newSafetyModule));
-        stakedToken2.setSafetyModule(address(newSafetyModule));
-
         // skip some time
-        console.log("skipping 10 days");
         skip(10 days);
 
         // before registering positions, expect accruing rewards to fail
-        console.log("expecting accrueRewards to fail");
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                liquidityProviderTwo,
-                address(stakedToken1),
-                0,
-                stakedToken1.balanceOf(liquidityProviderTwo)
-            )
+        _expectUserPositionMismatch(
+            liquidityProviderTwo, address(stakedToken1), 0, stakedToken1.balanceOf(liquidityProviderTwo)
         );
         newRewardDistributor.accrueRewards(liquidityProviderTwo);
 
@@ -433,38 +402,34 @@ contract SafetyModuleTest is Deployment, Utils {
         newRewardDistributor.registerPositions(stakingTokens);
         vm.startPrank(liquidityProviderTwo);
         newRewardDistributor.registerPositions(stakingTokens);
+        vm.stopPrank();
 
-        // skip some time
+        // skip some more time
         skip(10 days);
+
+        // store initial state before accruing rewards
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(newRewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(newRewardDistributor);
+        uint256[] memory skipTimes = _getSkipTimes(newRewardDistributor);
+        uint256[] memory multipliers = _getRewardMultipliers(newRewardDistributor, liquidityProviderTwo);
 
         // check that rewards were accrued correctly
         newRewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 cumulativeRewards1 =
-            newRewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(stakedToken1));
-        uint256 cumulativeRewards2 =
-            newRewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(stakedToken2));
-        uint256 inflationRate = newRewardDistributor.getInitialInflationRate(address(rewardsToken));
-        uint256 totalLiquidity1 = newRewardDistributor.totalLiquidityPerMarket(address(stakedToken1));
-        uint256 totalLiquidity2 = newRewardDistributor.totalLiquidityPerMarket(address(stakedToken2));
-        uint256 expectedCumulativeRewards1 = (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) / totalLiquidity1;
-        uint256 expectedCumulativeRewards2 = (((((inflationRate * 5000) / 10000) * 10) / 365) * 1e18) / totalLiquidity2;
-        assertApproxEqRel(
-            cumulativeRewards1,
-            expectedCumulativeRewards1,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
-        );
-        assertApproxEqRel(
-            cumulativeRewards2,
-            expectedCumulativeRewards2,
-            5e16, // 5%, accounts for reduction factor
-            "Incorrect cumulative rewards"
+        _checkRewards(
+            newRewardDistributor,
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
         );
 
         // redeem all staked tokens and claim rewards (for gas measurement)
-        IStakedToken[] memory stakedTokens = new IStakedToken[](2);
-        stakedTokens[0] = stakedToken1;
-        stakedTokens[1] = stakedToken2;
+        IStakedToken[] memory stakedTokens = _getStakedTokens();
         _claimAndRedeemAll(stakedTokens, newRewardDistributor, liquidityProviderTwo);
     }
 
