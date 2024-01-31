@@ -289,4 +289,12 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             }
         }
     }
+
+    /// @inheritdoc RewardDistributor
+    function _registerPosition(address _user, address _market) internal override {
+        super._registerPosition(_user, _market);
+        if (lpPositionsPerUser[_user][_market] != 0) {
+            multiplierStartTimeByUser[_user][_market] = block.timestamp;
+        }
+    }
 }

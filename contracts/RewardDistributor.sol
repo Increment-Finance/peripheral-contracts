@@ -339,7 +339,11 @@ abstract contract RewardDistributor is IRewardDistributor, IRewardContract, Rewa
         return IERC20Metadata(_token).balanceOf(ecosystemReserve);
     }
 
-    function _registerPosition(address _user, address _market) internal {
+    /// @notice Registers a user's pre-existing position for a given market
+    /// @dev User should have a position predating this contract's deployment, which can only be registered once
+    /// @param _user Address of the user to register
+    /// @param _market Address of the market for which to register the user's position
+    function _registerPosition(address _user, address _market) internal virtual {
         if (lpPositionsPerUser[_user][_market] != 0) {
             revert RewardDistributor_PositionAlreadyRegistered(_user, _market, lpPositionsPerUser[_user][_market]);
         }
