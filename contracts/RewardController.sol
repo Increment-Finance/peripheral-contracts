@@ -97,6 +97,11 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     }
 
     /// @inheritdoc IRewardController
+    function getRewardMarkets(address rewardToken) external view returns (address[] memory) {
+        return rewardInfoByToken[rewardToken].marketAddresses;
+    }
+
+    /// @inheritdoc IRewardController
     function isTokenPaused(address rewardToken) external view returns (bool) {
         return rewardInfoByToken[rewardToken].paused;
     }
