@@ -66,6 +66,8 @@ contract SafetyModuleTest is Deployment, Utils {
     uint256 constant UNSTAKE_WINDOW = 10 days;
     uint256 constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
     uint256 constant MAX_STAKE_AMOUNT_2 = 100_000e18;
+    uint256 constant INITIAL_MARKET_WEIGHT_0 = 5000;
+    uint256 constant INITIAL_MARKET_WEIGHT_1 = 5000;
 
     address liquidityProviderOne = address(123);
     address liquidityProviderTwo = address(456);
@@ -83,7 +85,6 @@ contract SafetyModuleTest is Deployment, Utils {
     IWeightedPool public balancerPool;
     IBalancerVault public balancerVault;
     bytes32 public poolId;
-    IAsset[] public poolAssets;
 
     function setUp() public virtual override {
         deal(liquidityProviderOne, 100 ether);
@@ -99,10 +100,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Deploy the Ecosystem Reserve vault
         rewardVault = new EcosystemReserve(address(this));
-
-        uint16[] memory weights = new uint16[](2);
-        weights[0] = 5000;
-        weights[1] = 5000;
 
         // Deploy safety module
         safetyModule = new SafetyModule(address(0), address(0));
@@ -127,42 +124,13 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Deploy Balancer pool
         weightedPoolFactory = IWeightedPoolFactory(0x897888115Ada5773E02aA29F775430BFB5F34c51);
-        address[] memory poolTokens = new address[](2);
-        poolTokens[0] = address(rewardsToken);
-        poolTokens[1] = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-        weth = IWETH(poolTokens[1]);
-        uint256[] memory poolWeights = new uint256[](2);
-        poolWeights[0] = 0.5e18;
-        poolWeights[1] = 0.5e18;
-        balancerPool = IWeightedPool(
-            weightedPoolFactory.create(
-                "50INCR-50WETH",
-                "50INCR-50WETH",
-                poolTokens,
-                poolWeights,
-                new address[](2),
-                1e15,
-                address(this),
-                bytes32(0)
-            )
-        );
+        weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+        balancerPool = _deployBalancerPool(address(rewardsToken), address(weth), "50INCR-50WETH");
 
         // Add initial liquidity to the Balancer pool
         poolId = balancerPool.getPoolId();
         balancerVault = balancerPool.getVault();
-        (IERC20[] memory poolERC20s,,) = balancerVault.getPoolTokens(poolId);
-        poolAssets = new IAsset[](2);
-        poolAssets[0] = IAsset(address(poolERC20s[0]));
-        poolAssets[1] = IAsset(address(poolERC20s[1]));
-        uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[0] = 10_000 ether;
-        maxAmountsIn[1] = 10 ether;
-        IBalancerVault.JoinPoolRequest memory joinRequest =
-            IBalancerVault.JoinPoolRequest(poolAssets, maxAmountsIn, abi.encode(JoinKind.INIT, maxAmountsIn), false);
-        rewardsToken.approve(address(balancerVault), type(uint256).max);
-        weth.approve(address(balancerVault), type(uint256).max);
-        weth.deposit{value: 10 ether}();
-        balancerVault.joinPool(poolId, address(this), address(this), joinRequest);
+        _joinBalancerPoolInit(poolId, 10_000 ether, 10 ether);
 
         // Deploy staking tokens
         stakedToken1 = new StakedToken(
@@ -181,12 +149,10 @@ contract SafetyModuleTest is Deployment, Utils {
         // Register staking tokens with safety module
         safetyModule.addStakingToken(stakedToken1);
         safetyModule.addStakingToken(stakedToken2);
-        address[] memory stakingTokens = new address[](2);
-        stakingTokens[0] = address(stakedToken1);
-        stakingTokens[1] = address(stakedToken2);
+        address[] memory stakingTokens = _getMarkets();
         uint256[] memory rewardWeights = new uint256[](2);
-        rewardWeights[0] = 5000;
-        rewardWeights[1] = 5000;
+        rewardWeights[0] = INITIAL_MARKET_WEIGHT_0;
+        rewardWeights[1] = INITIAL_MARKET_WEIGHT_1;
         rewardDistributor.addRewardToken(
             address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakingTokens, rewardWeights
         );
@@ -212,9 +178,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.stopPrank();
 
         // Join Balancer pool as user 1
-        maxAmountsIn[0] = 5000 ether;
-        maxAmountsIn[1] = 10 ether;
-        _joinBalancerPool(liquidityProviderOne, maxAmountsIn);
+        _joinBalancerPool(poolId, liquidityProviderOne, 5000 ether, 10 ether);
 
         // Stake as user 1
         _stake(stakedToken1, liquidityProviderOne, rewardsToken.balanceOf(liquidityProviderOne));
@@ -399,23 +363,11 @@ contract SafetyModuleTest is Deployment, Utils {
         maxTokenAmountIntoBalancer = bound(maxTokenAmountIntoBalancer, 100e18, 9_000e18);
 
         // join balancer pool as liquidityProvider2
-        console.log("joining balancer pool");
-        uint256[] memory maxAmountsIn = new uint256[](2);
-        maxAmountsIn[0] = maxTokenAmountIntoBalancer;
-        maxAmountsIn[1] = maxTokenAmountIntoBalancer / 1000;
-        console.log("maxAmountsIn: [%s, %s]", maxAmountsIn[0], maxAmountsIn[1]);
-        _joinBalancerPool(liquidityProviderTwo, maxAmountsIn);
-
-        console.log("rewards token balance: %s", rewardsToken.balanceOf(liquidityProviderTwo));
-        console.log("balancer pool balance: %s", balancerPool.balanceOf(liquidityProviderTwo));
+        _joinBalancerPool(poolId, liquidityProviderTwo, maxTokenAmountIntoBalancer, maxTokenAmountIntoBalancer / 1000);
 
         // stake as liquidityProvider2
-        console.log("staking");
         _stake(stakedToken1, liquidityProviderTwo, rewardsToken.balanceOf(liquidityProviderTwo));
         _stake(stakedToken2, liquidityProviderTwo, balancerPool.balanceOf(liquidityProviderTwo));
-        console.log("original safety module lp positions:");
-        console.log(rewardDistributor.lpPositionsPerUser(liquidityProviderTwo, address(stakedToken1)));
-        console.log(rewardDistributor.lpPositionsPerUser(liquidityProviderTwo, address(stakedToken2)));
 
         // redeploy safety module
         uint16[] memory weights = new uint16[](2);
@@ -1491,6 +1443,15 @@ contract SafetyModuleTest is Deployment, Utils {
         distributor.claimRewardsFor(staker);
     }
 
+    function _getMarkets() internal view returns (address[] memory) {
+        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        address[] memory markets = new address[](numMarkets);
+        for (uint256 i; i < numMarkets; i++) {
+            markets[i] = address(safetyModule.stakingTokens(i));
+        }
+        return markets;
+    }
+
     function _dealAndBuyLots(address buyer, uint256 auctionId, uint8 numLots, uint128 lotPrice) internal {
         IERC20 paymentToken = auctionModule.paymentToken();
         IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(auctionId);
@@ -1520,7 +1481,28 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.stopPrank();
     }
 
-    function _joinBalancerPool(address staker, uint256[] memory maxAmountsIn) internal {
+    function _deployBalancerPool(address token1, address token2, string memory name) internal returns (IWeightedPool) {
+        address[] memory poolTokens = new address[](2);
+        poolTokens[0] = token1;
+        poolTokens[1] = token2;
+        uint256[] memory poolWeights = new uint256[](2);
+        poolWeights[0] = 0.5e18;
+        poolWeights[1] = 0.5e18;
+        return IWeightedPool(
+            weightedPoolFactory.create(
+                name, name, poolTokens, poolWeights, new address[](2), 1e15, address(this), bytes32(0)
+            )
+        );
+    }
+
+    function _joinBalancerPool(bytes32 id, address staker, uint256 maxAmountIn0, uint256 maxAmountIn1) internal {
+        (IERC20[] memory poolERC20s,,) = balancerVault.getPoolTokens(id);
+        IAsset[] memory poolAssets = new IAsset[](2);
+        poolAssets[0] = IAsset(address(poolERC20s[0]));
+        poolAssets[1] = IAsset(address(poolERC20s[1]));
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = maxAmountIn0;
+        maxAmountsIn[1] = maxAmountIn1;
         vm.startPrank(staker);
         balancerVault.joinPool(
             poolId,
@@ -1531,6 +1513,26 @@ contract SafetyModuleTest is Deployment, Utils {
             )
         );
         vm.stopPrank();
+    }
+
+    function _joinBalancerPoolInit(bytes32 id, uint256 maxAmountIn0, uint256 maxAmountIn1) internal {
+        (IERC20[] memory poolERC20s,,) = balancerVault.getPoolTokens(id);
+        IAsset[] memory poolAssets = new IAsset[](2);
+        poolAssets[0] = IAsset(address(poolERC20s[0]));
+        poolAssets[1] = IAsset(address(poolERC20s[1]));
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = maxAmountIn0;
+        maxAmountsIn[1] = maxAmountIn1;
+        poolERC20s[0].approve(address(balancerVault), maxAmountIn0);
+        poolERC20s[1].approve(address(balancerVault), maxAmountIn1);
+        if (address(poolERC20s[0]) == address(weth)) {
+            weth.deposit{value: maxAmountIn0}();
+        } else if (address(poolERC20s[1]) == address(weth)) {
+            weth.deposit{value: maxAmountIn1}();
+        }
+        IBalancerVault.JoinPoolRequest memory joinRequest =
+            IBalancerVault.JoinPoolRequest(poolAssets, maxAmountsIn, abi.encode(JoinKind.INIT, maxAmountsIn), false);
+        balancerVault.joinPool(id, address(this), address(this), joinRequest);
     }
 
     function _viewNewRewardAccrual(address market, address user) public view returns (uint256[] memory) {
