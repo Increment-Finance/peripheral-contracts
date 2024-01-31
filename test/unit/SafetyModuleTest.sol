@@ -77,7 +77,7 @@ contract SafetyModuleTest is Deployment, Utils {
     StakedToken public stakedToken1;
     StakedToken public stakedToken2;
 
-    EcosystemReserve public rewardVault;
+    EcosystemReserve public ecosystemReserve;
     SafetyModule public safetyModule;
     AuctionModule public auctionModule;
     TestSMRewardDistributor public rewardDistributor;
@@ -99,24 +99,25 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardsToken.unpause();
 
         // Deploy the Ecosystem Reserve vault
-        rewardVault = new EcosystemReserve(address(this));
+        ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy safety module
         safetyModule = new SafetyModule(address(0), address(0));
 
         // Deploy auction module
-        auctionModule = new AuctionModule(safetyModule, IERC20(address(usdc)));
+        auctionModule = new AuctionModule(ISafetyModule(address(0)), IERC20(address(usdc)));
+        auctionModule.setSafetyModule(safetyModule);
         safetyModule.setAuctionModule(auctionModule);
 
         // Deploy reward distributor
         rewardDistributor = new TestSMRewardDistributor(
-            safetyModule, INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(rewardVault)
+            safetyModule, INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(ecosystemReserve)
         );
         safetyModule.setRewardDistributor(rewardDistributor);
 
         // Transfer half of the rewards tokens to the reward vault
-        rewardsToken.transfer(address(rewardVault), rewardsToken.totalSupply() / 2);
-        rewardVault.approve(rewardsToken, address(rewardDistributor), type(uint256).max);
+        rewardsToken.transfer(address(ecosystemReserve), rewardsToken.totalSupply() / 2);
+        ecosystemReserve.approve(rewardsToken, address(rewardDistributor), type(uint256).max);
 
         // Transfer some of the rewards tokens to the liquidity providers
         rewardsToken.transfer(liquidityProviderOne, 10_000 ether);
@@ -145,6 +146,9 @@ contract SafetyModuleTest is Deployment, Utils {
             "Staked 50INCR-50WETH BPT",
             "stIBPT"
         );
+        // Unnecessary, but for test coverage...
+        stakedToken1.setSafetyModule(address(safetyModule));
+        stakedToken2.setSafetyModule(address(safetyModule));
 
         // Register staking tokens with safety module
         safetyModule.addStakingToken(stakedToken1);
@@ -384,6 +388,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
         newSafetyModule.setRewardDistributor(newRewardDistributor);
         newRewardDistributor.setSafetyModule(newSafetyModule);
+        ecosystemReserve.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
 
         rewardVault.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
 
@@ -471,8 +476,8 @@ contract SafetyModuleTest is Deployment, Utils {
         _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
 
         // Remove all reward tokens from EcosystemReserve
-        uint256 rewardBalance = rewardsToken.balanceOf(address(rewardVault));
-        rewardVault.transfer(rewardsToken, address(this), rewardBalance);
+        uint256 rewardBalance = rewardsToken.balanceOf(address(ecosystemReserve));
+        ecosystemReserve.transfer(rewardsToken, address(this), rewardBalance);
 
         // Skip some time
         skip(10 days);
@@ -517,7 +522,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Transfer reward tokens back to the EcosystemReserve
         vm.stopPrank();
-        rewardsToken.transfer(address(rewardVault), rewardBalance);
+        rewardsToken.transfer(address(ecosystemReserve), rewardBalance);
 
         // Claim tokens and check that the accrued rewards were distributed
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
