@@ -124,7 +124,7 @@ contract PerpRewardsInvariantTest is Deployment {
     /*     Invariants     */
     /* ****************** */
 
-    function invariantMarketAccumulatorNeverDecreases() public {
+    function invariant_MarketAccumulatorNeverDecreases() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for (uint256 i; i < numRewards; i++) {
@@ -142,7 +142,7 @@ contract PerpRewardsInvariantTest is Deployment {
         }
     }
 
-    function invariantUserAccumulatorUpdatesOnAccrual() public {
+    function invariant_UserAccumulatorUpdatesOnAccrual() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for (uint256 i; i < numRewards; i++) {
@@ -185,7 +185,7 @@ contract PerpRewardsInvariantTest is Deployment {
         skip(1 days);
     }
 
-    function invariantLPPositionsMatch() public {
+    function invariant_LPPositionsMatch() public {
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for (uint256 i; i < numMarkets; i++) {
             IPerpetual perp = clearingHouse.perpetuals(clearingHouse.id(i));
@@ -201,7 +201,7 @@ contract PerpRewardsInvariantTest is Deployment {
         }
     }
 
-    function invariantTotalLiquidityMatches() public {
+    function invariant_TotalLiquidityMatches() public {
         uint256 numMarkets = clearingHouse.getNumMarkets();
         for (uint256 i; i < numMarkets; i++) {
             IPerpetual perp = clearingHouse.perpetuals(clearingHouse.id(i));
@@ -214,7 +214,7 @@ contract PerpRewardsInvariantTest is Deployment {
         }
     }
 
-    function invariantSumOfAccruedRewardsUnclaimed() public {
+    function invariant_SumOfAccruedRewardsUnclaimed() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
