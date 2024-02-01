@@ -1424,7 +1424,10 @@ contract SafetyModuleTest is Deployment, Utils {
     {
         for (uint256 i; i < stakedTokens.length; i++) {
             IStakedToken stakedToken = stakedTokens[i];
-            _redeem(stakedToken, staker, stakedToken.balanceOf(staker), stakedToken.getCooldownSeconds());
+            uint256 balance = stakedToken.balanceOf(staker);
+            if (balance != 0) {
+                _redeem(stakedToken, staker, balance, stakedToken.getCooldownSeconds());
+            }
         }
         distributor.claimRewardsFor(staker);
     }
