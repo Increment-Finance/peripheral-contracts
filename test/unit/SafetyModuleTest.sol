@@ -231,7 +231,7 @@ contract SafetyModuleTest is Deployment, Utils {
             "Reward multiplier mismatch after 2 days"
         );
         // Partially redeeming resets the multiplier to 1
-        _redeem(stakedToken1, liquidityProviderTwo, 50 ether, 1 days);
+        _redeem(stakedToken1, liquidityProviderTwo, 50 ether);
         assertEq(
             rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
             1e18,
@@ -259,7 +259,7 @@ contract SafetyModuleTest is Deployment, Utils {
             "Reward multiplier mismatch after another 2.5 days"
         );
         // Redeeming completely resets the multiplier to 0
-        _redeem(stakedToken1, liquidityProviderTwo, 100 ether, 1 days);
+        _redeem(stakedToken1, liquidityProviderTwo, 100 ether);
         assertEq(
             rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
             0,
@@ -1347,21 +1347,33 @@ contract SafetyModuleTest is Deployment, Utils {
     /* ****************** */
 
     function _stake(IStakedToken stakedToken, address staker, uint256 amount) internal {
+        uint256 balance = stakedToken.balanceOf(staker);
+        uint256 maxStake = stakedToken.maxStakeAmount();
         vm.startPrank(staker);
-        vm.expectEmit(false, false, false, true);
-        emit Staked(staker, staker, amount);
+        if (balance + amount <= maxStake) {
+            vm.expectEmit(false, false, false, true);
+            emit Staked(staker, staker, amount);
+        } else {
+            _expectAboveMaxStakeAmount(maxStake, maxStake - balance);
+        }
         stakedToken.stake(amount);
         vm.stopPrank();
     }
 
-    function _redeem(IStakedToken stakedToken, address staker, uint256 amount, uint256 cooldown) internal {
+    function _redeem(IStakedToken stakedToken, address staker, uint256 amount) internal {
+        uint256 balance = stakedToken.balanceOf(staker);
+        uint256 cooldown = stakedToken.getCooldownSeconds();
         vm.startPrank(staker);
         vm.expectEmit(false, false, false, true);
         emit Cooldown(staker);
         stakedToken.cooldown();
         skip(cooldown);
         vm.expectEmit(false, false, false, true);
-        emit Redeemed(staker, staker, amount);
+        if (amount < balance) {
+            emit Redeemed(staker, staker, amount);
+        } else {
+            emit Redeemed(staker, staker, balance);
+        }
         stakedToken.redeem(amount);
         vm.stopPrank();
     }
@@ -1373,7 +1385,7 @@ contract SafetyModuleTest is Deployment, Utils {
             IStakedToken stakedToken = stakedTokens[i];
             uint256 balance = stakedToken.balanceOf(staker);
             if (balance != 0) {
-                _redeem(stakedToken, staker, balance, stakedToken.getCooldownSeconds());
+                _redeem(stakedToken, staker, balance);
             }
         }
         distributor.claimRewardsFor(staker);
