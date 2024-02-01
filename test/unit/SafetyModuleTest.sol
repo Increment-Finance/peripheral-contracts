@@ -644,40 +644,61 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // redeem all staked tokens and claim rewards (for gas measurement)
         _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderTwo);
-        _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderOne);
     }
 
-    function test_NextCooldownTimestamp() public {
+    function testFuzz_NextCooldownTimestamp(uint256 stakeAmount) public {
+        /* bounds */
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        /**
+         * StakedToken.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance)
+         * is from Aave's original StakedToken, and has the following notes:
+         *
+         * Calculation depends on the sender/receiver situation, as follows:
+         *  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0,
+         *    we take the one of the recipient
+         *  - Weighted average of from/to cooldown timestamps if:
+         *    - The sender doesn't have the cooldown activated (timestamp 0).
+         *    - The sender timestamp is expired
+         *    - The sender has a "worse" timestamp
+         *  - If the receiver's cooldown timestamp expired (too old), the next is 0
+         */
+
+        // Define initial arguments
+        uint256 fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
+        uint256 amountToReceive = 100e18;
+        address toAddress = liquidityProviderOne;
+        uint256 toBalance = stakedToken1.balanceOf(liquidityProviderOne);
+
         // When user first stakes, next cooldown timestamp should be 0
         assertEq(
-            stakedToken1.getNextCooldownTimestamp(
-                0, 100e18, liquidityProviderOne, stakedToken1.balanceOf(liquidityProviderOne)
-            ),
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
             0,
             "Next cooldown timestamp should be 0 after first staking"
         );
 
-        // Activate cooldown period
+        // Activate cooldown period, so stakersCooldowns[liquidityProviderOne] is set to block.timestamp
         vm.startPrank(liquidityProviderOne);
         stakedToken1.cooldown();
         vm.stopPrank();
-        uint256 fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
+        fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
         assertEq(fromCooldownTimestamp, block.timestamp, "Cooldown timestamp mismatch");
 
         // Wait for cooldown period and unstake window to pass
-        skip(20 days);
+        skip(COOLDOWN_SECONDS + UNSTAKE_WINDOW + 1 days);
 
-        // When user's cooldown timestamp is less than minimal valid timestamp, next cooldown timestamp should be 0
+        // When recipient's cooldown timestamp is less than minimal valid timestamp, next timestamp should be 0
+        // minimalValidCooldownTimestamp = block.timestamp - COOLDOWN_SECONDS - UNSTAKE_WINDOW
         assertEq(
-            stakedToken1.getNextCooldownTimestamp(
-                fromCooldownTimestamp, 100e18, liquidityProviderOne, stakedToken1.balanceOf(liquidityProviderOne)
-            ),
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
             0,
             "Next cooldown timestamp should be 0 when cooldown timestamp is less than minimal valid timestamp"
         );
 
-        // Test with different from and to addresses
-        _stake(stakedToken1, liquidityProviderTwo, 100e18);
+        // To test with different from and to addresses, stake with user 2
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+        toAddress = liquidityProviderTwo;
+        toBalance = stakedToken1.balanceOf(liquidityProviderTwo);
 
         // Reset user 1 cooldown timestamp
         vm.startPrank(liquidityProviderOne);
@@ -686,7 +707,7 @@ contract SafetyModuleTest is Deployment, Utils {
         fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
 
         // Skip user 1 cooldown period
-        skip(1 days);
+        skip(COOLDOWN_SECONDS);
 
         // Activate user 2 cooldown period
         vm.startPrank(liquidityProviderTwo);
@@ -696,9 +717,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // If user 1's cooldown timestamp is less than user 2's, next cooldown timestamp should be user 2's
         assertEq(
-            stakedToken1.getNextCooldownTimestamp(
-                fromCooldownTimestamp, 100e18, liquidityProviderTwo, stakedToken1.balanceOf(liquidityProviderTwo)
-            ),
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
             toCooldownTimestamp,
             "Next cooldown timestamp should be user 2's when user 1's cooldown timestamp is less than user 2's"
         );
@@ -709,27 +728,30 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.stopPrank();
         fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
 
-        // If user 1's cooldown timestamp is greater than or equal to user 2's, next cooldown timestamp should be weighted average
+        // If sender's cooldown timestamp is greater than or equal to recipient's,
+        // recipient's next timestamp should be weighted average of from and to timestamps
         assertEq(
-            stakedToken1.getNextCooldownTimestamp(
-                fromCooldownTimestamp, 100e18, liquidityProviderTwo, stakedToken1.balanceOf(liquidityProviderTwo)
-            ),
-            (100e18 * fromCooldownTimestamp + (100e18 * toCooldownTimestamp)) / (100e18 + 100e18),
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            _calcWeightedAverageCooldown(fromCooldownTimestamp, toCooldownTimestamp, amountToReceive, toBalance),
             "Next cooldown timestamp should be weighted average when user 1's cooldown timestamp is greater than or equal to user 2's"
         );
-        skip(20 days);
+
+        // Skip user 1 cooldown period and unstake window
+        skip(COOLDOWN_SECONDS + UNSTAKE_WINDOW + 1 days);
 
         // Reset user 2 cooldown period
         vm.startPrank(liquidityProviderTwo);
         stakedToken1.cooldown();
         vm.stopPrank();
         toCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderTwo);
-        skip(1 days);
+
+        // Skip user 2 cooldown period
+        skip(COOLDOWN_SECONDS);
+
+        // If fromCooldownTimestamp is less than minimal valid timestamp, block.timestamp should be used
         assertEq(
-            stakedToken1.getNextCooldownTimestamp(
-                fromCooldownTimestamp, 100e18, liquidityProviderTwo, stakedToken1.balanceOf(liquidityProviderTwo)
-            ),
-            (100e18 * block.timestamp + (100e18 * toCooldownTimestamp)) / (100e18 + 100e18),
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            _calcWeightedAverageCooldown(block.timestamp, toCooldownTimestamp, amountToReceive, toBalance),
             "block.timestamp should be used for fromCooldownTimestamp when computing weighted average after cooldown period and unstake window have passed"
         );
     }
@@ -1412,6 +1434,16 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 maxMultiplier = rewardDistributor.maxRewardMultiplier();
         return maxMultiplier
             - (smoothingValue * (maxMultiplier - 1e18)) / (deltaDays.wadMul(maxMultiplier - 1e18) + smoothingValue);
+    }
+
+    function _calcWeightedAverageCooldown(
+        uint256 fromCooldownTimestamp,
+        uint256 toCooldownTimestamp,
+        uint256 amountToReceive,
+        uint256 toBalance
+    ) internal pure returns (uint256) {
+        return
+            (fromCooldownTimestamp * amountToReceive + toCooldownTimestamp * toBalance) / (amountToReceive + toBalance);
     }
 
     function _getMarkets() internal view returns (address[] memory) {
