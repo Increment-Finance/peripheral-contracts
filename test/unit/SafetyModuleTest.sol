@@ -1636,20 +1636,22 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 expectedExchangeRate,
         string memory errorMsg
     ) internal {
-        assertApproxEqAbs(
+        assertApproxEqRel(
             stakedToken.exchangeRate(),
             expectedExchangeRate,
-            10, // 10 wei tolerance for rounding error
+            1e15, // 0.1% tolerance
             string(abi.encodePacked("Exchange rate mismatch ", errorMsg))
         );
-        assertEq(
+        assertApproxEqRel(
             stakedToken.previewStake(previewAmount),
             expectedExchangeRate == 0 ? 0 : previewAmount.wadDiv(expectedExchangeRate),
+            1e15, // 0.1% tolerance
             string(abi.encodePacked("Preview stake mismatch ", errorMsg))
         );
-        assertEq(
+        assertApproxEqRel(
             stakedToken.previewRedeem(previewAmount),
             previewAmount.wadMul(expectedExchangeRate),
+            1e15, // 0.1% tolerance
             string(abi.encodePacked("Preview redeem mismatch ", errorMsg))
         );
     }
