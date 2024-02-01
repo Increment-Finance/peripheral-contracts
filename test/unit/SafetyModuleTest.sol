@@ -811,9 +811,14 @@ contract SafetyModuleTest is Deployment, Utils {
         _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18, "after returning the slashed amount");
     }
 
-    function testFuzz_AuctionSoldOut(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent)
-        public
-    {
+    function testFuzz_AuctionSoldOut(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
@@ -822,12 +827,12 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
         uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
-        uint16 lotIncreasePeriod = uint16(2 hours);
-        uint32 timeLimit = uint32(10 days);
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
 
         // Start an auction and check that it was created correctly
-        uint256 auctionId = safetyModule.slashAndStartAuction(
-            address(stakedToken1),
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
             numLots,
             lotPrice,
             initialLotSize,
@@ -836,25 +841,6 @@ contract SafetyModuleTest is Deployment, Utils {
             lotIncreasePeriod,
             timeLimit
         );
-        assertEq(auctionModule.getCurrentLotSize(auctionId), initialLotSize, "Initial lot size mismatch");
-        assertEq(auctionModule.getRemainingLots(auctionId), numLots, "Initial lots mismatch");
-        assertEq(auctionModule.getLotPrice(auctionId), lotPrice, "Lot price mismatch");
-        assertEq(
-            auctionModule.getLotIncreaseIncrement(auctionId), lotIncreaseIncrement, "Lot increase increment mismatch"
-        );
-        assertEq(auctionModule.getLotIncreasePeriod(auctionId), lotIncreasePeriod, "Lot increase period mismatch");
-        assertEq(
-            address(auctionModule.getAuctionToken(auctionId)),
-            address(stakedToken1.getUnderlyingToken()),
-            "Auction token mismatch"
-        );
-        assertEq(auctionModule.getStartTime(auctionId), block.timestamp, "Start time mismatch");
-        assertEq(auctionModule.getEndTime(auctionId), block.timestamp + timeLimit, "End time mismatch");
-        assertTrue(auctionModule.isAuctionActive(auctionId), "Auction should be active");
-
-        // Check the state of the StakedToken after slashing
-        assertTrue(stakedToken1.isInPostSlashingState(), "Staked token should be in post slashing state");
-        assertEq(stakedToken1.exchangeRate(), 1e18 - slashPercent, "Exchange rate mismatch after slashing");
 
         // Buy all the lots at once and check the buyer's resulting balance
         uint256 balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
@@ -864,22 +850,14 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Check that the auction is no longer active and unsold tokens have been returned
         assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after selling out");
-        assertEq(
-            auctionModule.getAuctionToken(auctionId).balanceOf(address(auctionModule)),
-            0,
-            "Unsold tokens should be returned from the auction module"
-        );
+        assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
 
         // Check the state of the StakedToken after slashing is settled and unsold tokens are returned
         assertTrue(
             !stakedToken1.isInPostSlashingState(), "Staked token should not be in post slashing state after selling out"
         );
-        assertApproxEqAbs(
-            stakedToken1.exchangeRate(),
-            1e18 - uint256(initialLotSize * numLots).wadDiv(stakedToken1.totalSupply()),
-            10, // 10 wei tolerance for rounding error
-            "Exchange rate mismatch after returning unsold tokens"
-        );
+        uint256 percentSold = uint256(initialLotSize * numLots).wadDiv(stakedToken1.totalSupply());
+        _checkExchangeRatePreviews(stakedToken1, 1e18, 1e18 - percentSold, "after selling out");
 
         // Withdraw the funds raised from the auction and check the resulting balance
         uint256 fundsRaised = auctionModule.fundsRaisedPerAuction(auctionId);
@@ -893,9 +871,14 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
-    function testFuzz_AuctionTimeOut(uint8 numLots, uint128 lotPrice, uint128 initialLotSize, uint64 slashPercent)
-        public
-    {
+    function testFuzz_AuctionTimeOut(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
@@ -904,8 +887,8 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
         uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
-        uint16 lotIncreasePeriod = uint16(2 hours);
-        uint32 timeLimit = uint32(10 days);
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
 
         // Change the payment token to UA
         vm.expectEmit(false, false, false, true);
@@ -913,8 +896,8 @@ contract SafetyModuleTest is Deployment, Utils {
         auctionModule.setPaymentToken(IERC20(address(ua)));
 
         // Start an auction and check the end time
-        uint256 auctionId = safetyModule.slashAndStartAuction(
-            address(stakedToken1),
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
             numLots,
             lotPrice,
             initialLotSize,
@@ -923,12 +906,11 @@ contract SafetyModuleTest is Deployment, Utils {
             lotIncreasePeriod,
             timeLimit
         );
-        uint256 endTime = auctionModule.getEndTime(auctionId);
-        assertEq(endTime, block.timestamp + timeLimit, "End time mismatch after starting auction");
 
         // Skip one day at a time until the end of the auction without buying any lots,
         // checking that the currentLotSize x numLots does not exceed auctionable balance
-        for (uint256 i; i < 10; i++) {
+        uint256 numDays = timeLimit / 1 days;
+        for (uint256 i; i < numDays; i++) {
             skip(1 days);
             uint256 currentLotSize = auctionModule.getCurrentLotSize(auctionId);
             assertLe(
@@ -937,16 +919,18 @@ contract SafetyModuleTest is Deployment, Utils {
                 "Current lot size x num lots should not exceed auctionable balance"
             );
         }
-        assertEq(auctionModule.fundsRaisedPerAuction(auctionId), 0, "Funds raised should be 0 after auction times out");
+        if (block.timestamp < auctionModule.getEndTime(auctionId)) {
+            skip(auctionModule.getEndTime(auctionId) - block.timestamp);
+        }
 
-        // Check that the auction is no longer active
+        // Check that the auction is no longer active and trying to buy lots fails
         assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after timing out");
         _expectAuctionNotActive(auctionId);
         auctionModule.buyLots(auctionId, 1);
 
         // Complete the auction and check that all tokens were returned
         vm.startPrank(liquidityProviderOne); // Anyone can complete the auction after it times out
-        uint256 finalLotSize = uint256(initialLotSize) + lotIncreaseIncrement * (10 days / 2 hours);
+        uint256 finalLotSize = uint256(initialLotSize) + lotIncreaseIncrement * (timeLimit / lotIncreasePeriod);
         if (finalLotSize > auctionableBalance / numLots) {
             finalLotSize = auctionableBalance / numLots;
         }
@@ -955,11 +939,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit AuctionEnded(auctionId, numLots, finalLotSize, 0, 0);
         auctionModule.completeAuction(auctionId);
-        assertEq(
-            auctionModule.getAuctionToken(auctionId).balanceOf(address(auctionModule)),
-            0,
-            "Unsold tokens should be returned from the auction module"
-        );
+        assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
     }
 
@@ -967,7 +947,9 @@ contract SafetyModuleTest is Deployment, Utils {
         uint8 numLots,
         uint128 lotPrice,
         uint128 initialLotSize,
-        uint64 slashPercent
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
     ) public {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
@@ -977,12 +959,12 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
         uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
-        uint16 lotIncreasePeriod = uint16(2 hours);
-        uint32 timeLimit = uint32(10 days);
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
 
         // Start an auction and check that it was created correctly
-        uint256 auctionId = safetyModule.slashAndStartAuction(
-            address(stakedToken1),
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
             numLots,
             lotPrice,
             initialLotSize,
@@ -991,11 +973,6 @@ contract SafetyModuleTest is Deployment, Utils {
             lotIncreasePeriod,
             timeLimit
         );
-        assertTrue(auctionModule.isAuctionActive(auctionId), "Auction should be active");
-
-        // Check the state of the StakedToken after slashing
-        assertTrue(stakedToken1.isInPostSlashingState(), "Staked token should be in post slashing state");
-        assertEq(stakedToken1.exchangeRate(), 1e18 - slashPercent, "Exchange rate mismatch after slashing");
 
         // Terminate the auction early and check events
         vm.expectEmit(false, false, false, true);
@@ -1014,16 +991,14 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // Check that the auction is no longer active and unsold tokens have been returned
         assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after terminating early");
-        assertEq(
-            auctionModule.getAuctionToken(auctionId).balanceOf(address(auctionModule)),
-            0,
-            "Unsold tokens should be returned from the auction module"
-        );
+        assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
         assertTrue(
             !stakedToken1.isInPostSlashingState(),
-            "Staked token should not be in post slashing state after settling slashing"
+            "Staked token should not be in post slashing state after terminating the auction"
         );
+
+        // Check that trying to buy lots or complete the terminated auction fails
         vm.startPrank(liquidityProviderOne);
         _expectAuctionNotActive(auctionId);
         auctionModule.buyLots(auctionId, 1);
@@ -1524,6 +1499,10 @@ contract SafetyModuleTest is Deployment, Utils {
         return skipTimes;
     }
 
+    function _getAuctionRemainingBalance(uint256 auctionId) internal view returns (uint256) {
+        return auctionModule.getAuctionToken(auctionId).balanceOf(address(auctionModule));
+    }
+
     function _dealAndBuyLots(address buyer, uint256 auctionId, uint8 numLots, uint128 lotPrice) internal {
         IERC20 paymentToken = auctionModule.paymentToken();
         IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(auctionId);
@@ -1533,8 +1512,7 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 lotSize = auctionModule.getCurrentLotSize(auctionId);
         uint256 tokensAlreadySold = auctionModule.tokensSoldPerAuction(auctionId);
         uint256 fundsAlreadyRaised = auctionModule.fundsRaisedPerAuction(auctionId);
-        uint256 remainingBalance =
-            auctionModule.getAuctionToken(auctionId).balanceOf(address(auctionModule)) - lotSize * numLots;
+        uint256 remainingBalance = _getAuctionRemainingBalance(auctionId) - lotSize * numLots;
         vm.expectEmit(true, true, false, true);
         emit LotsSold(auctionId, buyer, numLots, lotSize, lotPrice);
         if (numLots == auctionModule.getRemainingLots(auctionId)) {
@@ -1658,9 +1636,10 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 expectedExchangeRate,
         string memory errorMsg
     ) internal {
-        assertEq(
+        assertApproxEqAbs(
             stakedToken.exchangeRate(),
             expectedExchangeRate,
+            10, // 10 wei tolerance for rounding error
             string(abi.encodePacked("Exchange rate mismatch ", errorMsg))
         );
         assertEq(
@@ -1673,6 +1652,48 @@ contract SafetyModuleTest is Deployment, Utils {
             previewAmount.wadMul(expectedExchangeRate),
             string(abi.encodePacked("Preview redeem mismatch ", errorMsg))
         );
+    }
+
+    function _startAndCheckAuction(
+        IStakedToken stakedToken,
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint96 lotIncreaseIncrement,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) internal returns (uint256) {
+        uint256 auctionId = safetyModule.slashAndStartAuction(
+            address(stakedToken),
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
+        );
+        assertEq(auctionModule.getCurrentLotSize(auctionId), initialLotSize, "Initial lot size mismatch");
+        assertEq(auctionModule.getRemainingLots(auctionId), numLots, "Initial lots mismatch");
+        assertEq(auctionModule.getLotPrice(auctionId), lotPrice, "Lot price mismatch");
+        assertEq(
+            auctionModule.getLotIncreaseIncrement(auctionId), lotIncreaseIncrement, "Lot increase increment mismatch"
+        );
+        assertEq(auctionModule.getLotIncreasePeriod(auctionId), lotIncreasePeriod, "Lot increase period mismatch");
+        assertEq(
+            address(auctionModule.getAuctionToken(auctionId)),
+            address(stakedToken.getUnderlyingToken()),
+            "Auction token mismatch"
+        );
+        assertEq(auctionModule.getStartTime(auctionId), block.timestamp, "Start time mismatch");
+        assertEq(auctionModule.getEndTime(auctionId), block.timestamp + timeLimit, "End time mismatch");
+        assertTrue(auctionModule.isAuctionActive(auctionId), "Auction should be active");
+
+        assertTrue(stakedToken.isInPostSlashingState(), "Staked token should be in post slashing state");
+        _checkExchangeRatePreviews(stakedToken, 1e18, 1e18 - slashPercent, "after slashing");
+
+        return auctionId;
     }
 
     function _checkRewards(
