@@ -545,72 +545,62 @@ contract SafetyModuleTest is Deployment, Utils {
         // Stake only with stakedToken1 for this test
         _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
 
-        // Get initial stake balances
-        uint256 initialBalance1 = stakedToken1.balanceOf(liquidityProviderOne);
-        uint256 initialBalance2 = stakedToken1.balanceOf(liquidityProviderTwo);
-
         // Skip some time
         skip(5 days);
 
-        // After 5 days, both users should have 2x multiplier (given smoothing value of 30 and max multiplier of 4)
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderOne, address(stakedToken1)),
-            2e18,
-            "Reward multiplier mismatch: user 1"
-        );
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2e18,
-            "Reward multiplier mismatch: user 2"
-        );
+        // store initial state before accruing rewards
+        uint256[] memory balances1 = _getUserBalances(liquidityProviderOne);
+        uint256[] memory balances2 = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory multipliers1 = _getRewardMultipliers(rewardDistributor, liquidityProviderOne);
+        uint256[] memory multipliers2 = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = _getSkipTimes(rewardDistributor);
+        skipTimes[1] = 0; // Ignore stakedToken2
 
-        // Transfer all of user 1's stakedToken1 to user 2
+        // After 5 days, both users should have 2x multiplier (given smoothing value of 30 and max multiplier of 4)
+        assertEq(multipliers1[0], 2e18, "Reward multiplier mismatch: user 1");
+        assertEq(multipliers2[0], 2e18, "Reward multiplier mismatch: user 2");
+
+        // Transfer all of user 1's stakedToken1 to user 2, accruing rewards for both users
         vm.startPrank(liquidityProviderOne);
-        // Start cooldown period for the sake of test coverage
-        stakedToken1.cooldown();
-        stakedToken1.transfer(liquidityProviderTwo, initialBalance1);
+        stakedToken1.cooldown(); // Start cooldown period for the sake of test coverage
+        stakedToken1.transfer(liquidityProviderTwo, balances1[0]);
         vm.stopPrank();
 
         // Check that both users accrued rewards according to their initial balances and multipliers
-        uint256 accruedRewards1 = rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken));
-        uint256 accruedRewards2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-        uint256 cumRewardsPerLpToken =
-            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(stakedToken1));
-        assertEq(
-            accruedRewards1,
-            initialBalance1.wadMul(cumRewardsPerLpToken).wadMul(2e18),
-            "Accrued rewards mismatch: user 1"
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderOne,
+            multipliers1,
+            skipTimes,
+            balances1,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
         );
-        assertEq(
-            accruedRewards2,
-            initialBalance2.wadMul(cumRewardsPerLpToken).wadMul(2e18),
-            "Accrued rewards mismatch: user 2"
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers2,
+            skipTimes,
+            balances2,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
         );
 
         // Check that user 1's multiplier is now 0, while user 2's is scaled according to the increase in stake
-        uint256 increaseRatio = initialBalance1.wadDiv(initialBalance1 + initialBalance2);
-        console.log("increaseRatio: %s", increaseRatio);
         assertEq(
             rewardDistributor.computeRewardMultiplier(liquidityProviderOne, address(stakedToken1)),
             0,
             "Reward multiplier mismatch after transfer: user 1"
         );
+        // Increase ratio is (newPosition - oldPosition) / newPosition, and is used to adjust the multiplier
+        // see the note in SMRewardDistributor.sol:updatePosition
+        uint256 increaseRatio = balances1[0].wadDiv(balances1[0] + balances2[0]);
         uint256 newMultiplierStartTime =
-            rewardDistributor.multiplierStartTimeByUser(liquidityProviderTwo, address(stakedToken1));
-        assertEq(
-            newMultiplierStartTime,
-            block.timestamp - uint256(5 days).wadMul(1e18 - increaseRatio),
-            "Multiplier start time mismatch after transfer: user 2"
-        );
-        uint256 deltaDays = (block.timestamp - newMultiplierStartTime).wadDiv(1 days);
-        uint256 expectedMultiplier = INITIAL_MAX_MULTIPLIER
-            - (INITIAL_SMOOTHING_VALUE * (INITIAL_MAX_MULTIPLIER - 1e18))
-                / ((deltaDays * (INITIAL_MAX_MULTIPLIER - 1e18)) / 1e18 + INITIAL_SMOOTHING_VALUE);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            expectedMultiplier,
-            "Reward multiplier mismatch after transfer: user 2"
-        );
+            _checkMultiplierAdjustment(address(stakedToken1), liquidityProviderTwo, increaseRatio, 5 days);
 
         // Claim rewards for both users
         rewardDistributor.claimRewardsFor(liquidityProviderOne);
@@ -619,38 +609,42 @@ contract SafetyModuleTest is Deployment, Utils {
         // Skip some more time
         skip(10 days - (block.timestamp - newMultiplierStartTime));
 
+        // update stored state before accruing rewards
+        balances1 = _getUserBalances(liquidityProviderOne);
+        balances2 = _getUserBalances(liquidityProviderTwo);
+        multipliers1 = _getRewardMultipliers(rewardDistributor, liquidityProviderOne);
+        multipliers2 = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
+        prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        skipTimes = _getSkipTimes(rewardDistributor);
+        skipTimes[1] = 0; // Ignore stakedToken2
+
         // 10 days after the new multiplier start time, user 2's multiplier should be 2.5
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderOne, address(stakedToken1)),
-            0,
-            "Reward multiplier mismatch after 10 days: user 1"
-        );
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2.5e18,
-            "Reward multiplier mismatch after 10 days: user 2"
-        );
+        assertEq(multipliers1[0], 0, "Reward multiplier mismatch after 10 days: user 1");
+        assertEq(multipliers2[0], 2.5e18, "Reward multiplier mismatch after 10 days: user 2");
 
         // Check that user 2 accrues rewards according to their new balance and multiplier, while user 1 accrues no rewards
         rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderOne);
         rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
-        accruedRewards1 = rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken));
-        accruedRewards2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-        cumRewardsPerLpToken = rewardDistributor.cumulativeRewardPerLpToken(
-            address(rewardsToken), address(stakedToken1)
-        ) - cumRewardsPerLpToken;
-        assertEq(accruedRewards1, 0, "Accrued rewards mismatch after 10 days: user 1");
         assertEq(
-            accruedRewards2,
-            (initialBalance1 + initialBalance2).wadMul(cumRewardsPerLpToken).wadMul(2.5e18),
-            "Accrued rewards mismatch after 10 days: user 2"
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken)),
+            0,
+            "Rewards should be 0: user 1"
+        );
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers2,
+            skipTimes,
+            balances2,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
         );
 
         // redeem all staked tokens and claim rewards (for gas measurement)
-        IStakedToken[] memory stakedTokens = new IStakedToken[](1);
-        stakedTokens[0] = stakedToken1;
-        _claimAndRedeemAll(stakedTokens, rewardDistributor, liquidityProviderTwo);
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderTwo);
+        _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderOne);
     }
 
     function test_NextCooldownTimestamp() public {
@@ -1413,6 +1407,13 @@ contract SafetyModuleTest is Deployment, Utils {
         distributor.claimRewardsFor(staker);
     }
 
+    function _calcExpectedMultiplier(uint256 deltaDays) internal view returns (uint256) {
+        uint256 smoothingValue = rewardDistributor.smoothingValue();
+        uint256 maxMultiplier = rewardDistributor.maxRewardMultiplier();
+        return maxMultiplier
+            - (smoothingValue * (maxMultiplier - 1e18)) / (deltaDays.wadMul(maxMultiplier - 1e18) + smoothingValue);
+    }
+
     function _getMarkets() internal view returns (address[] memory) {
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         address[] memory markets = new address[](numMarkets);
@@ -1622,6 +1623,26 @@ contract SafetyModuleTest is Deployment, Utils {
             (newCumRewardPerLpToken - rewardDistributor.cumulativeRewardPerLpTokenPerUser(user, token, market))
         ).wadMul(rewardDistributor.computeRewardMultiplier(user, market));
         return newUserRewards;
+    }
+
+    function _checkMultiplierAdjustment(address token, address user, uint256 increaseRatio, uint256 skipTime)
+        internal
+        returns (uint256)
+    {
+        uint256 newMultiplierStartTime = rewardDistributor.multiplierStartTimeByUser(user, token);
+        assertEq(
+            newMultiplierStartTime,
+            block.timestamp - uint256(skipTime).wadMul(1e18 - increaseRatio),
+            "Multiplier start time mismatch after transfer: user 2"
+        );
+        uint256 deltaDays = (block.timestamp - newMultiplierStartTime).wadDiv(1 days);
+        uint256 expectedMultiplier = _calcExpectedMultiplier(deltaDays);
+        assertEq(
+            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
+            expectedMultiplier,
+            "Reward multiplier mismatch after transfer: user 2"
+        );
+        return newMultiplierStartTime;
     }
 
     function _checkRewards(
