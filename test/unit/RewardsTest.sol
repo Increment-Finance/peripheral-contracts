@@ -203,70 +203,66 @@ contract RewardsTest is Deployment, Utils {
         assertApproxEqRel(accruedRewards, approxRewards, 5e16, "Incorrect annual rewards");
     }
 
-    function testFuzz_RewardControllerErrors(
-        uint88 inflationRate,
-        uint88 reductionFactor,
-        address[] memory markets,
-        uint256[] memory marketWeights,
-        address token
-    ) public {
-        vm.assume(token != address(rewardsToken) && token != address(rewardsToken2) && token != address(0));
-        vm.assume(markets.length > 2);
-        vm.assume(marketWeights.length > 2);
-        vm.assume(markets.length != marketWeights.length);
-        vm.assume(marketWeights[0] <= type(uint256).max / 2 && marketWeights[1] <= type(uint256).max / 2);
-        vm.assume(marketWeights[0] + marketWeights[1] != 10000);
-        inflationRate = uint88(bound(inflationRate, 5e24 + 1, type(uint88).max));
-        reductionFactor = uint88(bound(reductionFactor, 0, 1e18 - 1));
+    function test_RewardControllerErrors() public {
+        uint88 inflationRate1 = uint88(5e24 + 1);
+        uint88 inflationRate2 = type(uint88).max;
+        uint88 reductionFactor1 = 0;
+        uint88 reductionFactor2 = uint88(1e18 - 1);
+        address[] memory markets = _getMarkets();
+        uint256[] memory marketWeights = new uint256[](3);
 
         // test wrong token address
-        _expectInvalidRewardTokenAddress(token);
-        rewardDistributor.updateRewardWeights(token, markets, marketWeights);
-        _expectInvalidRewardTokenAddress(token);
-        rewardDistributor.updateInitialInflationRate(token, inflationRate);
-        _expectInvalidRewardTokenAddress(token);
-        rewardDistributor.updateReductionFactor(token, reductionFactor);
-        _expectInvalidRewardTokenAddress(token);
-        rewardDistributor.setPaused(token, true);
+        _expectInvalidRewardTokenAddress(liquidityProviderOne);
+        rewardDistributor.updateRewardWeights(liquidityProviderOne, markets, marketWeights);
+        _expectInvalidRewardTokenAddress(liquidityProviderOne);
+        rewardDistributor.updateInitialInflationRate(liquidityProviderOne, inflationRate1);
+        _expectInvalidRewardTokenAddress(liquidityProviderOne);
+        rewardDistributor.updateReductionFactor(liquidityProviderOne, reductionFactor1);
+        _expectInvalidRewardTokenAddress(liquidityProviderOne);
+        rewardDistributor.setPaused(liquidityProviderOne, true);
 
         // test max inflation rate & min reduction factor
-        _expectAboveMaxInflationRate(inflationRate, 5e24);
-        rewardDistributor.updateInitialInflationRate(address(rewardsToken), inflationRate);
-        _expectAboveMaxInflationRate(inflationRate, 5e24);
-        rewardDistributor.addRewardToken(address(rewardsToken), inflationRate, reductionFactor, markets, marketWeights);
-        _expectBelowMinReductionFactor(reductionFactor, 1e18);
-        rewardDistributor.updateReductionFactor(address(rewardsToken), reductionFactor);
-        _expectBelowMinReductionFactor(reductionFactor, 1e18);
+        _expectAboveMaxInflationRate(inflationRate1, 5e24);
+        rewardDistributor.updateInitialInflationRate(address(rewardsToken), inflationRate1);
+        _expectAboveMaxInflationRate(inflationRate2, 5e24);
         rewardDistributor.addRewardToken(
-            address(rewardsToken), INITIAL_INFLATION_RATE, reductionFactor, markets, marketWeights
+            address(rewardsToken), inflationRate2, reductionFactor2, markets, marketWeights
+        );
+        _expectBelowMinReductionFactor(reductionFactor1, 1e18);
+        rewardDistributor.updateReductionFactor(address(rewardsToken), reductionFactor1);
+        _expectBelowMinReductionFactor(reductionFactor2, 1e18);
+        rewardDistributor.addRewardToken(
+            address(rewardsToken), INITIAL_INFLATION_RATE, reductionFactor2, markets, marketWeights
         );
 
         // test incorrect market weights
         _expectIncorrectWeightsCount(marketWeights.length, markets.length);
         rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
-        address[] memory markets2 = new address[](2);
-        markets2[0] = markets[0];
-        markets2[1] = markets[1];
-        uint256[] memory marketWeights2 = new uint256[](2);
-        marketWeights2[0] = marketWeights[0];
-        marketWeights2[1] = marketWeights[1];
-        if (marketWeights2[0] > 10000) {
-            _expectWeightExceedsMax(marketWeights2[0], 10000);
-        } else if (marketWeights[1] > 10000) {
-            _expectWeightExceedsMax(marketWeights2[1], 10000);
-        } else {
-            _expectIncorrectWeightsSum(marketWeights2[0] + marketWeights2[1], 10000);
-        }
-        rewardDistributor.updateRewardWeights(address(rewardsToken), markets2, marketWeights2);
-        if (marketWeights2[0] > 10000) {
-            _expectWeightExceedsMax(marketWeights2[0], 10000);
-        } else if (marketWeights[1] > 10000) {
-            _expectWeightExceedsMax(marketWeights2[1], 10000);
-        } else {
-            _expectIncorrectWeightsSum(marketWeights2[0] + marketWeights2[1], 10000);
-        }
+        marketWeights = new uint256[](2);
+        // both weights exceed the max
+        marketWeights[0] = 10001;
+        marketWeights[1] = 10001;
+        _expectWeightExceedsMax(marketWeights[0], 10000);
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
+        _expectWeightExceedsMax(marketWeights[0], 10000);
         rewardDistributor.addRewardToken(
-            address(rewardsToken2), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, markets2, marketWeights2
+            address(rewardsToken2), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, markets, marketWeights
+        );
+        // only second weight exceeds the max
+        marketWeights[0] = 1000;
+        _expectWeightExceedsMax(marketWeights[1], 10000);
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
+        _expectWeightExceedsMax(marketWeights[1], 10000);
+        rewardDistributor.addRewardToken(
+            address(rewardsToken2), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, markets, marketWeights
+        );
+        // sum of weights below 100%
+        marketWeights[1] = 1000;
+        _expectIncorrectWeightsSum(2000, 10000);
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, marketWeights);
+        _expectIncorrectWeightsSum(2000, 10000);
+        rewardDistributor.addRewardToken(
+            address(rewardsToken2), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, markets, marketWeights
         );
     }
 

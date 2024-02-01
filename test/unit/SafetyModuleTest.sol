@@ -1011,67 +1011,82 @@ contract SafetyModuleTest is Deployment, Utils {
     /*    Custom Errors    */
     /* ******************* */
 
-    function testFuzz_SafetyModuleErrors(
-        uint256 invalidMarketIdx,
-        address invalidMarket,
-        address invalidRewardToken,
-        uint8 numLots,
-        uint128 lotSize
-    ) public {
-        /* bounds */
-        invalidMarketIdx = bound(invalidMarketIdx, 2, type(uint256).max);
-        vm.assume(invalidMarket != address(stakedToken1) && invalidMarket != address(stakedToken2));
-        vm.assume(invalidRewardToken != address(rewardsToken));
-        vm.assume(uint256(numLots) * uint256(lotSize) > stakedToken1.totalSupply());
-
+    function test_SafetyModuleErrors() public {
         // test staking token already registered
         _expectStakingTokenAlreadyRegistered(address(stakedToken1));
         safetyModule.addStakingToken(stakedToken1);
 
-        // test invalid staking token
-        _expectInvalidStakingToken(invalidMarket);
-        safetyModule.getStakingTokenIdx(invalidMarket);
-        vm.startPrank(invalidMarket);
-        _expectCallerIsNotStakingToken(invalidMarket);
-        safetyModule.updatePosition(invalidMarket, liquidityProviderOne);
-        vm.stopPrank();
-
         // test insufficient auctionable funds
-        _expectInsufficientSlashedTokensForAuction(
-            address(stakedToken1.getUnderlyingToken()), uint256(numLots) * uint256(lotSize), stakedToken1.totalSupply()
+        // i.e., lotSize x numLots exceeds total supply of underlying token
+        uint128 lotSize = uint128(stakedToken1.totalSupply()) + 1;
+        // other auction params
+        uint128 lotPrice = 1e18;
+        uint8 numLots = 2;
+        uint64 slashPercent = 1e18;
+        uint96 increment = 1e18;
+        uint16 period = 1 hours;
+        uint32 timelimit = 5 days;
+        address stakedToken = address(stakedToken1);
+        address underlyingToken = address(stakedToken1.getUnderlyingToken());
+        _expectInsufficientSlashedTokensForAuction(underlyingToken, numLots * lotSize, stakedToken1.totalSupply());
+        safetyModule.slashAndStartAuction(
+            stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
         );
-        safetyModule.slashAndStartAuction(address(stakedToken1), numLots, 0, lotSize, 1e18, 0, 0, 1 days);
 
-        // test slash percent too high
+        // test slash percent too high, over 1e18
+        slashPercent += 1;
         _expectInvalidSlashPercentTooHigh();
-        safetyModule.slashAndStartAuction(address(stakedToken1), numLots, 0, lotSize, 1e18 + 1, 0, 0, 1 days);
+        safetyModule.slashAndStartAuction(
+            stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+        );
 
-        // test invalid caller not auction module
-        _expectCallerIsNotAuctionModule(address(this));
+        // test invalid staking token
+        _expectInvalidStakingToken(liquidityProviderOne);
+        safetyModule.getStakingTokenIdx(liquidityProviderOne);
+        _expectInvalidStakingToken(liquidityProviderOne);
+        safetyModule.returnFunds(liquidityProviderOne, liquidityProviderTwo, 1e18);
+        slashPercent -= 1;
+        _expectInvalidStakingToken(liquidityProviderOne);
+        safetyModule.slashAndStartAuction(
+            liquidityProviderOne, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+        );
+
+        // test invalid callers
+        vm.startPrank(liquidityProviderOne);
+        _expectCallerIsNotStakingToken(liquidityProviderOne);
+        safetyModule.updatePosition(stakedToken, liquidityProviderOne);
+        _expectCallerIsNotAuctionModule(liquidityProviderOne);
         safetyModule.auctionEnded(0, 0);
     }
 
-    function testFuzz_SMRDErrors(
-        uint256 lowMaxMultiplier,
-        uint256 highMaxMultiplier,
-        uint256 lowSmoothingValue,
-        uint256 highSmoothingValue
-    ) public {
+    function test_SMRDErrors() public {
         /* bounds */
-        lowMaxMultiplier = bound(lowMaxMultiplier, 0, 1e18 - 1);
-        highMaxMultiplier = bound(highMaxMultiplier, 10e18 + 1, type(uint256).max);
-        lowSmoothingValue = bound(lowSmoothingValue, 0, 10e18 - 1);
-        highSmoothingValue = bound(highSmoothingValue, 100e18 + 1, type(uint256).max);
+        uint256 lowMaxMultiplier1 = 0;
+        uint256 lowMaxMultiplier2 = 1e18 - 1;
+        uint256 highMaxMultiplier1 = 10e18 + 1;
+        uint256 highMaxMultiplier2 = type(uint256).max;
+        uint256 lowSmoothingValue1 = 0;
+        uint256 lowSmoothingValue2 = 10e18 - 1;
+        uint256 highSmoothingValue1 = 100e18 + 1;
+        uint256 highSmoothingValue2 = type(uint256).max;
 
         // test governor-controlled params out of bounds
-        _expectInvalidMaxMultiplierTooLow(lowMaxMultiplier, 1e18);
-        rewardDistributor.setMaxRewardMultiplier(lowMaxMultiplier);
-        _expectInvalidMaxMultiplierTooHigh(highMaxMultiplier, 10e18);
-        rewardDistributor.setMaxRewardMultiplier(highMaxMultiplier);
-        _expectInvalidSmoothingValueTooLow(lowSmoothingValue, 10e18);
-        rewardDistributor.setSmoothingValue(lowSmoothingValue);
-        _expectInvalidSmoothingValueTooHigh(highSmoothingValue, 100e18);
-        rewardDistributor.setSmoothingValue(highSmoothingValue);
+        _expectInvalidMaxMultiplierTooLow(lowMaxMultiplier1, 1e18);
+        rewardDistributor.setMaxRewardMultiplier(lowMaxMultiplier1);
+        _expectInvalidMaxMultiplierTooLow(lowMaxMultiplier2, 1e18);
+        rewardDistributor.setMaxRewardMultiplier(lowMaxMultiplier2);
+        _expectInvalidMaxMultiplierTooHigh(highMaxMultiplier1, 10e18);
+        rewardDistributor.setMaxRewardMultiplier(highMaxMultiplier1);
+        _expectInvalidMaxMultiplierTooHigh(highMaxMultiplier2, 10e18);
+        rewardDistributor.setMaxRewardMultiplier(highMaxMultiplier2);
+        _expectInvalidSmoothingValueTooLow(lowSmoothingValue1, 10e18);
+        rewardDistributor.setSmoothingValue(lowSmoothingValue1);
+        _expectInvalidSmoothingValueTooLow(lowSmoothingValue2, 10e18);
+        rewardDistributor.setSmoothingValue(lowSmoothingValue2);
+        _expectInvalidSmoothingValueTooHigh(highSmoothingValue1, 100e18);
+        rewardDistributor.setSmoothingValue(highSmoothingValue1);
+        _expectInvalidSmoothingValueTooHigh(highSmoothingValue2, 100e18);
+        rewardDistributor.setSmoothingValue(highSmoothingValue2);
         _expectRewardDistributorInvalidZeroAddress();
         rewardDistributor.setSafetyModule(ISafetyModule(address(0)));
 
@@ -1096,19 +1111,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused when safety module is unpaused");
     }
 
-    function testFuzz_StakedTokenErrors(uint256 invalidStakeAmount1, uint256 invalidStakeAmount2) public {
-        /* bounds */
-        invalidStakeAmount1 = bound(
-            invalidStakeAmount1,
-            MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne) + 1,
-            type(uint256).max / 2
-        );
-        invalidStakeAmount2 = bound(
-            invalidStakeAmount2,
-            MAX_STAKE_AMOUNT_2 - stakedToken2.balanceOf(liquidityProviderOne) + 1,
-            type(uint256).max / 2
-        );
-
+    function test_StakedTokenErrors() public {
         // test zero amount
         _expectStakedTokenInvalidZeroAmount();
         stakedToken1.stakeOnBehalfOf(liquidityProviderOne, 0);
@@ -1136,6 +1139,8 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.cooldown();
 
         // test above max stake amount
+        uint256 invalidStakeAmount1 = type(uint256).max / 2;
+        uint256 invalidStakeAmount2 = MAX_STAKE_AMOUNT_2 + 1;
         _expectAboveMaxStakeAmount(
             MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
         );
