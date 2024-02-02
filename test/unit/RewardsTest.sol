@@ -219,7 +219,7 @@ contract RewardsTest is Deployment, Utils {
         _expectInvalidRewardTokenAddress(liquidityProviderOne);
         rewardDistributor.updateReductionFactor(liquidityProviderOne, reductionFactor1);
         _expectInvalidRewardTokenAddress(liquidityProviderOne);
-        rewardDistributor.setPaused(liquidityProviderOne, true);
+        rewardDistributor.setPausedReward(liquidityProviderOne, true);
 
         // test max inflation rate & min reduction factor
         _expectAboveMaxInflationRate(inflationRate1, 5e24);
@@ -577,7 +577,7 @@ contract RewardsTest is Deployment, Utils {
 
         // pause accrual
         vm.startPrank(address(this));
-        rewardDistributor.setPaused(address(rewardsToken), true);
+        rewardDistributor.setPausedReward(address(rewardsToken), true);
         bool paused = rewardDistributor.isTokenPaused(address(rewardsToken));
         assertTrue(paused, "Rewards not paused");
 
@@ -590,7 +590,7 @@ contract RewardsTest is Deployment, Utils {
         assertEq(accruedRewards, 0, "Rewards accrued while paused");
 
         // unpause accrual
-        rewardDistributor.setPaused(address(rewardsToken), false);
+        rewardDistributor.setPausedReward(address(rewardsToken), false);
         paused = rewardDistributor.isTokenPaused(address(rewardsToken));
         assertTrue(!paused, "Rewards not unpaused");
 

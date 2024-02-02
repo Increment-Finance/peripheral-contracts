@@ -227,21 +227,21 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Emergency Admin
-    function setPaused(address rewardToken, bool paused) external onlyRole(EMERGENCY_ADMIN) {
-        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
-            revert RewardController_InvalidRewardTokenAddress(rewardToken);
+    function setPausedReward(address _rewardToken, bool _paused) external onlyRole(EMERGENCY_ADMIN) {
+        if (_rewardToken == address(0) || rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
+            revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
-        if (paused && !rewardInfoByToken[rewardToken].paused) {
+        if (_paused && !rewardInfoByToken[_rewardToken].paused) {
             // If not currently paused, accrue rewards before pausing
-            uint256 numMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
+            uint256 numMarkets = rewardInfoByToken[_rewardToken].marketAddresses.length;
             for (uint256 i; i < numMarkets;) {
-                _updateMarketRewards(rewardInfoByToken[rewardToken].marketAddresses[i]);
+                _updateMarketRewards(rewardInfoByToken[_rewardToken].marketAddresses[i]);
                 unchecked {
                     ++i;
                 }
             }
         }
-        rewardInfoByToken[rewardToken].paused = paused;
+        rewardInfoByToken[_rewardToken].paused = _paused;
     }
 
     /* **************** */
