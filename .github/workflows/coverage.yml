@@ -9,6 +9,9 @@ on:
       - "contracts/**"
       - "test/**"
 
+env:
+  FOUNDRY_PROFILE: ci
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -71,7 +74,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
-          filename: increment-protocol-line-coverage__${{ env.BRANCH }}.json
+          filename: peripheral-contracts-line-coverage__${{ env.BRANCH }}.json
           label: Line Coverage
           message: ${{ env.LINE_COVERAGE }}%
           color: "#63C261"
@@ -82,7 +85,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
-          filename: increment-protocol-branch-coverage__${{ env.BRANCH }}.json
+          filename: peripheral-contracts-branch-coverage__${{ env.BRANCH }}.json
           label: Branch Coverage
           message: ${{ env.BRANCH_COVERAGE }}%
           color: "#63C261"
@@ -93,7 +96,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
-          filename: increment-protocol-statement-coverage__${{ env.BRANCH }}.json
+          filename: peripheral-contracts-statement-coverage__${{ env.BRANCH }}.json
           label: Statement Coverage
           message: ${{ env.STATEMENT_COVERAGE }}%
           color: "#63C261"
@@ -104,7 +107,7 @@ jobs:
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 6d6d5f849f8fb108519cfe2bbf5c21f6
-          filename: increment-protocol-function-coverage__${{ env.BRANCH }}.json
+          filename: peripheral-contracts-function-coverage__${{ env.BRANCH }}.json
           label: Function Coverage
           message: ${{ env.FUNCTION_COVERAGE }}%
           color: "#63C261"
