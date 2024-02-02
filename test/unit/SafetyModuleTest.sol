@@ -670,7 +670,7 @@ contract SafetyModuleTest is Deployment, Utils {
         address toAddress = liquidityProviderOne;
         uint256 toBalance = stakedToken1.balanceOf(liquidityProviderOne);
 
-        // When user first stakes, next cooldown timestamp should be 0
+        // When user first stakes, next cooldown timestamp should be 0 (user 1 staked 10,000 INCR in setUp())
         assertEq(
             stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
             0,
@@ -730,9 +730,11 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // If sender's cooldown timestamp is greater than or equal to recipient's,
         // recipient's next timestamp should be weighted average of from and to timestamps
+        uint256 expectedWeightedAverage =
+            _calcWeightedAverageCooldown(fromCooldownTimestamp, toCooldownTimestamp, amountToReceive, toBalance);
         assertEq(
             stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
-            _calcWeightedAverageCooldown(fromCooldownTimestamp, toCooldownTimestamp, amountToReceive, toBalance),
+            expectedWeightedAverage,
             "Next cooldown timestamp should be weighted average when user 1's cooldown timestamp is greater than or equal to user 2's"
         );
 
@@ -749,10 +751,22 @@ contract SafetyModuleTest is Deployment, Utils {
         skip(COOLDOWN_SECONDS);
 
         // If fromCooldownTimestamp is less than minimal valid timestamp, block.timestamp should be used
+        expectedWeightedAverage =
+            _calcWeightedAverageCooldown(block.timestamp, toCooldownTimestamp, amountToReceive, toBalance);
         assertEq(
             stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
-            _calcWeightedAverageCooldown(block.timestamp, toCooldownTimestamp, amountToReceive, toBalance),
+            expectedWeightedAverage,
             "block.timestamp should be used for fromCooldownTimestamp when computing weighted average after cooldown period and unstake window have passed"
+        );
+
+        // Transfer stake from user 1 to user 2 and check that user 2's cooldown timestamp is updated as expected
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.transfer(liquidityProviderTwo, amountToReceive);
+        vm.stopPrank();
+        assertEq(
+            stakedToken1.stakersCooldowns(liquidityProviderTwo),
+            expectedWeightedAverage,
+            "Cooldown timestamp mismatch after transfer"
         );
     }
 
