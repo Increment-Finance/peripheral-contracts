@@ -175,8 +175,8 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.stopPrank();
 
         // Deposit ETH to WETH for users
-        deal(address(weth), liquidityProviderOne, 10 ether, true);
-        deal(address(weth), liquidityProviderTwo, 10 ether, true);
+        deal(address(weth), liquidityProviderOne, 10 ether);
+        deal(address(weth), liquidityProviderTwo, 10 ether);
 
         // Join Balancer pool as user 1
         _joinBalancerPool(poolId, liquidityProviderOne, 5000 ether, 10 ether);
