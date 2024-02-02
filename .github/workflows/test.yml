@@ -33,5 +33,5 @@ jobs:
 
       - name: Run Forge unit tests
         run: |
-          forge test --match-path "test/unit/**" -vvv
+          forge test --match-path "test/unit/**" -vvvv
         id: test
