@@ -39,7 +39,8 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// i.e., `updatePosition`
     modifier onlyStakingToken() {
         bool isStakingToken;
-        for (uint256 i; i < stakingTokens.length;) {
+        uint256 numTokens = stakingTokens.length;
+        for (uint256 i; i < numTokens;) {
             if (msg.sender == address(stakingTokens[i])) {
                 isStakingToken = true;
                 break;
