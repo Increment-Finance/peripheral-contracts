@@ -80,6 +80,11 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /* ****************** */
 
     /// @inheritdoc ISafetyModule
+    function getStakingTokens() external view returns (IStakedToken[] memory) {
+        return stakingTokens;
+    }
+
+    /// @inheritdoc ISafetyModule
     function getNumStakingTokens() public view returns (uint256) {
         return stakingTokens.length;
     }

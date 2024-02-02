@@ -98,6 +98,10 @@ interface ISafetyModule {
     /// @return StakedToken contract that was slashed
     function stakingTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
 
+    /// @notice Returns the full list of staking tokens registered in the SafetyModule
+    /// @return Array of StakedToken contracts
+    function getStakingTokens() external view returns (IStakedToken[] memory);
+
     /// @notice Gets the number of staking tokens registered in the SafetyModule
     /// @return Number of staking tokens
     function getNumStakingTokens() external view returns (uint256);
