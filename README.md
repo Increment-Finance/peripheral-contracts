@@ -19,10 +19,22 @@ To get started with this project, follow these steps:
 
 ## Testing
 
-To run the Foundry tests for this project, you will need an RPC node provider API key and corresponding URL, as shown below. You will also need to have [Foundry](https://book.getfoundry.sh/getting-started/installation) installed. Once you are ready, run the following command from the repo's root directory:
+To run the Foundry tests for this project, you will need to have [Foundry](https://book.getfoundry.sh/getting-started/installation) installed. You will also need an RPC node provider API key and corresponding URL, which should be stored in a .env file as `MAINNET_RPC_URL=<your API URL here>`. See [example.env](example.env) for an example.
+
+To run just the unit tests, run the following command from the repo's root directory:
 
 ```
-source .env && forge test --fork-url https://mainnet.infura.io/v3/<YOUR_INFURA_KEY>
+source .env && forge test --match-path "test/unit/**"
 ```
 
-_Note: if you use some RPC provider other than Infura, just replace the entire URL rather than just the key_
+To run the invariant fuzzing tests, which take longer, run the following command from the repo's root directory:
+
+```
+source .env && forge test --match-path "test/invariant/**"
+```
+
+Or just run one of the invariant fuzzing tests, i.e., the SafetyModule tests:
+
+```
+source .env && forge test --match-path test/invariant/SafetyModuleInvariantTest.sol
+```
