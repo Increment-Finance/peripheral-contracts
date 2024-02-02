@@ -8,6 +8,7 @@ on:
     paths:
       - "contracts/**"
       - "test/**"
+      - ".github/**"
 
 env:
   FOUNDRY_PROFILE: ci

@@ -8,16 +8,14 @@ on:
     paths:
       - "contracts/**"
       - "test/**"
+      - ".github/**"
 
 env:
   FOUNDRY_PROFILE: ci
+  MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
 
 jobs:
-  check:
-    strategy:
-      fail-fast: true
-
-    name: Foundry project
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,11 +28,8 @@ jobs:
         with:
           version: nightly
 
-      - name: Run Forge build
-        run: |
-          forge --version
-          forge build --sizes
-        id: build
+      - name: Compile
+        run: forge build
 
       - name: Run Forge tests
         run: |
