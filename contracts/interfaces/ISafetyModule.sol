@@ -4,12 +4,11 @@ pragma solidity 0.8.16;
 import {IStakedToken, IERC20} from "./IStakedToken.sol";
 import {IAuctionModule} from "./IAuctionModule.sol";
 import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
-import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 
 /// @title ISafetyModule
 /// @author webthethird
 /// @notice Interface for the SafetyModule contract
-interface ISafetyModule is IRewardContract {
+interface ISafetyModule {
     /// @notice Emitted when a staking token is added
     /// @param stakingToken Address of the staking token
     event StakingTokenAdded(address indexed stakingToken);
@@ -108,6 +107,13 @@ interface ISafetyModule is IRewardContract {
     /// @param token Address of the staking token
     /// @return Index of the staking token in the `stakingTokens` array
     function getStakingTokenIdx(address token) external view returns (uint256);
+
+    /// @notice Updates the position of a user for a given staked token and accrues rewards to the user
+    /// @dev This function is called by the StakedToken contract whenever a user's position changes,
+    /// and forwards the call to the SMRewardDistributor
+    /// @param stakedToken Address of the staked token
+    /// @param staker Address of the staker
+    function updatePosition(address stakedToken, address staker) external;
 
     /// @notice Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
     /// transfers the underlying tokens to the AuctionModule and starts an auction to sell them

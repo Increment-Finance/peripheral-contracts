@@ -10,6 +10,7 @@ import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 import {ISafetyModule, ISMRewardDistributor} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
+import {IRewardContract} from "@increment/interfaces/IRewardContract.sol";
 
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
@@ -99,12 +100,10 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /*   Reward Accrual   */
     /* ****************** */
 
-    /// @notice Accrues rewards and updates the stored stake position of a user and the total tokens staked
-    /// @dev Executes whenever a user's stake is updated for any reason
-    /// @param market Address of the staking token in `stakingTokens`
-    /// @param user Address of the staker
-    function updatePosition(address market, address user) external override nonReentrant onlyStakingToken {
-        smRewardDistributor.updatePosition(market, user);
+    /// @inheritdoc ISafetyModule
+    /// @dev Only callable by a registered StakedToken contract
+    function updatePosition(address stakedToken, address staker) external override nonReentrant onlyStakingToken {
+        smRewardDistributor.updatePosition(stakedToken, staker);
     }
 
     /* ****************** */

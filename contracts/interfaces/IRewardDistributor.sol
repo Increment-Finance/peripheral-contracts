@@ -4,11 +4,12 @@ pragma solidity 0.8.16;
 // interfaces
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
+import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 
 /// @title IRewardDistributor
 /// @author webthethird
 /// @notice Interface for the RewardDistributor contract
-interface IRewardDistributor {
+interface IRewardDistributor is IRewardContract {
     /// @notice Emitted when rewards are accrued to a user
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token

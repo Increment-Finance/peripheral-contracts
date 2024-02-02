@@ -2,9 +2,10 @@
 pragma solidity 0.8.16;
 
 // interfaces
+import {IRewardDistributor} from "./IRewardDistributor.sol";
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 
-interface IPerpRewardDistributor {
+interface IPerpRewardDistributor is IRewardDistributor {
     /// @notice Emitted when the ClearingHouse contract is updated by governance
     /// @param oldClearingHouse Address of the old ClearingHouse contract
     /// @param newClearingHouse Address of the new ClearingHouse contract
