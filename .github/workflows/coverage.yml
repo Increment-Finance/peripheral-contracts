@@ -32,7 +32,7 @@ jobs:
 
       - name: Running Coverage
         run: |
-          read LINE_COVERAGE STATEMENT_COVERAGE BRANCH_COVERAGE FUNCTION_COVERAGE < <(forge coverage | grep -v -E 'test|Total' | awk -F '|' '
+          read LINE_COVERAGE STATEMENT_COVERAGE BRANCH_COVERAGE FUNCTION_COVERAGE < <(forge coverage --match-path "test/unit/**" | grep -v -E 'test|Total' | awk -F '|' '
               {
                   for (i = 2; i <= NF; i++) {
                       gsub(/[ %]/, "", $i);
