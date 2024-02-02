@@ -4,12 +4,11 @@ pragma solidity 0.8.16;
 // interfaces
 import {ISafetyModule} from "./ISafetyModule.sol";
 import {IRewardDistributor} from "./IRewardDistributor.sol";
-import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
 
 /// @title ISMRewardDistributor
 /// @author webthethird
 /// @notice Interface for the Safety Module's Reward Distributor contract
-interface ISMRewardDistributor is IRewardDistributor, IRewardContract {
+interface ISMRewardDistributor is IRewardDistributor {
     /// @notice Emitted when the max reward multiplier is updated by governance
     /// @param oldMaxRewardMultiplier Old max reward multiplier
     /// @param newMaxRewardMultiplier New max reward multiplier

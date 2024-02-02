@@ -64,12 +64,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @dev Executes whenever a user's stake is updated for any reason
     /// @param market Address of the staking token in `stakingTokens`
     /// @param user Address of the staker
-    function updatePosition(address market, address user)
-        external
-        virtual
-        override(IRewardContract, RewardDistributor)
-        onlySafetyModule
-    {
+    function updatePosition(address market, address user) external virtual override onlySafetyModule {
         _updateMarketRewards(market);
         uint256 prevPosition = lpPositionsPerUser[user][market];
         uint256 newPosition = _getCurrentPosition(user, market);
