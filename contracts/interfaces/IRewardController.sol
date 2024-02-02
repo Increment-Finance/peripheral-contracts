@@ -85,6 +85,10 @@ interface IRewardController {
     /// @return The address of the reward token
     function rewardTokens(uint256 i) external view returns (address);
 
+    /// @notice Returns the full list of reward tokens
+    /// @return Array of reward token addresses
+    function getRewardTokens() external view returns (address[] memory);
+
     /// @notice Gets the number of reward tokens
     /// @return Number of reward tokens
     function getRewardTokenCount() external view returns (uint256);

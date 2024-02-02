@@ -64,6 +64,11 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     /* ******************* */
 
     /// @inheritdoc IRewardController
+    function getRewardTokens() external view returns (address[] memory) {
+        return rewardTokens;
+    }
+
+    /// @inheritdoc IRewardController
     function getRewardTokenCount() external view returns (uint256) {
         return rewardTokens.length;
     }
