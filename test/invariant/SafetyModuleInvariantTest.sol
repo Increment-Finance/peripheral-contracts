@@ -243,7 +243,7 @@ contract SafetyModuleInvariantTest is Test {
     /*     Invariants     */
     /* ****************** */
 
-    function invariantMarketAccumulatorNeverDecreases() public {
+    function invariant_MarketAccumulatorNeverDecreases() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         for (uint256 i; i < numRewards; i++) {
@@ -261,7 +261,7 @@ contract SafetyModuleInvariantTest is Test {
         }
     }
 
-    function invariantUserAccumulatorUpdatesOnAccrual() public {
+    function invariant_UserAccumulatorUpdatesOnAccrual() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         for (uint256 i; i < numRewards; i++) {
@@ -304,7 +304,7 @@ contract SafetyModuleInvariantTest is Test {
         skip(1 days);
     }
 
-    function invariantStakerPositionsMatch() public {
+    function invariant_StakerPositionsMatch() public {
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         for (uint256 i; i < numMarkets; i++) {
             IStakedToken stakedToken = safetyModule.stakingTokens(i);
@@ -320,7 +320,7 @@ contract SafetyModuleInvariantTest is Test {
         }
     }
 
-    function invariantTotalLiquidityMatches() public {
+    function invariant_TotalLiquidityMatches() public {
         uint256 numMarkets = safetyModule.getNumStakingTokens();
         for (uint256 i; i < numMarkets; i++) {
             IStakedToken stakedToken = safetyModule.stakingTokens(i);
@@ -333,7 +333,7 @@ contract SafetyModuleInvariantTest is Test {
         }
     }
 
-    function invariantSumOfAccruedRewardsUnclaimed() public {
+    function invariant_SumOfAccruedRewardsUnclaimed() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
@@ -351,7 +351,7 @@ contract SafetyModuleInvariantTest is Test {
         }
     }
 
-    function invariantExchangeRates() public {
+    function invariant_ExchangeRates() public {
         for (uint256 i; i < stakedTokens.length; i++) {
             StakedToken stakedToken = stakedTokens[i];
             uint256 underlyingBalance = stakedToken.getUnderlyingToken().balanceOf(address(stakedToken));

@@ -116,6 +116,11 @@ interface IRewardController {
     /// @return The reward weight of the market in basis points
     function getRewardWeight(address rewardToken, address market) external view returns (uint256);
 
+    /// @notice Gets the list of all markets receiving a given reward token
+    /// @param rewardToken Address of the reward token
+    /// @return List of market addresses
+    function getRewardMarkets(address rewardToken) external view returns (address[] memory);
+
     /// @notice Gets whether a reward token is paused
     /// @param rewardToken Address of the reward token
     /// @return True if the reward token is paused, false otherwise

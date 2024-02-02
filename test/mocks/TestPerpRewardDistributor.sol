@@ -34,8 +34,4 @@ contract TestPerpRewardDistributor is PerpRewardDistributor {
             }
         }
     }
-
-    function accrueRewards(address market, address user) external {
-        _accrueRewards(market, user);
-    }
 }
