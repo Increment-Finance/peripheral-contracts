@@ -97,6 +97,11 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     }
 
     /// @inheritdoc IRewardController
+    function getRewardMarkets(address rewardToken) external view returns (address[] memory) {
+        return rewardInfoByToken[rewardToken].marketAddresses;
+    }
+
+    /// @inheritdoc IRewardController
     function isTokenPaused(address rewardToken) external view returns (bool) {
         return rewardInfoByToken[rewardToken].paused;
     }
@@ -221,7 +226,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(rewardToken);
         }
-        if (rewardInfoByToken[rewardToken].paused == false) {
+        if (paused && !rewardInfoByToken[rewardToken].paused) {
             // If not currently paused, accrue rewards before pausing
             uint256 numMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
             for (uint256 i; i < numMarkets;) {
