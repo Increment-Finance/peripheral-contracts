@@ -166,7 +166,7 @@ contract SafetyModuleInvariantTest is Test {
         weth.deposit{value: 10 ether}();
         balancerVault.joinPool(poolId, address(this), address(this), joinRequest);
 
-        // Deploy staking tokens
+        // Deploy staked tokens
         stakedToken1 = new StakedToken(
             rewardsToken, safetyModule, COOLDOWN_SECONDS, UNSTAKE_WINDOW, MAX_STAKE_AMOUNT_1, "Staked INCR", "stINCR"
         );
@@ -182,9 +182,9 @@ contract SafetyModuleInvariantTest is Test {
         stakedTokens = [stakedToken1, stakedToken2];
         stakedBPTs.push(stakedToken2);
 
-        // Register staking tokens with safety module
-        safetyModule.addStakingToken(stakedToken1);
-        safetyModule.addStakingToken(stakedToken2);
+        // Register staked tokens with safety module
+        safetyModule.addStakedToken(stakedToken1);
+        safetyModule.addStakedToken(stakedToken2);
         address[] memory stakingTokens = new address[](2);
         stakingTokens[0] = address(stakedToken1);
         stakingTokens[1] = address(stakedToken2);
@@ -245,11 +245,11 @@ contract SafetyModuleInvariantTest is Test {
 
     function invariant_MarketAccumulatorNeverDecreases() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
             for (uint256 j; j < numMarkets; j++) {
-                address market = address(safetyModule.stakingTokens(j));
+                address market = address(safetyModule.stakedTokens(j));
                 uint256 accumulatorValue = rewardDistributor.cumulativeRewardPerLpToken(rewardToken, market);
                 assertGe(
                     accumulatorValue,
@@ -263,11 +263,11 @@ contract SafetyModuleInvariantTest is Test {
 
     function invariant_UserAccumulatorUpdatesOnAccrual() public {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         for (uint256 i; i < numRewards; i++) {
             address rewardToken = rewardDistributor.rewardTokens(i);
             for (uint256 j; j < numMarkets; j++) {
-                address market = address(safetyModule.stakingTokens(j));
+                address market = address(safetyModule.stakedTokens(j));
                 uint256 marketAccumulatorValue = rewardDistributor.cumulativeRewardPerLpToken(rewardToken, market);
                 for (uint256 k; k < stakers.length; k++) {
                     address staker = stakers[k];
@@ -305,9 +305,9 @@ contract SafetyModuleInvariantTest is Test {
     }
 
     function invariant_StakerPositionsMatch() public {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         for (uint256 i; i < numMarkets; i++) {
-            IStakedToken stakedToken = safetyModule.stakingTokens(i);
+            IStakedToken stakedToken = safetyModule.stakedTokens(i);
             address market = address(stakedToken);
             for (uint256 j; j < stakers.length; j++) {
                 address staker = stakers[j];
@@ -321,9 +321,9 @@ contract SafetyModuleInvariantTest is Test {
     }
 
     function invariant_TotalLiquidityMatches() public {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         for (uint256 i; i < numMarkets; i++) {
-            IStakedToken stakedToken = safetyModule.stakingTokens(i);
+            IStakedToken stakedToken = safetyModule.stakedTokens(i);
             address market = address(stakedToken);
             assertEq(
                 rewardDistributor.totalLiquidityPerMarket(market),

@@ -47,7 +47,7 @@ contract SafetyModuleTest is Deployment, Utils {
     );
 
     event AuctionTerminated(
-        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
     event SlashingSettled();
@@ -133,7 +133,7 @@ contract SafetyModuleTest is Deployment, Utils {
         balancerVault = balancerPool.getVault();
         _joinBalancerPoolInit(poolId, 10_000 ether, 10 ether);
 
-        // Deploy staking tokens
+        // Deploy staked tokens
         stakedToken1 = new StakedToken(
             rewardsToken, safetyModule, COOLDOWN_SECONDS, UNSTAKE_WINDOW, MAX_STAKE_AMOUNT_1, "Staked INCR", "stINCR"
         );
@@ -150,18 +150,18 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.setSafetyModule(address(safetyModule));
         stakedToken2.setSafetyModule(address(safetyModule));
 
-        // Register staking tokens with safety module
-        safetyModule.addStakingToken(stakedToken1);
-        safetyModule.addStakingToken(stakedToken2);
-        address[] memory stakingTokens = _getMarkets();
+        // Register staked tokens with safety module
+        safetyModule.addStakedToken(stakedToken1);
+        safetyModule.addStakedToken(stakedToken2);
+        address[] memory stakedTokens = _getMarkets();
         uint256[] memory rewardWeights = new uint256[](2);
         rewardWeights[0] = INITIAL_MARKET_WEIGHT_0;
         rewardWeights[1] = INITIAL_MARKET_WEIGHT_1;
         rewardDistributor.addRewardToken(
-            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakingTokens, rewardWeights
+            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakedTokens, rewardWeights
         );
 
-        // Approve staking tokens and Balancer vault for users
+        // Approve staked tokens and Balancer vault for users
         vm.startPrank(liquidityProviderOne);
         rewardsToken.approve(address(stakedToken1), type(uint256).max);
         balancerPool.approve(address(stakedToken2), type(uint256).max);
@@ -187,9 +187,10 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     function test_Deployment() public {
-        assertEq(safetyModule.getNumStakingTokens(), 2, "Staking token count mismatch");
-        assertEq(address(safetyModule.stakingTokens(0)), address(stakedToken1), "Market address mismatch");
-        assertEq(safetyModule.getStakingTokenIdx(address(stakedToken2)), 1, "Staking token index mismatch");
+        assertEq(safetyModule.getStakedTokens().length, 2, "Staked token count mismatch");
+        assertEq(safetyModule.getNumStakedTokens(), 2, "Staked token count mismatch");
+        assertEq(address(safetyModule.stakedTokens(0)), address(stakedToken1), "Market address mismatch");
+        assertEq(safetyModule.getStakedTokenIdx(address(stakedToken2)), 1, "Staked token index mismatch");
         assertEq(stakedToken1.balanceOf(liquidityProviderTwo), 0, "Current position mismatch");
         assertEq(
             rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
@@ -209,7 +210,7 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     /* ******************* */
-    /*   Staking Rewards   */
+    /*   Staked Rewards   */
     /* ******************* */
 
     function test_RewardMultiplier() public {
@@ -240,14 +241,14 @@ contract SafetyModuleTest is Deployment, Utils {
             2e18,
             "Reward multiplier mismatch after 5 days"
         );
-        // Staking again pushed the multiplier start time forward by a weighted amount
+        // Staked again pushed the multiplier start time forward by a weighted amount
         // In this case, the multiplier start time is pushed forward by 2.5 days, because
         // it had been 5 days ago, and the user doubled their stake
         _stake(stakedToken1, liquidityProviderTwo, 50 ether);
         assertEq(
             rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
             1.6e18,
-            "Reward multiplier mismatch after staking again"
+            "Reward multiplier mismatch after staked again"
         );
         skip(2.5 days);
         assertEq(
@@ -269,7 +270,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(
             rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
             1e18,
-            "Reward multiplier mismatch after staking with new smoothing value"
+            "Reward multiplier mismatch after staked with new smoothing value"
         );
         skip(4 days);
         assertEq(
@@ -379,10 +380,10 @@ contract SafetyModuleTest is Deployment, Utils {
         ecosystemReserve.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
 
         // add reward token to new reward distributor
-        address[] memory stakingTokens = _getMarkets();
+        address[] memory stakedTokens = _getMarkets();
         uint256[] memory rewardWeights = _getRewardWeights(rewardDistributor, address(rewardsToken));
         newRewardDistributor.addRewardToken(
-            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakingTokens, rewardWeights
+            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakedTokens, rewardWeights
         );
 
         // skip some time
@@ -396,9 +397,9 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // register user positions
         vm.startPrank(liquidityProviderOne);
-        newRewardDistributor.registerPositions(stakingTokens);
+        newRewardDistributor.registerPositions(stakedTokens);
         vm.startPrank(liquidityProviderTwo);
-        newRewardDistributor.registerPositions(stakingTokens);
+        newRewardDistributor.registerPositions(stakedTokens);
         vm.stopPrank();
 
         // skip some more time
@@ -501,15 +502,15 @@ contract SafetyModuleTest is Deployment, Utils {
         );
 
         // Add the third staked token to the safety module
-        safetyModule.addStakingToken(stakedToken3);
+        safetyModule.addStakedToken(stakedToken3);
 
         // Update the reward weights
-        address[] memory stakingTokens = _getMarkets();
+        address[] memory stakedTokens = _getMarkets();
         uint256[] memory rewardWeights = new uint256[](3);
         rewardWeights[0] = 3333;
         rewardWeights[1] = 3334;
         rewardWeights[2] = 3333;
-        rewardDistributor.updateRewardWeights(address(rewardsToken), stakingTokens, rewardWeights);
+        rewardDistributor.updateRewardWeights(address(rewardsToken), stakedTokens, rewardWeights);
 
         // Check that stakedToken3 was added to the list of markets for rewards
         assertEq(
@@ -671,7 +672,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(
             stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
             0,
-            "Next cooldown timestamp should be 0 after first staking"
+            "Next cooldown timestamp should be 0 after first staked"
         );
 
         // Activate cooldown period, so stakersCooldowns[liquidityProviderOne] is set to block.timestamp
@@ -1023,9 +1024,9 @@ contract SafetyModuleTest is Deployment, Utils {
     /* ******************* */
 
     function test_SafetyModuleErrors() public {
-        // test staking token already registered
-        _expectStakingTokenAlreadyRegistered(address(stakedToken1));
-        safetyModule.addStakingToken(stakedToken1);
+        // test staked token already registered
+        _expectStakedTokenAlreadyRegistered(address(stakedToken1));
+        safetyModule.addStakedToken(stakedToken1);
 
         // test insufficient auctionable funds
         // i.e., lotSize x numLots exceeds total supply of underlying token
@@ -1051,20 +1052,20 @@ contract SafetyModuleTest is Deployment, Utils {
             stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
         );
 
-        // test invalid staking token
-        _expectInvalidStakingToken(liquidityProviderOne);
-        safetyModule.getStakingTokenIdx(liquidityProviderOne);
-        _expectInvalidStakingToken(liquidityProviderOne);
+        // test invalid staked token
+        _expectInvalidStakedToken(liquidityProviderOne);
+        safetyModule.getStakedTokenIdx(liquidityProviderOne);
+        _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.returnFunds(liquidityProviderOne, liquidityProviderTwo, 1e18);
         slashPercent -= 1;
-        _expectInvalidStakingToken(liquidityProviderOne);
+        _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.slashAndStartAuction(
             liquidityProviderOne, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
         );
 
         // test invalid callers
         vm.startPrank(liquidityProviderOne);
-        _expectCallerIsNotStakingToken(liquidityProviderOne);
+        _expectCallerIsNotStakedToken(liquidityProviderOne);
         safetyModule.updatePosition(stakedToken, liquidityProviderOne);
         _expectCallerIsNotAuctionModule(liquidityProviderOne);
         safetyModule.auctionEnded(0, 0);
@@ -1220,7 +1221,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(stakedToken1.exchangeRate(), 0, "Exchange rate should be 0 after slashing 100% of staked tokens");
         assertEq(stakedToken1.previewStake(1e18), 0, "Preview stake should be 0 when exchange rate is 0");
         assertEq(stakedToken1.previewRedeem(1e18), 0, "Preview redeem should be 0 when exchange rate is 0");
-        // staking and redeeming should fail due to zero exchange rate
+        // staked and redeeming should fail due to zero exchange rate
         _expectZeroExchangeRate();
         stakedToken1.stake(1);
         _expectZeroExchangeRate();
@@ -1231,11 +1232,11 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(address(safetyModule));
         // return all slashed funds, but do not settle slashing yet
         stakedToken1.returnFunds(address(this), slashedTokens);
-        // slashing, staking and cooldown should fail due to post-slashing state
+        // slashing, staked and cooldown should fail due to post-slashing state
         _expectSlashingDisabledInPostSlashingState();
         stakedToken1.slash(address(this), slashedTokens);
         vm.startPrank(liquidityProviderOne);
-        _expectStakingDisabledInPostSlashingState();
+        _expectStakedDisabledInPostSlashingState();
         stakedToken1.stake(1);
         _expectCooldownDisabledInPostSlashingState();
         stakedToken1.cooldown();
@@ -1425,28 +1426,28 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     function _getMarkets() internal view returns (address[] memory) {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         address[] memory markets = new address[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            markets[i] = address(safetyModule.stakingTokens(i));
+            markets[i] = address(safetyModule.stakedTokens(i));
         }
         return markets;
     }
 
     function _getStakedTokens() internal view returns (IStakedToken[] memory) {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         IStakedToken[] memory markets = new IStakedToken[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            markets[i] = safetyModule.stakingTokens(i);
+            markets[i] = safetyModule.stakedTokens(i);
         }
         return markets;
     }
 
     function _getUserBalances(address user) internal view returns (uint256[] memory) {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory balances = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            balances[i] = safetyModule.stakingTokens(i).balanceOf(user);
+            balances[i] = safetyModule.stakedTokens(i).balanceOf(user);
         }
         return balances;
     }
@@ -1456,10 +1457,10 @@ contract SafetyModuleTest is Deployment, Utils {
         view
         returns (uint256[] memory)
     {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory weights = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            weights[i] = distributor.getRewardWeight(token, address(safetyModule.stakingTokens(i)));
+            weights[i] = distributor.getRewardWeight(token, address(safetyModule.stakedTokens(i)));
         }
         return weights;
     }
@@ -1469,10 +1470,10 @@ contract SafetyModuleTest is Deployment, Utils {
         view
         returns (uint256[] memory)
     {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory multipliers = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            multipliers[i] = distributor.computeRewardMultiplier(user, address(safetyModule.stakingTokens(i)));
+            multipliers[i] = distributor.computeRewardMultiplier(user, address(safetyModule.stakedTokens(i)));
         }
         return multipliers;
     }
@@ -1482,10 +1483,10 @@ contract SafetyModuleTest is Deployment, Utils {
         view
         returns (uint256[] memory)
     {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory rewards = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            rewards[i] = distributor.cumulativeRewardPerLpToken(token, address(safetyModule.stakingTokens(i)));
+            rewards[i] = distributor.cumulativeRewardPerLpToken(token, address(safetyModule.stakedTokens(i)));
         }
         return rewards;
     }
@@ -1495,11 +1496,11 @@ contract SafetyModuleTest is Deployment, Utils {
         view
         returns (uint256[] memory)
     {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory rewards = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
             rewards[i] =
-                distributor.cumulativeRewardPerLpTokenPerUser(user, token, address(safetyModule.stakingTokens(i)));
+                distributor.cumulativeRewardPerLpTokenPerUser(user, token, address(safetyModule.stakedTokens(i)));
         }
         return rewards;
     }
@@ -1509,20 +1510,20 @@ contract SafetyModuleTest is Deployment, Utils {
         view
         returns (uint256[] memory)
     {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory totalLiquidity = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
-            totalLiquidity[i] = distributor.totalLiquidityPerMarket(address(safetyModule.stakingTokens(i)));
+            totalLiquidity[i] = distributor.totalLiquidityPerMarket(address(safetyModule.stakedTokens(i)));
         }
         return totalLiquidity;
     }
 
     function _getSkipTimes(TestSMRewardDistributor distributor) internal view returns (uint256[] memory) {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256[] memory skipTimes = new uint256[](numMarkets);
         for (uint256 i; i < numMarkets; i++) {
             skipTimes[i] =
-                block.timestamp - distributor.timeOfLastCumRewardUpdate(address(safetyModule.stakingTokens(i)));
+                block.timestamp - distributor.timeOfLastCumRewardUpdate(address(safetyModule.stakedTokens(i)));
         }
         return skipTimes;
     }
@@ -1533,7 +1534,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
     function _dealAndBuyLots(address buyer, uint256 auctionId, uint8 numLots, uint128 lotPrice) internal {
         IERC20 paymentToken = auctionModule.paymentToken();
-        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(auctionId);
+        IStakedToken stakedToken = safetyModule.stakedTokenByAuctionId(auctionId);
         deal(address(paymentToken), buyer, lotPrice * numLots);
         vm.startPrank(buyer);
         paymentToken.approve(address(auctionModule), lotPrice * numLots);
@@ -1913,11 +1914,11 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256[] memory weights
     ) internal returns (uint256) {
         uint256 expectedAccruedRewards = initialUserRewards;
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         require(numMarkets == skipTimes.length, "Invalid input");
         for (uint256 i; i < numMarkets; ++i) {
             uint256 cumulativeRewards = distributor.cumulativeRewardPerLpToken(
-                token, address(safetyModule.stakingTokens(i))
+                token, address(safetyModule.stakedTokens(i))
             ) - initialCumRewards[i];
             uint256 expectedCumulativeRewards =
                 _calcExpectedCumulativeRewards(token, skipTimes[i], priorTotalLiquidity[i], weights[i]);
@@ -1975,20 +1976,20 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("AuctionModule_CallerIsNotSafetyModule(address)", caller));
     }
 
-    function _expectCallerIsNotStakingToken(address caller) internal {
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotStakingToken(address)", caller));
+    function _expectCallerIsNotStakedToken(address caller) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotStakedToken(address)", caller));
     }
 
     function _expectCallerIsNotAuctionModule(address caller) internal {
         vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotAuctionModule(address)", caller));
     }
 
-    function _expectStakingTokenAlreadyRegistered(address token) internal {
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_StakingTokenAlreadyRegistered(address)", token));
+    function _expectStakedTokenAlreadyRegistered(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_StakedTokenAlreadyRegistered(address)", token));
     }
 
-    function _expectInvalidStakingToken(address token) internal {
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_InvalidStakingToken(address)", token));
+    function _expectInvalidStakedToken(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_InvalidStakedToken(address)", token));
     }
 
     function _expectInsufficientSlashedTokensForAuction(address token, uint256 expected, uint256 actual) internal {
@@ -2071,8 +2072,8 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("StakedToken_SlashingDisabledInPostSlashingState()"));
     }
 
-    function _expectStakingDisabledInPostSlashingState() internal {
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
+    function _expectStakedDisabledInPostSlashingState() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_StakedDisabledInPostSlashingState()"));
     }
 
     function _expectCooldownDisabledInPostSlashingState() internal {

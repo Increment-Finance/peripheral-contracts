@@ -25,8 +25,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @dev The higher the value, the slower the multiplier approaches its max
     uint256 public smoothingValue;
 
-    /// @notice The starting timestamp used to calculate the user's reward multiplier for a given staking token
-    /// @dev First address is user, second is staking token
+    /// @notice The starting timestamp used to calculate the user's reward multiplier for a given staked token
+    /// @dev First address is user, second is staked token
     mapping(address => mapping(address => uint256)) public multiplierStartTimeByUser;
 
     /// @notice Modifier for functions that should only be called by the SafetyModule
@@ -62,7 +62,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @notice Accrues rewards and updates the stored stake position of a user and the total tokens staked
     /// @dev Executes whenever a user's stake is updated for any reason
-    /// @param market Address of the staking token in `stakingTokens`
+    /// @param market Address of the staked token in `stakedTokens`
     /// @param user Address of the staker
     function updatePosition(address market, address user) external virtual override onlySafetyModule {
         _updateMarketRewards(market);
@@ -106,8 +106,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             }
         } else {
             // User added to their existing stake - need to update multiplier start time
-            // To prevent users from gaming the system by staking a small amount early to start the multiplier
-            // and then staking a large amount once their multiplier is very high in order to claim a large
+            // To prevent users from gaming the system by staked a small amount early to start the multiplier
+            // and then staked a large amount once their multiplier is very high in order to claim a large
             // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
             // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
             multiplierStartTimeByUser[user][market] += (block.timestamp - multiplierStartTimeByUser[user][market]).mul(
@@ -134,8 +134,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /* ******************* */
 
     /// @inheritdoc ISMRewardDistributor
-    function computeRewardMultiplier(address _user, address _stakingToken) public view returns (uint256) {
-        uint256 startTime = multiplierStartTimeByUser[_user][_stakingToken];
+    function computeRewardMultiplier(address _user, address _stakedToken) public view returns (uint256) {
+        uint256 startTime = multiplierStartTimeByUser[_user][_stakedToken];
         // If the user has never staked, return zero
         if (startTime == 0) return 0;
         uint256 deltaDays = (block.timestamp - startTime).div(1 days);
@@ -223,12 +223,12 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc RewardDistributor
     function _getNumMarkets() internal view virtual override returns (uint256) {
-        return safetyModule.getNumStakingTokens();
+        return safetyModule.getNumStakedTokens();
     }
 
     /// @inheritdoc RewardDistributor
     function _getMarketAddress(uint256 index) internal view virtual override returns (address) {
-        return address(safetyModule.stakingTokens(index));
+        return address(safetyModule.stakedTokens(index));
     }
 
     /// @inheritdoc RewardDistributor
@@ -236,18 +236,18 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         return i;
     }
 
-    /// @notice Returns the user's staking token balance
+    /// @notice Returns the user's staked token balance
     /// @param staker Address of the user
-    /// @param token Address of the staking token
-    /// @return Current balance of the user in the staking token
+    /// @param token Address of the staked token
+    /// @return Current balance of the user in the staked token
     function _getCurrentPosition(address staker, address token) internal view virtual override returns (uint256) {
         return IStakedToken(token).balanceOf(staker);
     }
 
-    /// @notice Accrues rewards to a user for a given staking token
+    /// @notice Accrues rewards to a user for a given staked token
     /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
     /// stake position is handled by `updatePosition`
-    /// @param market Address of the token in `stakingTokens`
+    /// @param market Address of the token in `stakedTokens`
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
         uint256 userPosition = lpPositionsPerUser[user][market];

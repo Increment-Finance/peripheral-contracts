@@ -23,10 +23,10 @@ contract SafetyModuleHandler is Test {
     using strings for *;
     using PRBMathUD60x18 for uint256;
 
-    event StakingTokenAdded(address indexed stakingToken);
+    event StakedTokenAdded(address indexed stakedToken);
 
     event TokensSlashedForAuction(
-        address indexed stakingToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
+        address indexed stakedToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
     );
 
     event AuctionStarted(
@@ -49,7 +49,7 @@ contract SafetyModuleHandler is Test {
     );
 
     event AuctionTerminated(
-        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
     event FundsReturned(address indexed from, uint256 amount);
@@ -81,7 +81,7 @@ contract SafetyModuleHandler is Test {
     /* Governance Functions */
     /* ******************** */
 
-    // function addStakingToken(
+    // function addStakedToken(
     //     string memory underlyingName,
     //     string memory underlyingSymbol,
     //     uint256 cooldownSeconds,
@@ -102,8 +102,8 @@ contract SafetyModuleHandler is Test {
     //         "stk".toSlice().concat(underlyingSymbol.toSlice())
     //     );
     //     vm.expectEmit(false, false, false, true);
-    //     emit StakingTokenAdded(address(stakedToken));
-    //     safetyModule.addStakingToken(stakedToken);
+    //     emit StakedTokenAdded(address(stakedToken));
+    //     safetyModule.addStakedToken(stakedToken);
     //     vm.stopPrank();
     //     testContract.addStakedToken(stakedToken, false);
     // }
@@ -119,7 +119,7 @@ contract SafetyModuleHandler is Test {
         uint32 _timeLimit
     ) external useGovernance {
         IStakedToken stakedToken =
-            safetyModule.stakingTokens(bound(_stakedTokenIndexSeed, 0, safetyModule.getNumStakingTokens() - 1));
+            safetyModule.stakedTokens(bound(_stakedTokenIndexSeed, 0, safetyModule.getNumStakedTokens() - 1));
         _numLots = uint8(bound(_numLots, 1, 100));
         _lotPrice = uint128(bound(_lotPrice, 1e6, type(uint128).max));
         _initialLotSize = uint128(bound(_initialLotSize, 1e12, type(uint128).max));
@@ -184,7 +184,7 @@ contract SafetyModuleHandler is Test {
         }
         auctionId = bound(auctionId, 0, auctionModule.nextAuctionId() - 1);
         IERC20 token = auctionModule.getAuctionToken(auctionId);
-        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(auctionId);
+        IStakedToken stakedToken = safetyModule.stakedTokenByAuctionId(auctionId);
         uint256 unsoldTokens = token.balanceOf(address(auctionModule));
         uint256 prevStakedUnderlyingBalance = token.balanceOf(address(stakedToken));
         uint256 exchangeRate = stakedToken.exchangeRate();
@@ -230,7 +230,7 @@ contract SafetyModuleHandler is Test {
     function returnFunds(uint256 stakedTokenIndexSeed, uint256 amount) external useGovernance {
         amount = bound(amount, 0, type(uint256).max / 1e18);
         IStakedToken stakedToken =
-            safetyModule.stakingTokens(bound(stakedTokenIndexSeed, 0, safetyModule.getNumStakingTokens() - 1));
+            safetyModule.stakedTokens(bound(stakedTokenIndexSeed, 0, safetyModule.getNumStakedTokens() - 1));
         if (amount == 0) {
             vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
             safetyModule.returnFunds(address(stakedToken), governance, amount);

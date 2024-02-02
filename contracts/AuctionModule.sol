@@ -341,7 +341,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     function _completeAuction(uint256 _auctionId, bool _terminatedEarly) internal {
         // Approvals
         IERC20 auctionToken = auctions[_auctionId].token;
-        IStakedToken stakedToken = safetyModule.stakingTokenByAuctionId(_auctionId);
+        IStakedToken stakedToken = safetyModule.stakedTokenByAuctionId(_auctionId);
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
         uint256 fundsRaised = fundsRaisedPerAuction[_auctionId];
         uint256 finalLotSize = _getCurrentLotSize(_auctionId);
