@@ -40,13 +40,13 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     }
 
     /// @notice Maximum inflation rate, applies to all reward tokens
-    uint256 public constant MAX_INFLATION_RATE = 5e24;
+    uint256 internal constant MAX_INFLATION_RATE = 5e24;
 
     /// @notice Minimum reduction factor, applies to all reward tokens
-    uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
+    uint256 internal constant MIN_REDUCTION_FACTOR = 1e18;
 
     /// @notice Maximum number of reward tokens allowed
-    uint256 public constant MAX_REWARD_TOKENS = 10;
+    uint256 internal constant MAX_REWARD_TOKENS = 10;
 
     /// @notice List of reward token addresses
     /// @dev Length must be <= MAX_REWARD_TOKENS
@@ -62,6 +62,21 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     /* ******************* */
     /*  Reward Info Views  */
     /* ******************* */
+
+    /// @inheritdoc IRewardController
+    function getMaxInflationRate() external pure override returns (uint256) {
+        return MAX_INFLATION_RATE;
+    }
+
+    /// @inheritdoc IRewardController
+    function getMinReductionFactor() external pure override returns (uint256) {
+        return MIN_REDUCTION_FACTOR;
+    }
+
+    /// @inheritdoc IRewardController
+    function getMaxRewardTokens() external pure override returns (uint256) {
+        return MAX_REWARD_TOKENS;
+    }
 
     /// @inheritdoc IRewardController
     function getRewardTokens() external view returns (address[] memory) {

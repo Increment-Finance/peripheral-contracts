@@ -130,6 +130,18 @@ interface IRewardController {
     /// @return True if the reward token is paused, false otherwise
     function isTokenPaused(address rewardToken) external view returns (bool);
 
+    /// @notice Gets the maximum allowed inflation rate for a reward token
+    /// @return Maximum allowed inflation rate
+    function getMaxInflationRate() external view returns (uint256);
+
+    /// @notice Gets the minimum allowed reduction factor for a reward token
+    /// @return Minimum allowed reduction factor
+    function getMinReductionFactor() external view returns (uint256);
+
+    /// @notice Gets the maximum allowed number of reward tokens
+    /// @return Maximum allowed number of reward tokens
+    function getMaxRewardTokens() external view returns (uint256);
+
     /// @notice Sets the market addresses and reward weights for a reward token
     /// @param rewardToken Address of the reward token
     /// @param markets List of market addresses to receive rewards
