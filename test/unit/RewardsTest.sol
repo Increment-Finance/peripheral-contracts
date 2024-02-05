@@ -134,9 +134,12 @@ contract RewardsTest is Deployment, Utils {
     // run tests via source .env && forge test --match <TEST_NAME> --fork-url $ETH_NODE_URI_MAINNET -vv
 
     function test_Deployment() public {
+        assertEq(rewardDistributor.getMaxInflationRate(), 5e24, "Max inflation rate mismatch");
+        assertEq(rewardDistributor.getMinReductionFactor(), 1e18, "Min reduction factor mismatch");
+        assertEq(rewardDistributor.getMaxRewardTokens(), 10, "Max reward tokens mismatch");
         assertEq(clearingHouse.getNumMarkets(), 2, "Market count mismatch");
         assertEq(rewardDistributor.getRewardTokenCount(), 1, "Token count mismatch");
-        address token = rewardDistributor.rewardTokens(0);
+        address token = rewardDistributor.getRewardTokens()[0];
         assertEq(token, address(rewardsToken), "Reward token mismatch");
         assertEq(rewardDistributor.getInitialTimestamp(token), block.timestamp, "Initial timestamp mismatch");
         assertEq(
@@ -892,8 +895,9 @@ contract RewardsTest is Deployment, Utils {
 
         // no errors
         vm.expectEmit(false, false, false, true);
-        emit NewFundsAdmin(address(this));
-        ecosystemReserve.transferAdmin(address(this));
+        emit NewFundsAdmin(liquidityProviderOne);
+        ecosystemReserve.transferAdmin(liquidityProviderOne);
+        assertEq(ecosystemReserve.getFundsAdmin(), liquidityProviderOne, "Incorrect funds admin");
     }
 
     /* ****************** */

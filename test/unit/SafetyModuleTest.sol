@@ -207,6 +207,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(address(stakedToken1.getUnderlyingToken()), address(rewardsToken), "Underlying token mismatch");
         assertEq(stakedToken1.getCooldownSeconds(), COOLDOWN_SECONDS, "Cooldown seconds mismatch");
         assertEq(stakedToken1.getUnstakeWindowSeconds(), UNSTAKE_WINDOW, "Unstake window mismatch");
+        assertEq(auctionModule.getNextAuctionId(), 0, "Next auction ID mismatch");
     }
 
     /* ******************* */
@@ -1695,6 +1696,7 @@ contract SafetyModuleTest is Deployment, Utils {
         uint16 lotIncreasePeriod,
         uint32 timeLimit
     ) internal returns (uint256) {
+        uint256 nextId = auctionModule.getNextAuctionId();
         uint256 auctionId = safetyModule.slashAndStartAuction(
             address(stakedToken),
             numLots,
@@ -1705,6 +1707,8 @@ contract SafetyModuleTest is Deployment, Utils {
             lotIncreasePeriod,
             timeLimit
         );
+        assertEq(auctionId, nextId, "Auction ID mismatch");
+        assertEq(auctionModule.getNextAuctionId(), nextId + 1, "Next auction ID mismatch");
         assertEq(auctionModule.getCurrentLotSize(auctionId), initialLotSize, "Initial lot size mismatch");
         assertEq(auctionModule.getRemainingLots(auctionId), numLots, "Initial lots mismatch");
         assertEq(auctionModule.getLotPrice(auctionId), lotPrice, "Lot price mismatch");
