@@ -1236,7 +1236,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _expectSlashingDisabledInPostSlashingState();
         stakedToken1.slash(address(this), slashedTokens);
         vm.startPrank(liquidityProviderOne);
-        _expectStakedDisabledInPostSlashingState();
+        _expectStakingDisabledInPostSlashingState();
         stakedToken1.stake(1);
         _expectCooldownDisabledInPostSlashingState();
         stakedToken1.cooldown();
@@ -2072,8 +2072,8 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("StakedToken_SlashingDisabledInPostSlashingState()"));
     }
 
-    function _expectStakedDisabledInPostSlashingState() internal {
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_StakedDisabledInPostSlashingState()"));
+    function _expectStakingDisabledInPostSlashingState() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
     }
 
     function _expectCooldownDisabledInPostSlashingState() internal {
