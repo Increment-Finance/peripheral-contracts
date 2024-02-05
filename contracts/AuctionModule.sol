@@ -367,7 +367,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         }
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
         if (fundsRaised != 0) {
-            paymentToken.approve(address(safetyModule), fundsRaised);
+            paymentToken.safeTransfer(address(safetyModule), fundsRaised);
         }
         // Notify SafetyModule if necessary
         if (!_terminatedEarly) {
@@ -375,7 +375,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         }
 
         // Emit event
-        emit AuctionEnded(
+        emit AuctionCompleted(
             _auctionId,
             _auctions[_auctionId].remainingLots,
             finalLotSize,

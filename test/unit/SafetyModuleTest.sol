@@ -38,7 +38,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
     event LotsSold(uint256 indexed auctionId, address indexed buyer, uint8 numLots, uint256 lotSize, uint128 lotPrice);
 
-    event AuctionEnded(
+    event AuctionCompleted(
         uint256 indexed auctionId,
         uint8 remainingLots,
         uint256 finalLotSize,
@@ -950,7 +950,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit Approval(address(auctionModule), address(stakedToken1), auctionableBalance);
         vm.expectEmit(false, false, false, true);
-        emit AuctionEnded(auctionId, numLots, finalLotSize, 0, 0);
+        emit AuctionCompleted(auctionId, numLots, finalLotSize, 0, 0);
         auctionModule.completeAuction(auctionId);
         assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
@@ -991,7 +991,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectEmit(false, false, false, true);
         emit Approval(address(auctionModule), address(stakedToken1), auctionableBalance);
         vm.expectEmit(false, false, false, true);
-        emit AuctionEnded(auctionId, numLots, initialLotSize, 0, 0);
+        emit AuctionCompleted(auctionId, numLots, initialLotSize, 0, 0);
         vm.expectEmit(false, false, false, true);
         emit ExchangeRateUpdated(1e18);
         vm.expectEmit(false, false, false, true);
@@ -1551,9 +1551,9 @@ contract SafetyModuleTest is Deployment, Utils {
                 emit Approval(address(auctionModule), address(stakedToken), remainingBalance);
             }
             vm.expectEmit(false, false, false, true);
-            emit Approval(address(auctionModule), address(safetyModule), fundsAlreadyRaised + lotPrice * numLots);
+            emit Transfer(address(auctionModule), address(safetyModule), fundsAlreadyRaised + lotPrice * numLots);
             vm.expectEmit(true, false, false, true);
-            emit AuctionEnded(
+            emit AuctionCompleted(
                 auctionId, 0, lotSize, tokensAlreadySold + lotSize * numLots, fundsAlreadyRaised + lotPrice * numLots
             );
         }

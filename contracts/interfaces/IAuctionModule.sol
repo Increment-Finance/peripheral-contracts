@@ -34,7 +34,7 @@ interface IAuctionModule {
     /// @param finalLotSize Lot size when the auction ended
     /// @param totalTokensSold Total number of tokens sold
     /// @param totalFundsRaised Total amount of payment tokens raised
-    event AuctionEnded(
+    event AuctionCompleted(
         uint256 indexed auctionId,
         uint8 remainingLots,
         uint256 finalLotSize,
