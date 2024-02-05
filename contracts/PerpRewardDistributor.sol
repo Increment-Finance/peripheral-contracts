@@ -19,7 +19,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     IClearingHouse public immutable clearingHouse;
 
     /// @notice Amount of time after which LPs can remove liquidity without penalties
-    uint256 public earlyWithdrawalThreshold;
+    uint256 internal _earlyWithdrawalThreshold;
 
     /// @notice Last timestamp when user withdrew liquidity from a market
     /// @dev First address is user, second is the market
@@ -39,7 +39,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param _rewardToken The address of the first reward token
     /// @param _clearingHouse The address of the ClearingHouse contract, which calls `updatePosition`
     /// @param _ecosystemReserve The address of the EcosystemReserve contract, which stores reward tokens
-    /// @param _earlyWithdrawalThreshold The amount of time after which LPs can remove liquidity without penalties
+    /// @param _earlyWithdrawThreshold The amount of time after which LPs can remove liquidity without penalties
     /// @param _initialRewardWeights The initial reward weights for the first reward token, as basis points
     constructor(
         uint88 _initialInflationRate,
@@ -47,7 +47,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         address _rewardToken,
         address _clearingHouse,
         address _ecosystemReserve,
-        uint256 _earlyWithdrawalThreshold,
+        uint256 _earlyWithdrawThreshold,
         uint256[] memory _initialRewardWeights
     ) payable RewardDistributor(_ecosystemReserve) {
         if (_initialInflationRate > MAX_INFLATION_RATE) {
@@ -57,7 +57,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             revert RewardController_BelowMinReductionFactor(_initialReductionFactor, MIN_REDUCTION_FACTOR);
         }
         clearingHouse = IClearingHouse(_clearingHouse);
-        earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
+        _earlyWithdrawalThreshold = _earlyWithdrawThreshold;
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
         _rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
@@ -103,9 +103,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
                 uint256 deltaTime = block.timestamp - _withdrawTimerStartByUserByMarket[user][market];
-                if (deltaTime < earlyWithdrawalThreshold) {
+                if (deltaTime < _earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
-                    newRewards -= (newRewards * (earlyWithdrawalThreshold - deltaTime)) / earlyWithdrawalThreshold;
+                    newRewards -= (newRewards * (_earlyWithdrawalThreshold - deltaTime)) / _earlyWithdrawalThreshold;
                 }
                 if (newLpPosition != 0) {
                     // Reset timer
@@ -142,6 +142,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /*   External Views   */
     /* ****************** */
 
+    function earlyWithdrawalThreshold() external view returns (uint256) {
+        return _earlyWithdrawalThreshold;
+    }
+
     /// @inheritdoc IPerpRewardDistributor
     function withdrawTimerStartByUserByMarket(address _user, address _market) external view returns (uint256) {
         return _withdrawTimerStartByUserByMarket[_user][_market];
@@ -161,8 +165,8 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
     function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold) external onlyRole(GOVERNANCE) {
-        emit EarlyWithdrawalThresholdUpdated(earlyWithdrawalThreshold, _newEarlyWithdrawalThreshold);
-        earlyWithdrawalThreshold = _newEarlyWithdrawalThreshold;
+        emit EarlyWithdrawalThresholdUpdated(_earlyWithdrawalThreshold, _newEarlyWithdrawalThreshold);
+        _earlyWithdrawalThreshold = _newEarlyWithdrawalThreshold;
     }
 
     /* ****************** */
@@ -196,7 +200,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
         // Do not accrue rewards for the given market before the early withdrawal threshold has passed
-        if (block.timestamp < _withdrawTimerStartByUserByMarket[user][market] + earlyWithdrawalThreshold) return;
+        if (block.timestamp < _withdrawTimerStartByUserByMarket[user][market] + _earlyWithdrawalThreshold) return;
         uint256 lpPosition = _lpPositionsPerUser[user][market];
         if (lpPosition != _getCurrentPosition(user, market)) {
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
