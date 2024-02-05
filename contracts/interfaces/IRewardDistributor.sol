@@ -36,11 +36,6 @@ interface IRewardDistributor is IRewardContract {
     /// @param newPosition New position of the user
     event PositionUpdated(address indexed user, address market, uint256 prevPosition, uint256 newPosition);
 
-    /// @notice Emitted when the address of the ecosystem reserve for storing reward tokens is updated
-    /// @param prevEcosystemReserve Address of the previous ecosystem reserve
-    /// @param newEcosystemReserve Address of the new ecosystem reserve
-    event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystemReserve);
-
     /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
     /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
     /// `_updateMarketRewards(market)` is called, which is quite often.
