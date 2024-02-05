@@ -64,17 +64,17 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     /* ******************* */
 
     /// @inheritdoc IRewardController
-    function getMaxInflationRate() external pure override returns (uint256) {
+    function getMaxInflationRate() external pure returns (uint256) {
         return MAX_INFLATION_RATE;
     }
 
     /// @inheritdoc IRewardController
-    function getMinReductionFactor() external pure override returns (uint256) {
+    function getMinReductionFactor() external pure returns (uint256) {
         return MIN_REDUCTION_FACTOR;
     }
 
     /// @inheritdoc IRewardController
-    function getMaxRewardTokens() external pure override returns (uint256) {
+    function getMaxRewardTokens() external pure returns (uint256) {
         return MAX_REWARD_TOKENS;
     }
 
