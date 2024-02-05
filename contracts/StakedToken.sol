@@ -36,6 +36,11 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
     /// @notice Address of the SafetyModule contract
     ISafetyModule public safetyModule;
 
+    /// @notice Whether the StakedToken is in a post-slashing state
+    /// @dev Post-slashing state disables staking and further slashing, and allows users to redeem their
+    /// staked tokens without waiting for the cooldown period
+    bool public isInPostSlashingState;
+
     /// @notice Max amount of staked tokens allowed per user
     uint256 public maxStakeAmount;
 
@@ -45,13 +50,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
     /// but it can be lower if users' stakes have been slashed for an auction by the SafetyModule
     uint256 public exchangeRate;
 
-    /// @notice Whether the StakedToken is in a post-slashing state
-    /// @dev Post-slashing state disables staking and further slashing, and allows users to redeem their
-    /// staked tokens without waiting for the cooldown period
-    bool public isInPostSlashingState;
-
     /// @notice Timestamp of the start of the current cooldown period for each user
-    mapping(address => uint256) public stakersCooldowns;
+    mapping(address => uint256) internal _stakersCooldowns;
 
     /// @notice Modifier for functions that can only be called by the SafetyModule contract
     modifier onlySafetyModule() {
@@ -110,6 +110,13 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
     /**
      * @inheritdoc IStakedToken
      */
+    function getCooldownStartTime(address user) external view returns (uint256) {
+        return _stakersCooldowns[user];
+    }
+
+    /**
+     * @inheritdoc IStakedToken
+     */
     function previewStake(uint256 amountToStake) public view returns (uint256) {
         if (exchangeRate == 0) return 0;
         return amountToStake.wadDiv(exchangeRate);
@@ -163,7 +170,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
             revert StakedToken_CooldownDisabledInPostSlashingState();
         }
         //solium-disable-next-line
-        stakersCooldowns[msg.sender] = block.timestamp;
+        _stakersCooldowns[msg.sender] = block.timestamp;
 
         // Accrue rewards before resetting user's multiplier to 1
         safetyModule.updatePosition(address(this), msg.sender);
@@ -245,7 +252,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         address toAddress,
         uint256 toBalance
     ) public view returns (uint256) {
-        uint256 toCooldownTimestamp = stakersCooldowns[toAddress];
+        uint256 toCooldownTimestamp = _stakersCooldowns[toAddress];
         if (toCooldownTimestamp == 0) return 0;
 
         uint256 minimalValidCooldownTimestamp = block.timestamp - COOLDOWN_SECONDS - UNSTAKE_WINDOW;
@@ -332,11 +339,11 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
             if (balanceOfTo + amount > maxStakeAmount) {
                 revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, maxStakeAmount - balanceOfTo);
             }
-            uint256 previousSenderCooldown = stakersCooldowns[from];
-            stakersCooldowns[to] = getNextCooldownTimestamp(previousSenderCooldown, amount, to, balanceOfTo);
+            uint256 previousSenderCooldown = _stakersCooldowns[from];
+            _stakersCooldowns[to] = getNextCooldownTimestamp(previousSenderCooldown, amount, to, balanceOfTo);
             // if cooldown was set and whole balance of sender was transferred - clear cooldown
             if (previousSenderCooldown != 0) {
-                if (balanceOf(from) == amount) delete stakersCooldowns[from];
+                if (balanceOf(from) == amount) delete _stakersCooldowns[from];
             }
         }
 
@@ -362,7 +369,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         }
 
         // Update cooldown timestamp
-        stakersCooldowns[to] = getNextCooldownTimestamp(0, stakeAmount, to, balanceOfUser);
+        _stakersCooldowns[to] = getNextCooldownTimestamp(0, stakeAmount, to, balanceOfUser);
 
         // Mint staked tokens
         _mint(to, stakeAmount);
@@ -383,7 +390,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         // Users can redeem without waiting for the cooldown period in a post-slashing state
         if (!isInPostSlashingState) {
             // Make sure the user's cooldown period is over and the unstake window didn't pass
-            uint256 cooldownStartTimestamp = stakersCooldowns[from];
+            uint256 cooldownStartTimestamp = _stakersCooldowns[from];
             if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS) {
                 revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + COOLDOWN_SECONDS);
             }
@@ -400,7 +407,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         _burn(from, amount);
 
         // Reset cooldown to zero if the user redeemed their whole balance
-        if (balanceOfFrom - amount == 0) delete stakersCooldowns[from];
+        if (balanceOfFrom - amount == 0) delete _stakersCooldowns[from];
 
         // Transfer underlying tokens to the recipient
         UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));

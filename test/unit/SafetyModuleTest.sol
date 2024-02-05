@@ -663,7 +663,7 @@ contract SafetyModuleTest is Deployment, Utils {
          */
 
         // Define initial arguments
-        uint256 fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
+        uint256 fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
         uint256 amountToReceive = 100e18;
         address toAddress = liquidityProviderOne;
         uint256 toBalance = stakedToken1.balanceOf(liquidityProviderOne);
@@ -679,7 +679,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         stakedToken1.cooldown();
         vm.stopPrank();
-        fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
+        fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
         assertEq(fromCooldownTimestamp, block.timestamp, "Cooldown timestamp mismatch");
 
         // Wait for cooldown period and unstake window to pass
@@ -702,7 +702,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         stakedToken1.cooldown();
         vm.stopPrank();
-        fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
+        fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
 
         // Skip user 1 cooldown period
         skip(COOLDOWN_SECONDS);
@@ -711,7 +711,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderTwo);
         stakedToken1.cooldown();
         vm.stopPrank();
-        uint256 toCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderTwo);
+        uint256 toCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderTwo);
 
         // If user 1's cooldown timestamp is less than user 2's, next cooldown timestamp should be user 2's
         assertEq(
@@ -724,7 +724,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         stakedToken1.cooldown();
         vm.stopPrank();
-        fromCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderOne);
+        fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
 
         // If sender's cooldown timestamp is greater than or equal to recipient's,
         // recipient's next timestamp should be weighted average of from and to timestamps
@@ -743,7 +743,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderTwo);
         stakedToken1.cooldown();
         vm.stopPrank();
-        toCooldownTimestamp = stakedToken1.stakersCooldowns(liquidityProviderTwo);
+        toCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderTwo);
 
         // Skip user 2 cooldown period
         skip(COOLDOWN_SECONDS);
@@ -762,7 +762,7 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.transfer(liquidityProviderTwo, amountToReceive);
         vm.stopPrank();
         assertEq(
-            stakedToken1.stakersCooldowns(liquidityProviderTwo),
+            stakedToken1.getCooldownStartTime(liquidityProviderTwo),
             expectedWeightedAverage,
             "Cooldown timestamp mismatch after transfer"
         );

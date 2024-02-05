@@ -118,6 +118,11 @@ interface IStakedToken is IERC20Metadata {
     /// @return Number of seconds in the unstake window
     function getUnstakeWindowSeconds() external view returns (uint256);
 
+    /// @notice Returns the start time of the latest cooldown period for a given user
+    /// @param user Address of the user
+    /// @return Timestamp when the user's latest cooldown period started
+    function getCooldownStartTime(address user) external view returns (uint256);
+
     /// @notice Returns whether the contract is in a post-slashing state
     /// @dev In a post-slashing state, staking and slashing are disabled, and users can redeem without cooldown
     /// @return True if the contract is in a post-slashing state, false otherwise
