@@ -875,12 +875,17 @@ contract SafetyModuleTest is Deployment, Utils {
         // Withdraw the funds raised from the auction and check the resulting balance
         uint256 fundsRaised = auctionModule.getFundsRaised(auctionId);
         assertEq(fundsRaised, lotPrice * numLots, "Funds raised mismatch after selling out");
+        assertEq(
+            usdc.balanceOf(address(safetyModule)),
+            fundsRaised,
+            "Safety module should have the funds raised before withdrawing"
+        );
         safetyModule.withdrawFundsRaisedFromAuction(fundsRaised);
         assertEq(
             usdc.balanceOf(address(this)), fundsRaised, "Balance mismatch after withdrawing funds raised from auction"
         );
         assertEq(
-            usdc.balanceOf(address(auctionModule)), 0, "Auction module should have no remaining funds after withdrawing"
+            usdc.balanceOf(address(safetyModule)), 0, "Safety module should have no remaining funds after withdrawing"
         );
     }
 
@@ -1018,6 +1023,112 @@ contract SafetyModuleTest is Deployment, Utils {
         _expectAuctionNotActive(auctionId);
         auctionModule.completeAuction(auctionId);
         vm.stopPrank();
+    }
+
+    function testFuzz_MultipleAuctions(
+        uint8[2] memory numLots,
+        uint128[2] memory lotPrice,
+        uint128[2] memory initialLotSize,
+        uint64[2] memory slashPercent,
+        uint16[2] memory lotIncreasePeriod,
+        uint32[2] memory timeLimit
+    ) public {
+        /* bounds */
+        numLots[0] = uint8(bound(numLots[0], 2, 10));
+        numLots[1] = uint8(bound(numLots[1], 2, 10));
+        lotPrice[0] = uint128(bound(lotPrice[0], 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        lotPrice[1] = uint128(bound(lotPrice[1], 1e8, 1e12));
+        slashPercent[0] = uint64(bound(slashPercent[0], 1e16, 1e18));
+        slashPercent[1] = uint64(bound(slashPercent[1], 1e16, 1e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256[] memory auctionableBalance = new uint256[](2);
+        auctionableBalance[0] = stakedToken1.totalSupply().wadMul(slashPercent[0]);
+        auctionableBalance[1] = stakedToken2.totalSupply().wadMul(slashPercent[1]);
+        initialLotSize[0] = uint128(bound(initialLotSize[0], 1e16, auctionableBalance[0] / numLots[0]));
+        initialLotSize[1] = uint128(bound(initialLotSize[1], 1e16, auctionableBalance[1] / numLots[1]));
+        uint96[] memory lotIncreaseIncrement = new uint96[](2);
+        lotIncreaseIncrement[0] = uint96(bound(initialLotSize[0] / 50, 2e16, type(uint96).max));
+        lotIncreaseIncrement[1] = uint96(bound(initialLotSize[1] / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod[0] = uint16(bound(lotIncreasePeriod[0], 1 hours, 18 hours));
+        lotIncreasePeriod[1] = uint16(bound(lotIncreasePeriod[1], 1 hours, 18 hours));
+        timeLimit[0] = uint32(bound(timeLimit[0], 5 days, 30 days));
+        timeLimit[1] = uint32(bound(timeLimit[1], 5 days, 30 days));
+
+        // Start auctions and check that they are created correctly
+        uint256 auctionId1 = _startAndCheckAuction(
+            stakedToken1,
+            numLots[0],
+            lotPrice[0],
+            initialLotSize[0],
+            slashPercent[0],
+            lotIncreaseIncrement[0],
+            lotIncreasePeriod[0],
+            timeLimit[0]
+        );
+        uint256 auctionId2 = _startAndCheckAuction(
+            stakedToken2,
+            numLots[1],
+            lotPrice[1],
+            initialLotSize[1],
+            slashPercent[1],
+            lotIncreaseIncrement[1],
+            lotIncreasePeriod[1],
+            timeLimit[1]
+        );
+
+        // Buy all the lots at once and check the buyer's resulting balance
+        uint256[] memory balanceBefore = new uint256[](2);
+        balanceBefore[0] = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        balanceBefore[1] = stakedToken2.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        _dealAndBuyLots(liquidityProviderTwo, auctionId1, numLots[0], lotPrice[0]);
+        _dealAndBuyLots(liquidityProviderTwo, auctionId2, numLots[1], lotPrice[1]);
+        uint256[] memory balanceAfter = new uint256[](2);
+        balanceAfter[0] = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        balanceAfter[1] = stakedToken2.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        assertEq(
+            balanceAfter[0],
+            balanceBefore[0] + initialLotSize[0] * numLots[0],
+            "Balance mismatch after buying all lots: auction 1"
+        );
+        assertEq(
+            balanceAfter[1],
+            balanceBefore[1] + initialLotSize[1] * numLots[1],
+            "Balance mismatch after buying all lots: auction 2"
+        );
+
+        // Check that the auction is no longer active and unsold tokens have been returned
+        assertTrue(!auctionModule.isAuctionActive(auctionId1), "Auction should not be active after selling out");
+        assertTrue(!auctionModule.isAuctionActive(auctionId2), "Auction should not be active after selling out");
+        assertEq(_getAuctionRemainingBalance(auctionId1), 0, "Unsold tokens should be returned from the auction module");
+        assertEq(_getAuctionRemainingBalance(auctionId2), 0, "Unsold tokens should be returned from the auction module");
+
+        // Check the state of the StakedToken after slashing is settled and unsold tokens are returned
+        uint256[] memory percentSold = new uint256[](2);
+        percentSold[0] = uint256(initialLotSize[0] * numLots[0]).wadDiv(stakedToken1.totalSupply());
+        percentSold[1] = uint256(initialLotSize[1] * numLots[1]).wadDiv(stakedToken2.totalSupply());
+        _checkExchangeRatePreviews(stakedToken1, 1e18, 1e18 - percentSold[0], "after selling out auction 1");
+        _checkExchangeRatePreviews(stakedToken2, 1e18, 1e18 - percentSold[1], "after selling out auction 2");
+
+        // Withdraw the funds raised from the auction and check the resulting balance
+        uint256[] memory fundsRaised = new uint256[](2);
+        fundsRaised[0] = auctionModule.getFundsRaised(auctionId1);
+        fundsRaised[1] = auctionModule.getFundsRaised(auctionId2);
+        assertEq(fundsRaised[0], lotPrice[0] * numLots[0], "Funds raised mismatch after selling out auction 1");
+        assertEq(fundsRaised[1], lotPrice[1] * numLots[1], "Funds raised mismatch after selling out auction 2");
+        assertEq(
+            usdc.balanceOf(address(safetyModule)),
+            fundsRaised[0] + fundsRaised[1],
+            "Safety module should have the funds raised before withdrawing"
+        );
+        safetyModule.withdrawFundsRaisedFromAuction(fundsRaised[0] + fundsRaised[1]);
+        assertEq(
+            usdc.balanceOf(address(this)),
+            fundsRaised[0] + fundsRaised[1],
+            "Balance mismatch after withdrawing funds raised from auction"
+        );
+        assertEq(
+            usdc.balanceOf(address(safetyModule)), 0, "Safety module should have no remaining funds after withdrawing"
+        );
     }
 
     /* ******************* */
