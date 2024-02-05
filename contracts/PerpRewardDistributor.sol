@@ -21,7 +21,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @notice Amount of time after which LPs can remove liquidity without penalties
     uint256 internal _earlyWithdrawalThreshold;
 
-    /// @notice Last timestamp when user withdrew liquidity from a market
+    /// @notice Last timestamp when user changed their position in a market
     /// @dev First address is user, second is the market
     mapping(address => mapping(address => uint256)) internal _withdrawTimerStartByUserByMarket;
 
