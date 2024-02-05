@@ -19,11 +19,11 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     ISafetyModule public safetyModule;
 
     /// @notice The maximum reward multiplier, scaled by 1e18
-    uint256 public maxRewardMultiplier;
+    uint256 internal _maxRewardMultiplier;
 
     /// @notice The smoothing value, scaled by 1e18
     /// @dev The higher the value, the slower the multiplier approaches its max
-    uint256 public smoothingValue;
+    uint256 internal _smoothingValue;
 
     /// @notice The starting timestamp used to calculate the user's reward multiplier for a given staked token
     /// @dev First address is user, second is staked token
@@ -39,21 +39,19 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @notice SafetyModule constructor
     /// @param _safetyModule The address of the SafetyModule contract
-    /// @param _maxRewardMultiplier The maximum reward multiplier, scaled by 1e18
-    /// @param _smoothingValue The smoothing value, scaled by 1e18
+    /// @param _maxMultiplier The maximum reward multiplier, scaled by 1e18
+    /// @param _smoothingVal The smoothing value, scaled by 1e18
     /// @param _ecosystemReserve The address of the EcosystemReserve contract, where reward tokens are stored
-    constructor(
-        ISafetyModule _safetyModule,
-        uint256 _maxRewardMultiplier,
-        uint256 _smoothingValue,
-        address _ecosystemReserve
-    ) payable RewardDistributor(_ecosystemReserve) {
+    constructor(ISafetyModule _safetyModule, uint256 _maxMultiplier, uint256 _smoothingVal, address _ecosystemReserve)
+        payable
+        RewardDistributor(_ecosystemReserve)
+    {
         safetyModule = _safetyModule;
-        maxRewardMultiplier = _maxRewardMultiplier;
-        smoothingValue = _smoothingValue;
+        _maxRewardMultiplier = _maxMultiplier;
+        _smoothingValue = _smoothingVal;
         emit SafetyModuleUpdated(address(0), address(_safetyModule));
         emit MaxRewardMultiplierUpdated(0, _maxRewardMultiplier);
-        emit SmoothingValueUpdated(0, _smoothingValue);
+        emit SmoothingValueUpdated(0, _smoothingVal);
     }
 
     /* ****************** */
@@ -123,6 +121,16 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /* ****************** */
 
     /// @inheritdoc ISMRewardDistributor
+    function getMaxRewardMultiplier() external view returns (uint256) {
+        return _maxRewardMultiplier;
+    }
+
+    /// @inheritdoc ISMRewardDistributor
+    function getSmoothingValue() external view returns (uint256) {
+        return _smoothingValue;
+    }
+
+    /// @inheritdoc ISMRewardDistributor
     function multiplierStartTimeByUser(address _user, address _stakingToken) public view override returns (uint256) {
         return _multiplierStartTimeByUser[_user][_stakingToken];
     }
@@ -150,9 +158,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
          * = maxRewardMultiplier - smoothingValue / (deltaDays + (smoothingValue / (maxRewardMultiplier - 1)))
          * = maxRewardMultiplier - (smoothingValue * (maxRewardMultiplier - 1)) / ((deltaDays * (maxRewardMultiplier - 1)) + smoothingValue)
          */
-        return maxRewardMultiplier
-            - (smoothingValue * (maxRewardMultiplier - 1e18))
-                / ((deltaDays * (maxRewardMultiplier - 1e18)) / 1e18 + smoothingValue);
+        return _maxRewardMultiplier
+            - (_smoothingValue * (_maxRewardMultiplier - 1e18))
+                / ((deltaDays * (_maxRewardMultiplier - 1e18)) / 1e18 + _smoothingValue);
     }
 
     /* ******************* */
@@ -188,26 +196,26 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc ISMRewardDistributor
     /// @dev Only callable by governance, reverts if the new value is less than 1e18 (100%) or greater than 10e18 (1000%)
-    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external onlyRole(GOVERNANCE) {
-        if (_maxRewardMultiplier < 1e18) {
-            revert SMRD_InvalidMaxMultiplierTooLow(_maxRewardMultiplier, 1e18);
-        } else if (_maxRewardMultiplier > 10e18) {
-            revert SMRD_InvalidMaxMultiplierTooHigh(_maxRewardMultiplier, 10e18);
+    function setMaxRewardMultiplier(uint256 _newMaxMultiplier) external onlyRole(GOVERNANCE) {
+        if (_newMaxMultiplier < 1e18) {
+            revert SMRD_InvalidMaxMultiplierTooLow(_newMaxMultiplier, 1e18);
+        } else if (_newMaxMultiplier > 10e18) {
+            revert SMRD_InvalidMaxMultiplierTooHigh(_newMaxMultiplier, 10e18);
         }
-        emit MaxRewardMultiplierUpdated(maxRewardMultiplier, _maxRewardMultiplier);
-        maxRewardMultiplier = _maxRewardMultiplier;
+        emit MaxRewardMultiplierUpdated(_maxRewardMultiplier, _newMaxMultiplier);
+        _maxRewardMultiplier = _newMaxMultiplier;
     }
 
     /// @inheritdoc ISMRewardDistributor
     /// @dev Only callable by governance, reverts if the new value is less than 10e18 or greater than 100e18
-    function setSmoothingValue(uint256 _smoothingValue) external onlyRole(GOVERNANCE) {
-        if (_smoothingValue < 10e18) {
-            revert SMRD_InvalidSmoothingValueTooLow(_smoothingValue, 10e18);
-        } else if (_smoothingValue > 100e18) {
-            revert SMRD_InvalidSmoothingValueTooHigh(_smoothingValue, 100e18);
+    function setSmoothingValue(uint256 _newSmoothingValue) external onlyRole(GOVERNANCE) {
+        if (_newSmoothingValue < 10e18) {
+            revert SMRD_InvalidSmoothingValueTooLow(_newSmoothingValue, 10e18);
+        } else if (_newSmoothingValue > 100e18) {
+            revert SMRD_InvalidSmoothingValueTooHigh(_newSmoothingValue, 100e18);
         }
-        emit SmoothingValueUpdated(smoothingValue, _smoothingValue);
-        smoothingValue = _smoothingValue;
+        emit SmoothingValueUpdated(_smoothingValue, _newSmoothingValue);
+        _smoothingValue = _newSmoothingValue;
     }
 
     /// @inheritdoc IRewardController

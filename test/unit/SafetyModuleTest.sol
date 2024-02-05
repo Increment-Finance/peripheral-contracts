@@ -1409,8 +1409,8 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     function _calcExpectedMultiplier(uint256 deltaDays) internal view returns (uint256) {
-        uint256 smoothingValue = rewardDistributor.smoothingValue();
-        uint256 maxMultiplier = rewardDistributor.maxRewardMultiplier();
+        uint256 smoothingValue = rewardDistributor.getSmoothingValue();
+        uint256 maxMultiplier = rewardDistributor.getMaxRewardMultiplier();
         return maxMultiplier
             - (smoothingValue * (maxMultiplier - 1e18)) / (deltaDays.wadMul(maxMultiplier - 1e18) + smoothingValue);
     }

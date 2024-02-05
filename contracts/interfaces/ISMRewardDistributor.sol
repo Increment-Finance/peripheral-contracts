@@ -54,11 +54,11 @@ interface ISMRewardDistributor is IRewardDistributor {
 
     /// @notice Gets the maximum reward multiplier set by governance
     /// @return Maximum reward multiplier, scaled by 1e18
-    function maxRewardMultiplier() external view returns (uint256);
+    function getMaxRewardMultiplier() external view returns (uint256);
 
     /// @notice Gets the smoothing value set by governance
     /// @return Smoothing value, scaled by 1e18
-    function smoothingValue() external view returns (uint256);
+    function getSmoothingValue() external view returns (uint256);
 
     /// @notice Gets the starting timestamp used to calculate the user's reward multiplier for a given staking token
     /// @dev This value is updated whenever `updatePosition` is called, according to the user's change in stake
@@ -79,10 +79,10 @@ interface ISMRewardDistributor is IRewardDistributor {
     function setSafetyModule(ISafetyModule _newSafetyModule) external;
 
     /// @notice Sets the maximum reward multiplier
-    /// @param _maxRewardMultiplier New maximum reward multiplier, scaled by 1e18
-    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external;
+    /// @param _newMaxMultiplier New maximum reward multiplier, scaled by 1e18
+    function setMaxRewardMultiplier(uint256 _newMaxMultiplier) external;
 
     /// @notice Sets the smoothing value used in calculating the reward multiplier
-    /// @param _smoothingValue New smoothing value, scaled by 1e18
-    function setSmoothingValue(uint256 _smoothingValue) external;
+    /// @param _newSmoothingValue New smoothing value, scaled by 1e18
+    function setSmoothingValue(uint256 _newSmoothingValue) external;
 }
