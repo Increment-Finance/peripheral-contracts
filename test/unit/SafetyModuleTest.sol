@@ -1076,7 +1076,7 @@ contract SafetyModuleTest is Deployment, Utils {
             timeLimit[1]
         );
 
-        // Buy all the lots at once and check the buyer's resulting balance
+        // Buy all the lots at once and check the buyer's resulting balances
         uint256[] memory balanceBefore = new uint256[](2);
         balanceBefore[0] = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
         balanceBefore[1] = stakedToken2.getUnderlyingToken().balanceOf(liquidityProviderTwo);
@@ -1096,20 +1096,20 @@ contract SafetyModuleTest is Deployment, Utils {
             "Balance mismatch after buying all lots: auction 2"
         );
 
-        // Check that the auction is no longer active and unsold tokens have been returned
+        // Check that the auctions are no longer active and unsold tokens have been returned
         assertTrue(!auctionModule.isAuctionActive(auctionId1), "Auction should not be active after selling out");
         assertTrue(!auctionModule.isAuctionActive(auctionId2), "Auction should not be active after selling out");
         assertEq(_getAuctionRemainingBalance(auctionId1), 0, "Unsold tokens should be returned from the auction module");
         assertEq(_getAuctionRemainingBalance(auctionId2), 0, "Unsold tokens should be returned from the auction module");
 
-        // Check the state of the StakedToken after slashing is settled and unsold tokens are returned
+        // Check the state of the StakedTokens after slashing is settled and unsold tokens are returned
         uint256[] memory percentSold = new uint256[](2);
         percentSold[0] = uint256(initialLotSize[0] * numLots[0]).wadDiv(stakedToken1.totalSupply());
         percentSold[1] = uint256(initialLotSize[1] * numLots[1]).wadDiv(stakedToken2.totalSupply());
         _checkExchangeRatePreviews(stakedToken1, 1e18, 1e18 - percentSold[0], "after selling out auction 1");
         _checkExchangeRatePreviews(stakedToken2, 1e18, 1e18 - percentSold[1], "after selling out auction 2");
 
-        // Withdraw the funds raised from the auction and check the resulting balance
+        // Withdraw the funds raised from the auctions and check the resulting balance
         uint256[] memory fundsRaised = new uint256[](2);
         fundsRaised[0] = auctionModule.getFundsRaised(auctionId1);
         fundsRaised[1] = auctionModule.getFundsRaised(auctionId2);
