@@ -872,7 +872,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _checkExchangeRatePreviews(stakedToken1, 1e18, 1e18 - percentSold, "after selling out");
 
         // Withdraw the funds raised from the auction and check the resulting balance
-        uint256 fundsRaised = auctionModule.fundsRaisedPerAuction(auctionId);
+        uint256 fundsRaised = auctionModule.getFundsRaised(auctionId);
         assertEq(fundsRaised, lotPrice * numLots, "Funds raised mismatch after selling out");
         safetyModule.withdrawFundsRaisedFromAuction(fundsRaised);
         assertEq(
@@ -1539,8 +1539,8 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(buyer);
         paymentToken.approve(address(auctionModule), lotPrice * numLots);
         uint256 lotSize = auctionModule.getCurrentLotSize(auctionId);
-        uint256 tokensAlreadySold = auctionModule.tokensSoldPerAuction(auctionId);
-        uint256 fundsAlreadyRaised = auctionModule.fundsRaisedPerAuction(auctionId);
+        uint256 tokensAlreadySold = auctionModule.getTokensSold(auctionId);
+        uint256 fundsAlreadyRaised = auctionModule.getFundsRaised(auctionId);
         uint256 remainingBalance = _getAuctionRemainingBalance(auctionId) - lotSize * numLots;
         vm.expectEmit(true, true, false, true);
         emit LotsSold(auctionId, buyer, numLots, lotSize, lotPrice);

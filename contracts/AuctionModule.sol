@@ -53,16 +53,16 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     IERC20 public paymentToken;
 
     /// @notice ID of the next auction
-    uint256 public nextAuctionId;
+    uint256 internal _nextAuctionId;
 
     /// @notice Mapping of auction IDs to auction information
-    mapping(uint256 => Auction) public auctions;
+    mapping(uint256 => Auction) internal _auctions;
 
     /// @notice Mapping of auction IDs to the number of tokens sold in that auction
-    mapping(uint256 => uint256) public tokensSoldPerAuction;
+    mapping(uint256 => uint256) internal _tokensSoldPerAuction;
 
     /// @notice Mapping of auction IDs to the number of payment tokens raised in that auction
-    mapping(uint256 => uint256) public fundsRaisedPerAuction;
+    mapping(uint256 => uint256) internal _fundsRaisedPerAuction;
 
     /// @notice Modifier for functions that should only be called by the SafetyModule
     modifier onlySafetyModule() {
@@ -86,51 +86,66 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
 
     /// @inheritdoc IAuctionModule
     function getCurrentLotSize(uint256 _auctionId) external view returns (uint256) {
-        if (_auctionId >= nextAuctionId) {
+        if (_auctionId >= _nextAuctionId) {
             revert AuctionModule_InvalidAuctionId(_auctionId);
         }
-        if (!auctions[_auctionId].active || auctions[_auctionId].endTime <= block.timestamp) return 0;
+        if (!_auctions[_auctionId].active || _auctions[_auctionId].endTime <= block.timestamp) return 0;
         return _getCurrentLotSize(_auctionId);
     }
 
     /// @inheritdoc IAuctionModule
     function getRemainingLots(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].remainingLots;
+        return _auctions[_auctionId].remainingLots;
     }
 
     /// @inheritdoc IAuctionModule
     function getLotPrice(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].lotPrice;
+        return _auctions[_auctionId].lotPrice;
     }
 
     /// @inheritdoc IAuctionModule
     function getLotIncreaseIncrement(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].lotIncreaseIncrement;
+        return _auctions[_auctionId].lotIncreaseIncrement;
     }
 
     /// @inheritdoc IAuctionModule
     function getLotIncreasePeriod(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].lotIncreasePeriod;
+        return _auctions[_auctionId].lotIncreasePeriod;
     }
 
     /// @inheritdoc IAuctionModule
     function getAuctionToken(uint256 _auctionId) external view returns (IERC20) {
-        return auctions[_auctionId].token;
+        return _auctions[_auctionId].token;
     }
 
     /// @inheritdoc IAuctionModule
     function getStartTime(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].startTime;
+        return _auctions[_auctionId].startTime;
     }
 
     /// @inheritdoc IAuctionModule
     function getEndTime(uint256 _auctionId) external view returns (uint256) {
-        return auctions[_auctionId].endTime;
+        return _auctions[_auctionId].endTime;
+    }
+
+    /// @inheritdoc IAuctionModule
+    function getTokensSold(uint256 _auctionId) external view returns (uint256) {
+        return _tokensSoldPerAuction[_auctionId];
+    }
+
+    /// @inheritdoc IAuctionModule
+    function getFundsRaised(uint256 _auctionId) external view returns (uint256) {
+        return _fundsRaisedPerAuction[_auctionId];
+    }
+
+    /// @inheritdoc IAuctionModule
+    function getNextAuctionId() external view returns (uint256) {
+        return _nextAuctionId;
     }
 
     /// @inheritdoc IAuctionModule
     function isAuctionActive(uint256 _auctionId) external view returns (bool) {
-        return auctions[_auctionId].active && block.timestamp < auctions[_auctionId].endTime;
+        return _auctions[_auctionId].active && block.timestamp < _auctions[_auctionId].endTime;
     }
 
     /* ***************** */
@@ -140,60 +155,60 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     /// @inheritdoc IAuctionModule
     function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external nonReentrant whenNotPaused {
         // Safety checks
-        if (_auctionId >= nextAuctionId) {
+        if (_auctionId >= _nextAuctionId) {
             revert AuctionModule_InvalidAuctionId(_auctionId);
         }
         if (_numLotsToBuy == 0) revert AuctionModule_InvalidZeroArgument(1);
-        if (!auctions[_auctionId].active || block.timestamp >= auctions[_auctionId].endTime) {
+        if (!_auctions[_auctionId].active || block.timestamp >= _auctions[_auctionId].endTime) {
             revert AuctionModule_AuctionNotActive(_auctionId);
         }
-        uint256 remainingLots = auctions[_auctionId].remainingLots;
+        uint256 remainingLots = _auctions[_auctionId].remainingLots;
         if (_numLotsToBuy > remainingLots) {
             revert AuctionModule_NotEnoughLotsRemaining(_auctionId, remainingLots);
         }
 
         // Calculate payment and purchase amounts
-        uint256 paymentAmount = _numLotsToBuy * auctions[_auctionId].lotPrice;
+        uint256 paymentAmount = _numLotsToBuy * _auctions[_auctionId].lotPrice;
         uint256 currentLotSize = _getCurrentLotSize(_auctionId);
         uint256 purchaseAmount = _numLotsToBuy * currentLotSize;
 
         // Update auction in storage
-        auctions[_auctionId].remainingLots -= _numLotsToBuy;
-        tokensSoldPerAuction[_auctionId] += purchaseAmount;
-        fundsRaisedPerAuction[_auctionId] += paymentAmount;
+        _auctions[_auctionId].remainingLots -= _numLotsToBuy;
+        _tokensSoldPerAuction[_auctionId] += purchaseAmount;
+        _fundsRaisedPerAuction[_auctionId] += paymentAmount;
 
         // Handle payment
         paymentToken.safeTransferFrom(msg.sender, address(this), paymentAmount);
 
         // Transfer tokens
-        auctions[_auctionId].token.safeTransfer(msg.sender, purchaseAmount);
+        _auctions[_auctionId].token.safeTransfer(msg.sender, purchaseAmount);
 
         // Emit event
-        emit LotsSold(_auctionId, msg.sender, _numLotsToBuy, currentLotSize, auctions[_auctionId].lotPrice);
+        emit LotsSold(_auctionId, msg.sender, _numLotsToBuy, currentLotSize, _auctions[_auctionId].lotPrice);
 
         // Check if auction is over
         if (remainingLots - _numLotsToBuy == 0) {
-            auctions[_auctionId].active = false;
+            _auctions[_auctionId].active = false;
             _completeAuction(_auctionId, false);
         }
     }
 
     function completeAuction(uint256 _auctionId) external nonReentrant whenNotPaused {
         // Safety checks
-        if (_auctionId >= nextAuctionId) {
+        if (_auctionId >= _nextAuctionId) {
             revert AuctionModule_InvalidAuctionId(_auctionId);
         }
         // Active flag must still be true, otherwise it has already been completed
-        if (!auctions[_auctionId].active) {
+        if (!_auctions[_auctionId].active) {
             revert AuctionModule_AuctionNotActive(_auctionId);
         }
         // Auction timelimit must have passed to complete the auction
-        if (block.timestamp >= auctions[_auctionId].endTime) {
-            auctions[_auctionId].active = false;
+        if (block.timestamp >= _auctions[_auctionId].endTime) {
+            _auctions[_auctionId].active = false;
         }
         // If the active flag is still true after checking the timelimit, the auction cannot be completed yet
         else {
-            revert AuctionModule_AuctionStillActive(_auctionId, auctions[_auctionId].endTime);
+            revert AuctionModule_AuctionStillActive(_auctionId, _auctions[_auctionId].endTime);
         }
 
         _completeAuction(_auctionId, false);
@@ -237,10 +252,10 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         if (_timeLimit == 0) revert AuctionModule_InvalidZeroArgument(6);
 
         // Create auction
-        uint256 auctionId = nextAuctionId;
+        uint256 auctionId = _nextAuctionId;
         uint64 auctionStartTime = uint64(block.timestamp);
         uint64 auctionEndTime = auctionStartTime + _timeLimit;
-        auctions[auctionId] = Auction({
+        _auctions[auctionId] = Auction({
             token: _token,
             active: true,
             lotPrice: _lotPrice,
@@ -252,7 +267,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
             lotIncreasePeriod: _lotIncreasePeriod,
             lotIncreaseIncrement: _lotIncreaseIncrement
         });
-        nextAuctionId += 1;
+        _nextAuctionId += 1;
 
         // Emit event
         emit AuctionStarted(
@@ -274,14 +289,14 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     /// @dev Only callable by the SafetyModule
     function terminateAuction(uint256 _auctionId) external onlySafetyModule {
         // Safety checks
-        if (_auctionId >= nextAuctionId) {
+        if (_auctionId >= _nextAuctionId) {
             revert AuctionModule_InvalidAuctionId(_auctionId);
         }
-        if (!auctions[_auctionId].active) {
+        if (!_auctions[_auctionId].active) {
             revert AuctionModule_AuctionNotActive(_auctionId);
         }
 
-        auctions[_auctionId].active = false;
+        _auctions[_auctionId].active = false;
         _completeAuction(_auctionId, true);
     }
 
@@ -327,11 +342,11 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
 
     function _getCurrentLotSize(uint256 _auctionId) internal view returns (uint256) {
         uint256 incrementPeriods =
-            (block.timestamp - auctions[_auctionId].startTime) / auctions[_auctionId].lotIncreasePeriod;
+            (block.timestamp - _auctions[_auctionId].startTime) / _auctions[_auctionId].lotIncreasePeriod;
         uint256 lotSize =
-            auctions[_auctionId].initialLotSize + incrementPeriods * auctions[_auctionId].lotIncreaseIncrement;
-        uint256 tokenBalance = auctions[_auctionId].token.balanceOf(address(this));
-        uint256 remainingLots = auctions[_auctionId].remainingLots;
+            _auctions[_auctionId].initialLotSize + incrementPeriods * _auctions[_auctionId].lotIncreaseIncrement;
+        uint256 tokenBalance = _auctions[_auctionId].token.balanceOf(address(this));
+        uint256 remainingLots = _auctions[_auctionId].remainingLots;
         if (lotSize * remainingLots > tokenBalance) {
             lotSize = tokenBalance / remainingLots;
         }
@@ -340,10 +355,10 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
 
     function _completeAuction(uint256 _auctionId, bool _terminatedEarly) internal {
         // Approvals
-        IERC20 auctionToken = auctions[_auctionId].token;
+        IERC20 auctionToken = _auctions[_auctionId].token;
         IStakedToken stakedToken = safetyModule.stakedTokenByAuctionId(_auctionId);
         uint256 remainingBalance = auctionToken.balanceOf(address(this));
-        uint256 fundsRaised = fundsRaisedPerAuction[_auctionId];
+        uint256 fundsRaised = _fundsRaisedPerAuction[_auctionId];
         uint256 finalLotSize = _getCurrentLotSize(_auctionId);
 
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
@@ -361,7 +376,11 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
 
         // Emit event
         emit AuctionEnded(
-            _auctionId, auctions[_auctionId].remainingLots, finalLotSize, tokensSoldPerAuction[_auctionId], fundsRaised
+            _auctionId,
+            _auctions[_auctionId].remainingLots,
+            finalLotSize,
+            _tokensSoldPerAuction[_auctionId],
+            fundsRaised
         );
     }
 }

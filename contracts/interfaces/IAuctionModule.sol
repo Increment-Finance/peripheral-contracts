@@ -98,20 +98,6 @@ interface IAuctionModule {
     /// @return ERC20 token used for payments
     function paymentToken() external view returns (IERC20);
 
-    /// @notice Returns the ID of the next auction
-    /// @return ID of the next auction
-    function nextAuctionId() external view returns (uint256);
-
-    /// @notice Returns the number of tokens sold in the auction
-    /// @param _auctionId ID of the auction
-    /// @return Number of tokens sold
-    function tokensSoldPerAuction(uint256 _auctionId) external view returns (uint256);
-
-    /// @notice Returns the amount of funds raised in the auction
-    /// @param _auctionId ID of the auction
-    /// @return Number of payment tokens raised
-    function fundsRaisedPerAuction(uint256 _auctionId) external view returns (uint256);
-
     /// @notice Returns the current lot size of the auction
     /// @dev Lot size starts at `auction.initialLotSize` and increases by `auction.lotIncreaseIncrement` every
     /// `auction.lotIncreasePeriod` seconds, unless the lot size times the number of remaining lots reaches the
@@ -156,6 +142,20 @@ interface IAuctionModule {
     /// @param _auctionId ID of the auction
     /// @return Timestamp when the auction ends
     function getEndTime(uint256 _auctionId) external view returns (uint256);
+
+    /// @notice Returns the number of tokens sold in the auction
+    /// @param _auctionId ID of the auction
+    /// @return Number of tokens sold
+    function getTokensSold(uint256 _auctionId) external view returns (uint256);
+
+    /// @notice Returns the amount of funds raised in the auction
+    /// @param _auctionId ID of the auction
+    /// @return Number of payment tokens raised
+    function getFundsRaised(uint256 _auctionId) external view returns (uint256);
+
+    /// @notice Returns the ID of the next auction
+    /// @return ID of the next auction
+    function getNextAuctionId() external view returns (uint256);
 
     /// @notice Returns whether the auction is still active
     /// @param _auctionId ID of the auction
