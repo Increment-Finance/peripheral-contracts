@@ -133,7 +133,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 ++i;
             }
         }
-        _totalLiquidityPerMarket[market] += newLpPosition - prevLpPosition;
+        _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
         _lpPositionsPerUser[user][market] = newLpPosition;
         emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
     }
