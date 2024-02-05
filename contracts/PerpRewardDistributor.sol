@@ -112,7 +112,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
                 } else {
                     // Full withdrawal, so next deposit is an initial deposit
-                    _withdrawTimerStartByUserByMarket[user][market] = 0;
+                    delete _withdrawTimerStartByUserByMarket[user][market];
                 }
             }
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];

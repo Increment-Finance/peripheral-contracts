@@ -100,7 +100,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 _multiplierStartTimeByUser[user][market] = block.timestamp;
             } else {
                 // Full removal - set multiplier to 0 until the user stakes again
-                _multiplierStartTimeByUser[user][market] = 0;
+                delete _multiplierStartTimeByUser[user][market];
             }
         } else {
             // User added to their existing stake - need to update multiplier start time

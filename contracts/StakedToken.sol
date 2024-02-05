@@ -336,7 +336,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
             stakersCooldowns[to] = getNextCooldownTimestamp(previousSenderCooldown, amount, to, balanceOfTo);
             // if cooldown was set and whole balance of sender was transferred - clear cooldown
             if (previousSenderCooldown != 0) {
-                if (balanceOf(from) == amount) stakersCooldowns[from] = 0;
+                if (balanceOf(from) == amount) delete stakersCooldowns[from];
             }
         }
 
@@ -400,9 +400,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         _burn(from, amount);
 
         // Reset cooldown to zero if the user redeemed their whole balance
-        if (balanceOfFrom - amount == 0) {
-            stakersCooldowns[from] = 0;
-        }
+        if (balanceOfFrom - amount == 0) delete stakersCooldowns[from];
 
         // Transfer underlying tokens to the recipient
         UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
