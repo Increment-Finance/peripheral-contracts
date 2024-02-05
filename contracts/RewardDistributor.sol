@@ -28,7 +28,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     using PRBMathUD60x18 for uint88;
 
     /// @notice Address of the reward token vault
-    address public ecosystemReserve;
+    address public immutable ecosystemReserve;
 
     /// @notice Rewards accrued and not yet claimed by user
     /// @dev First address is user, second is reward token
@@ -181,16 +181,6 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         }
 
         emit RewardTokenRemoved(_rewardToken, unclaimedAccruals, unaccruedBalance);
-    }
-
-    /// @inheritdoc IRewardDistributor
-    /// @dev Can only be called by governance
-    function setEcosystemReserve(address _newEcosystemReserve) external onlyRole(GOVERNANCE) {
-        if (_newEcosystemReserve == address(0)) {
-            revert RewardDistributor_InvalidZeroAddress();
-        }
-        emit EcosystemReserveUpdated(ecosystemReserve, _newEcosystemReserve);
-        ecosystemReserve = _newEcosystemReserve;
     }
 
     /* ****************** */

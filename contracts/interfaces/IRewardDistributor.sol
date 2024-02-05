@@ -141,10 +141,6 @@ interface IRewardDistributor is IRewardContract {
     /// @param _rewardToken Address of the reward token to remove
     function removeRewardToken(address _rewardToken) external;
 
-    /// @notice Updates the address of the ecosystem reserve for storing reward tokens
-    /// @param _newEcosystemReserve Address of the new ecosystem reserve
-    function setEcosystemReserve(address _newEcosystemReserve) external;
-
     /// @notice Sets the start time for accruing rewards to a market which has not been initialized yet
     /// @param _market Address of the market (i.e., perpetual market or staking token)
     function initMarketStartTime(address _market) external;

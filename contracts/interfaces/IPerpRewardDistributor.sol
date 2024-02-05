@@ -34,10 +34,6 @@ interface IPerpRewardDistributor is IRewardDistributor {
     /// @return Timestamp when user last withdrew liquidity from the market
     function withdrawTimerStartByUserByMarket(address user, address market) external view returns (uint256);
 
-    /// @notice Sets the address of the ClearingHouse contract which stores the list of Perpetuals and can call `updatePosition`
-    /// @param _newClearingHouse New ClearingHouse contract
-    function setClearingHouse(IClearingHouse _newClearingHouse) external;
-
     /// @notice Sets the number of seconds that a user must leave their liquidity in the market to avoid the early withdrawal penalty
     /// @param _newEarlyWithdrawalThreshold New early withdrawal threshold in seconds
     function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold) external;

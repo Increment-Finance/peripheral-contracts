@@ -90,7 +90,6 @@ contract RewardsTest is Deployment, Utils {
             INITIAL_WITHDRAW_THRESHOLD,
             weights
         );
-        rewardDistributor.setClearingHouse(clearingHouse); // just for coverage, will likely never happen
 
         // Transfer all rewards tokens to the vault and approve the distributor
         rewardsToken.transfer(address(ecosystemReserve), rewardsToken.totalSupply());
@@ -885,24 +884,16 @@ contract RewardsTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("ONLY_BY_FUNDS_ADMIN"));
         ecosystemReserve.transferAdmin(liquidityProviderOne);
-        _expectAccessControlGovernanceRole(liquidityProviderOne);
-        rewardDistributor.setEcosystemReserve(address(ecosystemReserve));
         vm.stopPrank();
 
         // invalid address errors
         vm.expectRevert(abi.encodeWithSignature("EcosystemReserve_InvalidAdmin()"));
         ecosystemReserve.transferAdmin(address(0));
-        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()"));
-        rewardDistributor.setEcosystemReserve(address(0));
 
         // no errors
-        EcosystemReserve newEcosystemReserve = new EcosystemReserve(address(this));
         vm.expectEmit(false, false, false, true);
         emit NewFundsAdmin(address(this));
         ecosystemReserve.transferAdmin(address(this));
-        vm.expectEmit(false, false, false, true);
-        emit EcosystemReserveUpdated(address(ecosystemReserve), address(newEcosystemReserve));
-        rewardDistributor.setEcosystemReserve(address(newEcosystemReserve));
     }
 
     /* ****************** */

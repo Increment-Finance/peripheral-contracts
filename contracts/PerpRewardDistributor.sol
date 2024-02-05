@@ -16,10 +16,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     using PRBMathUD60x18 for uint256;
 
     /// @notice Clearing House contract
-    IClearingHouse public clearingHouse;
+    IClearingHouse public immutable clearingHouse;
 
     /// @notice Amount of time after which LPs can remove liquidity without penalties
-    uint256 public override earlyWithdrawalThreshold;
+    uint256 public earlyWithdrawalThreshold;
 
     /// @notice Last timestamp when user withdrew liquidity from a market
     /// @dev First address is user, second is the market
@@ -144,13 +144,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /* ****************** */
     /*     Governance     */
     /* ****************** */
-
-    /// @inheritdoc IPerpRewardDistributor
-    /// @dev Only callable by governance
-    function setClearingHouse(IClearingHouse _newClearingHouse) external onlyRole(GOVERNANCE) {
-        emit ClearingHouseUpdated(address(clearingHouse), address(_newClearingHouse));
-        clearingHouse = _newClearingHouse;
-    }
 
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
