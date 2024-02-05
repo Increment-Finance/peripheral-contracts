@@ -27,7 +27,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @notice The starting timestamp used to calculate the user's reward multiplier for a given staked token
     /// @dev First address is user, second is staked token
-    mapping(address => mapping(address => uint256)) public multiplierStartTimeByUser;
+    mapping(address => mapping(address => uint256)) internal _multiplierStartTimeByUser;
 
     /// @notice Modifier for functions that should only be called by the SafetyModule
     modifier onlySafetyModule() {
@@ -66,30 +66,30 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @param user Address of the staker
     function updatePosition(address market, address user) external virtual override onlySafetyModule {
         _updateMarketRewards(market);
-        uint256 prevPosition = lpPositionsPerUser[user][market];
+        uint256 prevPosition = _lpPositionsPerUser[user][market];
         uint256 newPosition = _getCurrentPosition(user, market);
-        totalLiquidityPerMarket[market] = totalLiquidityPerMarket[market] + newPosition - prevPosition;
+        _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newPosition - prevPosition;
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
             uint256 newRewards = prevPosition.mul(
-                cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
+                _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
-            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
+            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
                     ++i;
                 }
                 continue;
             }
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
+            _rewardsAccruedByUser[user][token] += newRewards;
+            _totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
-            if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(token, totalUnclaimedRewards[token] - rewardTokenBalance);
+            if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
+                emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
                 ++i;
@@ -99,10 +99,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             // Removed stake, started cooldown or staked for the first time - need to reset multiplier
             if (newPosition != 0) {
                 // Partial removal, cooldown or first stake - reset multiplier to 1
-                multiplierStartTimeByUser[user][market] = block.timestamp;
+                _multiplierStartTimeByUser[user][market] = block.timestamp;
             } else {
                 // Full removal - set multiplier to 0 until the user stakes again
-                multiplierStartTimeByUser[user][market] = 0;
+                _multiplierStartTimeByUser[user][market] = 0;
             }
         } else {
             // User added to their existing stake - need to update multiplier start time
@@ -110,17 +110,22 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             // and then staked a large amount once their multiplier is very high in order to claim a large
             // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
             // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
-            multiplierStartTimeByUser[user][market] += (block.timestamp - multiplierStartTimeByUser[user][market]).mul(
+            _multiplierStartTimeByUser[user][market] += (block.timestamp - _multiplierStartTimeByUser[user][market]).mul(
                 (newPosition - prevPosition).div(newPosition)
             );
         }
-        lpPositionsPerUser[user][market] = newPosition;
+        _lpPositionsPerUser[user][market] = newPosition;
         emit PositionUpdated(user, market, prevPosition, newPosition);
     }
 
     /* ****************** */
-    /*    External User   */
+    /*   External Views   */
     /* ****************** */
+
+    /// @inheritdoc ISMRewardDistributor
+    function multiplierStartTimeByUser(address _user, address _stakingToken) public view override returns (uint256) {
+        return _multiplierStartTimeByUser[_user][_stakingToken];
+    }
 
     /// @notice Indicates whether claiming rewards is currently paused
     /// @dev Contract is paused if either this contract or the SafetyModule has been paused
@@ -135,7 +140,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc ISMRewardDistributor
     function computeRewardMultiplier(address _user, address _stakedToken) public view returns (uint256) {
-        uint256 startTime = multiplierStartTimeByUser[_user][_stakedToken];
+        uint256 startTime = _multiplierStartTimeByUser[_user][_stakedToken];
         // If the user has never staked, return zero
         if (startTime == 0) return 0;
         uint256 deltaDays = (block.timestamp - startTime).div(1 days);
@@ -161,10 +166,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         override(IRewardDistributor, RewardDistributor)
         onlySafetyModule
     {
-        if (timeOfLastCumRewardUpdate[_market] != 0) {
+        if (_timeOfLastCumRewardUpdate[_market] != 0) {
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
         }
-        timeOfLastCumRewardUpdate[_market] = block.timestamp;
+        _timeOfLastCumRewardUpdate[_market] = block.timestamp;
     }
 
     /* ****************** */
@@ -250,34 +255,34 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @param market Address of the token in `stakedTokens`
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
-        uint256 userPosition = lpPositionsPerUser[user][market];
+        uint256 userPosition = _lpPositionsPerUser[user][market];
         if (userPosition != _getCurrentPosition(user, market)) {
             // only occurs if the user has a pre-existing balance and has not registered for rewards,
-            // since updating stake position calls updatePosition which updates lpPositionsPerUser
+            // since updating stake position calls updatePosition which updates _lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(user, market, userPosition, _getCurrentPosition(user, market));
         }
-        if (totalLiquidityPerMarket[market] == 0) return;
+        if (_totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             uint256 newRewards = userPosition.mul(
-                cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
+                _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
-            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
+            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
                     ++i;
                 }
                 continue;
             }
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
+            _rewardsAccruedByUser[user][token] += newRewards;
+            _totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
-            if (totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(token, totalUnclaimedRewards[token] - rewardTokenBalance);
+            if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
+                emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
                 ++i;
@@ -288,8 +293,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @inheritdoc RewardDistributor
     function _registerPosition(address _user, address _market) internal override {
         super._registerPosition(_user, _market);
-        if (lpPositionsPerUser[_user][_market] != 0) {
-            multiplierStartTimeByUser[_user][_market] = block.timestamp;
+        if (_lpPositionsPerUser[_user][_market] != 0) {
+            _multiplierStartTimeByUser[_user][_market] = block.timestamp;
         }
     }
 }

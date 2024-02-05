@@ -23,7 +23,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
 
     /// @notice Last timestamp when user withdrew liquidity from a market
     /// @dev First address is user, second is the market
-    mapping(address => mapping(address => uint256)) public withdrawTimerStartByUserByMarket;
+    mapping(address => mapping(address => uint256)) internal _withdrawTimerStartByUserByMarket;
 
     /// @notice Modifier for functions that can only be called by the ClearingHouse, i.e., `updatePosition`
     modifier onlyClearingHouse() {
@@ -69,7 +69,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             address market = _getMarketAddress(_getMarketIdx(i));
             rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
             marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[i];
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
+            _timeOfLastCumRewardUpdate[market] = block.timestamp;
             unchecked {
                 ++i;
             }
@@ -88,51 +88,64 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param user Address of the liquidity provier
     function updatePosition(address market, address user) external virtual override onlyClearingHouse {
         _updateMarketRewards(market);
-        uint256 prevLpPosition = lpPositionsPerUser[user][market];
+        uint256 prevLpPosition = _lpPositionsPerUser[user][market];
         uint256 newLpPosition = _getCurrentPosition(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             // newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
             uint256 newRewards = prevLpPosition.mul(
-                cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market]
+                _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
             if (newLpPosition >= prevLpPosition) {
                 // Added liquidity - reset early withdrawal timer
-                withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
+                _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
             } else {
                 // Removed liquidity - need to check if within early withdrawal threshold
-                uint256 deltaTime = block.timestamp - withdrawTimerStartByUserByMarket[user][market];
+                uint256 deltaTime = block.timestamp - _withdrawTimerStartByUserByMarket[user][market];
                 if (deltaTime < earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
                     newRewards -= (newRewards * (earlyWithdrawalThreshold - deltaTime)) / earlyWithdrawalThreshold;
                 }
                 if (newLpPosition != 0) {
                     // Reset timer
-                    withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
+                    _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
                 } else {
                     // Full withdrawal, so next deposit is an initial deposit
-                    withdrawTimerStartByUserByMarket[user][market] = 0;
+                    _withdrawTimerStartByUserByMarket[user][market] = 0;
                 }
             }
-            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
-            if (newRewards != 0) {
-                rewardsAccruedByUser[user][token] += newRewards;
-                totalUnclaimedRewards[token] += newRewards;
-                emit RewardAccruedToUser(user, token, address(market), newRewards);
+            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
+            if (newRewards == 0) {
+                unchecked {
+                    ++i;
+                }
+                continue;
+            }
+            _rewardsAccruedByUser[user][token] += newRewards;
+            _totalUnclaimedRewards[token] += newRewards;
+            emit RewardAccruedToUser(user, token, market, newRewards);
+            uint256 rewardTokenBalance = _rewardTokenBalance(token);
+            if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
+                emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
                 ++i;
             }
         }
-        totalLiquidityPerMarket[market] = totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
-        lpPositionsPerUser[user][market] = newLpPosition;
+        _totalLiquidityPerMarket[market] += newLpPosition - prevLpPosition;
+        _lpPositionsPerUser[user][market] = newLpPosition;
         emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
     }
 
     /* ****************** */
-    /*    External User   */
+    /*   External Views   */
     /* ****************** */
+
+    /// @inheritdoc IPerpRewardDistributor
+    function withdrawTimerStartByUserByMarket(address _user, address _market) external view returns (uint256) {
+        return _withdrawTimerStartByUserByMarket[_user][_market];
+    }
 
     /// @notice Indicates whether claiming rewards is currently paused
     /// @dev Contract is paused if either this contract or the ClearingHouse has been paused
@@ -183,26 +196,30 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
         // Do not accrue rewards for the given market before the early withdrawal threshold has passed
-        if (block.timestamp < withdrawTimerStartByUserByMarket[user][market] + earlyWithdrawalThreshold) return;
-        uint256 lpPosition = lpPositionsPerUser[user][market];
+        if (block.timestamp < _withdrawTimerStartByUserByMarket[user][market] + earlyWithdrawalThreshold) return;
+        uint256 lpPosition = _lpPositionsPerUser[user][market];
         if (lpPosition != _getCurrentPosition(user, market)) {
             // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since updating LP position calls updatePosition which updates lpPositionsPerUser
+            // since updating LP position calls updatePosition which updates _lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(user, market, lpPosition, _getCurrentPosition(user, market));
         }
-        if (totalLiquidityPerMarket[market] == 0) return;
+        if (_totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             uint256 newRewards = (
                 lpPosition
-                    * (cumulativeRewardPerLpToken[token][market] - cumulativeRewardPerLpTokenPerUser[user][token][market])
+                    * (_cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market])
             ) / 1e18;
-            rewardsAccruedByUser[user][token] += newRewards;
-            totalUnclaimedRewards[token] += newRewards;
-            cumulativeRewardPerLpTokenPerUser[user][token][market] = cumulativeRewardPerLpToken[token][market];
+            _rewardsAccruedByUser[user][token] += newRewards;
+            _totalUnclaimedRewards[token] += newRewards;
+            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             emit RewardAccruedToUser(user, token, market, newRewards);
+            uint256 rewardTokenBalance = _rewardTokenBalance(token);
+            if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
+                emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
+            }
             unchecked {
                 ++i;
             }

@@ -61,9 +61,11 @@ interface ISMRewardDistributor is IRewardDistributor {
     function smoothingValue() external view returns (uint256);
 
     /// @notice Gets the starting timestamp used to calculate the user's reward multiplier for a given staking token
-    /// @param user Address of the user
-    /// @param stakingToken Address of the staking token
-    function multiplierStartTimeByUser(address user, address stakingToken) external view returns (uint256);
+    /// @dev This value is updated whenever `updatePosition` is called, according to the user's change in stake
+    /// @param _user Address of the user
+    /// @param _stakingToken Address of the staking token
+    /// @return User's multiplier starting timestamp
+    function multiplierStartTimeByUser(address _user, address _stakingToken) external view returns (uint256);
 
     /// @notice Computes the user's reward multiplier for the given staking token
     /// @dev Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)

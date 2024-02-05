@@ -32,35 +32,78 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
 
     /// @notice Rewards accrued and not yet claimed by user
     /// @dev First address is user, second is reward token
-    mapping(address => mapping(address => uint256)) public rewardsAccruedByUser;
+    mapping(address => mapping(address => uint256)) internal _rewardsAccruedByUser;
 
     /// @notice Total rewards accrued and not claimed by all users
     /// @dev Address is reward token
-    mapping(address => uint256) public totalUnclaimedRewards;
+    mapping(address => uint256) internal _totalUnclaimedRewards;
 
     /// @notice Latest LP/staking positions per user and market
     /// @dev First address is user, second is the market
-    mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
+    mapping(address => mapping(address => uint256)) internal _lpPositionsPerUser;
 
     /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens
     /// per LP/staked token
     /// @dev First address is reward token, second is the market
-    mapping(address => mapping(address => uint256)) public cumulativeRewardPerLpToken;
+    mapping(address => mapping(address => uint256)) internal _cumulativeRewardPerLpToken;
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
     /// @dev First address is user, second is reward token, third is the market
-    mapping(address => mapping(address => mapping(address => uint256))) public cumulativeRewardPerLpTokenPerUser;
+    mapping(address => mapping(address => mapping(address => uint256))) internal _cumulativeRewardPerLpTokenPerUser;
 
     /// @notice Timestamp of the most recent update to the per-market reward accumulator
-    mapping(address => uint256) public timeOfLastCumRewardUpdate;
+    mapping(address => uint256) internal _timeOfLastCumRewardUpdate;
 
     /// @notice Total LP/staked tokens registered for rewards per market
-    mapping(address => uint256) public totalLiquidityPerMarket;
+    mapping(address => uint256) internal _totalLiquidityPerMarket;
 
     /// @notice RewardDistributor constructor
     /// @param _ecosystemReserve Address of the EcosystemReserve contract, which holds the reward tokens
     constructor(address _ecosystemReserve) payable {
         ecosystemReserve = _ecosystemReserve;
+    }
+
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
+
+    /// @inheritdoc IRewardDistributor
+    function rewardsAccruedByUser(address _user, address _rewardToken) external view returns (uint256) {
+        return _rewardsAccruedByUser[_user][_rewardToken];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function totalUnclaimedRewards(address _rewardToken) external view returns (uint256) {
+        return _totalUnclaimedRewards[_rewardToken];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function lpPositionsPerUser(address _user, address _market) external view returns (uint256) {
+        return _lpPositionsPerUser[_user][_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function cumulativeRewardPerLpToken(address _rewardToken, address _market) external view returns (uint256) {
+        return _cumulativeRewardPerLpToken[_rewardToken][_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function cumulativeRewardPerLpTokenPerUser(address _user, address _rewardToken, address _market)
+        external
+        view
+        returns (uint256)
+    {
+        return _cumulativeRewardPerLpTokenPerUser[_user][_rewardToken][_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function timeOfLastCumRewardUpdate(address _market) external view returns (uint256) {
+        return _timeOfLastCumRewardUpdate[_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function totalLiquidityPerMarket(address _market) external view returns (uint256) {
+        return _totalLiquidityPerMarket[_market];
     }
 
     /* ****************** */
@@ -70,10 +113,10 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by governance
     function initMarketStartTime(address _market) external virtual onlyRole(GOVERNANCE) {
-        if (timeOfLastCumRewardUpdate[_market] != 0) {
+        if (_timeOfLastCumRewardUpdate[_market] != 0) {
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
         }
-        timeOfLastCumRewardUpdate[_market] = block.timestamp;
+        _timeOfLastCumRewardUpdate[_market] = block.timestamp;
     }
 
     /// @inheritdoc IRewardDistributor
@@ -115,7 +158,6 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             }
             totalWeight += weight;
             marketWeightsByToken[_rewardToken][market] = weight;
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
             emit NewWeight(market, _rewardToken, weight);
             unchecked {
                 ++i;
@@ -172,7 +214,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
 
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = _rewardTokenBalance(_rewardToken);
-        uint256 unclaimedAccruals = totalUnclaimedRewards[_rewardToken];
+        uint256 unclaimedAccruals = _totalUnclaimedRewards[_rewardToken];
         uint256 unaccruedBalance;
         if (balance >= unclaimedAccruals) {
             unaccruedBalance = balance - unclaimedAccruals;
@@ -221,13 +263,13 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         uint256 numTokens = _rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = _rewardTokens[i];
-            uint256 rewards = rewardsAccruedByUser[_user][token];
+            uint256 rewards = _rewardsAccruedByUser[_user][token];
             if (rewards != 0) {
                 uint256 remainingRewards = _distributeReward(token, _user, rewards);
-                rewardsAccruedByUser[_user][token] = remainingRewards;
+                _rewardsAccruedByUser[_user][token] = remainingRewards;
                 emit RewardClaimed(_user, token, rewards - remainingRewards);
                 if (remainingRewards != 0) {
-                    emit RewardTokenShortfall(token, totalUnclaimedRewards[token]);
+                    emit RewardTokenShortfall(token, _totalUnclaimedRewards[token]);
                 }
             }
             unchecked {
@@ -243,10 +285,10 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @inheritdoc RewardController
     function _updateMarketRewards(address market) internal override {
         uint256 numTokens = rewardTokens.length;
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
+        uint256 deltaTime = block.timestamp - _timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0 || numTokens == 0) return;
-        if (totalLiquidityPerMarket[market] == 0) {
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
+        if (_totalLiquidityPerMarket[market] == 0) {
+            _timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
         for (uint256 i; i < numTokens;) {
@@ -270,9 +312,9 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             );
             uint256 newRewards = (
                 ((((inflationRate * marketWeightsByToken[token][market]) / 10000) * deltaTime) / 365 days) * 1e18
-            ) / totalLiquidityPerMarket[market];
+            ) / _totalLiquidityPerMarket[market];
             if (newRewards != 0) {
-                cumulativeRewardPerLpToken[token][market] += newRewards;
+                _cumulativeRewardPerLpToken[token][market] += newRewards;
                 emit RewardAccruedToMarket(market, token, newRewards);
             }
             unchecked {
@@ -280,7 +322,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
-        timeOfLastCumRewardUpdate[market] = block.timestamp;
+        _timeOfLastCumRewardUpdate[market] = block.timestamp;
     }
 
     /// @notice Accrues rewards to a user for a given market
@@ -302,11 +344,11 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         if (rewardsRemaining == 0) return _amount;
         if (_amount <= rewardsRemaining) {
             IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, _amount);
-            totalUnclaimedRewards[_token] -= _amount;
+            _totalUnclaimedRewards[_token] -= _amount;
             return 0;
         } else {
             IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, rewardsRemaining);
-            totalUnclaimedRewards[_token] -= rewardsRemaining;
+            _totalUnclaimedRewards[_token] -= rewardsRemaining;
             return _amount - rewardsRemaining;
         }
     }
@@ -323,19 +365,18 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @param _user Address of the user to register
     /// @param _market Address of the market for which to register the user's position
     function _registerPosition(address _user, address _market) internal virtual {
-        if (lpPositionsPerUser[_user][_market] != 0) {
-            revert RewardDistributor_PositionAlreadyRegistered(_user, _market, lpPositionsPerUser[_user][_market]);
+        if (_lpPositionsPerUser[_user][_market] != 0) {
+            revert RewardDistributor_PositionAlreadyRegistered(_user, _market, _lpPositionsPerUser[_user][_market]);
         }
         uint256 lpPosition = _getCurrentPosition(_user, _market);
         if (lpPosition == 0) return;
         _updateMarketRewards(_market);
-        lpPositionsPerUser[_user][_market] = lpPosition;
-        totalLiquidityPerMarket[_market] += lpPosition;
+        _lpPositionsPerUser[_user][_market] = lpPosition;
+        _totalLiquidityPerMarket[_market] += lpPosition;
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            uint256 cumulativeReward = cumulativeRewardPerLpToken[token][_market];
-            cumulativeRewardPerLpTokenPerUser[_user][token][_market] = cumulativeReward;
+            _cumulativeRewardPerLpTokenPerUser[_user][token][_market] = _cumulativeRewardPerLpToken[token][_market];
             unchecked {
                 ++i;
             }
