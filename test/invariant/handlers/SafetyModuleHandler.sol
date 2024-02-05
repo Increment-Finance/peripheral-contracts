@@ -129,7 +129,7 @@ contract SafetyModuleHandler is Test {
         _slashPercent = uint64(bound(_slashPercent, 1e16, 1e18));
 
         uint256 underlyingAmount = stakedToken.previewRedeem(stakedToken.totalSupply().mul(_slashPercent));
-        uint256 nextAuctionId = auctionModule.nextAuctionId();
+        uint256 getNextAuctionId = auctionModule.getNextAuctionId();
         bool expectFail;
 
         if (stakedToken.totalSupply().mul(_slashPercent) == 0) {
@@ -169,7 +169,7 @@ contract SafetyModuleHandler is Test {
             return;
         }
 
-        assertEq(auctionId, nextAuctionId, "Auction ID mismatch");
+        assertEq(auctionId, getNextAuctionId, "Auction ID mismatch");
         assertTrue(auctionModule.isAuctionActive(auctionId), "Auction not active");
         assertTrue(stakedToken.isInPostSlashingState(), "Staked token not in post slashing state");
         assertEq(auctionModule.getCurrentLotSize(auctionId), _initialLotSize, "Initial lot size mismatch");
@@ -177,12 +177,12 @@ contract SafetyModuleHandler is Test {
     }
 
     function terminateAuction(uint256 auctionId) external useGovernance {
-        if (auctionModule.nextAuctionId() == 0) {
+        if (auctionModule.getNextAuctionId() == 0) {
             vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", auctionId));
             safetyModule.terminateAuction(auctionId);
             return;
         }
-        auctionId = bound(auctionId, 0, auctionModule.nextAuctionId() - 1);
+        auctionId = bound(auctionId, 0, auctionModule.getNextAuctionId() - 1);
         IERC20 token = auctionModule.getAuctionToken(auctionId);
         IStakedToken stakedToken = safetyModule.stakedTokenByAuctionId(auctionId);
         uint256 unsoldTokens = token.balanceOf(address(auctionModule));
@@ -195,8 +195,8 @@ contract SafetyModuleHandler is Test {
         } else {
             uint256 remainingLots = auctionModule.getRemainingLots(auctionId);
             uint256 finalLotSize = auctionModule.getCurrentLotSize(auctionId);
-            uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(auctionId);
-            uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(auctionId);
+            uint256 totalTokensSold = auctionModule.getTokensSold(auctionId);
+            uint256 totalFundsRaised = auctionModule.getFundsRaised(auctionId);
             vm.expectEmit(false, false, false, true);
             emit AuctionEnded(auctionId, uint8(remainingLots), finalLotSize, totalTokensSold, totalFundsRaised);
             if (unsoldTokens != 0) {
