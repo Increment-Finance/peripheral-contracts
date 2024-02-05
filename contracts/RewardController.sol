@@ -53,11 +53,11 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     address[] public rewardTokens;
 
     /// @notice Info for each registered reward token
-    mapping(address => RewardInfo) internal rewardInfoByToken;
+    mapping(address => RewardInfo) internal _rewardInfoByToken;
 
     /// @notice Mapping from reward token to reward weights for each market
     /// @dev Market reward weights are basis points, i.e., 100 = 1%, 10000 = 100%
-    mapping(address => mapping(address => uint256)) internal marketWeightsByToken;
+    mapping(address => mapping(address => uint256)) internal _marketWeightsByToken;
 
     /* ******************* */
     /*  Reward Info Views  */
@@ -90,40 +90,40 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
 
     /// @inheritdoc IRewardController
     function getInitialTimestamp(address rewardToken) external view returns (uint256) {
-        return rewardInfoByToken[rewardToken].initialTimestamp;
+        return _rewardInfoByToken[rewardToken].initialTimestamp;
     }
 
     /// @inheritdoc IRewardController
     function getInitialInflationRate(address rewardToken) external view returns (uint256) {
-        return rewardInfoByToken[rewardToken].initialInflationRate;
+        return _rewardInfoByToken[rewardToken].initialInflationRate;
     }
 
     /// @inheritdoc IRewardController
     function getInflationRate(address rewardToken) external view returns (uint256) {
-        uint256 totalTimeElapsed = block.timestamp - rewardInfoByToken[rewardToken].initialTimestamp;
-        return rewardInfoByToken[rewardToken].initialInflationRate.div(
-            rewardInfoByToken[rewardToken].reductionFactor.pow(totalTimeElapsed.div(365 days))
+        uint256 totalTimeElapsed = block.timestamp - _rewardInfoByToken[rewardToken].initialTimestamp;
+        return _rewardInfoByToken[rewardToken].initialInflationRate.div(
+            _rewardInfoByToken[rewardToken].reductionFactor.pow(totalTimeElapsed.div(365 days))
         );
     }
 
     /// @inheritdoc IRewardController
     function getReductionFactor(address rewardToken) external view returns (uint256) {
-        return rewardInfoByToken[rewardToken].reductionFactor;
+        return _rewardInfoByToken[rewardToken].reductionFactor;
     }
 
     /// @inheritdoc IRewardController
     function getRewardWeight(address rewardToken, address market) external view returns (uint256) {
-        return marketWeightsByToken[rewardToken][market];
+        return _marketWeightsByToken[rewardToken][market];
     }
 
     /// @inheritdoc IRewardController
     function getRewardMarkets(address rewardToken) external view returns (address[] memory) {
-        return rewardInfoByToken[rewardToken].marketAddresses;
+        return _rewardInfoByToken[rewardToken].marketAddresses;
     }
 
     /// @inheritdoc IRewardController
     function isTokenPaused(address rewardToken) external view returns (bool) {
-        return rewardInfoByToken[rewardToken].paused;
+        return _rewardInfoByToken[rewardToken].paused;
     }
 
     /* ****************** */
@@ -136,17 +136,17 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         external
         onlyRole(GOVERNANCE)
     {
-        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+        if (rewardToken == address(0) || _rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(rewardToken);
         }
         if (weights.length != markets.length) {
             revert RewardController_IncorrectWeightsCount(weights.length, markets.length);
         }
         // Update rewards for all currently rewarded markets before changing weights
-        uint256 numOldMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
+        uint256 numOldMarkets = _rewardInfoByToken[rewardToken].marketAddresses.length;
         uint256 numNewMarkets = markets.length;
         for (uint256 i; i < numOldMarkets;) {
-            address market = rewardInfoByToken[rewardToken].marketAddresses[i];
+            address market = _rewardInfoByToken[rewardToken].marketAddresses[i];
             _updateMarketRewards(market);
             // Check if market is being removed from rewards
             bool found;
@@ -160,7 +160,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                 }
             }
             if (!found) {
-                delete marketWeightsByToken[rewardToken][market];
+                delete _marketWeightsByToken[rewardToken][market];
                 emit MarketRemovedFromRewards(market, rewardToken);
             }
             unchecked {
@@ -175,7 +175,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             }
             totalWeight += weights[i];
-            marketWeightsByToken[rewardToken][markets[i]] = weights[i];
+            _marketWeightsByToken[rewardToken][markets[i]] = weights[i];
             emit NewWeight(markets[i], rewardToken, weights[i]);
             unchecked {
                 ++i;
@@ -185,7 +185,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
         }
         // Replace stored lists of market addresses and weights
-        rewardInfoByToken[rewardToken].marketAddresses = markets;
+        _rewardInfoByToken[rewardToken].marketAddresses = markets;
     }
 
     /// @inheritdoc IRewardController
@@ -194,33 +194,33 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         external
         onlyRole(GOVERNANCE)
     {
-        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+        if (rewardToken == address(0) || _rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(rewardToken);
         }
         if (newInitialInflationRate > MAX_INFLATION_RATE) {
             revert RewardController_AboveMaxInflationRate(newInitialInflationRate, MAX_INFLATION_RATE);
         }
-        uint256 numMarkets = rewardInfoByToken[rewardToken].marketAddresses.length;
+        uint256 numMarkets = _rewardInfoByToken[rewardToken].marketAddresses.length;
         for (uint256 i; i < numMarkets;) {
-            _updateMarketRewards(rewardInfoByToken[rewardToken].marketAddresses[i]);
+            _updateMarketRewards(_rewardInfoByToken[rewardToken].marketAddresses[i]);
             unchecked {
                 ++i;
             }
         }
-        rewardInfoByToken[rewardToken].initialInflationRate = newInitialInflationRate;
+        _rewardInfoByToken[rewardToken].initialInflationRate = newInitialInflationRate;
         emit NewInitialInflationRate(rewardToken, newInitialInflationRate);
     }
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Governance
     function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external onlyRole(GOVERNANCE) {
-        if (rewardToken == address(0) || rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
+        if (rewardToken == address(0) || _rewardInfoByToken[rewardToken].token != IERC20Metadata(rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(rewardToken);
         }
         if (MIN_REDUCTION_FACTOR > newReductionFactor) {
             revert RewardController_BelowMinReductionFactor(newReductionFactor, MIN_REDUCTION_FACTOR);
         }
-        rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
+        _rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
         emit NewReductionFactor(rewardToken, newReductionFactor);
     }
 
@@ -243,20 +243,20 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     /// @inheritdoc IRewardController
     /// @dev Only callable by Emergency Admin
     function setPausedReward(address _rewardToken, bool _paused) external onlyRole(EMERGENCY_ADMIN) {
-        if (_rewardToken == address(0) || rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
+        if (_rewardToken == address(0) || _rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
-        if (_paused && !rewardInfoByToken[_rewardToken].paused) {
+        if (_paused && !_rewardInfoByToken[_rewardToken].paused) {
             // If not currently paused, accrue rewards before pausing
-            uint256 numMarkets = rewardInfoByToken[_rewardToken].marketAddresses.length;
+            uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
             for (uint256 i; i < numMarkets;) {
-                _updateMarketRewards(rewardInfoByToken[_rewardToken].marketAddresses[i]);
+                _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
                 unchecked {
                     ++i;
                 }
             }
         }
-        rewardInfoByToken[_rewardToken].paused = _paused;
+        _rewardInfoByToken[_rewardToken].paused = _paused;
     }
 
     /* **************** */

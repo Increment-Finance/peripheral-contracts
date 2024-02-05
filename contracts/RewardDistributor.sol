@@ -157,7 +157,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 revert RewardController_WeightExceedsMax(weight, 10000);
             }
             totalWeight += weight;
-            marketWeightsByToken[_rewardToken][market] = weight;
+            _marketWeightsByToken[_rewardToken][market] = weight;
             emit NewWeight(market, _rewardToken, weight);
             unchecked {
                 ++i;
@@ -168,11 +168,11 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         }
         // Add reward token info
         rewardTokens.push(_rewardToken);
-        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
-        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
-        rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
-        rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
-        rewardInfoByToken[_rewardToken].marketAddresses = _markets;
+        _rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        _rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
+        _rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
+        _rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
+        _rewardInfoByToken[_rewardToken].marketAddresses = _markets;
 
         emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
@@ -180,14 +180,14 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by governance
     function removeRewardToken(address _rewardToken) external onlyRole(GOVERNANCE) {
-        if (_rewardToken == address(0) || rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
+        if (_rewardToken == address(0) || _rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
 
         // Update rewards for all markets before removal
-        uint256 numMarkets = rewardInfoByToken[_rewardToken].marketAddresses.length;
+        uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
         for (uint256 i; i < numMarkets;) {
-            _updateMarketRewards(rewardInfoByToken[_rewardToken].marketAddresses[i]);
+            _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
             unchecked {
                 ++i;
             }
@@ -210,7 +210,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             break;
         }
         // Delete reward token info
-        delete rewardInfoByToken[_rewardToken];
+        delete _rewardInfoByToken[_rewardToken];
 
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = _rewardTokenBalance(_rewardToken);
@@ -294,8 +294,8 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
             if (
-                rewardInfoByToken[token].paused || rewardInfoByToken[token].initialInflationRate == 0
-                    || marketWeightsByToken[token][market] == 0
+                _rewardInfoByToken[token].paused || _rewardInfoByToken[token].initialInflationRate == 0
+                    || _marketWeightsByToken[token][market] == 0
             ) {
                 unchecked {
                     ++i;
@@ -304,14 +304,14 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             }
             // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
             uint256 inflationRate = (
-                rewardInfoByToken[token].initialInflationRate.div(
-                    rewardInfoByToken[token].reductionFactor.pow(
-                        (block.timestamp - rewardInfoByToken[token].initialTimestamp).div(365 days)
+                _rewardInfoByToken[token].initialInflationRate.div(
+                    _rewardInfoByToken[token].reductionFactor.pow(
+                        (block.timestamp - _rewardInfoByToken[token].initialTimestamp).div(365 days)
                     )
                 )
             );
             uint256 newRewards = (
-                ((((inflationRate * marketWeightsByToken[token][market]) / 10000) * deltaTime) / 365 days) * 1e18
+                ((((inflationRate * _marketWeightsByToken[token][market]) / 10000) * deltaTime) / 365 days) * 1e18
             ) / _totalLiquidityPerMarket[market];
             if (newRewards != 0) {
                 _cumulativeRewardPerLpToken[token][market] += newRewards;

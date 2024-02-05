@@ -60,15 +60,15 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         earlyWithdrawalThreshold = _earlyWithdrawalThreshold;
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
-        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
-        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
-        rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
-        rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
-        rewardInfoByToken[_rewardToken].marketAddresses = new address[](numMarkets);
+        _rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        _rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
+        _rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
+        _rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
+        _rewardInfoByToken[_rewardToken].marketAddresses = new address[](numMarkets);
         for (uint256 i; i < numMarkets;) {
             address market = _getMarketAddress(_getMarketIdx(i));
-            rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
-            marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[i];
+            _rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
+            _marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[i];
             _timeOfLastCumRewardUpdate[market] = block.timestamp;
             unchecked {
                 ++i;
