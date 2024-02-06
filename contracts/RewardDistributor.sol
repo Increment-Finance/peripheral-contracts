@@ -343,12 +343,12 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         if (rewardsRemaining == 0) return _amount;
         if (_amount <= rewardsRemaining) {
-            IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, _amount);
             _totalUnclaimedRewards[_token] -= _amount;
+            IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, _amount);
             return 0;
         } else {
-            IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, rewardsRemaining);
             _totalUnclaimedRewards[_token] -= rewardsRemaining;
+            IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, rewardsRemaining);
             return _amount - rewardsRemaining;
         }
     }
