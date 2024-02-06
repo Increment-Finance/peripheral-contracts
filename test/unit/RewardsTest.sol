@@ -430,57 +430,132 @@ contract RewardsTest is Deployment, Utils {
         // skip some time
         skip(10 days);
 
-        // check previews and rewards for both tokens
-        uint256[] memory previewAccruals = _viewNewRewardAccrual(liquidityProviderTwo);
+        // accrue rewards for both tokens and users
+        uint256[] memory previewAccruals1 = _viewNewRewardAccrual(liquidityProviderOne);
+        uint256[] memory previewAccruals2 = _viewNewRewardAccrual(liquidityProviderTwo);
+        rewardDistributor.accrueRewards(liquidityProviderOne);
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards1 = _checkRewards(address(rewardsToken), liquidityProviderTwo, 10 days, 0);
-        assertApproxEqRel(
-            accruedRewards1,
-            previewAccruals[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1"
-        );
-        uint256 accruedRewards2 = _checkRewards(address(rewardsToken2), liquidityProviderTwo, 10 days, 0);
-        assertApproxEqRel(
-            accruedRewards2,
-            previewAccruals[1],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 2"
-        );
 
-        // claim rewards, causing shortfall for token 2
+        // check that accrued rewards are correct for both tokens and users
+        uint256[][] memory accruedRewards = new uint256[][](2);
+        for (uint256 i; i < 2; i++) {
+            accruedRewards[i] = new uint256[](2);
+            address token = i == 0 ? address(rewardsToken) : address(rewardsToken2);
+            for (uint256 j; j < 2; j++) {
+                address user = j == 0 ? liquidityProviderOne : liquidityProviderTwo;
+                accruedRewards[i][j] = _checkRewards(token, user, 10 days, 0);
+                assertApproxEqRel(
+                    accruedRewards[i][j],
+                    j == 0 ? previewAccruals1[i] : previewAccruals2[i],
+                    1e15, // 0.1%
+                    "Incorrect accrued rewards preview"
+                );
+            }
+        }
+
+        // claim rewards for user 2, causing shortfall for token 2
         vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken2), accruedRewards2 - 10e18);
+        emit RewardTokenShortfall(address(rewardsToken2), accruedRewards[1][0] + accruedRewards[1][1] - 10e18);
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards1, "Incorrect claimed balance");
-        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance");
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            accruedRewards[0][1],
+            "Incorrect claimed balance, token 1 user 2"
+        );
+        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance, token 2 user 2");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
-            accruedRewards2 - 10e18,
+            accruedRewards[1][0] + accruedRewards[1][1] - 10e18,
             "Incorrect unclaimed rewards"
         );
 
         // skip some more time
         skip(10 days);
 
-        // accrue more rewards by adding more liquidity
+        // accrue more rewards to user 2 by adding more liquidity
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // check that rewards are still accruing for token 2
         assertGt(
             rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2)),
-            accruedRewards2,
-            "Rewards not accrued after adding more liquidity"
+            accruedRewards[1][1],
+            "Rewards not accrued to user 2 after adding more liquidity"
         );
-        accruedRewards2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
+
+        // update stored accrued rewards for user 2 (user 1 has not accrued any more rewards in 10 days)
+        accruedRewards[0][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
+        accruedRewards[1][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
 
         // fail to claim rewards again after token 2 is depleted
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Tokens claimed after token 2 depleted");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
-            accruedRewards2,
+            accruedRewards[1][0] + accruedRewards[1][1],
             "Incorrect unclaimed rewards after second accrual"
+        );
+
+        // update stored accrued rewards for user 2, token 1, which was claimed successfully
+        accruedRewards[0][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
+
+        // remove reward token 2
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenRemoved(address(rewardsToken2), accruedRewards[1][0] + accruedRewards[1][1], 0);
+        rewardDistributor.removeRewardToken(address(rewardsToken2));
+
+        // accrue rewards for user 1
+        rewardDistributor.accrueRewards(liquidityProviderOne);
+        accruedRewards[0][0] = rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken));
+
+        // make sure no new rewards were accrued to user 1 for rewardToken2
+        assertEq(
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken2)),
+            accruedRewards[1][0],
+            "Rewards accrued to user 1 after removing token 2"
+        );
+        assertEq(
+            rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            accruedRewards[1][0] + accruedRewards[1][1],
+            "Incorrect unclaimed rewards after second accrual"
+        );
+
+        // claim both rewards for user 1, without replenishing the ecosystem reserve with rewardToken2
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(rewardsToken);
+        tokens[1] = address(rewardsToken2);
+        rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderOne),
+            accruedRewards[0][0],
+            "Incorrect claimed balance, token 1 user 1"
+        );
+        assertEq(rewardsToken2.balanceOf(liquidityProviderOne), 0, "Incorrect claimed balance, token 2 user 1");
+        assertEq(
+            rewardDistributor.totalUnclaimedRewards(address(rewardsToken)),
+            0,
+            "Unclaimed rewards for token 1 after claiming with both users"
+        );
+
+        // replenish the ecosystem reserve with lots of rewardToken2
+        deal(address(rewardsToken2), address(ecosystemReserve), 20_000_000e18);
+
+        // claim rewards for both users
+        rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
+        rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderOne),
+            accruedRewards[1][0],
+            "Incorrect claimed balance for user 1 after replenishing"
+        );
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderTwo),
+            accruedRewards[1][1] + 10e18,
+            "Incorrect claimed balance for user 2 after replenishing"
+        );
+        assertEq(
+            rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            0,
+            "Unclaimed rewards for token 2 after claiming with both users"
         );
     }
 
