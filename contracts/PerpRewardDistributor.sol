@@ -142,6 +142,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /*   External Views   */
     /* ****************** */
 
+    /// @inheritdoc IPerpRewardDistributor
     function earlyWithdrawalThreshold() external view returns (uint256) {
         return _earlyWithdrawalThreshold;
     }

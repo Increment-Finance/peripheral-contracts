@@ -122,7 +122,7 @@ interface IRewardController {
 
     /// @notice Gets the list of all markets receiving a given reward token
     /// @param rewardToken Address of the reward token
-    /// @return List of market addresses
+    /// @return Array of market addresses
     function getRewardMarkets(address rewardToken) external view returns (address[] memory);
 
     /// @notice Gets whether a reward token is paused

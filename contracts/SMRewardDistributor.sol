@@ -131,8 +131,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     }
 
     /// @inheritdoc ISMRewardDistributor
-    function multiplierStartTimeByUser(address _user, address _stakingToken) public view override returns (uint256) {
-        return _multiplierStartTimeByUser[_user][_stakingToken];
+    function multiplierStartTimeByUser(address _user, address _stakedToken) public view override returns (uint256) {
+        return _multiplierStartTimeByUser[_user][_stakedToken];
     }
 
     /// @notice Indicates whether claiming rewards is currently paused

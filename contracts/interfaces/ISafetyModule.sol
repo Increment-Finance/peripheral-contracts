@@ -54,11 +54,11 @@ interface ISafetyModule {
         uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
-    /// @notice Error returned a caller other than a registered staked token tries to call a restricted function
+    /// @notice Error returned when a caller other than a registered staked token tries to call a restricted function
     /// @param caller Address of the caller
     error SafetyModule_CallerIsNotStakedToken(address caller);
 
-    /// @notice Error returned a caller other than the auction module tries to call a restricted function
+    /// @notice Error returned when a caller other than the auction module tries to call a restricted function
     /// @param caller Address of the caller
     error SafetyModule_CallerIsNotAuctionModule(address caller);
 

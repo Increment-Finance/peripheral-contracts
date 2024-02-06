@@ -60,19 +60,19 @@ interface ISMRewardDistributor is IRewardDistributor {
     /// @return Smoothing value, scaled by 1e18
     function getSmoothingValue() external view returns (uint256);
 
-    /// @notice Gets the starting timestamp used to calculate the user's reward multiplier for a given staking token
+    /// @notice Gets the starting timestamp used to calculate the user's reward multiplier for a given staked token
     /// @dev This value is updated whenever `updatePosition` is called, according to the user's change in stake
     /// @param _user Address of the user
-    /// @param _stakingToken Address of the staking token
+    /// @param _stakedToken Address of the staked token
     /// @return User's multiplier starting timestamp
-    function multiplierStartTimeByUser(address _user, address _stakingToken) external view returns (uint256);
+    function multiplierStartTimeByUser(address _user, address _stakedToken) external view returns (uint256);
 
-    /// @notice Computes the user's reward multiplier for the given staking token
+    /// @notice Computes the user's reward multiplier for the given staked token
     /// @dev Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)
     /// @param _user Address of the staker
-    /// @param _stakingToken Address of staking token earning rewards
+    /// @param _stakedToken Address of staked token earning rewards
     /// @return User's reward multiplier, scaled by 1e18
-    function computeRewardMultiplier(address _user, address _stakingToken) external view returns (uint256);
+    function computeRewardMultiplier(address _user, address _stakedToken) external view returns (uint256);
 
     /// @notice Replaces the SafetyModule contract
     /// @param _newSafetyModule Address of the new SafetyModule contract
