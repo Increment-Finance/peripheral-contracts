@@ -257,19 +257,17 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         if (_rewardToken == address(0) || _rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
-        if (!_rewardInfoByToken[_rewardToken].paused) {
-            // If not currently paused, accrue rewards before pausing
-            uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
-            for (uint256 i; i < numMarkets;) {
-                _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
-                unchecked {
-                    ++i;
-                }
+        // Accrue rewards to markets before pausing/unpausing accrual
+        uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
+        for (uint256 i; i < numMarkets;) {
+            // `_updateMarketRewards` will not accrue any paused reward tokens to the market, but
+            // will update `_timeOfLastCumRewardUpdate` so rewards aren't accrued later for paused period
+            _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
+            unchecked {
+                ++i; // saves approx 80-105 gas on average
             }
-            _rewardInfoByToken[_rewardToken].paused = true;
-        } else {
-            _rewardInfoByToken[_rewardToken].paused = false;
         }
+        _rewardInfoByToken[_rewardToken].paused = !_rewardInfoByToken[_rewardToken].paused;
     }
 
     /// @notice Updates the reward accumulator for a given market

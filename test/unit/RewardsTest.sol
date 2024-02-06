@@ -568,41 +568,42 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testFuzz_PausingAccrual(uint256 providedLiquidity1) public {
+    function testFuzz_PausingAccrual(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
-        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
 
-        // add liquidity to first perpetual
-        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity1, vault, ua);
-        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+        // add liquidity
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // pause accrual
         vm.startPrank(address(this));
         rewardDistributor.togglePausedReward(address(rewardsToken));
-        bool paused = rewardDistributor.isTokenPaused(address(rewardsToken));
-        assertTrue(paused, "Rewards not paused");
+        assertTrue(rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not paused");
 
         // skip some time
         skip(10 days);
 
-        // check that no rewards were accrued
-        rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-        assertEq(accruedRewards, 0, "Rewards accrued while paused");
-
         // unpause accrual
         rewardDistributor.togglePausedReward(address(rewardsToken));
-        paused = rewardDistributor.isTokenPaused(address(rewardsToken));
-        assertTrue(!paused, "Rewards not unpaused");
+        assertTrue(!rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not unpaused");
 
         // skip some more time
         skip(10 days);
 
-        // check that rewards were accrued
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        accruedRewards = rewardsToken.balanceOf(liquidityProviderTwo);
-        assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
+        // store initial state before accruing rewards
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = new uint256[](2);
+        skipTimes[0] = 10 days;
+        skipTimes[1] = 10 days;
+
+        // check that rewards are accrued for only the 10 days after unpausing
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        _checkRewards(
+            address(rewardsToken), liquidityProviderTwo, skipTimes, balances, prevCumRewards, prevTotalLiquidity, 0
+        );
     }
 
     function testFuzz_AddNewMarket(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
