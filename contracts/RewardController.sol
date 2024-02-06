@@ -242,7 +242,19 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Emergency Admin
-    function setPausedReward(address _rewardToken, bool _paused) external onlyRole(EMERGENCY_ADMIN) {
+    function setPausedReward(address _rewardToken, bool _paused) external virtual onlyRole(EMERGENCY_ADMIN) {
+        _setPausedReward(_rewardToken, _paused);
+    }
+
+    /* **************** */
+    /*     Internal     */
+    /* **************** */
+
+    /// @notice Pauses/unpauses the reward accrual for a particular reward token
+    /// @dev Does not pause gradual reduction of inflation rate over time due to reduction factor
+    /// @param _rewardToken Address of the reward token
+    /// @param _paused Whether to pause or unpause the reward token
+    function _setPausedReward(address _rewardToken, bool _paused) internal {
         if (_rewardToken == address(0) || _rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
@@ -258,10 +270,6 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         }
         _rewardInfoByToken[_rewardToken].paused = _paused;
     }
-
-    /* **************** */
-    /*     Internal     */
-    /* **************** */
 
     /// @notice Updates the reward accumulator for a given market
     /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
