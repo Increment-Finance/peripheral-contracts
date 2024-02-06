@@ -267,7 +267,9 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             if (rewards != 0) {
                 uint256 remainingRewards = _distributeReward(token, _user, rewards);
                 _rewardsAccruedByUser[_user][token] = remainingRewards;
-                emit RewardClaimed(_user, token, rewards - remainingRewards);
+                if (rewards != remainingRewards) {
+                    emit RewardClaimed(_user, token, rewards - remainingRewards);
+                }
                 if (remainingRewards != 0) {
                     emit RewardTokenShortfall(token, _totalUnclaimedRewards[token]);
                 }
