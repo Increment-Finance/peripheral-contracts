@@ -169,6 +169,5 @@ interface IRewardController {
     /// @notice Pauses/unpauses the reward accrual for a particular reward token
     /// @dev Does not pause gradual reduction of inflation rate over time due to reduction factor
     /// @param _rewardToken Address of the reward token
-    /// @param _paused Whether to pause or unpause the reward token
-    function setPausedReward(address _rewardToken, bool _paused) external;
+    function togglePausedReward(address _rewardToken) external;
 }

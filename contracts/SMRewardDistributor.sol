@@ -232,8 +232,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by governance
-    function setPausedReward(address _rewardToken, bool _paused) external override onlyRole(GOVERNANCE) {
-        _setPausedReward(_rewardToken, _paused);
+    function togglePausedReward(address _rewardToken) external override onlyRole(GOVERNANCE) {
+        _togglePausedReward(_rewardToken);
     }
 
     /* **************** */

@@ -242,8 +242,8 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
 
     /// @inheritdoc IRewardController
     /// @dev Only callable by Emergency Admin
-    function setPausedReward(address _rewardToken, bool _paused) external virtual onlyRole(EMERGENCY_ADMIN) {
-        _setPausedReward(_rewardToken, _paused);
+    function togglePausedReward(address _rewardToken) external virtual onlyRole(EMERGENCY_ADMIN) {
+        _togglePausedReward(_rewardToken);
     }
 
     /* **************** */
@@ -253,12 +253,11 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     /// @notice Pauses/unpauses the reward accrual for a particular reward token
     /// @dev Does not pause gradual reduction of inflation rate over time due to reduction factor
     /// @param _rewardToken Address of the reward token
-    /// @param _paused Whether to pause or unpause the reward token
-    function _setPausedReward(address _rewardToken, bool _paused) internal {
+    function _togglePausedReward(address _rewardToken) internal {
         if (_rewardToken == address(0) || _rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
-        if (_paused && !_rewardInfoByToken[_rewardToken].paused) {
+        if (!_rewardInfoByToken[_rewardToken].paused) {
             // If not currently paused, accrue rewards before pausing
             uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
             for (uint256 i; i < numMarkets;) {
@@ -267,8 +266,10 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                     ++i;
                 }
             }
+            _rewardInfoByToken[_rewardToken].paused = true;
+        } else {
+            _rewardInfoByToken[_rewardToken].paused = false;
         }
-        _rewardInfoByToken[_rewardToken].paused = _paused;
     }
 
     /// @notice Updates the reward accumulator for a given market
