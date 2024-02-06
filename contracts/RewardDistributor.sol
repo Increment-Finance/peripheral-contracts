@@ -112,15 +112,6 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
 
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by governance
-    function initMarketStartTime(address _market) external virtual onlyRole(GOVERNANCE) {
-        if (_timeOfLastCumRewardUpdate[_market] != 0) {
-            revert RewardDistributor_AlreadyInitializedStartTime(_market);
-        }
-        _timeOfLastCumRewardUpdate[_market] = block.timestamp;
-    }
-
-    /// @inheritdoc IRewardDistributor
-    /// @dev Can only be called by governance
     function addRewardToken(
         address _rewardToken,
         uint88 _initialInflationRate,

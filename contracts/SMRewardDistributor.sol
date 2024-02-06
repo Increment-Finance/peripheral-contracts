@@ -169,11 +169,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by the SafetyModule
-    function initMarketStartTime(address _market)
-        external
-        override(IRewardDistributor, RewardDistributor)
-        onlySafetyModule
-    {
+    function initMarketStartTime(address _market) external onlySafetyModule {
         if (_timeOfLastCumRewardUpdate[_market] != 0) {
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
         }

@@ -163,6 +163,15 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /*     Governance     */
     /* ****************** */
 
+    /// @inheritdoc IRewardDistributor
+    /// @dev Can only be called by governance
+    function initMarketStartTime(address _market) external onlyRole(GOVERNANCE) {
+        if (_timeOfLastCumRewardUpdate[_market] != 0) {
+            revert RewardDistributor_AlreadyInitializedStartTime(_market);
+        }
+        _timeOfLastCumRewardUpdate[_market] = block.timestamp;
+    }
+
     /// @inheritdoc IPerpRewardDistributor
     /// @dev Only callable by governance
     function setEarlyWithdrawalThreshold(uint256 _newEarlyWithdrawalThreshold) external onlyRole(GOVERNANCE) {
