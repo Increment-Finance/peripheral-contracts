@@ -213,13 +213,18 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            uint256 newRewards = (
-                lpPosition
-                    * (_cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market])
-            ) / 1e18;
+            uint256 newRewards = lpPosition.mul(
+                _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
+            );
+            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
+            if (newRewards == 0) {
+                unchecked {
+                    ++i;
+                }
+                continue;
+            }
             _rewardsAccruedByUser[user][token] += newRewards;
             _totalUnclaimedRewards[token] += newRewards;
-            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             emit RewardAccruedToUser(user, token, market, newRewards);
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
