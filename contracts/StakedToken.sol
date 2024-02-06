@@ -25,13 +25,13 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
     using LibMath for uint256;
 
     /// @notice Address of the underlying token to stake
-    IERC20 public immutable UNDERLYING_TOKEN;
+    IERC20 internal immutable UNDERLYING_TOKEN;
 
     /// @notice Seconds that user must wait between calling cooldown and redeem
-    uint256 public immutable COOLDOWN_SECONDS;
+    uint256 internal immutable COOLDOWN_SECONDS;
 
     /// @notice Seconds available to redeem once the cooldown period is fullfilled
-    uint256 public immutable UNSTAKE_WINDOW;
+    uint256 internal immutable UNSTAKE_WINDOW;
 
     /// @notice Address of the SafetyModule contract
     ISafetyModule public safetyModule;
