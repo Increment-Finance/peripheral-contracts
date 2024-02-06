@@ -617,7 +617,7 @@ contract RewardsTest is Deployment, Utils {
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
-        // deploy new market, allowlist it in the clearing house, and initialize its start time
+        // deploy new market, allowlist it in the clearing house, and initialize it in the reward distributor
         TestPerpetual perpetual3 = _deployTestPerpetual();
         clearingHouse.allowListPerpetual(perpetual3);
         rewardDistributor.initMarketStartTime(address(perpetual3));
