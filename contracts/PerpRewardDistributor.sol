@@ -208,8 +208,8 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             // since updating LP position calls updatePosition which updates _lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(user, market, lpPosition, _getCurrentPosition(user, market));
         }
-        if (_totalLiquidityPerMarket[market] == 0) return;
         _updateMarketRewards(market);
+        if (_totalLiquidityPerMarket[market] == 0) return;
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
