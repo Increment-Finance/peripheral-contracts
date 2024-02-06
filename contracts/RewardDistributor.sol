@@ -287,7 +287,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         uint256 numTokens = rewardTokens.length;
         uint256 deltaTime = block.timestamp - _timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0 || numTokens == 0) return;
-        if (_totalLiquidityPerMarket[market] == 0) {
+        if (deltaTime == block.timestamp || _totalLiquidityPerMarket[market] == 0) {
             _timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
