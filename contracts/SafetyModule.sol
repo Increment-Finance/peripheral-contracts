@@ -69,6 +69,10 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _smRewardDistributor Address of the SMRewardDistributor contract, which distributes rewards to stakers
     constructor(address _auctionModule, address _smRewardDistributor) payable {
+        // Note: if the SafetyModule is ever re-deployed, the new contract should also set the array of staked tokens
+        // in the constructor to avoid having to call `addStakedToken` for each staked token. Otherwise, unless the
+        // SMRewardDistributor is also redeployed, `addStakedToken` will revert when trying to re-initialize a staked
+        // token in the SMRD which was already initialized when added to the previous SafetyModule.
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
         emit AuctionModuleUpdated(address(0), _auctionModule);
@@ -236,6 +240,10 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
             }
         }
         stakedTokens.push(_stakedToken);
+        // Note: if the SafetyModule is ever re-deployed, the new contract should set the array of staked tokens
+        // in the constructor to avoid having to call this function for each staked token. Otherwise, unless the
+        // SMRewardDistributor is also redeployed, the following line will revert when trying to re-initialize a
+        // staked token that was already initialized when added to the previous SafetyModule.
         smRewardDistributor.initMarketStartTime(address(_stakedToken));
         emit StakedTokenAdded(address(_stakedToken));
     }
