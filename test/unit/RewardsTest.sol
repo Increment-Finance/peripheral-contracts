@@ -426,6 +426,7 @@ contract RewardsTest is Deployment, Utils {
 
         // add a new reward token with a low total supply
         rewardsToken2 = _addRewardToken(marketWeight1, 10e18, inflationRate2, reductionFactor2);
+        address[] memory tokens = rewardDistributor.getRewardTokens();
 
         // skip some time
         skip(10 days);
@@ -520,9 +521,6 @@ contract RewardsTest is Deployment, Utils {
         );
 
         // claim both rewards for user 1, without replenishing the ecosystem reserve with rewardToken2
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(rewardsToken);
-        tokens[1] = address(rewardsToken2);
         rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderOne),
