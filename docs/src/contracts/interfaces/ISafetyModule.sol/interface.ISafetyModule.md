@@ -1,9 +1,6 @@
 # ISafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/ISafetyModule.sol)
-
-**Inherits:**
-IRewardContract
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/ISafetyModule.sol)
 
 **Author:**
 webthethird
@@ -40,19 +37,19 @@ function smRewardDistributor() external view returns (ISMRewardDistributor);
 | -------- | ---------------------- | -------------------------------- |
 | `<none>` | `ISMRewardDistributor` | The SMRewardDistributor contract |
 
-### stakingTokens
+### stakedTokens
 
-Gets the address of the StakedToken contract at the specified index in the `stakingTokens` array
+Gets the address of the StakedToken contract at the specified index in the `stakedTokens` array
 
 ```solidity
-function stakingTokens(uint256 i) external view returns (IStakedToken);
+function stakedTokens(uint256 i) external view returns (IStakedToken);
 ```
 
 **Parameters**
 
-| Name | Type      | Description                |
-| ---- | --------- | -------------------------- |
-| `i`  | `uint256` | Index of the staking token |
+| Name | Type      | Description               |
+| ---- | --------- | ------------------------- |
+| `i`  | `uint256` | Index of the staked token |
 
 **Returns**
 
@@ -60,12 +57,12 @@ function stakingTokens(uint256 i) external view returns (IStakedToken);
 | -------- | -------------- | ----------------------------------- |
 | `<none>` | `IStakedToken` | Address of the StakedToken contract |
 
-### stakingTokenByAuctionId
+### stakedTokenByAuctionId
 
 Gets the StakedToken contract that was slashed for the given auction
 
 ```solidity
-function stakingTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
+function stakedTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
 ```
 
 **Parameters**
@@ -80,41 +77,73 @@ function stakingTokenByAuctionId(uint256 auctionId) external view returns (IStak
 | -------- | -------------- | ------------------------------------- |
 | `<none>` | `IStakedToken` | StakedToken contract that was slashed |
 
-### getNumStakingTokens
+### getStakedTokens
 
-Gets the number of staking tokens registered in the SafetyModule
+Returns the full list of staked tokens registered in the SafetyModule
 
 ```solidity
-function getNumStakingTokens() external view returns (uint256);
+function getStakedTokens() external view returns (IStakedToken[] memory);
 ```
 
 **Returns**
 
-| Name     | Type      | Description              |
-| -------- | --------- | ------------------------ |
-| `<none>` | `uint256` | Number of staking tokens |
+| Name     | Type             | Description                    |
+| -------- | ---------------- | ------------------------------ |
+| `<none>` | `IStakedToken[]` | Array of StakedToken contracts |
 
-### getStakingTokenIdx
+### getNumStakedTokens
 
-Returns the index of the staking token in the `stakingTokens` array
-
-_Reverts with `SafetyModule_InvalidStakingToken` if the staking token is not registered_
+Gets the number of staked tokens registered in the SafetyModule
 
 ```solidity
-function getStakingTokenIdx(address token) external view returns (uint256);
+function getNumStakedTokens() external view returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description             |
+| -------- | --------- | ----------------------- |
+| `<none>` | `uint256` | Number of staked tokens |
+
+### getStakedTokenIdx
+
+Returns the index of the staked token in the `stakedTokens` array
+
+_Reverts with `SafetyModule_InvalidStakedToken` if the staked token is not registered_
+
+```solidity
+function getStakedTokenIdx(address token) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name    | Type      | Description                  |
-| ------- | --------- | ---------------------------- |
-| `token` | `address` | Address of the staking token |
+| Name    | Type      | Description                 |
+| ------- | --------- | --------------------------- |
+| `token` | `address` | Address of the staked token |
 
 **Returns**
 
-| Name     | Type      | Description                                             |
-| -------- | --------- | ------------------------------------------------------- |
-| `<none>` | `uint256` | Index of the staking token in the `stakingTokens` array |
+| Name     | Type      | Description                                           |
+| -------- | --------- | ----------------------------------------------------- |
+| `<none>` | `uint256` | Index of the staked token in the `stakedTokens` array |
+
+### updatePosition
+
+Updates the position of a user for a given staked token and accrues rewards to the user
+
+_This function is called by the StakedToken contract whenever a user's position changes,
+and forwards the call to the SMRewardDistributor_
+
+```solidity
+function updatePosition(address stakedToken, address staker) external;
+```
+
+**Parameters**
+
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `stakedToken` | `address` | Address of the staked token |
+| `staker`      | `address` | Address of the staker       |
 
 ### slashAndStartAuction
 
@@ -191,16 +220,16 @@ _Unsold tokens are returned automatically from the AuctionModule when one ends, 
 for transferring tokens from some other source, which must approve the StakedToken to transfer first_
 
 ```solidity
-function returnFunds(address _stakingToken, address _from, uint256 _amount) external;
+function returnFunds(address _stakedToken, address _from, uint256 _amount) external;
 ```
 
 **Parameters**
 
-| Name            | Type      | Description                                                        |
-| --------------- | --------- | ------------------------------------------------------------------ |
-| `_stakingToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
-| `_from`         | `address` | Address of the account to transfer funds from                      |
-| `_amount`       | `uint256` | Amount of underlying tokens to return                              |
+| Name           | Type      | Description                                                        |
+| -------------- | --------- | ------------------------------------------------------------------ |
+| `_stakedToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
+| `_from`        | `address` | Address of the account to transfer funds from                      |
+| `_amount`      | `uint256` | Amount of underlying tokens to return                              |
 
 ### withdrawFundsRaisedFromAuction
 
@@ -244,19 +273,19 @@ function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) extern
 | ----------------------- | ---------------------- | ------------------------------------------- |
 | `_newRewardDistributor` | `ISMRewardDistributor` | Address of the SMRewardDistributor contract |
 
-### addStakingToken
+### addStakedToken
 
-Adds a new staking token to the SafetyModule's stakingTokens array
+Adds a new staked token to the SafetyModule's stakedTokens array
 
 ```solidity
-function addStakingToken(IStakedToken _stakingToken) external;
+function addStakedToken(IStakedToken _stakedToken) external;
 ```
 
 **Parameters**
 
-| Name            | Type           | Description                      |
-| --------------- | -------------- | -------------------------------- |
-| `_stakingToken` | `IStakedToken` | Address of the new staking token |
+| Name           | Type           | Description                     |
+| -------------- | -------------- | ------------------------------- |
+| `_stakedToken` | `IStakedToken` | Address of the new staked token |
 
 ### pause
 
@@ -276,33 +305,33 @@ function unpause() external;
 
 ## Events
 
-### StakingTokenAdded
+### StakedTokenAdded
 
-Emitted when a staking token is added
+Emitted when a staked token is added
 
 ```solidity
-event StakingTokenAdded(address indexed stakingToken);
+event StakedTokenAdded(address indexed stakedToken);
 ```
 
 **Parameters**
 
-| Name           | Type      | Description                  |
-| -------------- | --------- | ---------------------------- |
-| `stakingToken` | `address` | Address of the staking token |
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `stakedToken` | `address` | Address of the staked token |
 
-### StakingTokenRemoved
+### StakedTokenRemoved
 
-Emitted when a staking token is removed
+Emitted when a staked token is removed
 
 ```solidity
-event StakingTokenRemoved(address indexed stakingToken);
+event StakedTokenRemoved(address indexed stakedToken);
 ```
 
 **Parameters**
 
-| Name           | Type      | Description                  |
-| -------------- | --------- | ---------------------------- |
-| `stakingToken` | `address` | Address of the staking token |
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `stakedToken` | `address` | Address of the staked token |
 
 ### AuctionModuleUpdated
 
@@ -336,11 +365,11 @@ event RewardDistributorUpdated(address oldRewardDistributor, address newRewardDi
 
 ### TokensSlashedForAuction
 
-Emitted when a staking token is slashed and the underlying tokens are sent to the AuctionModule
+Emitted when a staked token is slashed and the underlying tokens are sent to the AuctionModule
 
 ```solidity
 event TokensSlashedForAuction(
-    address indexed stakingToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
+    address indexed stakedToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
 );
 ```
 
@@ -348,8 +377,8 @@ event TokensSlashedForAuction(
 
 | Name               | Type      | Description                                           |
 | ------------------ | --------- | ----------------------------------------------------- |
-| `stakingToken`     | `address` | Address of the staking token                          |
-| `slashAmount`      | `uint256` | Amount of staking tokens slashed                      |
+| `stakedToken`      | `address` | Address of the staked token                           |
+| `slashAmount`      | `uint256` | Amount of staked tokens slashed                       |
 | `underlyingAmount` | `uint256` | Amount of underlying tokens sent to the AuctionModule |
 | `auctionId`        | `uint256` | ID of the auction                                     |
 
@@ -359,18 +388,18 @@ Emitted when an auction is terminated by governance
 
 ```solidity
 event AuctionTerminated(
-    uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
+    uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
 );
 ```
 
 **Parameters**
 
-| Name                        | Type      | Description                                                   |
-| --------------------------- | --------- | ------------------------------------------------------------- |
-| `auctionId`                 | `uint256` | ID of the auction                                             |
-| `stakingToken`              | `address` | Address of the staking token that was slashed for the auction |
-| `underlyingToken`           | `address` | Address of the underlying token being sold in the auction     |
-| `underlyingBalanceReturned` | `uint256` | Amount of underlying tokens returned from the AuctionModule   |
+| Name                        | Type      | Description                                                  |
+| --------------------------- | --------- | ------------------------------------------------------------ |
+| `auctionId`                 | `uint256` | ID of the auction                                            |
+| `stakedToken`               | `address` | Address of the staked token that was slashed for the auction |
+| `underlyingToken`           | `address` | Address of the underlying token being sold in the auction    |
+| `underlyingBalanceReturned` | `uint256` | Amount of underlying tokens returned from the AuctionModule  |
 
 ### AuctionEnded
 
@@ -378,27 +407,27 @@ Emitted when an auction ends, either because all lots were sold or the time limi
 
 ```solidity
 event AuctionEnded(
-    uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
+    uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
 );
 ```
 
 **Parameters**
 
-| Name                        | Type      | Description                                                   |
-| --------------------------- | --------- | ------------------------------------------------------------- |
-| `auctionId`                 | `uint256` | ID of the auction                                             |
-| `stakingToken`              | `address` | Address of the staking token that was slashed for the auction |
-| `underlyingToken`           | `address` | Address of the underlying token being sold in the auction     |
-| `underlyingBalanceReturned` | `uint256` | Amount of underlying tokens returned from the AuctionModule   |
+| Name                        | Type      | Description                                                  |
+| --------------------------- | --------- | ------------------------------------------------------------ |
+| `auctionId`                 | `uint256` | ID of the auction                                            |
+| `stakedToken`               | `address` | Address of the staked token that was slashed for the auction |
+| `underlyingToken`           | `address` | Address of the underlying token being sold in the auction    |
+| `underlyingBalanceReturned` | `uint256` | Amount of underlying tokens returned from the AuctionModule  |
 
 ## Errors
 
-### SafetyModule_CallerIsNotStakingToken
+### SafetyModule_CallerIsNotStakedToken
 
-Error returned a caller other than a registered staking token tries to call a restricted function
+Error returned when a caller other than a registered staked token tries to call a restricted function
 
 ```solidity
-error SafetyModule_CallerIsNotStakingToken(address caller);
+error SafetyModule_CallerIsNotStakedToken(address caller);
 ```
 
 **Parameters**
@@ -409,7 +438,7 @@ error SafetyModule_CallerIsNotStakingToken(address caller);
 
 ### SafetyModule_CallerIsNotAuctionModule
 
-Error returned a caller other than the auction module tries to call a restricted function
+Error returned when a caller other than the auction module tries to call a restricted function
 
 ```solidity
 error SafetyModule_CallerIsNotAuctionModule(address caller);
@@ -421,26 +450,26 @@ error SafetyModule_CallerIsNotAuctionModule(address caller);
 | -------- | --------- | --------------------- |
 | `caller` | `address` | Address of the caller |
 
-### SafetyModule_StakingTokenAlreadyRegistered
+### SafetyModule_StakedTokenAlreadyRegistered
 
-Error returned when trying to add a staking token that is already registered
+Error returned when trying to add a staked token that is already registered
 
 ```solidity
-error SafetyModule_StakingTokenAlreadyRegistered(address stakingToken);
+error SafetyModule_StakedTokenAlreadyRegistered(address stakedToken);
 ```
 
 **Parameters**
 
-| Name           | Type      | Description                  |
-| -------------- | --------- | ---------------------------- |
-| `stakingToken` | `address` | Address of the staking token |
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `stakedToken` | `address` | Address of the staked token |
 
-### SafetyModule_InvalidStakingToken
+### SafetyModule_InvalidStakedToken
 
-Error returned when passing an invalid staking token address to a function
+Error returned when passing an invalid staked token address to a function
 
 ```solidity
-error SafetyModule_InvalidStakingToken(address invalidAddress);
+error SafetyModule_InvalidStakedToken(address invalidAddress);
 ```
 
 **Parameters**

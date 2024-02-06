@@ -1,9 +1,9 @@
 # RewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/RewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/RewardDistributor.sol)
 
 **Inherits:**
-[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IRewardContract, [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
+[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
 
 **Author:**
 webthethird
@@ -22,50 +22,40 @@ interface used by the ClearingHouse to update user rewards any time a user's pos
 Address of the reward token vault
 
 ```solidity
-address public ecosystemReserve;
+address public immutable ecosystemReserve;
 ```
 
-### rewardsAccruedByUser
+### \_rewardsAccruedByUser
 
 Rewards accrued and not yet claimed by user
 
 _First address is user, second is reward token_
 
 ```solidity
-mapping(address => mapping(address => uint256)) public rewardsAccruedByUser;
+mapping(address => mapping(address => uint256)) internal _rewardsAccruedByUser;
 ```
 
-### totalUnclaimedRewards
+### \_totalUnclaimedRewards
 
 Total rewards accrued and not claimed by all users
 
 _Address is reward token_
 
 ```solidity
-mapping(address => uint256) public totalUnclaimedRewards;
+mapping(address => uint256) internal _totalUnclaimedRewards;
 ```
 
-### withdrawTimerStartByUserByMarket
-
-Last timestamp when user withdrew liquidity from a market
-
-_First address is user, second is the market_
-
-```solidity
-mapping(address => mapping(address => uint256)) public withdrawTimerStartByUserByMarket;
-```
-
-### lpPositionsPerUser
+### \_lpPositionsPerUser
 
 Latest LP/staking positions per user and market
 
 _First address is user, second is the market_
 
 ```solidity
-mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
+mapping(address => mapping(address => uint256)) internal _lpPositionsPerUser;
 ```
 
-### cumulativeRewardPerLpToken
+### \_cumulativeRewardPerLpToken
 
 Reward accumulator for market rewards per reward token, as a number of reward tokens
 per LP/staked token
@@ -73,33 +63,33 @@ per LP/staked token
 _First address is reward token, second is the market_
 
 ```solidity
-mapping(address => mapping(address => uint256)) public cumulativeRewardPerLpToken;
+mapping(address => mapping(address => uint256)) internal _cumulativeRewardPerLpToken;
 ```
 
-### cumulativeRewardPerLpTokenPerUser
+### \_cumulativeRewardPerLpTokenPerUser
 
 Reward accumulator value per reward token when user rewards were last updated
 
 _First address is user, second is reward token, third is the market_
 
 ```solidity
-mapping(address => mapping(address => mapping(address => uint256))) public cumulativeRewardPerLpTokenPerUser;
+mapping(address => mapping(address => mapping(address => uint256))) internal _cumulativeRewardPerLpTokenPerUser;
 ```
 
-### timeOfLastCumRewardUpdate
+### \_timeOfLastCumRewardUpdate
 
 Timestamp of the most recent update to the per-market reward accumulator
 
 ```solidity
-mapping(address => uint256) public timeOfLastCumRewardUpdate;
+mapping(address => uint256) internal _timeOfLastCumRewardUpdate;
 ```
 
-### totalLiquidityPerMarket
+### \_totalLiquidityPerMarket
 
 Total LP/staked tokens registered for rewards per market
 
 ```solidity
-mapping(address => uint256) public totalLiquidityPerMarket;
+mapping(address => uint256) internal _totalLiquidityPerMarket;
 ```
 
 ## Functions
@@ -118,22 +108,154 @@ constructor(address _ecosystemReserve) payable;
 | ------------------- | --------- | ----------------------------------------------------------------------- |
 | `_ecosystemReserve` | `address` | Address of the EcosystemReserve contract, which holds the reward tokens |
 
-### updatePosition
+### rewardsAccruedByUser
 
-Accrues rewards and updates the stored position of a user and the total liquidity of a market
-
-_Executes whenever a user's position is updated for any reason_
+Rewards accrued and not yet claimed by user
 
 ```solidity
-function updatePosition(address market, address user) external virtual;
+function rewardsAccruedByUser(address _user, address _rewardToken) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                                                     |
-| -------- | --------- | --------------------------------------------------------------- |
-| `market` | `address` | Address of the market (i.e., perpetual market or staking token) |
-| `user`   | `address` | Address of the user                                             |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_user`        | `address` | Address of the user         |
+| `_rewardToken` | `address` | Address of the reward token |
+
+**Returns**
+
+| Name     | Type      | Description                                 |
+| -------- | --------- | ------------------------------------------- |
+| `<none>` | `uint256` | Rewards accrued and not yet claimed by user |
+
+### totalUnclaimedRewards
+
+Total rewards accrued and not claimed by all users
+
+```solidity
+function totalUnclaimedRewards(address _rewardToken) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_rewardToken` | `address` | Address of the reward token |
+
+**Returns**
+
+| Name     | Type      | Description                                        |
+| -------- | --------- | -------------------------------------------------- |
+| `<none>` | `uint256` | Total rewards accrued and not claimed by all users |
+
+### lpPositionsPerUser
+
+Latest LP/staking positions per user and market
+
+```solidity
+function lpPositionsPerUser(address _user, address _market) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_user`   | `address` | Address of the user   |
+| `_market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                               |
+| -------- | --------- | ----------------------------------------- |
+| `<none>` | `uint256` | Stored position of the user in the market |
+
+### cumulativeRewardPerLpToken
+
+Reward accumulator for market rewards per reward token, as a number of reward tokens per
+LP/staked token
+
+```solidity
+function cumulativeRewardPerLpToken(address _rewardToken, address _market) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_rewardToken` | `address` | Address of the reward token |
+| `_market`      | `address` | Address of the market       |
+
+**Returns**
+
+| Name     | Type      | Description                                  |
+| -------- | --------- | -------------------------------------------- |
+| `<none>` | `uint256` | Number of reward tokens per LP/staking token |
+
+### cumulativeRewardPerLpTokenPerUser
+
+Reward accumulator value per reward token when user rewards were last updated
+
+```solidity
+function cumulativeRewardPerLpTokenPerUser(address _user, address _rewardToken, address _market)
+    external
+    view
+    returns (uint256);
+```
+
+**Parameters**
+
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_user`        | `address` | Address of the user         |
+| `_rewardToken` | `address` | Address of the reward token |
+| `_market`      | `address` | Address of the market       |
+
+**Returns**
+
+| Name     | Type      | Description                                                               |
+| -------- | --------- | ------------------------------------------------------------------------- |
+| `<none>` | `uint256` | Number of reward tokens per Led token when user rewards were last updated |
+
+### timeOfLastCumRewardUpdate
+
+Gets the timestamp of the most recent update to the per-market reward accumulator
+
+```solidity
+function timeOfLastCumRewardUpdate(address _market) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                                                              |
+| -------- | --------- | ------------------------------------------------------------------------ |
+| `<none>` | `uint256` | Timestamp of the most recent update to the per-market reward accumulator |
+
+### totalLiquidityPerMarket
+
+Total LP/staked tokens registered for rewards per market
+
+```solidity
+function totalLiquidityPerMarket(address _market) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                              |
+| -------- | --------- | ---------------------------------------- |
+| `<none>` | `uint256` | Stored total number of tokens per market |
 
 ### initMarketStartTime
 
@@ -193,22 +315,6 @@ function removeRewardToken(address _rewardToken) external onlyRole(GOVERNANCE);
 | -------------- | --------- | ------------------------------------- |
 | `_rewardToken` | `address` | Address of the reward token to remove |
 
-### setEcosystemReserve
-
-Updates the address of the ecosystem reserve for storing reward tokens
-
-_Can only be called by governance_
-
-```solidity
-function setEcosystemReserve(address _newEcosystemReserve) external onlyRole(GOVERNANCE);
-```
-
-**Parameters**
-
-| Name                   | Type      | Description                          |
-| ---------------------- | --------- | ------------------------------------ |
-| `_newEcosystemReserve` | `address` | Address of the new ecosystem reserve |
-
 ### registerPositions
 
 Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the
@@ -252,10 +358,10 @@ function claimRewardsFor(address _user, address[] memory _rewardTokens) public o
 
 **Parameters**
 
-| Name            | Type        | Description                              |
-| --------------- | ----------- | ---------------------------------------- |
-| `_user`         | `address`   | Address of the user to claim rewards for |
-| `_rewardTokens` | `address[]` |                                          |
+| Name            | Type        | Description                                         |
+| --------------- | ----------- | --------------------------------------------------- |
+| `_user`         | `address`   | Address of the user to claim rewards for            |
+| `_rewardTokens` | `address[]` | Addresses of the reward tokens to claim rewards for |
 
 ### \_updateMarketRewards
 
@@ -338,9 +444,20 @@ function _rewardTokenBalance(address _token) internal view returns (uint256);
 
 ### \_registerPosition
 
+Registers a user's pre-existing position for a given market
+
+_User should have a position predating this contract's deployment, which can only be registered once_
+
 ```solidity
-function _registerPosition(address _user, address _market) internal;
+function _registerPosition(address _user, address _market) internal virtual;
 ```
+
+**Parameters**
+
+| Name      | Type      | Description                                                     |
+| --------- | --------- | --------------------------------------------------------------- |
+| `_user`   | `address` | Address of the user to register                                 |
+| `_market` | `address` | Address of the market for which to register the user's position |
 
 ### \_getNumMarkets
 

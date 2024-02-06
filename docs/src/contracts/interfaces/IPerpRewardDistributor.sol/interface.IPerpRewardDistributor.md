@@ -1,6 +1,9 @@
 # IPerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IPerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IPerpRewardDistributor.sol)
+
+**Inherits:**
+[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md)
 
 ## Functions
 
@@ -32,19 +35,29 @@ function earlyWithdrawalThreshold() external view returns (uint256);
 | -------- | --------- | ------------------------------------------------ |
 | `<none>` | `uint256` | Length of the early withdrawal period in seconds |
 
-### setClearingHouse
+### withdrawTimerStartByUserByMarket
 
-Sets the address of the ClearingHouse contract which stores the list of Perpetuals and can call `updatePosition`
+Start time of the user's early withdrawal timer for a specific market,
+i.e., when they last changed their position in the market
+
+_The user can withdraw their liquidity without penalty after `withdrawTimerStartByUserByMarket(user, market) + earlyWithdrawalThreshold`_
 
 ```solidity
-function setClearingHouse(IClearingHouse _newClearingHouse) external;
+function withdrawTimerStartByUserByMarket(address _user, address _market) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name                | Type             | Description                |
-| ------------------- | ---------------- | -------------------------- |
-| `_newClearingHouse` | `IClearingHouse` | New ClearingHouse contract |
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_user`   | `address` | Address of the user   |
+| `_market` | `address` | Address of the market |
+
+**Returns**
+
+| Name     | Type      | Description                                                   |
+| -------- | --------- | ------------------------------------------------------------- |
+| `<none>` | `uint256` | Timestamp when user last changed their position in the market |
 
 ### setEarlyWithdrawalThreshold
 

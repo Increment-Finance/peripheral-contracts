@@ -1,6 +1,6 @@
 # SafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/SafetyModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/SafetyModule.sol)
 
 **Inherits:**
 [ISafetyModule](/contracts/interfaces/ISafetyModule.sol/interface.ISafetyModule.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -8,7 +8,7 @@
 **Author:**
 webthethird
 
-Handles reward accrual and distribution for staking tokens, and allows governance to auction a
+Handles reward accrual and distribution for staked tokens, and allows governance to auction a
 percentage of user funds in the event of an insolvency in the vault
 
 ## State Variables
@@ -29,31 +29,31 @@ Address of the SMRewardDistributor contract, which distributes rewards to staker
 ISMRewardDistributor public smRewardDistributor;
 ```
 
-### stakingTokens
+### stakedTokens
 
-Array of staking tokens that are registered with the SafetyModule
+Array of staked tokens that are registered with the SafetyModule
 
 ```solidity
-IStakedToken[] public stakingTokens;
+IStakedToken[] public stakedTokens;
 ```
 
-### stakingTokenByAuctionId
+### stakedTokenByAuctionId
 
-Mapping from auction ID to staking token that was slashed for the auction
+Mapping from auction ID to staked token that was slashed for the auction
 
 ```solidity
-mapping(uint256 => IStakedToken) public stakingTokenByAuctionId;
+mapping(uint256 => IStakedToken) public stakedTokenByAuctionId;
 ```
 
 ## Functions
 
-### onlyStakingToken
+### onlyStakedToken
 
 Modifier for functions that can only be called by a registered StakedToken contract,
 i.e., `updatePosition`
 
 ```solidity
-modifier onlyStakingToken();
+modifier onlyStakedToken();
 ```
 
 ### onlyAuctionModule
@@ -80,58 +80,72 @@ constructor(address _auctionModule, address _smRewardDistributor) payable;
 | `_auctionModule`       | `address` | Address of the auction module, which sells user funds in the event of an insolvency |
 | `_smRewardDistributor` | `address` | Address of the SMRewardDistributor contract, which distributes rewards to stakers   |
 
-### getNumStakingTokens
+### getStakedTokens
 
-Gets the number of staking tokens registered in the SafetyModule
+Returns the full list of staked tokens registered in the SafetyModule
 
 ```solidity
-function getNumStakingTokens() public view returns (uint256);
+function getStakedTokens() external view returns (IStakedToken[] memory);
 ```
 
 **Returns**
 
-| Name     | Type      | Description              |
-| -------- | --------- | ------------------------ |
-| `<none>` | `uint256` | Number of staking tokens |
+| Name     | Type             | Description                    |
+| -------- | ---------------- | ------------------------------ |
+| `<none>` | `IStakedToken[]` | Array of StakedToken contracts |
 
-### getStakingTokenIdx
+### getNumStakedTokens
 
-Returns the index of the staking token in the `stakingTokens` array
-
-_Reverts with `SafetyModule_InvalidStakingToken` if the staking token is not registered_
+Gets the number of staked tokens registered in the SafetyModule
 
 ```solidity
-function getStakingTokenIdx(address token) public view returns (uint256);
+function getNumStakedTokens() public view returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description             |
+| -------- | --------- | ----------------------- |
+| `<none>` | `uint256` | Number of staked tokens |
+
+### getStakedTokenIdx
+
+Returns the index of the staked token in the `stakedTokens` array
+
+_Reverts with `SafetyModule_InvalidStakedToken` if the staked token is not registered_
+
+```solidity
+function getStakedTokenIdx(address token) public view returns (uint256);
 ```
 
 **Parameters**
 
-| Name    | Type      | Description                  |
-| ------- | --------- | ---------------------------- |
-| `token` | `address` | Address of the staking token |
+| Name    | Type      | Description                 |
+| ------- | --------- | --------------------------- |
+| `token` | `address` | Address of the staked token |
 
 **Returns**
 
-| Name     | Type      | Description                                             |
-| -------- | --------- | ------------------------------------------------------- |
-| `<none>` | `uint256` | Index of the staking token in the `stakingTokens` array |
+| Name     | Type      | Description                                           |
+| -------- | --------- | ----------------------------------------------------- |
+| `<none>` | `uint256` | Index of the staked token in the `stakedTokens` array |
 
 ### updatePosition
 
-Accrues rewards and updates the stored stake position of a user and the total tokens staked
+Updates the position of a user for a given staked token and accrues rewards to the user
 
-_Executes whenever a user's stake is updated for any reason_
+_Only callable by a registered StakedToken contract_
 
 ```solidity
-function updatePosition(address market, address user) external override nonReentrant onlyStakingToken;
+function updatePosition(address stakedToken, address staker) external override nonReentrant onlyStakedToken;
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                                     |
-| -------- | --------- | ----------------------------------------------- |
-| `market` | `address` | Address of the staking token in `stakingTokens` |
-| `user`   | `address` | Address of the staker                           |
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `stakedToken` | `address` | Address of the staked token |
+| `staker`      | `address` | Address of the staker       |
 
 ### auctionEnded
 
@@ -213,16 +227,16 @@ Donates underlying tokens to a StakedToken contract, raising its exchange rate
 _Only callable by governance_
 
 ```solidity
-function returnFunds(address _stakingToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE);
+function returnFunds(address _stakedToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
 
-| Name            | Type      | Description                                                        |
-| --------------- | --------- | ------------------------------------------------------------------ |
-| `_stakingToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
-| `_from`         | `address` | Address of the account to transfer funds from                      |
-| `_amount`       | `uint256` | Amount of underlying tokens to return                              |
+| Name           | Type      | Description                                                        |
+| -------------- | --------- | ------------------------------------------------------------------ |
+| `_stakedToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
+| `_from`        | `address` | Address of the account to transfer funds from                      |
+| `_amount`      | `uint256` | Amount of underlying tokens to return                              |
 
 ### withdrawFundsRaisedFromAuction
 
@@ -272,21 +286,21 @@ function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) extern
 | ----------------------- | ---------------------- | ------------------------------------------- |
 | `_newRewardDistributor` | `ISMRewardDistributor` | Address of the SMRewardDistributor contract |
 
-### addStakingToken
+### addStakedToken
 
-Adds a new staking token to the SafetyModule's stakingTokens array
+Adds a new staked token to the SafetyModule's stakedTokens array
 
-_Only callable by governance, reverts if the staking token is already registered_
+_Only callable by governance, reverts if the staked token is already registered_
 
 ```solidity
-function addStakingToken(IStakedToken _stakingToken) external onlyRole(GOVERNANCE);
+function addStakedToken(IStakedToken _stakedToken) external onlyRole(GOVERNANCE);
 ```
 
 **Parameters**
 
-| Name            | Type           | Description                      |
-| --------------- | -------------- | -------------------------------- |
-| `_stakingToken` | `IStakedToken` | Address of the new staking token |
+| Name           | Type           | Description                     |
+| -------------- | -------------- | ------------------------------- |
+| `_stakedToken` | `IStakedToken` | Address of the new staked token |
 
 ### pause
 
@@ -311,11 +325,11 @@ function unpause() external override onlyRole(GOVERNANCE);
 ### \_returnFunds
 
 ```solidity
-function _returnFunds(IStakedToken _stakingToken, address _from, uint256 _amount) internal;
+function _returnFunds(IStakedToken _stakedToken, address _from, uint256 _amount) internal;
 ```
 
 ### \_settleSlashing
 
 ```solidity
-function _settleSlashing(IStakedToken _stakingToken) internal;
+function _settleSlashing(IStakedToken _stakedToken) internal;
 ```

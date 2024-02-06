@@ -1,6 +1,6 @@
 # StakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/StakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/StakedToken.sol)
 
 **Inherits:**
 [IStakedToken](/contracts/interfaces/IStakedToken.sol/interface.IStakedToken.md), ERC20Permit, IncreAccessControl, Pausable, ReentrancyGuard
@@ -17,7 +17,7 @@ Based on Aave's StakedToken, but with reward management outsourced to the Safety
 Address of the underlying token to stake
 
 ```solidity
-IERC20 public immutable UNDERLYING_TOKEN;
+IERC20 internal immutable UNDERLYING_TOKEN;
 ```
 
 ### COOLDOWN_SECONDS
@@ -25,7 +25,7 @@ IERC20 public immutable UNDERLYING_TOKEN;
 Seconds that user must wait between calling cooldown and redeem
 
 ```solidity
-uint256 public immutable COOLDOWN_SECONDS;
+uint256 internal immutable COOLDOWN_SECONDS;
 ```
 
 ### UNSTAKE_WINDOW
@@ -33,7 +33,7 @@ uint256 public immutable COOLDOWN_SECONDS;
 Seconds available to redeem once the cooldown period is fullfilled
 
 ```solidity
-uint256 public immutable UNSTAKE_WINDOW;
+uint256 internal immutable UNSTAKE_WINDOW;
 ```
 
 ### safetyModule
@@ -42,6 +42,17 @@ Address of the SafetyModule contract
 
 ```solidity
 ISafetyModule public safetyModule;
+```
+
+### isInPostSlashingState
+
+Whether the StakedToken is in a post-slashing state
+
+_Post-slashing state disables staking and further slashing, and allows users to redeem their
+staked tokens without waiting for the cooldown period_
+
+```solidity
+bool public isInPostSlashingState;
 ```
 
 ### maxStakeAmount
@@ -64,23 +75,12 @@ but it can be lower if users' stakes have been slashed for an auction by the Saf
 uint256 public exchangeRate;
 ```
 
-### isInPostSlashingState
-
-Whether the StakedToken is in a post-slashing state
-
-_Post-slashing state disables staking and further slashing, and allows users to redeem their
-staked tokens without waiting for the cooldown period_
-
-```solidity
-bool public isInPostSlashingState;
-```
-
-### stakersCooldowns
+### \_stakersCooldowns
 
 Timestamp of the start of the current cooldown period for each user
 
 ```solidity
-mapping(address => uint256) public stakersCooldowns;
+mapping(address => uint256) internal _stakersCooldowns;
 ```
 
 ## Functions
@@ -162,6 +162,26 @@ function getUnstakeWindowSeconds() external view returns (uint256);
 | Name     | Type      | Description                             |
 | -------- | --------- | --------------------------------------- |
 | `<none>` | `uint256` | Number of seconds in the unstake window |
+
+### getCooldownStartTime
+
+Returns the start time of the latest cooldown period for a given user
+
+```solidity
+function getCooldownStartTime(address user) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name   | Type      | Description         |
+| ------ | --------- | ------------------- |
+| `user` | `address` | Address of the user |
+
+**Returns**
+
+| Name     | Type      | Description                                              |
+| -------- | --------- | -------------------------------------------------------- |
+| `<none>` | `uint256` | Timestamp when the user's latest cooldown period started |
 
 ### previewStake
 

@@ -1,6 +1,9 @@
 # IRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IRewardDistributor.sol)
+
+**Inherits:**
+IRewardContract
 
 **Author:**
 webthethird
@@ -28,15 +31,15 @@ function ecosystemReserve() external view returns (address);
 Rewards accrued and not yet claimed by user
 
 ```solidity
-function rewardsAccruedByUser(address user, address rewardToken) external view returns (uint256);
+function rewardsAccruedByUser(address _user, address _rewardToken) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `user`        | `address` | Address of the user         |
-| `rewardToken` | `address` | Address of the reward token |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_user`        | `address` | Address of the user         |
+| `_rewardToken` | `address` | Address of the reward token |
 
 **Returns**
 
@@ -49,14 +52,14 @@ function rewardsAccruedByUser(address user, address rewardToken) external view r
 Total rewards accrued and not claimed by all users
 
 ```solidity
-function totalUnclaimedRewards(address rewardToken) external view returns (uint256);
+function totalUnclaimedRewards(address _rewardToken) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `rewardToken` | `address` | Address of the reward token |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_rewardToken` | `address` | Address of the reward token |
 
 **Returns**
 
@@ -64,41 +67,20 @@ function totalUnclaimedRewards(address rewardToken) external view returns (uint2
 | -------- | --------- | -------------------------------------------------- |
 | `<none>` | `uint256` | Total rewards accrued and not claimed by all users |
 
-### withdrawTimerStartByUserByMarket
-
-Last timestamp when user withdrew liquidity from a market
-
-```solidity
-function withdrawTimerStartByUserByMarket(address user, address market) external view returns (uint256);
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `user`   | `address` | Address of the user   |
-| `market` | `address` | Address of the market |
-
-**Returns**
-
-| Name     | Type      | Description                                                 |
-| -------- | --------- | ----------------------------------------------------------- |
-| `<none>` | `uint256` | Timestamp when user last withdrew liquidity from the market |
-
 ### lpPositionsPerUser
 
 Latest LP/staking positions per user and market
 
 ```solidity
-function lpPositionsPerUser(address user, address market) external view returns (uint256);
+function lpPositionsPerUser(address _user, address _market) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `user`   | `address` | Address of the user   |
-| `market` | `address` | Address of the market |
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_user`   | `address` | Address of the user   |
+| `_market` | `address` | Address of the market |
 
 **Returns**
 
@@ -112,15 +94,15 @@ Reward accumulator for market rewards per reward token, as a number of reward to
 LP/staked token
 
 ```solidity
-function cumulativeRewardPerLpToken(address rewardToken, address market) external view returns (uint256);
+function cumulativeRewardPerLpToken(address _rewardToken, address _market) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `rewardToken` | `address` | Address of the reward token |
-| `market`      | `address` | Address of the market       |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_rewardToken` | `address` | Address of the reward token |
+| `_market`      | `address` | Address of the market       |
 
 **Returns**
 
@@ -133,7 +115,7 @@ function cumulativeRewardPerLpToken(address rewardToken, address market) externa
 Reward accumulator value per reward token when user rewards were last updated
 
 ```solidity
-function cumulativeRewardPerLpTokenPerUser(address user, address rewardToken, address market)
+function cumulativeRewardPerLpTokenPerUser(address _user, address _rewardToken, address _market)
     external
     view
     returns (uint256);
@@ -141,11 +123,11 @@ function cumulativeRewardPerLpTokenPerUser(address user, address rewardToken, ad
 
 **Parameters**
 
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `user`        | `address` | Address of the user         |
-| `rewardToken` | `address` | Address of the reward token |
-| `market`      | `address` | Address of the market       |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_user`        | `address` | Address of the user         |
+| `_rewardToken` | `address` | Address of the reward token |
+| `_market`      | `address` | Address of the market       |
 
 **Returns**
 
@@ -158,14 +140,14 @@ function cumulativeRewardPerLpTokenPerUser(address user, address rewardToken, ad
 Gets the timestamp of the most recent update to the per-market reward accumulator
 
 ```solidity
-function timeOfLastCumRewardUpdate(address market) external view returns (uint256);
+function timeOfLastCumRewardUpdate(address _market) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `market` | `address` | Address of the market |
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_market` | `address` | Address of the market |
 
 **Returns**
 
@@ -178,14 +160,14 @@ function timeOfLastCumRewardUpdate(address market) external view returns (uint25
 Total LP/staked tokens registered for rewards per market
 
 ```solidity
-function totalLiquidityPerMarket(address market) external view returns (uint256);
+function totalLiquidityPerMarket(address _market) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `market` | `address` | Address of the market |
+| Name      | Type      | Description           |
+| --------- | --------- | --------------------- |
+| `_market` | `address` | Address of the market |
 
 **Returns**
 
@@ -233,20 +215,6 @@ function removeRewardToken(address _rewardToken) external;
 | Name           | Type      | Description                           |
 | -------------- | --------- | ------------------------------------- |
 | `_rewardToken` | `address` | Address of the reward token to remove |
-
-### setEcosystemReserve
-
-Updates the address of the ecosystem reserve for storing reward tokens
-
-```solidity
-function setEcosystemReserve(address _newEcosystemReserve) external;
-```
-
-**Parameters**
-
-| Name                   | Type      | Description                          |
-| ---------------------- | --------- | ------------------------------------ |
-| `_newEcosystemReserve` | `address` | Address of the new ecosystem reserve |
 
 ### initMarketStartTime
 
@@ -377,21 +345,6 @@ event PositionUpdated(address indexed user, address market, uint256 prevPosition
 | `market`       | `address` | Address of the market         |
 | `prevPosition` | `uint256` | Previous position of the user |
 | `newPosition`  | `uint256` | New position of the user      |
-
-### EcosystemReserveUpdated
-
-Emitted when the address of the ecosystem reserve for storing reward tokens is updated
-
-```solidity
-event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystemReserve);
-```
-
-**Parameters**
-
-| Name                   | Type      | Description                               |
-| ---------------------- | --------- | ----------------------------------------- |
-| `prevEcosystemReserve` | `address` | Address of the previous ecosystem reserve |
-| `newEcosystemReserve`  | `address` | Address of the new ecosystem reserve      |
 
 ## Errors
 
