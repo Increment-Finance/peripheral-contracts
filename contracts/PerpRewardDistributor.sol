@@ -87,9 +87,15 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param market Address of the perpetual market
     /// @param user Address of the liquidity provier
     function updatePosition(address market, address user) external virtual override onlyClearingHouse {
+        // Accrue rewards to the market
         _updateMarketRewards(market);
+
+        // Update the total liquidity in the market
         uint256 prevLpPosition = _lpPositionsPerUser[user][market];
         uint256 newLpPosition = _getCurrentPosition(user, market);
+        _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
+
+        // Accrue rewards to the user for each reward token
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
@@ -115,6 +121,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                     delete _withdrawTimerStartByUserByMarket[user][market];
                 }
             }
+            // Update the user's stored accumulator value
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
@@ -122,18 +129,23 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 }
                 continue;
             }
+            // Update the user's rewards and total unclaimed rewards
             _rewardsAccruedByUser[user][token] += newRewards;
             _totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
+
+            // Check for reward token shortfall
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
                 emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
+
             unchecked {
                 ++i;
             }
         }
-        _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
+
+        // Update the user's stored lp position
         _lpPositionsPerUser[user][market] = newLpPosition;
         emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
     }
@@ -164,7 +176,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /* ****************** */
 
     /// @inheritdoc IRewardDistributor
-    /// @dev Can only be called by governance
+    /// @dev Only callable by governance
     function initMarketStartTime(address _market) external onlyRole(GOVERNANCE) {
         if (_timeOfLastCumRewardUpdate[_market] != 0) {
             revert RewardDistributor_AlreadyInitializedStartTime(_market);
