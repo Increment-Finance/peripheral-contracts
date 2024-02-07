@@ -84,7 +84,19 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            /// newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
+            /**
+             * Accumulator values are denominated in `rewards per LP token` or `reward/LP`, with changes in the market's
+             * total liquidity baked into the accumulators every time `_updateMarketRewards` is called. Each time a user
+             * accrues rewards we make a copy of the current global value, `_cumulativeRewardPerLpToken[token][market]`,
+             * for the user and store it in `_cumulativeRewardPerLpTokenPerUser[user][token][market]`. Thus, subtracting
+             * the user's stored value from the current global value gives the new reward/LP accrued to the market since
+             * the user last accrued rewards. Multiplying this by the user's stake and their reward multiplier gives the
+             * new rewards accrued to the user.
+             *
+             * newRewards = user.lpBalance x user.rewardMultiplier x (
+             *                  global.cumRewardPerLpToken - user.cumRewardPerLpToken
+             *              )
+             */
             uint256 newRewards = prevPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
@@ -112,20 +124,33 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             }
         }
         if (prevPosition == 0 || newPosition <= prevPosition) {
-            // Removed stake, started cooldown or staked for the first time - need to reset multiplier
+            // Removed stake, started cooldown or staked for the first time - need to reset reward multiplier
             if (newPosition != 0) {
-                // Partial removal, cooldown or first stake - reset multiplier to 1
+                /**
+                 * Partial removal, cooldown or first stake - reset multiplier to 1
+                 * Rationale:
+                 * - If prevPosition == 0, it's the first time the user has staked, naturally they start at 1
+                 * - If newPosition < prevPosition, the user has removed some or all of their stake, and the multiplier
+                 *   is meant to encourage stakers to keep their tokens staked, so we reset the multiplier to 1
+                 * - If newPosition == prevPosition, the user has started their cooldown period, and to avoid gaming
+                 *   the system by always remaining in either the cooldown or unstake period, we reset the multiplier
+                 */
                 _multiplierStartTimeByUser[user][market] = block.timestamp;
             } else {
                 // Full removal - set multiplier to 0 until the user stakes again
                 delete _multiplierStartTimeByUser[user][market];
             }
         } else {
-            // User added to their existing stake - need to update multiplier start time
-            // To prevent users from gaming the system by staked a small amount early to start the multiplier
-            // and then staked a large amount once their multiplier is very high in order to claim a large
-            // amount of rewards, we shift the start time of the multiplier forward by an amount proportional
-            // to the ratio of the increase in stake (newPosition - prevPosition) to the new position
+            /**
+             * User added to their existing stake - need to update multiplier start time
+             * Rationale:
+             * - To prevent users from gaming the system by staked a small amount early to start the multiplier and
+             *   then staked a large amount once their multiplier is very high in order to claim a large reward.
+             * - We shift the start time of the multiplier forward by an amount proportional to the ratio of the
+             *   increase in stake, i.e., `newPosition - prevPosition`, to the new position. By shifting the start
+             *   time forward we reduce the multiplier proportionally in a way that strongly disincentivizes this
+             *   bad behavior while limiting the impact on users who are genuinely increasing their stake.
+             */
             _multiplierStartTimeByUser[user][market] += (block.timestamp - _multiplierStartTimeByUser[user][market]).mul(
                 (newPosition - prevPosition).div(newPosition)
             );

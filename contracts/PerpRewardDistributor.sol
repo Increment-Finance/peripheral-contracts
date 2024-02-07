@@ -99,7 +99,17 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            // newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+            /**
+             * Accumulator values are denominated in `rewards per LP token` or `reward/LP`, with changes in the market's
+             * total liquidity baked into the accumulators every time `_updateMarketRewards` is called. Each time a user
+             * accrues rewards we make a copy of the current global value, `_cumulativeRewardPerLpToken[token][market]`,
+             * for the user and store it in `_cumulativeRewardPerLpTokenPerUser[user][token][market]`. Thus, subtracting
+             * the user's stored value from the current global value gives the new reward/LP accrued to the market since
+             * the user last accrued rewards. Multiplying this by the user's LP position gives the new rewards accrued
+             * to the user before accounting for any penalties.
+             *
+             * newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+             */
             uint256 newRewards = prevLpPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
@@ -111,6 +121,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 uint256 deltaTime = block.timestamp - _withdrawTimerStartByUserByMarket[user][market];
                 if (deltaTime < _earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
+                    // Penalty is linearly proportional to the time remaining in the early withdrawal period
                     newRewards -= (newRewards * (_earlyWithdrawalThreshold - deltaTime)) / _earlyWithdrawalThreshold;
                 }
                 if (newLpPosition != 0) {
