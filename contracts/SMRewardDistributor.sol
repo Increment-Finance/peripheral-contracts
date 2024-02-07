@@ -177,6 +177,14 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
          *   maxRewardMultiplier - 1 / ((1 / smoothingValue) * deltaDays + (1 / (maxRewardMultiplier - 1)))
          * = maxRewardMultiplier - smoothingValue / (deltaDays + (smoothingValue / (maxRewardMultiplier - 1)))
          * = maxRewardMultiplier - (smoothingValue * (maxRewardMultiplier - 1)) / ((deltaDays * (maxRewardMultiplier - 1)) + smoothingValue)
+         *
+         * Example w/ maxRewardMultiplier = 4e18 and smoothingValue = 30e18:
+         * t = 0 days:  4e18 - (30e18 * 3e18) / ((0 * 3e18) + 30e18) = 4e18 - 90e18 / 30e18 = 4e18 - 3e18 = 1e18
+         * t = 2 days:  4e18 - (30e18 * 3e18) / ((2 * 3e18) + 30e18) = 4e18 - 90e18 / 36e18 = 4e18 - 2.5e18 = 1.5e18
+         * t = 5 days:  4e18 - (30e18 * 3e18) / ((5 * 3e18) + 30e18) = 4e18 - 90e18 / 45e18 = 4e18 - 2e18 = 2e18
+         * t = 10 days: 4e18 - (30e18 * 3e18) / ((10 * 3e18) + 30e18) = 4e18 - 90e18 / 60e18 = 4e18 - 1.5e18 = 2.5e18
+         * t = 20 days: 4e18 - (30e18 * 3e18) / ((20 * 3e18) + 30e18) = 4e18 - 90e18 / 90e18 = 4e18 - 1e18 = 3e18
+         * t = 50 days: 4e18 - (30e18 * 3e18) / ((50 * 3e18) + 30e18) = 4e18 - 90e18 / 180e18 = 4e18 - 0.5e18 = 3.5e18
          */
         return _maxRewardMultiplier
             - _smoothingValue.mulDiv(
