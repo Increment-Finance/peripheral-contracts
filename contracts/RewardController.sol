@@ -142,7 +142,10 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         if (weights.length != markets.length) {
             revert RewardController_IncorrectWeightsCount(weights.length, markets.length);
         }
-        // Update rewards for all currently rewarded markets before changing weights
+        // Accrue rewards for all currently rewarded markets before changing weights
+        // Note: If `markets != _rewardInfoByToken[rewardToken].marketAddresses`, the list of markets receiving
+        // this reward token will change, so while looping over the currently rewarded markets to accrue rewards,
+        // we need to check each market to see if it's still in the new list, and if not, delete its reward weight.
         uint256 numOldMarkets = _rewardInfoByToken[rewardToken].marketAddresses.length;
         uint256 numNewMarkets = markets.length;
         for (uint256 i; i < numOldMarkets;) {
@@ -159,6 +162,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                     ++j;
                 }
             }
+            // If market is not in the new list, delete its reward weight
             if (!found) {
                 delete _marketWeightsByToken[rewardToken][market];
                 emit MarketRemovedFromRewards(market, rewardToken);
@@ -167,24 +171,31 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                 ++i;
             }
         }
-        // Validate weights and update rewards for any newly added markets
+        // Validate weights and accrue rewards for any newly added markets
         uint256 totalWeight;
         for (uint256 i; i < numNewMarkets;) {
+            // This call should do nothing and return early if the market already accrued rewards above, but
+            // if the market is new for this reward token, we may still need to accrue other reward tokens
+            // and update `_timeOfLastCumRewardUpdate` for the new market.
             _updateMarketRewards(markets[i]);
+            // Validate weight, given in basis points
             if (weights[i] > 10000) {
                 revert RewardController_WeightExceedsMax(weights[i], 10000);
             }
+            // Increment running total weight
             totalWeight += weights[i];
+            // Update stored reward weight for the market for this reward token
             _marketWeightsByToken[rewardToken][markets[i]] = weights[i];
             emit NewWeight(markets[i], rewardToken, weights[i]);
             unchecked {
                 ++i;
             }
         }
+        // Validate that the total weight is 100%
         if (totalWeight != 10000) {
             revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
         }
-        // Replace stored lists of market addresses and weights
+        // Replace stored lists of market addresses
         _rewardInfoByToken[rewardToken].marketAddresses = markets;
     }
 
@@ -200,6 +211,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         if (newInitialInflationRate > MAX_INFLATION_RATE) {
             revert RewardController_AboveMaxInflationRate(newInitialInflationRate, MAX_INFLATION_RATE);
         }
+        // Accrue rewards for all currently rewarded markets before changing inflation rate
         uint256 numMarkets = _rewardInfoByToken[rewardToken].marketAddresses.length;
         for (uint256 i; i < numMarkets;) {
             _updateMarketRewards(_rewardInfoByToken[rewardToken].marketAddresses[i]);
@@ -219,6 +231,14 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         }
         if (MIN_REDUCTION_FACTOR > newReductionFactor) {
             revert RewardController_BelowMinReductionFactor(newReductionFactor, MIN_REDUCTION_FACTOR);
+        }
+        // Accrue rewards for all currently rewarded markets before changing reduction factor
+        uint256 numMarkets = _rewardInfoByToken[rewardToken].marketAddresses.length;
+        for (uint256 i; i < numMarkets;) {
+            _updateMarketRewards(_rewardInfoByToken[rewardToken].marketAddresses[i]);
+            unchecked {
+                ++i;
+            }
         }
         _rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
         emit NewReductionFactor(rewardToken, newReductionFactor);
@@ -271,7 +291,11 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     }
 
     /// @notice Updates the reward accumulator for a given market
-    /// @dev Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`
+    /// @dev Executes when any of the following values are changed:
+    ///      - initial inflation rate per token,
+    ///      - reduction factor per token,
+    ///      - reward weights per market per token,
+    ///      - liquidity in the market
     /// @param market Address of the market
     function _updateMarketRewards(address market) internal virtual;
 
