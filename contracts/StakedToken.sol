@@ -250,6 +250,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         emit SlashingSettled();
     }
 
+    /// @inheritdoc IStakedToken
+    /// @dev Only callable by the SafetyModule contract in `SafetyModule.setRewardDistributor`
     function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external onlySafetyModule {
         smRewardDistributor = _newRewardDistributor;
     }
