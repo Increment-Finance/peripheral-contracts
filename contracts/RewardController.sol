@@ -102,7 +102,8 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     }
 
     /// @inheritdoc IRewardController
-    function getInflationRate(address rewardToken) external view returns (uint256) {
+    function getInflationRate(address rewardToken) public view returns (uint256) {
+        // The current annual inflation rate is a function of the initial rate, reduction factor and time elapsed
         uint256 totalTimeElapsed = block.timestamp - _rewardInfoByToken[rewardToken].initialTimestamp;
         return _rewardInfoByToken[rewardToken].initialInflationRate.div(
             _rewardInfoByToken[rewardToken].reductionFactor.pow(totalTimeElapsed.div(365 days))

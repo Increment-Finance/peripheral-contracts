@@ -13,7 +13,7 @@ import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // libraries
-import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {PRBMathUD60x18, PRBMath} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 /// @title RewardDistributor
 /// @author webthethird
@@ -24,6 +24,7 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 /// interface used by the ClearingHouse to update user rewards any time a user's position is updated
 abstract contract RewardDistributor is IRewardDistributor, RewardController {
     using SafeERC20 for IERC20Metadata;
+    using PRBMath for uint256;
     using PRBMathUD60x18 for uint256;
     using PRBMathUD60x18 for uint88;
 
@@ -303,18 +304,14 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 }
                 continue;
             }
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-            uint256 inflationRate = (
-                _rewardInfoByToken[token].initialInflationRate.div(
-                    _rewardInfoByToken[token].reductionFactor.pow(
-                        (block.timestamp - _rewardInfoByToken[token].initialTimestamp).div(365 days)
-                    )
-                )
-            );
-            uint256 newRewards = (
-                ((((inflationRate * _marketWeightsByToken[token][market]) / MAX_BASIS_POINTS) * deltaTime) / 365 days)
-                    * 1e18
-            ) / _totalLiquidityPerMarket[market];
+            // Calculate the new rewards for the given market and reward token as
+            // (inflationRatePerSecond x marketWeight x deltaTime) / totalLiquidity
+            // Note: we divide by totalLiquidity here so users receive rewards proportional to their
+            // fraction of the provided liquidity, which may change in between any given user's actions,
+            // once we multiply the difference in accumulator values by the user's position size. We also
+            // upscale the accumulator value by 1e18 to avoid precision loss when dividing by totalLiquidity.
+            uint256 newRewards = getInflationRate(token).mulDiv(_marketWeightsByToken[token][market], MAX_BASIS_POINTS)
+                .mulDiv(deltaTime, 365 days).div(_totalLiquidityPerMarket[market]);
             if (newRewards != 0) {
                 _cumulativeRewardPerLpToken[token][market] += newRewards;
                 emit RewardAccruedToMarket(market, token, newRewards);
