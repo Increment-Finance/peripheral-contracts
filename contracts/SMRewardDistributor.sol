@@ -325,15 +325,32 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             // since updating stake position calls updatePosition which updates _lpPositionsPerUser
             revert RewardDistributor_UserPositionMismatch(user, market, userPosition, _getCurrentPosition(user, market));
         }
-        if (_totalLiquidityPerMarket[market] == 0) return;
+        // Accrue rewards to the market, or initialize it and return if it has no liquidity
         _updateMarketRewards(market);
+        if (_totalLiquidityPerMarket[market] == 0) return;
+
+        // Accrue rewards to the user for each reward token
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
+            /**
+             * Accumulator values are denominated in `rewards per LP token` or `reward/LP`, with changes in the market's
+             * total liquidity baked into the accumulators every time `_updateMarketRewards` is called. Each time a user
+             * accrues rewards we make a copy of the current global value, `_cumulativeRewardPerLpToken[token][market]`,
+             * for the user and store it in `_cumulativeRewardPerLpTokenPerUser[user][token][market]`. Thus, subtracting
+             * the user's stored value from the current global value gives the new reward/LP accrued to the market since
+             * the user last accrued rewards. Multiplying this by the user's stake and their reward multiplier gives the
+             * new rewards accrued to the user.
+             *
+             * newRewards = user.lpBalance x user.rewardMultiplier x (
+             *                  global.cumRewardPerLpToken - user.cumRewardPerLpToken
+             *              )
+             */
             uint256 newRewards = userPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
+            // Update the user's stored accumulator value
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
@@ -341,9 +358,12 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 }
                 continue;
             }
+            // Update the user's rewards and total unclaimed rewards
             _rewardsAccruedByUser[user][token] += newRewards;
             _totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
+
+            // Check for reward token shortfall
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
                 emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);

@@ -232,22 +232,38 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param market Address of the market in `ClearingHouse.perpetuals`
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
-        // Do not accrue rewards for the given market before the early withdrawal threshold has passed
+        // Do not accrue rewards for the given market before the early withdrawal threshold has passed, because
+        // we cannot apply penalties to rewards that have already been accrued
         if (block.timestamp < _withdrawTimerStartByUserByMarket[user][market] + _earlyWithdrawalThreshold) return;
         uint256 lpPosition = _lpPositionsPerUser[user][market];
         if (lpPosition != _getCurrentPosition(user, market)) {
-            // only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since updating LP position calls updatePosition which updates _lpPositionsPerUser
+            // Only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
+            // since any change in LP position calls `updatePosition` which updates `_lpPositionsPerUser`
             revert RewardDistributor_UserPositionMismatch(user, market, lpPosition, _getCurrentPosition(user, market));
         }
+        // Accrue rewards to the market, or initialize it and return if it has no liquidity
         _updateMarketRewards(market);
         if (_totalLiquidityPerMarket[market] == 0) return;
+
+        // Accrue rewards to the user for each reward token
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
+            /**
+             * Accumulator values are denominated in `rewards per LP token` or `reward/LP`, with changes in the market's
+             * total liquidity baked into the accumulators every time `_updateMarketRewards` is called. Each time a user
+             * accrues rewards we make a copy of the current global value, `_cumulativeRewardPerLpToken[token][market]`,
+             * for the user and store it in `_cumulativeRewardPerLpTokenPerUser[user][token][market]`. Thus, subtracting
+             * the user's stored value from the current global value gives the new reward/LP accrued to the market since
+             * the user last accrued rewards. Multiplying this by the user's LP position gives the new rewards accrued
+             * to the user before accounting for any penalties.
+             *
+             * newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
+             */
             uint256 newRewards = lpPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
+            // Update the user's stored accumulator value
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
@@ -255,9 +271,12 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 }
                 continue;
             }
+            // Update the user's rewards and total unclaimed rewards
             _rewardsAccruedByUser[user][token] += newRewards;
             _totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
+
+            // Check for reward token shortfall
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
                 emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
