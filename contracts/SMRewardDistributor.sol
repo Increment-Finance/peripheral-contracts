@@ -13,6 +13,7 @@ import "./interfaces/IRewardController.sol";
 /// @author webthethird
 /// @notice Reward distributor for the Safety Module
 contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
+    using PRBMath for uint256;
     using PRBMathUD60x18 for uint256;
 
     /// @notice The SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
@@ -178,8 +179,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
          * = maxRewardMultiplier - (smoothingValue * (maxRewardMultiplier - 1)) / ((deltaDays * (maxRewardMultiplier - 1)) + smoothingValue)
          */
         return _maxRewardMultiplier
-            - (_smoothingValue * (_maxRewardMultiplier - 1e18))
-                / ((deltaDays * (_maxRewardMultiplier - 1e18)) / 1e18 + _smoothingValue);
+            - _smoothingValue.mulDiv(
+                _maxRewardMultiplier - 1e18, deltaDays.mul(_maxRewardMultiplier - 1e18) + _smoothingValue
+            );
     }
 
     /* ******************* */
