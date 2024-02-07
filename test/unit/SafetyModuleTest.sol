@@ -1177,8 +1177,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // test invalid callers
         vm.startPrank(liquidityProviderOne);
-        _expectCallerIsNotStakedToken(liquidityProviderOne);
-        safetyModule.updatePosition(stakedToken, liquidityProviderOne);
         _expectCallerIsNotAuctionModule(liquidityProviderOne);
         safetyModule.auctionEnded(0, 0);
     }
@@ -1218,6 +1216,12 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(address(safetyModule));
         _expectAlreadyInitializedStartTime(address(stakedToken1));
         rewardDistributor.initMarketStartTime(address(stakedToken1));
+        vm.stopPrank();
+
+        // test invalid callers
+        vm.startPrank(liquidityProviderOne);
+        _expectCallerIsNotStakedToken(liquidityProviderOne);
+        rewardDistributor.updatePosition(address(stakedToken1), liquidityProviderOne);
         vm.stopPrank();
 
         // test paused
@@ -2092,7 +2096,7 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     function _expectCallerIsNotStakedToken(address caller) internal {
-        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CallerIsNotStakedToken(address)", caller));
+        vm.expectRevert(abi.encodeWithSignature("SMRD_CallerIsNotStakedToken(address)", caller));
     }
 
     function _expectCallerIsNotAuctionModule(address caller) internal {

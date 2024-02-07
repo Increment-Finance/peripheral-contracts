@@ -2,6 +2,7 @@
 pragma solidity 0.8.16;
 
 import {ISafetyModule} from "./ISafetyModule.sol";
+import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title IStakedToken
@@ -109,6 +110,10 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Address of the SafetyModule contract
     /// @return SafetyModule contract
     function safetyModule() external view returns (ISafetyModule);
+
+    /// @notice Address of the SafetyModule's RewardDistributor contract
+    /// @return SMRewardDistributor contract
+    function smRewardDistributor() external view returns (ISMRewardDistributor);
 
     /// @notice Max amount of staked tokens allowed per user
     /// @return Max balance allowed per user
@@ -223,6 +228,10 @@ interface IStakedToken is IERC20Metadata {
 
     /// @notice Sets `isInPostSlashingState` to false, which re-enables staking, slashing and cooldown period
     function settleSlashing() external;
+
+    /// @notice Updates the stored SMRewardDistributor contract
+    /// @param _newRewardDistributor Address of the new SMRewardDistributor contract
+    function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external;
 
     /* ****************** */
     /*     Governance     */

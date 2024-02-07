@@ -10,7 +10,6 @@ import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 import {ISafetyModule, ISMRewardDistributor} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken, IERC20} from "./interfaces/IStakedToken.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
-import {IRewardContract} from "@increment/interfaces/IRewardContract.sol";
 
 // libraries
 import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
@@ -35,26 +34,6 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
 
     /// @notice Mapping from auction ID to staked token that was slashed for the auction
     mapping(uint256 => IStakedToken) public stakedTokenByAuctionId;
-
-    /// @notice Modifier for functions that can only be called by a registered StakedToken contract,
-    /// i.e., `updatePosition`
-    modifier onlyStakedToken() {
-        bool isStakedToken;
-        uint256 numTokens = stakedTokens.length;
-        for (uint256 i; i < numTokens;) {
-            if (msg.sender == address(stakedTokens[i])) {
-                isStakedToken = true;
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-        if (!isStakedToken) {
-            revert SafetyModule_CallerIsNotStakedToken(msg.sender);
-        }
-        _;
-    }
 
     /// @notice Modifier for functions that can only be called by the AuctionModule contract,
     /// i.e., `auctionEnded`
@@ -103,16 +82,6 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
             }
         }
         revert SafetyModule_InvalidStakedToken(token);
-    }
-
-    /* ****************** */
-    /*   Reward Accrual   */
-    /* ****************** */
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by a registered StakedToken contract
-    function updatePosition(address stakedToken, address staker) external override nonReentrant onlyStakedToken {
-        smRewardDistributor.updatePosition(stakedToken, staker);
     }
 
     /* ****************** */
@@ -225,6 +194,13 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external onlyRole(GOVERNANCE) {
         emit RewardDistributorUpdated(address(smRewardDistributor), address(_newRewardDistributor));
         smRewardDistributor = _newRewardDistributor;
+        uint256 numTokens = stakedTokens.length;
+        for (uint256 i; i < numTokens;) {
+            stakedTokens[i].setRewardDistributor(_newRewardDistributor);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @inheritdoc ISafetyModule

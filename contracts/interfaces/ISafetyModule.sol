@@ -62,10 +62,6 @@ interface ISafetyModule {
     /*       Errors       */
     /* ****************** */
 
-    /// @notice Error returned when a caller other than a registered staked token tries to call a restricted function
-    /// @param caller Address of the caller
-    error SafetyModule_CallerIsNotStakedToken(address caller);
-
     /// @notice Error returned when a caller other than the auction module tries to call a restricted function
     /// @param caller Address of the caller
     error SafetyModule_CallerIsNotAuctionModule(address caller);
@@ -127,13 +123,6 @@ interface ISafetyModule {
     /// @param token Address of the staked token
     /// @return Index of the staked token in the `stakedTokens` array
     function getStakedTokenIdx(address token) external view returns (uint256);
-
-    /// @notice Updates the position of a user for a given staked token and accrues rewards to the user
-    /// @dev This function is called by the StakedToken contract whenever a user's position changes,
-    /// and forwards the call to the SMRewardDistributor
-    /// @param stakedToken Address of the staked token
-    /// @param staker Address of the staker
-    function updatePosition(address stakedToken, address staker) external;
 
     /// @notice Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
     /// transfers the underlying tokens to the AuctionModule and starts an auction to sell them

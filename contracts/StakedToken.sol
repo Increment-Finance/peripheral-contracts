@@ -10,6 +10,7 @@ import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.so
 // interfaces
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
 import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
+import {ISMRewardDistributor} from "./interfaces/ISMRewardDistributor.sol";
 
 // libraries
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -35,6 +36,9 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
 
     /// @notice Address of the SafetyModule contract
     ISafetyModule public safetyModule;
+
+    /// @notice Address of the SafetyModule's SMRewardDistributor contract
+    ISMRewardDistributor public smRewardDistributor;
 
     /// @notice Whether the StakedToken is in a post-slashing state
     /// @dev Post-slashing state disables staking and further slashing, and allows users to redeem their
@@ -82,6 +86,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         COOLDOWN_SECONDS = _cooldownSeconds;
         UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
+        smRewardDistributor = _safetyModule.smRewardDistributor();
         maxStakeAmount = _maxStakeAmount;
         exchangeRate = 1e18;
     }
@@ -159,7 +164,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         _stakersCooldowns[msg.sender] = block.timestamp;
 
         // Accrue rewards before resetting user's multiplier to 1
-        safetyModule.updatePosition(address(this), msg.sender);
+        smRewardDistributor.updatePosition(address(this), msg.sender);
 
         emit Cooldown(msg.sender);
     }
@@ -245,6 +250,10 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         emit SlashingSettled();
     }
 
+    function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external onlySafetyModule {
+        smRewardDistributor = _newRewardDistributor;
+    }
+
     /* ****************** */
     /*     Governance     */
     /* ****************** */
@@ -254,6 +263,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
     function setSafetyModule(address _newSafetyModule) external onlyRole(GOVERNANCE) {
         emit SafetyModuleUpdated(address(safetyModule), _newSafetyModule);
         safetyModule = ISafetyModule(_newSafetyModule);
+        smRewardDistributor = safetyModule.smRewardDistributor();
     }
 
     /// @inheritdoc IStakedToken
@@ -309,8 +319,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         super._transfer(from, to, amount);
 
         // Update SafetyModule
-        safetyModule.updatePosition(address(this), from);
-        safetyModule.updatePosition(address(this), to);
+        smRewardDistributor.updatePosition(address(this), from);
+        smRewardDistributor.updatePosition(address(this), to);
     }
 
     /// @notice Internal staking function, accrues rewards after updating user's position
@@ -350,7 +360,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
 
         // Update user's position and rewards in the SafetyModule
-        safetyModule.updatePosition(address(this), to);
+        smRewardDistributor.updatePosition(address(this), to);
 
         emit Staked(from, to, amount);
     }
@@ -368,11 +378,6 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
     /// @param to Address to transfer underlying tokens to
     /// @param amount Amount of staked tokens to redeem
     function _redeem(address from, address to, uint256 amount) internal {
-        // Check the sender's balance and adjust the redeem amount if necessary
-        uint256 balanceOfFrom = balanceOf(from);
-        if (amount > balanceOfFrom) amount = balanceOfFrom;
-
-        // Make sure the arguments are valid
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 
@@ -388,6 +393,11 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
             }
         }
 
+        // Check the sender's balance and adjust the redeem amount if necessary
+        uint256 balanceOfFrom = balanceOf(from);
+        if (amount > balanceOfFrom) amount = balanceOfFrom;
+        if (amount == 0) revert StakedToken_InvalidZeroAmount();
+
         // Burn staked tokens
         _burn(from, amount);
 
@@ -398,7 +408,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
         UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
 
         // Update user's position and rewards in the SafetyModule
-        safetyModule.updatePosition(address(this), from);
+        smRewardDistributor.updatePosition(address(this), from);
 
         emit Redeemed(from, to, amount);
     }

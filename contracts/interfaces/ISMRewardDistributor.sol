@@ -32,9 +32,13 @@ interface ISMRewardDistributor is IRewardDistributor {
     /*       Errors       */
     /* ****************** */
 
-    /// @notice Error returned when the caller of `updatePosition` is not the SafetyModule
+    /// @notice Error returned when the caller of `initMarketStartTime` is not the SafetyModule
     /// @param caller Address of the caller
     error SMRD_CallerIsNotSafetyModule(address caller);
+
+    /// @notice Error returned when the caller of `updatePosition` is not a registered StakedToken
+    /// @param caller Address of the caller
+    error SMRD_CallerIsNotStakedToken(address caller);
 
     /// @notice Error returned when trying to set the max reward multiplier to a value that is too low
     /// @param value Value that was passed

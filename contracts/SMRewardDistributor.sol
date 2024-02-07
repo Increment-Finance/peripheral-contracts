@@ -29,7 +29,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /// @dev First address is user, second is staked token
     mapping(address => mapping(address => uint256)) internal _multiplierStartTimeByUser;
 
-    /// @notice Modifier for functions that should only be called by the SafetyModule
+    /// @notice Modifier for functions that should only be called by the SafetyModule, i.e., `initMarketStartTime`
     modifier onlySafetyModule() {
         if (msg.sender != address(safetyModule)) {
             revert SMRD_CallerIsNotSafetyModule(msg.sender);
@@ -59,14 +59,26 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
     /* ****************** */
 
     /// @notice Accrues rewards and updates the stored stake position of a user and the total tokens staked
-    /// @dev Executes whenever a user's stake is updated for any reason
-    /// @param market Address of the staked token in `stakedTokens`
+    /// @dev Only callable by a registered StakedToken, executes whenever a user's stake is updated for any reason
+    /// @param market Address of the staked token in `SafetyModule.stakedTokens`
     /// @param user Address of the staker
-    function updatePosition(address market, address user) external virtual override onlySafetyModule {
+    function updatePosition(address market, address user) external virtual override {
+        // Check that the market is a registered staked token
+        safetyModule.getStakedTokenIdx(market); // will revert if not found
+        // Check that the caller is the staked token
+        if (msg.sender != market) {
+            revert SMRD_CallerIsNotStakedToken(msg.sender);
+        }
+
+        // Accrue rewards to the market
         _updateMarketRewards(market);
+
+        // Update the total liquidity in the market
         uint256 prevPosition = _lpPositionsPerUser[user][market];
         uint256 newPosition = _getCurrentPosition(user, market);
         _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newPosition - prevPosition;
+
+        // Accrue rewards to the user for each reward token
         uint256 rewardMultiplier = computeRewardMultiplier(user, market);
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
@@ -75,6 +87,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             uint256 newRewards = prevPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
+            // Update the user's stored accumulator value
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
@@ -82,13 +95,17 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 }
                 continue;
             }
+            // Update the user's rewards and total unclaimed rewards
             _rewardsAccruedByUser[user][token] += newRewards;
             _totalUnclaimedRewards[token] += newRewards;
             emit RewardAccruedToUser(user, token, market, newRewards);
+
+            // Check for reward token shortfall
             uint256 rewardTokenBalance = _rewardTokenBalance(token);
             if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
                 emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
+
             unchecked {
                 ++i;
             }
@@ -112,6 +129,8 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 (newPosition - prevPosition).div(newPosition)
             );
         }
+
+        // Update the user's stored stake position
         _lpPositionsPerUser[user][market] = newPosition;
         emit PositionUpdated(user, market, prevPosition, newPosition);
     }
