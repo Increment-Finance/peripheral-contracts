@@ -48,6 +48,9 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
     /// @notice Maximum number of reward tokens allowed
     uint256 internal constant MAX_REWARD_TOKENS = 10;
 
+    /// @notice 100% in basis points
+    uint256 internal constant MAX_BASIS_POINTS = 10000;
+
     /// @notice List of reward token addresses
     /// @dev Length must be <= MAX_REWARD_TOKENS
     address[] public rewardTokens;
@@ -179,8 +182,8 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
             // and update `_timeOfLastCumRewardUpdate` for the new market.
             _updateMarketRewards(markets[i]);
             // Validate weight, given in basis points
-            if (weights[i] > 10000) {
-                revert RewardController_WeightExceedsMax(weights[i], 10000);
+            if (weights[i] > MAX_BASIS_POINTS) {
+                revert RewardController_WeightExceedsMax(weights[i], MAX_BASIS_POINTS);
             }
             // Increment running total weight
             totalWeight += weights[i];
@@ -192,8 +195,8 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
             }
         }
         // Validate that the total weight is 100%
-        if (totalWeight != 10000) {
-            revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
+        if (totalWeight != MAX_BASIS_POINTS) {
+            revert RewardController_IncorrectWeightsSum(totalWeight, MAX_BASIS_POINTS);
         }
         // Replace stored lists of market addresses
         _rewardInfoByToken[rewardToken].marketAddresses = markets;
@@ -290,7 +293,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         _rewardInfoByToken[_rewardToken].paused = !_rewardInfoByToken[_rewardToken].paused;
     }
 
-    /// @notice Updates the reward accumulator for a given market
+    /// @notice Updates the reward accumulators for a given market
     /// @dev Executes when any of the following values are changed:
     ///      - initial inflation rate per token,
     ///      - reduction factor per token,

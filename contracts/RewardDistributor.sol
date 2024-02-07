@@ -144,8 +144,8 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 }
                 continue;
             }
-            if (weight > 10000) {
-                revert RewardController_WeightExceedsMax(weight, 10000);
+            if (weight > MAX_BASIS_POINTS) {
+                revert RewardController_WeightExceedsMax(weight, MAX_BASIS_POINTS);
             }
             totalWeight += weight;
             _marketWeightsByToken[_rewardToken][market] = weight;
@@ -154,8 +154,8 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 ++i;
             }
         }
-        if (totalWeight != 10000) {
-            revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
+        if (totalWeight != MAX_BASIS_POINTS) {
+            revert RewardController_IncorrectWeightsSum(totalWeight, MAX_BASIS_POINTS);
         }
         // Add reward token info
         rewardTokens.push(_rewardToken);
@@ -281,11 +281,19 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         uint256 deltaTime = block.timestamp - _timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0 || numTokens == 0) return;
         if (deltaTime == block.timestamp || _totalLiquidityPerMarket[market] == 0) {
+            // Either the market has never been updated or it has no liquidity,
+            // so just initialize the timeOfLastCumRewardUpdate and return
             _timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
+        // Each reward token has one reward accumulator per market, so loop over reward tokens and
+        // update each accumulator for the given market
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
+            // Do not accrue rewards if:
+            // - the reward token is paused
+            // - the token's inflation rate is set to 0
+            // - the market has no reward weight for the token
             if (
                 _rewardInfoByToken[token].paused || _rewardInfoByToken[token].initialInflationRate == 0
                     || _marketWeightsByToken[token][market] == 0
@@ -304,7 +312,8 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 )
             );
             uint256 newRewards = (
-                ((((inflationRate * _marketWeightsByToken[token][market]) / 10000) * deltaTime) / 365 days) * 1e18
+                ((((inflationRate * _marketWeightsByToken[token][market]) / MAX_BASIS_POINTS) * deltaTime) / 365 days)
+                    * 1e18
             ) / _totalLiquidityPerMarket[market];
             if (newRewards != 0) {
                 _cumulativeRewardPerLpToken[token][market] += newRewards;
