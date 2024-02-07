@@ -9,6 +9,10 @@ import {IRewardDistributor} from "./IRewardDistributor.sol";
 /// @author webthethird
 /// @notice Interface for the Safety Module's Reward Distributor contract
 interface ISMRewardDistributor is IRewardDistributor {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when the max reward multiplier is updated by governance
     /// @param oldMaxRewardMultiplier Old max reward multiplier
     /// @param newMaxRewardMultiplier New max reward multiplier
@@ -23,6 +27,10 @@ interface ISMRewardDistributor is IRewardDistributor {
     /// @param oldSafetyModule Address of the old SafetyModule contract
     /// @param newSafetyModule Address of the new SafetyModule contract
     event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
+
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
 
     /// @notice Error returned when the caller of `updatePosition` is not the SafetyModule
     /// @param caller Address of the caller
@@ -48,9 +56,17 @@ interface ISMRewardDistributor is IRewardDistributor {
     /// @param max Maximum allowed value
     error SMRD_InvalidSmoothingValueTooHigh(uint256 value, uint256 max);
 
+    /* ***************** */
+    /*    Public Vars    */
+    /* ***************** */
+
     /// @notice Gets the address of the SafetyModule contract which stores the list of StakedTokens and can call `updatePosition`
     /// @return Address of the SafetyModule contract
     function safetyModule() external view returns (ISafetyModule);
+
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
 
     /// @notice Gets the maximum reward multiplier set by governance
     /// @return Maximum reward multiplier, scaled by 1e18
@@ -73,6 +89,10 @@ interface ISMRewardDistributor is IRewardDistributor {
     /// @param _stakedToken Address of staked token earning rewards
     /// @return User's reward multiplier, scaled by 1e18
     function computeRewardMultiplier(address _user, address _stakedToken) external view returns (uint256);
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
 
     /// @notice Replaces the SafetyModule contract
     /// @param _newSafetyModule Address of the new SafetyModule contract

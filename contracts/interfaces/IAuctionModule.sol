@@ -8,6 +8,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @author webthethird
 /// @notice Interface for the AuctionModule contract
 interface IAuctionModule {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when a new auction is started
     /// @param auctionId ID of the auction
     /// @param token Address of the token being auctioned
@@ -60,6 +64,10 @@ interface IAuctionModule {
     /// @param newSafetyModule Address of the new SafetyModule contract
     event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
 
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
+
     /// @notice Error returned when a caller other than the SafetyModule tries to call a restricted function
     /// @param caller Address of the caller
     error AuctionModule_CallerIsNotSafetyModule(address caller);
@@ -90,6 +98,10 @@ interface IAuctionModule {
     /// @param lotsRemaining Number of lots remaining
     error AuctionModule_NotEnoughLotsRemaining(uint256 auctionId, uint256 lotsRemaining);
 
+    /* ***************** */
+    /*    Public Vars    */
+    /* ***************** */
+
     /// @notice Returns the SafetyModule contract which manages this contract
     /// @return SafetyModule contract
     function safetyModule() external view returns (ISafetyModule);
@@ -97,6 +109,10 @@ interface IAuctionModule {
     /// @notice Returns the ERC20 token used for payments in all auctions
     /// @return ERC20 token used for payments
     function paymentToken() external view returns (IERC20);
+
+    /* ***************** */
+    /*       Views       */
+    /* ***************** */
 
     /// @notice Returns the current lot size of the auction
     /// @dev Lot size starts at `auction.initialLotSize` and increases by `auction.lotIncreaseIncrement` every
@@ -162,6 +178,10 @@ interface IAuctionModule {
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
+    /* ****************** */
+    /*   External Users   */
+    /* ****************** */
+
     /// @notice Ends an auction after the time limit has been reached and approves the transfer of
     /// unsold tokens and funds raised
     /// @dev This function can be called by anyone, but only after the auction's end time has passed
@@ -173,6 +193,10 @@ interface IAuctionModule {
     /// @param _auctionId ID of the auction
     /// @param _numLotsToBuy Number of lots to buy
     function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
 
     /// Sets the token required for payments in all auctions
     /// @param _newPaymentToken ERC20 token to use for payment

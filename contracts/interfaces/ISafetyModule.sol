@@ -9,6 +9,10 @@ import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
 /// @author webthethird
 /// @notice Interface for the SafetyModule contract
 interface ISafetyModule {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when a staked token is added
     /// @param stakedToken Address of the staked token
     event StakedTokenAdded(address indexed stakedToken);
@@ -54,6 +58,10 @@ interface ISafetyModule {
         uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
+
     /// @notice Error returned when a caller other than a registered staked token tries to call a restricted function
     /// @param caller Address of the caller
     error SafetyModule_CallerIsNotStakedToken(address caller);
@@ -80,6 +88,10 @@ interface ISafetyModule {
     /// @param maxAmount The maximum auctionable amount of underlying tokens
     error SafetyModule_InsufficientSlashedTokensForAuction(IERC20 token, uint256 amount, uint256 maxAmount);
 
+    /* ***************** */
+    /*    Public Vars    */
+    /* ***************** */
+
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
     function auctionModule() external view returns (IAuctionModule);
@@ -97,6 +109,10 @@ interface ISafetyModule {
     /// @param auctionId ID of the auction
     /// @return StakedToken contract that was slashed
     function stakedTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
+
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
 
     /// @notice Returns the full list of staked tokens registered in the SafetyModule
     /// @return Array of StakedToken contracts

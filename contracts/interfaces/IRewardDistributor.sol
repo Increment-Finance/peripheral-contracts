@@ -10,6 +10,10 @@ import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol
 /// @author webthethird
 /// @notice Interface for the RewardDistributor contract
 interface IRewardDistributor is IRewardContract {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when rewards are accrued to a user
     /// @param user Address of the user
     /// @param rewardToken Address of the reward token
@@ -35,6 +39,10 @@ interface IRewardDistributor is IRewardContract {
     /// @param prevPosition Previous position of the user
     /// @param newPosition New position of the user
     event PositionUpdated(address indexed user, address market, uint256 prevPosition, uint256 newPosition);
+
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
 
     /// @notice Error returned when calling `viewNewRewardAccrual` with a market that has never accrued rewards
     /// @dev Occurs when `timeOfLastCumRewardUpdate[market] == 0`. This value is updated whenever
@@ -68,9 +76,17 @@ interface IRewardDistributor is IRewardContract {
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
     error RewardDistributor_InvalidZeroAddress();
 
+    /* ******************* */
+    /*     Public Vars     */
+    /* ******************* */
+
     /// @notice Gets the address of the reward token vault
     /// @return Address of the EcosystemReserve contract which serves as the reward token vault
     function ecosystemReserve() external view returns (address);
+
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
 
     /// @notice Rewards accrued and not yet claimed by user
     /// @param _user Address of the user
@@ -116,6 +132,10 @@ interface IRewardDistributor is IRewardContract {
     /// @return Stored total number of tokens per market
     function totalLiquidityPerMarket(address _market) external view returns (uint256);
 
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
     /// @notice Adds a new reward token
     /// @param _rewardToken Address of the reward token
     /// @param _initialInflationRate Initial inflation rate for the new token
@@ -139,6 +159,10 @@ interface IRewardDistributor is IRewardContract {
     /// @notice Sets the start time for accruing rewards to a market which has not been initialized yet
     /// @param _market Address of the market (i.e., perpetual market or staking token)
     function initMarketStartTime(address _market) external;
+
+    /* ****************** */
+    /*   External Users   */
+    /* ****************** */
 
     /// @notice Fetches and stores the caller's LP/stake positions and updates the total liquidity in each of the
     /// provided markets

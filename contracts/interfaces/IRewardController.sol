@@ -5,6 +5,10 @@ pragma solidity 0.8.16;
 /// @author webthethird
 /// @notice Interface for the RewardController contract
 interface IRewardController {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when a new reward token is added
     /// @param rewardToken Reward token address
     /// @param initialTimestamp Timestamp when reward token was added
@@ -47,6 +51,10 @@ interface IRewardController {
     /// @param newFactor The new reduction factor
     event NewReductionFactor(address indexed rewardToken, uint256 newFactor);
 
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
+
     /// @notice Error returned when trying to add a reward token if the max number of reward tokens has been reached
     /// @param max The maximum number of reward tokens allowed
     error RewardController_AboveMaxRewardTokens(uint256 max);
@@ -80,10 +88,18 @@ interface IRewardController {
     /// @param max The maximum allowed weight (i.e., 10000)
     error RewardController_WeightExceedsMax(uint256 weight, uint256 max);
 
+    /* ******************* */
+    /*     Public Vars     */
+    /* ******************* */
+
     /// @notice Gets the address of the reward token at the specified index in the array of reward tokens
     /// @param i The index of the reward token
     /// @return The address of the reward token
     function rewardTokens(uint256 i) external view returns (address);
+
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
 
     /// @notice Returns the full list of reward tokens
     /// @return Array of reward token addresses
@@ -142,6 +158,10 @@ interface IRewardController {
     /// @return Maximum allowed number of reward tokens
     function getMaxRewardTokens() external view returns (uint256);
 
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
     /// @notice Sets the market addresses and reward weights for a reward token
     /// @param rewardToken Address of the reward token
     /// @param markets List of market addresses to receive rewards
@@ -159,6 +179,10 @@ interface IRewardController {
     /// @param rewardToken Address of the reward token
     /// @param newReductionFactor The new reduction factor, scaled by 1e18
     function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external;
+
+    /* ******************* */
+    /*   Emergency Admin   */
+    /* ******************* */
 
     /// @notice Pause the contract
     function pause() external;
