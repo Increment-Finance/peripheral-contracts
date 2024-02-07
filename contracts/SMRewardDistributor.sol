@@ -172,7 +172,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         if (startTime == 0) return 0;
         uint256 deltaDays = (block.timestamp - startTime).div(1 days);
         /**
-         * Multiplier formula:
+         * Multiplier formula, rearranged to limit divisions:
          *   maxRewardMultiplier - 1 / ((1 / smoothingValue) * deltaDays + (1 / (maxRewardMultiplier - 1)))
          * = maxRewardMultiplier - smoothingValue / (deltaDays + (smoothingValue / (maxRewardMultiplier - 1)))
          * = maxRewardMultiplier - (smoothingValue * (maxRewardMultiplier - 1)) / ((deltaDays * (maxRewardMultiplier - 1)) + smoothingValue)
