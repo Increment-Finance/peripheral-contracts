@@ -60,6 +60,9 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         _earlyWithdrawalThreshold = _earlyWithdrawThreshold;
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
+        if (_initialRewardWeights.length != numMarkets) {
+            revert RewardController_IncorrectWeightsCount(_initialRewardWeights.length, numMarkets);
+        }
         _rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
         _rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
         _rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
