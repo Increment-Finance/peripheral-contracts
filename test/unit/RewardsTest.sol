@@ -753,19 +753,30 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testFuzz_TenMarkets(uint256[10] memory providedLiquidity, uint256[9] memory rewardWeights) public {
+    function testFuzz_TenMarketsTwoTokens(uint256[10] memory providedLiquidity, uint256[9] memory rewardWeights)
+        public
+    {
         /* bounds */
-        uint256 totalWeight = 10000;
+        uint256 totalWeight1 = 10000;
+        uint256 totalWeight2 = 10000;
         uint256[] memory weights = new uint256[](10);
+        uint256[] memory weights2 = new uint256[](10);
         for (uint256 i; i < 10; i++) {
-            providedLiquidity[i] = bound(providedLiquidity[i], 100e18, 10_000e18);
+            providedLiquidity[i] = bound(providedLiquidity[i], 1_000e18, 10_000e18);
             if (i < 9) {
                 weights[i] = bound(rewardWeights[i], 100, 1000);
-                totalWeight -= weights[i];
+                weights2[i] = bound(rewardWeights[8 - i], 100, 1000);
+                totalWeight1 -= weights[i];
+                totalWeight2 -= weights2[i];
             } else {
-                weights[i] = totalWeight;
+                weights[i] = totalWeight1;
+                weights2[i] = totalWeight2;
             }
         }
+
+        // add a new reward token
+        rewardsToken2 =
+            _addRewardToken(weights[0], 20000000e18, INITIAL_INFLATION_RATE / 2, INITIAL_REDUCTION_FACTOR * 2);
 
         // deploy, allowlist, and initialize 8 new markets
         TestPerpetual[] memory perpetuals = new TestPerpetual[](10);
@@ -777,7 +788,7 @@ contract RewardsTest is Deployment, Utils {
             rewardDistributor.initMarketStartTime(address(perpetuals[i]));
         }
 
-        // provide liquidity from both users to all 10 perpetuals
+        // provide liquidity from both users to all new perpetuals
         for (uint256 i = 0; i < 10; i++) {
             fundAndPrepareAccount(liquidityProviderOne, 10_000e18, vault, ua);
             _provideLiquidity(10_000e18, liquidityProviderOne, perpetuals[i]);
@@ -788,6 +799,7 @@ contract RewardsTest is Deployment, Utils {
         // set new market weights
         address[] memory markets = _getMarkets();
         rewardDistributor.updateRewardWeights(address(rewardsToken), markets, weights);
+        rewardDistributor.updateRewardWeights(address(rewardsToken2), markets, weights2);
 
         // skip some time
         skip(10 days);
@@ -814,21 +826,22 @@ contract RewardsTest is Deployment, Utils {
         // skip some more time
         skip(10 days);
 
-        // update stored state before changing weights
+        // update stored state before removing liquidity
         balances = _getUserBalances(liquidityProviderTwo);
         prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
         prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
         skipTimes = _getSkipTimes(rewardDistributor);
 
-        // set new market weights
-        uint256[] memory weights2 = new uint256[](10);
-        for (uint256 i; i < 10; ++i) {
-            weights2[i] = weights[9 - i];
+        // remove liquidity from user 2 from all 10 perpetuals
+        for (uint256 i = 0; i < 10; i++) {
+            if (i % 2 == 0) {
+                _removeAllLiquidity(liquidityProviderTwo, perpetuals[i]);
+            } else {
+                _removeSomeLiquidity(liquidityProviderTwo, perpetuals[i], 5e17);
+            }
         }
-        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, weights2);
 
-        // check that rewards were accrued correctly for all markets at previous weights
-        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        // check that rewards were accrued correctly for previous balances in all markets
         accruedRewards = _checkRewards(
             address(rewardsToken),
             liquidityProviderTwo,
@@ -839,8 +852,6 @@ contract RewardsTest is Deployment, Utils {
             weights,
             accruedRewards
         );
-
-        rewardDistributor.togglePausedReward(address(rewardsToken));
     }
 
     function testFuzz_DelistAndReplace(
@@ -1456,9 +1467,7 @@ contract RewardsTest is Deployment, Utils {
         clearingHouse.deposit(depositAmount, ua);
         uint256 quoteAmount = depositAmount / 2;
         uint256 baseAmount = quoteAmount.wadDiv(perp.indexPrice().toUint256());
-        clearingHouse.provideLiquidity(
-            perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2, [quoteAmount, baseAmount], 0
-        );
+        clearingHouse.provideLiquidity(_getMarketIdx(address(perp)), [quoteAmount, baseAmount], 0);
         vm.stopPrank();
     }
 
@@ -1473,7 +1482,7 @@ contract RewardsTest is Deployment, Utils {
         // vm.assume(proposedAmount > 1e17);
 
         clearingHouse.removeLiquidity(
-            perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2,
+            _getMarketIdx(address(perp)),
             perp.getLpPosition(user).liquidityBalance,
             [uint256(0), uint256(0)],
             proposedAmount,
@@ -1486,12 +1495,23 @@ contract RewardsTest is Deployment, Utils {
     function _removeSomeLiquidity(address user, TestPerpetual perp, uint256 reductionRatio) internal {
         uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
         uint256 amount = (lpBalance * reductionRatio) / 1e18;
-        uint256 idx = perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2;
+        uint256 idx = _getMarketIdx(address(perp));
         vm.startPrank(user);
         uint256 proposedAmount = _getLiquidityProviderProposedAmount(user, perp, reductionRatio);
         clearingHouse.removeLiquidity(idx, amount, [uint256(0), uint256(0)], proposedAmount, 0);
 
         // clearingHouse.withdrawAll(ua);
+    }
+
+    function _getMarketIdx(address perp) internal view returns (uint256) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        for (uint256 i; i < numMarkets; ++i) {
+            uint256 idx = clearingHouse.id(i);
+            if (perp == address(clearingHouse.perpetuals(idx))) {
+                return idx;
+            }
+        }
+        return type(uint256).max;
     }
 
     function _getLiquidityProviderProposedAmount(address user, IPerpetual perp, uint256 reductionRatio)
@@ -1500,7 +1520,7 @@ contract RewardsTest is Deployment, Utils {
     {
         LibPerpetual.LiquidityProviderPosition memory lp = perp.getLpPosition(user);
         if (lp.liquidityBalance == 0) revert("No liquidity provided");
-        uint256 idx = perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2;
+        uint256 idx = _getMarketIdx(address(perp));
         return viewer.getLpProposedAmount(idx, user, reductionRatio, 100, [uint256(0), uint256(0)], 0);
     }
 
