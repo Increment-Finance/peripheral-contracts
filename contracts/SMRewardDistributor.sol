@@ -2,12 +2,19 @@
 pragma solidity 0.8.16;
 
 // contracts
-import "./RewardDistributor.sol";
+import {RewardDistributor, RewardController} from "./RewardDistributor.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
 // interfaces
-import "./interfaces/IStakedToken.sol";
-import "./interfaces/ISMRewardDistributor.sol";
-import "./interfaces/IRewardController.sol";
+import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
+import {IStakedToken} from "./interfaces/IStakedToken.sol";
+import {ISMRewardDistributor, IRewardDistributor} from "./interfaces/ISMRewardDistributor.sol";
+import {IRewardController} from "./interfaces/IRewardController.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+// libraries
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {PRBMathUD60x18, PRBMath} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 /// @title SMRewardDistributor
 /// @author webthethird
