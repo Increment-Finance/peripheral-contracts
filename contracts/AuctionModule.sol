@@ -6,13 +6,15 @@ import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 
-// libraries
-import {LibMath} from "@increment/lib/LibMath.sol";
+// interfaces
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAuctionModule} from "./interfaces/IAuctionModule.sol";
 import {ISafetyModule} from "./interfaces/ISafetyModule.sol";
 import {IStakedToken} from "./interfaces/IStakedToken.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+// libraries
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LibMath} from "@increment/lib/LibMath.sol";
 
 /// @title AuctionModule
 /// @author webthethird

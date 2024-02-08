@@ -2,15 +2,15 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {RewardDistributor, RewardController} from "./RewardDistributor.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {RewardDistributor, RewardController} from "./RewardDistributor.sol";
 
 // interfaces
-import {IPerpRewardDistributor, IRewardDistributor} from "./interfaces/IPerpRewardDistributor.sol";
-import {IRewardController} from "./interfaces/IRewardController.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IPerpRewardDistributor, IRewardDistributor} from "./interfaces/IPerpRewardDistributor.sol";
+import {IRewardController} from "./interfaces/IRewardController.sol";
 
 // libraries
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

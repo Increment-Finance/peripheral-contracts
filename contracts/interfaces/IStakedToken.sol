@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
+import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ISafetyModule} from "./ISafetyModule.sol";
 import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
-import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /// @title IStakedToken
 /// @author webthethird
