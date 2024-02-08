@@ -2,7 +2,7 @@
 pragma solidity 0.8.16;
 
 // interfaces
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
+import {IClearingHouse} from "../../lib/increment-protocol/contracts/interfaces/IClearingHouse.sol";
 import {IRewardDistributor} from "./IRewardDistributor.sol";
 
 interface IPerpRewardDistributor is IRewardDistributor {

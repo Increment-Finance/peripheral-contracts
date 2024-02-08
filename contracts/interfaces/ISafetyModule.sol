@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
-import {IStakedToken, IERC20} from "./IStakedToken.sol";
+import {IERC20} from "../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IStakedToken} from "./IStakedToken.sol";
 import {IAuctionModule} from "./IAuctionModule.sol";
 import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
 

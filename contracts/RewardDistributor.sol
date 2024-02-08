@@ -2,18 +2,19 @@
 pragma solidity 0.8.16;
 
 // contracts
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {SafeERC20} from "../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Pausable} from "../lib/increment-protocol/lib/openzeppelin-contracts/contracts/security/Pausable.sol";
 import {RewardController, IRewardController} from "./RewardController.sol";
 
 // interfaces
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IClearingHouse} from "increment-protocol/interfaces/IClearingHouse.sol";
-import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
+import {IERC20Metadata} from
+    "../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IClearingHouse} from "../lib/increment-protocol/contracts/interfaces/IClearingHouse.sol";
+import {IPerpetual} from "../lib/increment-protocol/contracts/interfaces/IPerpetual.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // libraries
-import {PRBMathUD60x18, PRBMath} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {PRBMathUD60x18, PRBMath} from "../lib/increment-protocol/lib/prb-math/contracts/PRBMathUD60x18.sol";
 
 /// @title RewardDistributor
 /// @author webthethird

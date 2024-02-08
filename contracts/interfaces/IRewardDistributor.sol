@@ -2,9 +2,10 @@
 pragma solidity 0.8.16;
 
 // interfaces
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
-import {IRewardContract} from "increment-protocol/interfaces/IRewardContract.sol";
+import {IERC20Metadata} from
+    "../../lib/increment-protocol/lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IPerpetual} from "../../lib/increment-protocol/contracts/interfaces/IPerpetual.sol";
+import {IRewardContract} from "../../lib/increment-protocol/contracts/interfaces/IRewardContract.sol";
 
 /// @title IRewardDistributor
 /// @author webthethird
