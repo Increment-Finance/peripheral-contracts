@@ -19,6 +19,21 @@ interface IPerpRewardDistributor is IRewardDistributor {
     /// @param newEarlyWithdrawalThreshold New early withdrawal threshold
     event EarlyWithdrawalThresholdUpdated(uint256 oldEarlyWithdrawalThreshold, uint256 newEarlyWithdrawalThreshold);
 
+    /// @notice Emitted when a user incurs an early withdrawal penalty
+    /// @param user Address of the user
+    /// @param market Address of the market
+    /// @param token Address of the reward token
+    /// @param penalty Amount of penalty incurred
+    event EarlyWithdrawalPenaltyApplied(
+        address indexed user, address indexed market, address indexed token, uint256 penalty
+    );
+
+    /// @notice Emitted when a user's early withdrawal timer is reset
+    /// @param user Address of the user
+    /// @param market Address of the market
+    /// @param expireTime New expiration time of the user's early withdrawal timer
+    event EarlyWithdrawalTimerReset(address indexed user, address indexed market, uint256 expireTime);
+
     /* ****************** */
     /*       Errors       */
     /* ****************** */
