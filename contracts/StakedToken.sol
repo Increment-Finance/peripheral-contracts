@@ -21,7 +21,7 @@ import {LibMath} from "@increment/lib/LibMath.sol";
  * @author webthethird
  * @notice Based on Aave's StakedToken, but with reward management outsourced to the SafetyModule
  */
-contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable, ReentrancyGuard {
+contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable {
     using SafeERC20 for IERC20;
     using LibMath for uint256;
 
@@ -320,7 +320,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable,
 
         super._transfer(from, to, amount);
 
-        // Update SafetyModule
+        // Update positions and accrue rewards to both users
         smRewardDistributor.updatePosition(address(this), from);
         smRewardDistributor.updatePosition(address(this), to);
     }
