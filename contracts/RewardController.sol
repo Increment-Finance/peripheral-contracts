@@ -291,7 +291,13 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                 ++i; // saves 63 gas per iteration
             }
         }
-        _rewardInfoByToken[_rewardToken].paused = !_rewardInfoByToken[_rewardToken].paused;
+        bool currentlyPaused = _rewardInfoByToken[_rewardToken].paused;
+        _rewardInfoByToken[_rewardToken].paused = !currentlyPaused;
+        if (currentlyPaused) {
+            emit RewardTokenUnpaused(_rewardToken);
+        } else {
+            emit RewardTokenPaused(_rewardToken);
+        }
     }
 
     /// @notice Updates the reward accumulators for a given market

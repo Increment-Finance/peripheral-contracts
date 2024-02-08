@@ -27,6 +27,14 @@ interface IRewardController {
     /// @param remainingBalance The remaining balance of the reward token, sent to governance
     event RewardTokenRemoved(address indexed rewardToken, uint256 unclaimedRewards, uint256 remainingBalance);
 
+    /// @notice Emitted when accrual for a reward token is paused
+    /// @param rewardToken The reward token address
+    event RewardTokenPaused(address indexed rewardToken);
+
+    /// @notice Emitted when accrual for a reward token is unpaused
+    /// @param rewardToken The reward token address
+    event RewardTokenUnpaused(address indexed rewardToken);
+
     /// @notice Emitted when a reward token is removed from a market's list of rewards
     /// @param market The market address
     /// @param rewardToken The reward token address
