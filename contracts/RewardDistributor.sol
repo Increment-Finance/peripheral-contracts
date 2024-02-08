@@ -306,10 +306,11 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             }
             // Calculate the new rewards for the given market and reward token as
             // (inflationRatePerSecond x marketWeight x deltaTime) / totalLiquidity
-            // Note: we divide by totalLiquidity here so users receive rewards proportional to their
-            // fraction of the provided liquidity, which may change in between any given user's actions,
-            // once we multiply the difference in accumulator values by the user's position size. We also
+            // Note: we divide by totalLiquidity here so users receive rewards proportional to their fraction
+            // of the total liquidity, which may change in between any given user's actions, once we multiply
+            // the difference in accumulator values by the user's position size in `updatePosition`. We also
             // upscale the accumulator value by 1e18 to avoid precision loss when dividing by totalLiquidity.
+            // Note: using `mulDiv` and `div` here adds ~45 gas per iteration, but greatly improves readability.
             uint256 newRewards = getInflationRate(token).mulDiv(_marketWeightsByToken[token][market], MAX_BASIS_POINTS)
                 .mulDiv(deltaTime, 365 days).div(_totalLiquidityPerMarket[market]);
             if (newRewards != 0) {
