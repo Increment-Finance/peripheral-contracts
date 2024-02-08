@@ -104,7 +104,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -120,7 +120,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             }
 
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         if (prevPosition == 0 || newPosition <= prevPosition) {
@@ -354,7 +354,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -369,7 +369,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }

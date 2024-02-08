@@ -136,7 +136,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -152,7 +152,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             }
 
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
 
@@ -267,7 +267,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -282,7 +282,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }

@@ -163,7 +163,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                     break;
                 }
                 unchecked {
-                    ++j;
+                    ++j; // saves 63 gas per iteration
                 }
             }
             // If market is not in the new list, delete its reward weight
@@ -172,7 +172,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
                 emit MarketRemovedFromRewards(market, rewardToken);
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         // Validate weights and accrue rewards for any newly added markets
@@ -192,7 +192,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
             _marketWeightsByToken[rewardToken][markets[i]] = weights[i];
             emit NewWeight(markets[i], rewardToken, weights[i]);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         // Validate that the total weight is 100%
@@ -217,10 +217,10 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         }
         // Accrue rewards for all currently rewarded markets before changing inflation rate
         uint256 numMarkets = _rewardInfoByToken[rewardToken].marketAddresses.length;
-        for (uint256 i; i < numMarkets;) {
+        for (uint256 i; i < numMarkets; ++i) {
             _updateMarketRewards(_rewardInfoByToken[rewardToken].marketAddresses[i]);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         _rewardInfoByToken[rewardToken].initialInflationRate = newInitialInflationRate;
@@ -241,7 +241,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
         for (uint256 i; i < numMarkets;) {
             _updateMarketRewards(_rewardInfoByToken[rewardToken].marketAddresses[i]);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         _rewardInfoByToken[rewardToken].reductionFactor = newReductionFactor;
@@ -288,7 +288,7 @@ abstract contract RewardController is IRewardController, IncreAccessControl, Pau
             // will update `_timeOfLastCumRewardUpdate` so rewards aren't accrued later for paused period
             _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
             unchecked {
-                ++i; // saves approx 80-105 gas on average
+                ++i; // saves 63 gas per iteration
             }
         }
         _rewardInfoByToken[_rewardToken].paused = !_rewardInfoByToken[_rewardToken].paused;

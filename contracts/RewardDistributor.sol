@@ -141,7 +141,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             uint256 weight = _marketWeights[i];
             if (weight == 0) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -152,7 +152,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             _marketWeightsByToken[_rewardToken][market] = weight;
             emit NewWeight(market, _rewardToken, weight);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         if (totalWeight != MAX_BASIS_POINTS) {
@@ -181,7 +181,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         for (uint256 i; i < numMarkets;) {
             _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
 
@@ -191,7 +191,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         for (uint256 i; i < numRewards;) {
             if (rewardTokens[i] != _rewardToken) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -228,7 +228,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }
@@ -249,7 +249,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         for (uint256 i; i < numMarkets;) {
             _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         uint256 numTokens = _rewardTokens.length;
@@ -267,7 +267,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 }
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }
@@ -300,7 +300,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                     || _marketWeightsByToken[token][market] == 0
             ) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -317,7 +317,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 emit RewardAccruedToMarket(market, token, newRewards);
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
@@ -377,7 +377,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             address token = rewardTokens[i];
             _cumulativeRewardPerLpTokenPerUser[_user][token][_market] = _cumulativeRewardPerLpToken[token][_market];
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         emit PositionUpdated(_user, _market, 0, lpPosition);

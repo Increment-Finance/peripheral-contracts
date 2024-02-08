@@ -78,7 +78,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
         for (uint256 i; i < numTokens;) {
             if (address(stakedTokens[i]) == token) return i;
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         revert SafetyModule_InvalidStakedToken(token);
@@ -198,7 +198,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
         for (uint256 i; i < numTokens;) {
             stakedTokens[i].setRewardDistributor(_newRewardDistributor);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }
@@ -212,7 +212,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
                 revert SafetyModule_StakedTokenAlreadyRegistered(address(_stakedToken));
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         stakedTokens.push(_stakedToken);

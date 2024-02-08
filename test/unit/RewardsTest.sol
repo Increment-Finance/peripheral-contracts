@@ -753,6 +753,96 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    function testFuzz_TenMarkets(uint256[10] memory providedLiquidity, uint256[9] memory rewardWeights) public {
+        /* bounds */
+        uint256 totalWeight = 10000;
+        uint256[] memory weights = new uint256[](10);
+        for (uint256 i; i < 10; i++) {
+            providedLiquidity[i] = bound(providedLiquidity[i], 100e18, 10_000e18);
+            if (i < 9) {
+                weights[i] = bound(rewardWeights[i], 100, 1000);
+                totalWeight -= weights[i];
+            } else {
+                weights[i] = totalWeight;
+            }
+        }
+
+        // deploy, allowlist, and initialize 8 new markets
+        TestPerpetual[] memory perpetuals = new TestPerpetual[](10);
+        perpetuals[0] = perpetual;
+        perpetuals[1] = eth_perpetual;
+        for (uint256 i = 2; i < 10; i++) {
+            perpetuals[i] = _deployTestPerpetual();
+            clearingHouse.allowListPerpetual(perpetuals[i]);
+            rewardDistributor.initMarketStartTime(address(perpetuals[i]));
+        }
+
+        // provide liquidity from both users to all 10 perpetuals
+        for (uint256 i = 0; i < 10; i++) {
+            fundAndPrepareAccount(liquidityProviderOne, 10_000e18, vault, ua);
+            _provideLiquidity(10_000e18, liquidityProviderOne, perpetuals[i]);
+            fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity[i], vault, ua);
+            _provideLiquidity(providedLiquidity[i], liquidityProviderTwo, perpetuals[i]);
+        }
+
+        // set new market weights
+        address[] memory markets = _getMarkets();
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, weights);
+
+        // skip some time
+        skip(10 days);
+
+        // store initial state before accruing rewards
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = _getSkipTimes(rewardDistributor);
+
+        // check that rewards were accrued correctly for all markets
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            weights,
+            0
+        );
+
+        // skip some more time
+        skip(10 days);
+
+        // update stored state before changing weights
+        balances = _getUserBalances(liquidityProviderTwo);
+        prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        skipTimes = _getSkipTimes(rewardDistributor);
+
+        // set new market weights
+        uint256[] memory weights2 = new uint256[](10);
+        for (uint256 i; i < 10; ++i) {
+            weights2[i] = weights[9 - i];
+        }
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, weights2);
+
+        // check that rewards were accrued correctly for all markets at previous weights
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        accruedRewards = _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            weights,
+            accruedRewards
+        );
+
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+    }
+
     function testFuzz_DelistAndReplace(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
