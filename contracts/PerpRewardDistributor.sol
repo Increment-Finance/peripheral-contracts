@@ -58,6 +58,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         }
         clearingHouse = IClearingHouse(_clearingHouse);
         _earlyWithdrawalThreshold = _earlyWithdrawThreshold;
+        emit EarlyWithdrawalThresholdUpdated(0, _earlyWithdrawalThreshold);
         // Add reward token info
         uint256 numMarkets = _getNumMarkets();
         if (_initialRewardWeights.length != numMarkets) {
@@ -72,6 +73,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             address market = _getMarketAddress(_getMarketIdx(i));
             _rewardInfoByToken[_rewardToken].marketAddresses[i] = market;
             _marketWeightsByToken[_rewardToken][market] = _initialRewardWeights[i];
+            emit NewWeight(market, _rewardToken, _initialRewardWeights[i]);
             _timeOfLastCumRewardUpdate[market] = block.timestamp;
             unchecked {
                 ++i;
