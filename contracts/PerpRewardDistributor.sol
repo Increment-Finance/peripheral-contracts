@@ -116,23 +116,15 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             uint256 newRewards = prevLpPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
-            if (newLpPosition >= prevLpPosition) {
-                // Added liquidity - reset early withdrawal timer
-                _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
-            } else {
+            if (newLpPosition < prevLpPosition) {
                 // Removed liquidity - need to check if within early withdrawal threshold
                 uint256 deltaTime = block.timestamp - _withdrawTimerStartByUserByMarket[user][market];
                 if (deltaTime < _earlyWithdrawalThreshold) {
                     // Early withdrawal - apply penalty
                     // Penalty is linearly proportional to the time remaining in the early withdrawal period
-                    newRewards -= (newRewards * (_earlyWithdrawalThreshold - deltaTime)) / _earlyWithdrawalThreshold;
-                }
-                if (newLpPosition != 0) {
-                    // Reset timer
-                    _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
-                } else {
-                    // Full withdrawal, so next deposit is an initial deposit
-                    delete _withdrawTimerStartByUserByMarket[user][market];
+                    uint256 penalty = (newRewards * (_earlyWithdrawalThreshold - deltaTime)) / _earlyWithdrawalThreshold;
+                    newRewards -= penalty;
+                    emit EarlyWithdrawalPenaltyApplied(user, market, token, penalty);
                 }
             }
             // Update the user's stored accumulator value
@@ -157,6 +149,15 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             unchecked {
                 ++i; // saves 63 gas per iteration
             }
+        }
+        if (newLpPosition != 0) {
+            // Added or partially removed liquidity - reset early withdrawal timer
+            _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
+            emit EarlyWithdrawalTimerReset(user, market, block.timestamp + _earlyWithdrawalThreshold);
+        } else {
+            // Full withdrawal, so next deposit is an initial deposit
+            delete _withdrawTimerStartByUserByMarket[user][market];
+            emit EarlyWithdrawalTimerReset(user, market, 0);
         }
 
         // Update the user's stored lp position
