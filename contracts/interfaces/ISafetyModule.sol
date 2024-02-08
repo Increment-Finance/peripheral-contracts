@@ -17,10 +17,6 @@ interface ISafetyModule {
     /// @param stakedToken Address of the staked token
     event StakedTokenAdded(address indexed stakedToken);
 
-    /// @notice Emitted when a staked token is removed
-    /// @param stakedToken Address of the staked token
-    event StakedTokenRemoved(address indexed stakedToken);
-
     /// @notice Emitted when the AuctionModule is updated by governance
     /// @param oldAuctionModule Address of the old AuctionModule
     /// @param newAuctionModule Address of the new AuctionModule
