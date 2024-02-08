@@ -239,6 +239,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     }
 
     /// @inheritdoc IRewardDistributor
+    /// @dev Non-reentrant because `_distributeReward` transfers reward tokens to the user
     function claimRewardsFor(address _user, address[] memory _rewardTokens)
         public
         override
