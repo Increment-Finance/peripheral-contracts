@@ -152,6 +152,8 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     /*   External User   */
     /* ***************** */
 
+    // `buyLots` and `completeAuction` are non-reentrant because they can lead to token transfers
+
     /// @inheritdoc IAuctionModule
     function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external nonReentrant whenNotPaused {
         // Safety checks
@@ -193,6 +195,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         }
     }
 
+    /// @inheritdoc IAuctionModule
     function completeAuction(uint256 _auctionId) external nonReentrant whenNotPaused {
         // Safety checks
         if (_auctionId >= _nextAuctionId) {
