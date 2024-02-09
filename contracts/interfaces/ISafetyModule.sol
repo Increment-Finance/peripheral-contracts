@@ -9,13 +9,13 @@ import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
 /// @author webthethird
 /// @notice Interface for the SafetyModule contract
 interface ISafetyModule {
-    /// @notice Emitted when a staking token is added
-    /// @param stakingToken Address of the staking token
-    event StakingTokenAdded(address indexed stakingToken);
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
 
-    /// @notice Emitted when a staking token is removed
-    /// @param stakingToken Address of the staking token
-    event StakingTokenRemoved(address indexed stakingToken);
+    /// @notice Emitted when a staked token is added
+    /// @param stakedToken Address of the staked token
+    event StakedTokenAdded(address indexed stakedToken);
 
     /// @notice Emitted when the AuctionModule is updated by governance
     /// @param oldAuctionModule Address of the old AuctionModule
@@ -27,48 +27,48 @@ interface ISafetyModule {
     /// @param newRewardDistributor Address of the new SMRewardDistributor
     event RewardDistributorUpdated(address oldRewardDistributor, address newRewardDistributor);
 
-    /// @notice Emitted when a staking token is slashed and the underlying tokens are sent to the AuctionModule
-    /// @param stakingToken Address of the staking token
-    /// @param slashAmount Amount of staking tokens slashed
+    /// @notice Emitted when a staked token is slashed and the underlying tokens are sent to the AuctionModule
+    /// @param stakedToken Address of the staked token
+    /// @param slashAmount Amount of staked tokens slashed
     /// @param underlyingAmount Amount of underlying tokens sent to the AuctionModule
     /// @param auctionId ID of the auction
     event TokensSlashedForAuction(
-        address indexed stakingToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
+        address indexed stakedToken, uint256 slashAmount, uint256 underlyingAmount, uint256 indexed auctionId
     );
 
     /// @notice Emitted when an auction is terminated by governance
     /// @param auctionId ID of the auction
-    /// @param stakingToken Address of the staking token that was slashed for the auction
+    /// @param stakedToken Address of the staked token that was slashed for the auction
     /// @param underlyingToken Address of the underlying token being sold in the auction
     /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
     event AuctionTerminated(
-        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
     /// @notice Emitted when an auction ends, either because all lots were sold or the time limit was reached
     /// @param auctionId ID of the auction
-    /// @param stakingToken Address of the staking token that was slashed for the auction
+    /// @param stakedToken Address of the staked token that was slashed for the auction
     /// @param underlyingToken Address of the underlying token being sold in the auction
     /// @param underlyingBalanceReturned Amount of underlying tokens returned from the AuctionModule
     event AuctionEnded(
-        uint256 indexed auctionId, address stakingToken, address underlyingToken, uint256 underlyingBalanceReturned
+        uint256 indexed auctionId, address stakedToken, address underlyingToken, uint256 underlyingBalanceReturned
     );
 
-    /// @notice Error returned a caller other than a registered staking token tries to call a restricted function
-    /// @param caller Address of the caller
-    error SafetyModule_CallerIsNotStakingToken(address caller);
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
 
-    /// @notice Error returned a caller other than the auction module tries to call a restricted function
+    /// @notice Error returned when a caller other than the auction module tries to call a restricted function
     /// @param caller Address of the caller
     error SafetyModule_CallerIsNotAuctionModule(address caller);
 
-    /// @notice Error returned when trying to add a staking token that is already registered
-    /// @param stakingToken Address of the staking token
-    error SafetyModule_StakingTokenAlreadyRegistered(address stakingToken);
+    /// @notice Error returned when trying to add a staked token that is already registered
+    /// @param stakedToken Address of the staked token
+    error SafetyModule_StakedTokenAlreadyRegistered(address stakedToken);
 
-    /// @notice Error returned when passing an invalid staking token address to a function
+    /// @notice Error returned when passing an invalid staked token address to a function
     /// @param invalidAddress Address that was passed
-    error SafetyModule_InvalidStakingToken(address invalidAddress);
+    error SafetyModule_InvalidStakedToken(address invalidAddress);
 
     /// @notice Error returned when passing a `slashPercent` value that is greater than 100% (1e18)
     error SafetyModule_InvalidSlashPercentTooHigh();
@@ -80,6 +80,10 @@ interface ISafetyModule {
     /// @param maxAmount The maximum auctionable amount of underlying tokens
     error SafetyModule_InsufficientSlashedTokensForAuction(IERC20 token, uint256 amount, uint256 maxAmount);
 
+    /* ***************** */
+    /*    Public Vars    */
+    /* ***************** */
+
     /// @notice Gets the address of the AuctionModule contract
     /// @return The AuctionModule contract
     function auctionModule() external view returns (IAuctionModule);
@@ -88,32 +92,33 @@ interface ISafetyModule {
     /// @return The SMRewardDistributor contract
     function smRewardDistributor() external view returns (ISMRewardDistributor);
 
-    /// @notice Gets the address of the StakedToken contract at the specified index in the `stakingTokens` array
-    /// @param i Index of the staking token
+    /// @notice Gets the address of the StakedToken contract at the specified index in the `stakedTokens` array
+    /// @param i Index of the staked token
     /// @return Address of the StakedToken contract
-    function stakingTokens(uint256 i) external view returns (IStakedToken);
+    function stakedTokens(uint256 i) external view returns (IStakedToken);
 
     /// @notice Gets the StakedToken contract that was slashed for the given auction
     /// @param auctionId ID of the auction
     /// @return StakedToken contract that was slashed
-    function stakingTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
+    function stakedTokenByAuctionId(uint256 auctionId) external view returns (IStakedToken);
 
-    /// @notice Gets the number of staking tokens registered in the SafetyModule
-    /// @return Number of staking tokens
-    function getNumStakingTokens() external view returns (uint256);
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
 
-    /// @notice Returns the index of the staking token in the `stakingTokens` array
-    /// @dev Reverts with `SafetyModule_InvalidStakingToken` if the staking token is not registered
-    /// @param token Address of the staking token
-    /// @return Index of the staking token in the `stakingTokens` array
-    function getStakingTokenIdx(address token) external view returns (uint256);
+    /// @notice Returns the full list of staked tokens registered in the SafetyModule
+    /// @return Array of StakedToken contracts
+    function getStakedTokens() external view returns (IStakedToken[] memory);
 
-    /// @notice Updates the position of a user for a given staked token and accrues rewards to the user
-    /// @dev This function is called by the StakedToken contract whenever a user's position changes,
-    /// and forwards the call to the SMRewardDistributor
-    /// @param stakedToken Address of the staked token
-    /// @param staker Address of the staker
-    function updatePosition(address stakedToken, address staker) external;
+    /// @notice Gets the number of staked tokens registered in the SafetyModule
+    /// @return Number of staked tokens
+    function getNumStakedTokens() external view returns (uint256);
+
+    /// @notice Returns the index of the staked token in the `stakedTokens` array
+    /// @dev Reverts with `SafetyModule_InvalidStakedToken` if the staked token is not registered
+    /// @param token Address of the staked token
+    /// @return Index of the staked token in the `stakedTokens` array
+    function getStakedTokenIdx(address token) external view returns (uint256);
 
     /// @notice Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
     /// transfers the underlying tokens to the AuctionModule and starts an auction to sell them
@@ -150,10 +155,10 @@ interface ISafetyModule {
     /// @notice Donates underlying tokens to a StakedToken contract, raising its exchange rate
     /// @dev Unsold tokens are returned automatically from the AuctionModule when one ends, so this is meant
     /// for transferring tokens from some other source, which must approve the StakedToken to transfer first
-    /// @param _stakingToken Address of the StakedToken contract to return underlying tokens to
+    /// @param _stakedToken Address of the StakedToken contract to return underlying tokens to
     /// @param _from Address of the account to transfer funds from
     /// @param _amount Amount of underlying tokens to return
-    function returnFunds(address _stakingToken, address _from, uint256 _amount) external;
+    function returnFunds(address _stakedToken, address _from, uint256 _amount) external;
 
     /// @notice Sends payment tokens raised in auctions from the AuctionModule to the governance treasury
     /// @param _amount Amount of payment tokens to withdraw
@@ -167,9 +172,9 @@ interface ISafetyModule {
     /// @param _newRewardDistributor Address of the SMRewardDistributor contract
     function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external;
 
-    /// @notice Adds a new staking token to the SafetyModule's stakingTokens array
-    /// @param _stakingToken Address of the new staking token
-    function addStakingToken(IStakedToken _stakingToken) external;
+    /// @notice Adds a new staked token to the SafetyModule's stakedTokens array
+    /// @param _stakedToken Address of the new staked token
+    function addStakedToken(IStakedToken _stakedToken) external;
 
     /// @notice Pause the contract
     function pause() external;

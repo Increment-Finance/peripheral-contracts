@@ -90,7 +90,6 @@ contract RewardsTest is Deployment, Utils {
             INITIAL_WITHDRAW_THRESHOLD,
             weights
         );
-        rewardDistributor.setClearingHouse(clearingHouse); // just for coverage, will likely never happen
 
         // Transfer all rewards tokens to the vault and approve the distributor
         rewardsToken.transfer(address(ecosystemReserve), rewardsToken.totalSupply());
@@ -135,9 +134,12 @@ contract RewardsTest is Deployment, Utils {
     // run tests via source .env && forge test --match <TEST_NAME> --fork-url $ETH_NODE_URI_MAINNET -vv
 
     function test_Deployment() public {
+        assertEq(rewardDistributor.getMaxInflationRate(), 5e24, "Max inflation rate mismatch");
+        assertEq(rewardDistributor.getMinReductionFactor(), 1e18, "Min reduction factor mismatch");
+        assertEq(rewardDistributor.getMaxRewardTokens(), 10, "Max reward tokens mismatch");
         assertEq(clearingHouse.getNumMarkets(), 2, "Market count mismatch");
         assertEq(rewardDistributor.getRewardTokenCount(), 1, "Token count mismatch");
-        address token = rewardDistributor.rewardTokens(0);
+        address token = rewardDistributor.getRewardTokens()[0];
         assertEq(token, address(rewardsToken), "Reward token mismatch");
         assertEq(rewardDistributor.getInitialTimestamp(token), block.timestamp, "Initial timestamp mismatch");
         assertEq(
@@ -219,7 +221,7 @@ contract RewardsTest is Deployment, Utils {
         _expectInvalidRewardTokenAddress(liquidityProviderOne);
         rewardDistributor.updateReductionFactor(liquidityProviderOne, reductionFactor1);
         _expectInvalidRewardTokenAddress(liquidityProviderOne);
-        rewardDistributor.setPaused(liquidityProviderOne, true);
+        rewardDistributor.togglePausedReward(liquidityProviderOne);
 
         // test max inflation rate & min reduction factor
         _expectAboveMaxInflationRate(inflationRate1, 5e24);
@@ -424,61 +426,134 @@ contract RewardsTest is Deployment, Utils {
 
         // add a new reward token with a low total supply
         rewardsToken2 = _addRewardToken(marketWeight1, 10e18, inflationRate2, reductionFactor2);
+        address[] memory tokens = rewardDistributor.getRewardTokens();
 
         // skip some time
         skip(10 days);
 
-        // check previews and rewards for both tokens
-        uint256[] memory previewAccruals = _viewNewRewardAccrual(liquidityProviderTwo);
+        // accrue rewards for both tokens and users
+        uint256[] memory previewAccruals1 = _viewNewRewardAccrual(liquidityProviderOne);
+        uint256[] memory previewAccruals2 = _viewNewRewardAccrual(liquidityProviderTwo);
+        rewardDistributor.accrueRewards(liquidityProviderOne);
         rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards1 = _checkRewards(address(rewardsToken), liquidityProviderTwo, 10 days, 0);
-        assertApproxEqRel(
-            accruedRewards1,
-            previewAccruals[0],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 1"
-        );
-        uint256 accruedRewards2 = _checkRewards(address(rewardsToken2), liquidityProviderTwo, 10 days, 0);
-        assertApproxEqRel(
-            accruedRewards2,
-            previewAccruals[1],
-            1e15, // 0.1%
-            "Incorrect accrued rewards preview: token 2"
-        );
 
-        // claim rewards, causing shortfall for token 2
+        // check that accrued rewards are correct for both tokens and users
+        uint256[][] memory accruedRewards = new uint256[][](2);
+        for (uint256 i; i < 2; i++) {
+            accruedRewards[i] = new uint256[](2);
+            address token = i == 0 ? address(rewardsToken) : address(rewardsToken2);
+            for (uint256 j; j < 2; j++) {
+                address user = j == 0 ? liquidityProviderOne : liquidityProviderTwo;
+                accruedRewards[i][j] = _checkRewards(token, user, 10 days, 0);
+                assertApproxEqRel(
+                    accruedRewards[i][j],
+                    j == 0 ? previewAccruals1[i] : previewAccruals2[i],
+                    1e15, // 0.1%
+                    "Incorrect accrued rewards preview"
+                );
+            }
+        }
+
+        // claim rewards for user 2, causing shortfall for token 2
         vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken2), accruedRewards2 - 10e18);
+        emit RewardTokenShortfall(address(rewardsToken2), accruedRewards[1][0] + accruedRewards[1][1] - 10e18);
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards1, "Incorrect claimed balance");
-        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance");
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderTwo),
+            accruedRewards[0][1],
+            "Incorrect claimed balance, token 1 user 2"
+        );
+        assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Incorrect claimed balance, token 2 user 2");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
-            accruedRewards2 - 10e18,
+            accruedRewards[1][0] + accruedRewards[1][1] - 10e18,
             "Incorrect unclaimed rewards"
         );
 
         // skip some more time
         skip(10 days);
 
-        // accrue more rewards by adding more liquidity
+        // accrue more rewards to user 2 by adding more liquidity
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // check that rewards are still accruing for token 2
         assertGt(
             rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2)),
-            accruedRewards2,
-            "Rewards not accrued after adding more liquidity"
+            accruedRewards[1][1],
+            "Rewards not accrued to user 2 after adding more liquidity"
         );
-        accruedRewards2 = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
+
+        // update stored accrued rewards for user 2 (user 1 has not accrued any more rewards in 10 days)
+        accruedRewards[0][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
+        accruedRewards[1][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
 
         // fail to claim rewards again after token 2 is depleted
         rewardDistributor.claimRewardsFor(liquidityProviderTwo);
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Tokens claimed after token 2 depleted");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
-            accruedRewards2,
+            accruedRewards[1][0] + accruedRewards[1][1],
             "Incorrect unclaimed rewards after second accrual"
+        );
+
+        // update stored accrued rewards for user 2, token 1, which was claimed successfully
+        accruedRewards[0][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
+
+        // remove reward token 2
+        vm.expectEmit(false, false, false, true);
+        emit RewardTokenRemoved(address(rewardsToken2), accruedRewards[1][0] + accruedRewards[1][1], 0);
+        rewardDistributor.removeRewardToken(address(rewardsToken2));
+
+        // accrue rewards for user 1
+        rewardDistributor.accrueRewards(liquidityProviderOne);
+        accruedRewards[0][0] = rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken));
+
+        // make sure no new rewards were accrued to user 1 for rewardToken2
+        assertEq(
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken2)),
+            accruedRewards[1][0],
+            "Rewards accrued to user 1 after removing token 2"
+        );
+        assertEq(
+            rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            accruedRewards[1][0] + accruedRewards[1][1],
+            "Incorrect unclaimed rewards after second accrual"
+        );
+
+        // claim both rewards for user 1, without replenishing the ecosystem reserve with rewardToken2
+        rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
+        assertEq(
+            rewardsToken.balanceOf(liquidityProviderOne),
+            accruedRewards[0][0],
+            "Incorrect claimed balance, token 1 user 1"
+        );
+        assertEq(rewardsToken2.balanceOf(liquidityProviderOne), 0, "Incorrect claimed balance, token 2 user 1");
+        assertEq(
+            rewardDistributor.totalUnclaimedRewards(address(rewardsToken)),
+            0,
+            "Unclaimed rewards for token 1 after claiming with both users"
+        );
+
+        // replenish the ecosystem reserve with lots of rewardToken2
+        deal(address(rewardsToken2), address(ecosystemReserve), 20_000_000e18);
+
+        // claim rewards for both users
+        rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
+        rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderOne),
+            accruedRewards[1][0],
+            "Incorrect claimed balance for user 1 after replenishing"
+        );
+        assertEq(
+            rewardsToken2.balanceOf(liquidityProviderTwo),
+            accruedRewards[1][1] + 10e18,
+            "Incorrect claimed balance for user 2 after replenishing"
+        );
+        assertEq(
+            rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
+            0,
+            "Unclaimed rewards for token 2 after claiming with both users"
         );
     }
 
@@ -566,41 +641,42 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
-    function testFuzz_PausingAccrual(uint256 providedLiquidity1) public {
+    function testFuzz_PausingAccrual(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
-        require(providedLiquidity1 >= 100e18 && providedLiquidity1 <= 10_000e18);
+        providedLiquidity2 = bound(providedLiquidity2, 100e18, 10_000e18);
 
-        // add liquidity to first perpetual
-        fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity1, vault, ua);
-        _provideLiquidity(providedLiquidity1, liquidityProviderTwo, perpetual);
+        // add liquidity
+        _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
         // pause accrual
         vm.startPrank(address(this));
-        rewardDistributor.setPaused(address(rewardsToken), true);
-        bool paused = rewardDistributor.isTokenPaused(address(rewardsToken));
-        assertTrue(paused, "Rewards not paused");
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not paused");
 
         // skip some time
         skip(10 days);
 
-        // check that no rewards were accrued
-        rewardDistributor.accrueRewards(liquidityProviderTwo);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-        assertEq(accruedRewards, 0, "Rewards accrued while paused");
-
         // unpause accrual
-        rewardDistributor.setPaused(address(rewardsToken), false);
-        paused = rewardDistributor.isTokenPaused(address(rewardsToken));
-        assertTrue(!paused, "Rewards not unpaused");
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(!rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not unpaused");
 
         // skip some more time
         skip(10 days);
 
-        // check that rewards were accrued
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
-        accruedRewards = rewardsToken.balanceOf(liquidityProviderTwo);
-        assertGt(accruedRewards, 0, "Rewards not accrued after unpausing");
+        // store initial state before accruing rewards
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = new uint256[](2);
+        skipTimes[0] = 10 days;
+        skipTimes[1] = 10 days;
+
+        // check that rewards are accrued for only the 10 days after unpausing
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        _checkRewards(
+            address(rewardsToken), liquidityProviderTwo, skipTimes, balances, prevCumRewards, prevTotalLiquidity, 0
+        );
     }
 
     function testFuzz_AddNewMarket(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
@@ -614,7 +690,7 @@ contract RewardsTest is Deployment, Utils {
         // add liquidity to first two perpetuals
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
 
-        // deploy new market contracts
+        // deploy new market, allowlist it in the clearing house, and initialize it in the reward distributor
         TestPerpetual perpetual3 = _deployTestPerpetual();
         clearingHouse.allowListPerpetual(perpetual3);
         rewardDistributor.initMarketStartTime(address(perpetual3));
@@ -673,6 +749,107 @@ contract RewardsTest is Deployment, Utils {
             prevCumRewards,
             prevTotalLiquidity,
             marketWeights,
+            accruedRewards
+        );
+    }
+
+    function testFuzz_TenMarketsTwoTokens(uint256[10] memory providedLiquidity, uint256[9] memory rewardWeights)
+        public
+    {
+        /* bounds */
+        uint256 totalWeight1 = 10000;
+        uint256 totalWeight2 = 10000;
+        uint256[] memory weights = new uint256[](10);
+        uint256[] memory weights2 = new uint256[](10);
+        for (uint256 i; i < 10; i++) {
+            providedLiquidity[i] = bound(providedLiquidity[i], 1_000e18, 10_000e18);
+            if (i < 9) {
+                weights[i] = bound(rewardWeights[i], 100, 1000);
+                weights2[i] = bound(rewardWeights[8 - i], 100, 1000);
+                totalWeight1 -= weights[i];
+                totalWeight2 -= weights2[i];
+            } else {
+                weights[i] = totalWeight1;
+                weights2[i] = totalWeight2;
+            }
+        }
+
+        // add a new reward token
+        rewardsToken2 =
+            _addRewardToken(weights[0], 20000000e18, INITIAL_INFLATION_RATE / 2, INITIAL_REDUCTION_FACTOR * 2);
+
+        // deploy, allowlist, and initialize 8 new markets
+        TestPerpetual[] memory perpetuals = new TestPerpetual[](10);
+        perpetuals[0] = perpetual;
+        perpetuals[1] = eth_perpetual;
+        for (uint256 i = 2; i < 10; i++) {
+            perpetuals[i] = _deployTestPerpetual();
+            clearingHouse.allowListPerpetual(perpetuals[i]);
+            rewardDistributor.initMarketStartTime(address(perpetuals[i]));
+        }
+
+        // provide liquidity from both users to all new perpetuals
+        for (uint256 i = 0; i < 10; i++) {
+            fundAndPrepareAccount(liquidityProviderOne, 10_000e18, vault, ua);
+            _provideLiquidity(10_000e18, liquidityProviderOne, perpetuals[i]);
+            fundAndPrepareAccount(liquidityProviderTwo, providedLiquidity[i], vault, ua);
+            _provideLiquidity(providedLiquidity[i], liquidityProviderTwo, perpetuals[i]);
+        }
+
+        // set new market weights
+        address[] memory markets = _getMarkets();
+        rewardDistributor.updateRewardWeights(address(rewardsToken), markets, weights);
+        rewardDistributor.updateRewardWeights(address(rewardsToken2), markets, weights2);
+
+        // skip some time
+        skip(10 days);
+
+        // store initial state before accruing rewards
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = _getSkipTimes(rewardDistributor);
+
+        // check that rewards were accrued correctly for all markets
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        uint256 accruedRewards = _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            weights,
+            0
+        );
+
+        // skip some more time
+        skip(10 days);
+
+        // update stored state before removing liquidity
+        balances = _getUserBalances(liquidityProviderTwo);
+        prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        skipTimes = _getSkipTimes(rewardDistributor);
+
+        // remove liquidity from user 2 from all 10 perpetuals
+        for (uint256 i = 0; i < 10; i++) {
+            if (i % 2 == 0) {
+                _removeAllLiquidity(liquidityProviderTwo, perpetuals[i]);
+            } else {
+                _removeSomeLiquidity(liquidityProviderTwo, perpetuals[i], 5e17);
+            }
+        }
+
+        // check that rewards were accrued correctly for previous balances in all markets
+        accruedRewards = _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            weights,
             accruedRewards
         );
     }
@@ -885,24 +1062,17 @@ contract RewardsTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("ONLY_BY_FUNDS_ADMIN"));
         ecosystemReserve.transferAdmin(liquidityProviderOne);
-        _expectAccessControlGovernanceRole(liquidityProviderOne);
-        rewardDistributor.setEcosystemReserve(address(ecosystemReserve));
         vm.stopPrank();
 
         // invalid address errors
         vm.expectRevert(abi.encodeWithSignature("EcosystemReserve_InvalidAdmin()"));
         ecosystemReserve.transferAdmin(address(0));
-        vm.expectRevert(abi.encodeWithSignature("RewardDistributor_InvalidZeroAddress()"));
-        rewardDistributor.setEcosystemReserve(address(0));
 
         // no errors
-        EcosystemReserve newEcosystemReserve = new EcosystemReserve(address(this));
         vm.expectEmit(false, false, false, true);
-        emit NewFundsAdmin(address(this));
-        ecosystemReserve.transferAdmin(address(this));
-        vm.expectEmit(false, false, false, true);
-        emit EcosystemReserveUpdated(address(ecosystemReserve), address(newEcosystemReserve));
-        rewardDistributor.setEcosystemReserve(address(newEcosystemReserve));
+        emit NewFundsAdmin(liquidityProviderOne);
+        ecosystemReserve.transferAdmin(liquidityProviderOne);
+        assertEq(ecosystemReserve.getFundsAdmin(), liquidityProviderOne, "Incorrect funds admin");
     }
 
     /* ****************** */
@@ -1297,9 +1467,7 @@ contract RewardsTest is Deployment, Utils {
         clearingHouse.deposit(depositAmount, ua);
         uint256 quoteAmount = depositAmount / 2;
         uint256 baseAmount = quoteAmount.wadDiv(perp.indexPrice().toUint256());
-        clearingHouse.provideLiquidity(
-            perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2, [quoteAmount, baseAmount], 0
-        );
+        clearingHouse.provideLiquidity(_getMarketIdx(address(perp)), [quoteAmount, baseAmount], 0);
         vm.stopPrank();
     }
 
@@ -1314,7 +1482,7 @@ contract RewardsTest is Deployment, Utils {
         // vm.assume(proposedAmount > 1e17);
 
         clearingHouse.removeLiquidity(
-            perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2,
+            _getMarketIdx(address(perp)),
             perp.getLpPosition(user).liquidityBalance,
             [uint256(0), uint256(0)],
             proposedAmount,
@@ -1327,12 +1495,23 @@ contract RewardsTest is Deployment, Utils {
     function _removeSomeLiquidity(address user, TestPerpetual perp, uint256 reductionRatio) internal {
         uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
         uint256 amount = (lpBalance * reductionRatio) / 1e18;
-        uint256 idx = perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2;
+        uint256 idx = _getMarketIdx(address(perp));
         vm.startPrank(user);
         uint256 proposedAmount = _getLiquidityProviderProposedAmount(user, perp, reductionRatio);
         clearingHouse.removeLiquidity(idx, amount, [uint256(0), uint256(0)], proposedAmount, 0);
 
         // clearingHouse.withdrawAll(ua);
+    }
+
+    function _getMarketIdx(address perp) internal view returns (uint256) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        for (uint256 i; i < numMarkets; ++i) {
+            uint256 idx = clearingHouse.id(i);
+            if (perp == address(clearingHouse.perpetuals(idx))) {
+                return idx;
+            }
+        }
+        return type(uint256).max;
     }
 
     function _getLiquidityProviderProposedAmount(address user, IPerpetual perp, uint256 reductionRatio)
@@ -1341,7 +1520,7 @@ contract RewardsTest is Deployment, Utils {
     {
         LibPerpetual.LiquidityProviderPosition memory lp = perp.getLpPosition(user);
         if (lp.liquidityBalance == 0) revert("No liquidity provided");
-        uint256 idx = perp == perpetual ? 0 : perp == eth_perpetual ? 1 : 2;
+        uint256 idx = _getMarketIdx(address(perp));
         return viewer.getLpProposedAmount(idx, user, reductionRatio, 100, [uint256(0), uint256(0)], 0);
     }
 

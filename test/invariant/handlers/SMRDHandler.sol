@@ -53,9 +53,9 @@ contract SMRDHandler is Test {
     /* ******************** */
 
     function registerPositions(uint256 actorIndexSeed) external useActor(actorIndexSeed) {
-        address[] memory markets = new address[](safetyModule.getNumStakingTokens());
+        address[] memory markets = new address[](safetyModule.getNumStakedTokens());
         for (uint256 i; i < markets.length; i++) {
-            markets[i] = address(safetyModule.stakingTokens(i));
+            markets[i] = address(safetyModule.stakedTokens(i));
             uint256 registeredPosition = rewardDistributor.lpPositionsPerUser(currentActor, markets[i]);
             if (registeredPosition != 0) {
                 vm.expectRevert(
@@ -75,7 +75,7 @@ contract SMRDHandler is Test {
     function claimRewardsFor(uint256 actorIndexSeed) external {
         address actor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         address[] memory markets = new address[](numMarkets);
         address[] memory tokens = new address[](numRewards);
         uint256[] memory prevBalances = new uint256[](numRewards);
@@ -83,7 +83,7 @@ contract SMRDHandler is Test {
         uint256[] memory rewardsAccrued = new uint256[](numRewards);
         uint256[][] memory newRewardsPerTokenPerMarket = new uint256[][](numRewards);
         for (uint256 i; i < numMarkets; i++) {
-            markets[i] = address(safetyModule.stakingTokens(i));
+            markets[i] = address(safetyModule.stakedTokens(i));
         }
         for (uint256 i; i < numRewards; i++) {
             newRewardsPerTokenPerMarket[i] = new uint256[](numMarkets);
@@ -130,8 +130,8 @@ contract SMRDHandler is Test {
     /* Public View Functions */
     /* ********************* */
 
-    function computeRewardMultiplier(address user, address stakingToken) public view returns (uint256) {
-        return rewardDistributor.computeRewardMultiplier(user, stakingToken);
+    function computeRewardMultiplier(address user, address stakedToken) public view returns (uint256) {
+        return rewardDistributor.computeRewardMultiplier(user, stakedToken);
     }
 
     /* ****************** */
@@ -139,10 +139,10 @@ contract SMRDHandler is Test {
     /* ****************** */
 
     function _previewNewUserRewards(address user, address rewardToken) internal view returns (uint256) {
-        uint256 numMarkets = safetyModule.getNumStakingTokens();
+        uint256 numMarkets = safetyModule.getNumStakedTokens();
         uint256 newUserRewards;
         for (uint256 i; i < numMarkets; i++) {
-            address stakedToken = address(safetyModule.stakingTokens(i));
+            address stakedToken = address(safetyModule.stakedTokens(i));
             newUserRewards += _previewNewUserRewardsPerMarket(user, rewardToken, stakedToken);
         }
         return newUserRewards;

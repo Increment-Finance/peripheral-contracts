@@ -1,6 +1,6 @@
 # IAuctionModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IAuctionModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IAuctionModule.sol)
 
 **Author:**
 webthethird
@@ -36,60 +36,6 @@ function paymentToken() external view returns (IERC20);
 | Name     | Type     | Description                   |
 | -------- | -------- | ----------------------------- |
 | `<none>` | `IERC20` | ERC20 token used for payments |
-
-### nextAuctionId
-
-Returns the ID of the next auction
-
-```solidity
-function nextAuctionId() external view returns (uint256);
-```
-
-**Returns**
-
-| Name     | Type      | Description            |
-| -------- | --------- | ---------------------- |
-| `<none>` | `uint256` | ID of the next auction |
-
-### tokensSoldPerAuction
-
-Returns the number of tokens sold in the auction
-
-```solidity
-function tokensSoldPerAuction(uint256 _auctionId) external view returns (uint256);
-```
-
-**Parameters**
-
-| Name         | Type      | Description       |
-| ------------ | --------- | ----------------- |
-| `_auctionId` | `uint256` | ID of the auction |
-
-**Returns**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `<none>` | `uint256` | Number of tokens sold |
-
-### fundsRaisedPerAuction
-
-Returns the amount of funds raised in the auction
-
-```solidity
-function fundsRaisedPerAuction(uint256 _auctionId) external view returns (uint256);
-```
-
-**Parameters**
-
-| Name         | Type      | Description       |
-| ------------ | --------- | ----------------- |
-| `_auctionId` | `uint256` | ID of the auction |
-
-**Returns**
-
-| Name     | Type      | Description                     |
-| -------- | --------- | ------------------------------- |
-| `<none>` | `uint256` | Number of payment tokens raised |
 
 ### getCurrentLotSize
 
@@ -259,6 +205,60 @@ function getEndTime(uint256 _auctionId) external view returns (uint256);
 | -------- | --------- | ------------------------------- |
 | `<none>` | `uint256` | Timestamp when the auction ends |
 
+### getTokensSold
+
+Returns the number of tokens sold in the auction
+
+```solidity
+function getTokensSold(uint256 _auctionId) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name         | Type      | Description       |
+| ------------ | --------- | ----------------- |
+| `_auctionId` | `uint256` | ID of the auction |
+
+**Returns**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `<none>` | `uint256` | Number of tokens sold |
+
+### getFundsRaised
+
+Returns the amount of funds raised in the auction
+
+```solidity
+function getFundsRaised(uint256 _auctionId) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name         | Type      | Description       |
+| ------------ | --------- | ----------------- |
+| `_auctionId` | `uint256` | ID of the auction |
+
+**Returns**
+
+| Name     | Type      | Description                     |
+| -------- | --------- | ------------------------------- |
+| `<none>` | `uint256` | Number of payment tokens raised |
+
+### getNextAuctionId
+
+Returns the ID of the next auction
+
+```solidity
+function getNextAuctionId() external view returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description            |
+| -------- | --------- | ---------------------- |
+| `<none>` | `uint256` | ID of the next auction |
+
 ### isAuctionActive
 
 Returns whether the auction is still active
@@ -300,7 +300,7 @@ function completeAuction(uint256 _auctionId) external;
 
 Buys one or more lots at the current lot size, and ends the auction if all lots are sold
 
-\_The caller must approve this contract to transfer the lotPrice x numLotsToBuy in payment tokens\*
+_The caller must approve this contract to transfer the lotPrice x numLotsToBuy in payment tokens_
 
 ```solidity
 function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external;
@@ -439,12 +439,12 @@ event AuctionStarted(
 | `lotIncreaseIncrement` | `uint96`  | Amount of tokens by which the lot size increases each period |
 | `lotIncreasePeriod`    | `uint16`  | Number of seconds between each lot size increase             |
 
-### AuctionEnded
+### AuctionCompleted
 
 Emitted when an auction ends, because either all lots were sold or the time limit was reached
 
 ```solidity
-event AuctionEnded(
+event AuctionCompleted(
     uint256 indexed auctionId,
     uint8 remainingLots,
     uint256 finalLotSize,

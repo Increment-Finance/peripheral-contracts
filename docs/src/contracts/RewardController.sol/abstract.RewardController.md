@@ -1,6 +1,6 @@
 # RewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/RewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/RewardController.sol)
 
 **Inherits:**
 [IRewardController](/contracts/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -21,7 +21,7 @@ Base contract for storing and updating reward info for multiple reward tokens, e
 Maximum inflation rate, applies to all reward tokens
 
 ```solidity
-uint256 public constant MAX_INFLATION_RATE = 5e24;
+uint256 internal constant MAX_INFLATION_RATE = 5e24;
 ```
 
 ### MIN_REDUCTION_FACTOR
@@ -29,7 +29,7 @@ uint256 public constant MAX_INFLATION_RATE = 5e24;
 Minimum reduction factor, applies to all reward tokens
 
 ```solidity
-uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
+uint256 internal constant MIN_REDUCTION_FACTOR = 1e18;
 ```
 
 ### MAX_REWARD_TOKENS
@@ -37,7 +37,7 @@ uint256 public constant MIN_REDUCTION_FACTOR = 1e18;
 Maximum number of reward tokens allowed
 
 ```solidity
-uint256 public constant MAX_REWARD_TOKENS = 10;
+uint256 internal constant MAX_REWARD_TOKENS = 10;
 ```
 
 ### rewardTokens
@@ -50,25 +50,81 @@ _Length must be <= MAX_REWARD_TOKENS_
 address[] public rewardTokens;
 ```
 
-### rewardInfoByToken
+### \_rewardInfoByToken
 
 Info for each registered reward token
 
 ```solidity
-mapping(address => RewardInfo) internal rewardInfoByToken;
+mapping(address => RewardInfo) internal _rewardInfoByToken;
 ```
 
-### marketWeightsByToken
+### \_marketWeightsByToken
 
 Mapping from reward token to reward weights for each market
 
 _Market reward weights are basis points, i.e., 100 = 1%, 10000 = 100%_
 
 ```solidity
-mapping(address => mapping(address => uint256)) internal marketWeightsByToken;
+mapping(address => mapping(address => uint256)) internal _marketWeightsByToken;
 ```
 
 ## Functions
+
+### getMaxInflationRate
+
+Gets the maximum allowed inflation rate for a reward token
+
+```solidity
+function getMaxInflationRate() external pure returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description                    |
+| -------- | --------- | ------------------------------ |
+| `<none>` | `uint256` | Maximum allowed inflation rate |
+
+### getMinReductionFactor
+
+Gets the minimum allowed reduction factor for a reward token
+
+```solidity
+function getMinReductionFactor() external pure returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description                      |
+| -------- | --------- | -------------------------------- |
+| `<none>` | `uint256` | Minimum allowed reduction factor |
+
+### getMaxRewardTokens
+
+Gets the maximum allowed number of reward tokens
+
+```solidity
+function getMaxRewardTokens() external pure returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description                             |
+| -------- | --------- | --------------------------------------- |
+| `<none>` | `uint256` | Maximum allowed number of reward tokens |
+
+### getRewardTokens
+
+Returns the full list of reward tokens
+
+```solidity
+function getRewardTokens() external view returns (address[] memory);
+```
+
+**Returns**
+
+| Name     | Type        | Description                     |
+| -------- | ----------- | ------------------------------- |
+| `<none>` | `address[]` | Array of reward token addresses |
 
 ### getRewardTokenCount
 
@@ -187,6 +243,26 @@ function getRewardWeight(address rewardToken, address market) external view retu
 | -------- | --------- | ----------------------------------------------- |
 | `<none>` | `uint256` | The reward weight of the market in basis points |
 
+### getRewardMarkets
+
+Gets the list of all markets receiving a given reward token
+
+```solidity
+function getRewardMarkets(address rewardToken) external view returns (address[] memory);
+```
+
+**Parameters**
+
+| Name          | Type      | Description                 |
+| ------------- | --------- | --------------------------- |
+| `rewardToken` | `address` | Address of the reward token |
+
+**Returns**
+
+| Name     | Type        | Description               |
+| -------- | ----------- | ------------------------- |
+| `<none>` | `address[]` | Array of market addresses |
+
 ### isTokenPaused
 
 Gets whether a reward token is paused
@@ -283,22 +359,37 @@ _Can only be called by Emergency Admin_
 function unpause() external virtual override onlyRole(EMERGENCY_ADMIN);
 ```
 
-### setPaused
+### togglePausedReward
 
 Pauses/unpauses the reward accrual for a particular reward token
 
 _Only callable by Emergency Admin_
 
 ```solidity
-function setPaused(address rewardToken, bool paused) external onlyRole(EMERGENCY_ADMIN);
+function togglePausedReward(address _rewardToken) external virtual onlyRole(EMERGENCY_ADMIN);
 ```
 
 **Parameters**
 
-| Name          | Type      | Description                                  |
-| ------------- | --------- | -------------------------------------------- |
-| `rewardToken` | `address` | Address of the reward token                  |
-| `paused`      | `bool`    | Whether to pause or unpause the reward token |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_rewardToken` | `address` | Address of the reward token |
+
+### \_togglePausedReward
+
+Pauses/unpauses the reward accrual for a particular reward token
+
+_Does not pause gradual reduction of inflation rate over time due to reduction factor_
+
+```solidity
+function _togglePausedReward(address _rewardToken) internal;
+```
+
+**Parameters**
+
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_rewardToken` | `address` | Address of the reward token |
 
 ### \_updateMarketRewards
 

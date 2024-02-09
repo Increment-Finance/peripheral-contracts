@@ -1,6 +1,6 @@
 # IStakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/IStakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IStakedToken.sol)
 
 **Inherits:**
 IERC20Metadata
@@ -11,6 +11,48 @@ webthethird
 Interface for the StakedToken contract
 
 ## Functions
+
+### safetyModule
+
+Address of the SafetyModule contract
+
+```solidity
+function safetyModule() external view returns (ISafetyModule);
+```
+
+**Returns**
+
+| Name     | Type            | Description           |
+| -------- | --------------- | --------------------- |
+| `<none>` | `ISafetyModule` | SafetyModule contract |
+
+### maxStakeAmount
+
+Max amount of staked tokens allowed per user
+
+```solidity
+function maxStakeAmount() external view returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description                  |
+| -------- | --------- | ---------------------------- |
+| `<none>` | `uint256` | Max balance allowed per user |
+
+### exchangeRate
+
+Exchange rate between the underlying token and the staked token
+
+```solidity
+function exchangeRate() external view returns (uint256);
+```
+
+**Returns**
+
+| Name     | Type      | Description                                                                                  |
+| -------- | --------- | -------------------------------------------------------------------------------------------- |
+| `<none>` | `uint256` | Ratio of underlying tokens held in this contract per staked token issued, normalized to 1e18 |
 
 ### getUnderlyingToken
 
@@ -53,6 +95,26 @@ function getUnstakeWindowSeconds() external view returns (uint256);
 | Name     | Type      | Description                             |
 | -------- | --------- | --------------------------------------- |
 | `<none>` | `uint256` | Number of seconds in the unstake window |
+
+### getCooldownStartTime
+
+Returns the start time of the latest cooldown period for a given user
+
+```solidity
+function getCooldownStartTime(address user) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name   | Type      | Description         |
+| ------ | --------- | ------------------- |
+| `user` | `address` | Address of the user |
+
+**Returns**
+
+| Name     | Type      | Description                                              |
+| -------- | --------- | -------------------------------------------------------- |
+| `<none>` | `uint256` | Timestamp when the user's latest cooldown period started |
 
 ### isInPostSlashingState
 

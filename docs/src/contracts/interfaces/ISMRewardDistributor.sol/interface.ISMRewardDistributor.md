@@ -1,9 +1,9 @@
 # ISMRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/50135f16a3332e293d1be01434556e7e68cc2f26/contracts/interfaces/ISMRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/ISMRewardDistributor.sol)
 
 **Inherits:**
-[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), IRewardContract
+[IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md)
 
 **Author:**
 webthethird
@@ -26,12 +26,12 @@ function safetyModule() external view returns (ISafetyModule);
 | -------- | --------------- | ------------------------------------ |
 | `<none>` | `ISafetyModule` | Address of the SafetyModule contract |
 
-### maxRewardMultiplier
+### getMaxRewardMultiplier
 
 Gets the maximum reward multiplier set by governance
 
 ```solidity
-function maxRewardMultiplier() external view returns (uint256);
+function getMaxRewardMultiplier() external view returns (uint256);
 ```
 
 **Returns**
@@ -40,12 +40,12 @@ function maxRewardMultiplier() external view returns (uint256);
 | -------- | --------- | ----------------------------------------- |
 | `<none>` | `uint256` | Maximum reward multiplier, scaled by 1e18 |
 
-### smoothingValue
+### getSmoothingValue
 
 Gets the smoothing value set by governance
 
 ```solidity
-function smoothingValue() external view returns (uint256);
+function getSmoothingValue() external view returns (uint256);
 ```
 
 **Returns**
@@ -56,35 +56,43 @@ function smoothingValue() external view returns (uint256);
 
 ### multiplierStartTimeByUser
 
-Gets the starting timestamp used to calculate the user's reward multiplier for a given staking token
+Gets the starting timestamp used to calculate the user's reward multiplier for a given staked token
+
+_This value is updated whenever `updatePosition` is called, according to the user's change in stake_
 
 ```solidity
-function multiplierStartTimeByUser(address user, address stakingToken) external view returns (uint256);
+function multiplierStartTimeByUser(address _user, address _stakedToken) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name           | Type      | Description                  |
-| -------------- | --------- | ---------------------------- |
-| `user`         | `address` | Address of the user          |
-| `stakingToken` | `address` | Address of the staking token |
+| Name           | Type      | Description                 |
+| -------------- | --------- | --------------------------- |
+| `_user`        | `address` | Address of the user         |
+| `_stakedToken` | `address` | Address of the staked token |
+
+**Returns**
+
+| Name     | Type      | Description                          |
+| -------- | --------- | ------------------------------------ |
+| `<none>` | `uint256` | User's multiplier starting timestamp |
 
 ### computeRewardMultiplier
 
-Computes the user's reward multiplier for the given staking token
+Computes the user's reward multiplier for the given staked token
 
 _Based on the max multiplier, smoothing factor and time since last withdrawal (or first deposit)_
 
 ```solidity
-function computeRewardMultiplier(address _user, address _stakingToken) external view returns (uint256);
+function computeRewardMultiplier(address _user, address _stakedToken) external view returns (uint256);
 ```
 
 **Parameters**
 
-| Name            | Type      | Description                              |
-| --------------- | --------- | ---------------------------------------- |
-| `_user`         | `address` | Address of the staker                    |
-| `_stakingToken` | `address` | Address of staking token earning rewards |
+| Name           | Type      | Description                             |
+| -------------- | --------- | --------------------------------------- |
+| `_user`        | `address` | Address of the staker                   |
+| `_stakedToken` | `address` | Address of staked token earning rewards |
 
 **Returns**
 
@@ -111,28 +119,28 @@ function setSafetyModule(ISafetyModule _newSafetyModule) external;
 Sets the maximum reward multiplier
 
 ```solidity
-function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external;
+function setMaxRewardMultiplier(uint256 _newMaxMultiplier) external;
 ```
 
 **Parameters**
 
-| Name                   | Type      | Description                                   |
-| ---------------------- | --------- | --------------------------------------------- |
-| `_maxRewardMultiplier` | `uint256` | New maximum reward multiplier, scaled by 1e18 |
+| Name                | Type      | Description                                   |
+| ------------------- | --------- | --------------------------------------------- |
+| `_newMaxMultiplier` | `uint256` | New maximum reward multiplier, scaled by 1e18 |
 
 ### setSmoothingValue
 
 Sets the smoothing value used in calculating the reward multiplier
 
 ```solidity
-function setSmoothingValue(uint256 _smoothingValue) external;
+function setSmoothingValue(uint256 _newSmoothingValue) external;
 ```
 
 **Parameters**
 
-| Name              | Type      | Description                         |
-| ----------------- | --------- | ----------------------------------- |
-| `_smoothingValue` | `uint256` | New smoothing value, scaled by 1e18 |
+| Name                 | Type      | Description                         |
+| -------------------- | --------- | ----------------------------------- |
+| `_newSmoothingValue` | `uint256` | New smoothing value, scaled by 1e18 |
 
 ## Events
 

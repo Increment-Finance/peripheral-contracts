@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity 0.8.16;
 
-import {ISafetyModule} from "./ISafetyModule.sol";
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {ISafetyModule} from "./ISafetyModule.sol";
+import {ISMRewardDistributor} from "./ISMRewardDistributor.sol";
 
 /// @title IStakedToken
 /// @author webthethird
 /// @notice Interface for the StakedToken contract
 interface IStakedToken is IERC20Metadata {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when tokens are staked
     /// @param from Address of the user that staked tokens
     /// @param onBehalfOf Address of the user that tokens were staked on behalf of
@@ -52,6 +57,10 @@ interface IStakedToken is IERC20Metadata {
     /// @param newMaxStakeAmount New max stake amount
     event MaxStakeAmountUpdated(uint256 oldMaxStakeAmount, uint256 newMaxStakeAmount);
 
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
+
     /// @notice Error returned when 0 amount is passed to a function that expects a non-zero amount
     error StakedToken_InvalidZeroAmount();
 
@@ -94,9 +103,17 @@ interface IStakedToken is IERC20Metadata {
     /// @param caller Address of the caller
     error StakedToken_CallerIsNotSafetyModule(address caller);
 
+    /* ***************** */
+    /*    Public Vars    */
+    /* ***************** */
+
     /// @notice Address of the SafetyModule contract
     /// @return SafetyModule contract
     function safetyModule() external view returns (ISafetyModule);
+
+    /// @notice Address of the SafetyModule's RewardDistributor contract
+    /// @return SMRewardDistributor contract
+    function smRewardDistributor() external view returns (ISMRewardDistributor);
 
     /// @notice Max amount of staked tokens allowed per user
     /// @return Max balance allowed per user
@@ -105,6 +122,10 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Exchange rate between the underlying token and the staked token
     /// @return Ratio of underlying tokens held in this contract per staked token issued, normalized to 1e18
     function exchangeRate() external view returns (uint256);
+
+    /* ***************** */
+    /*       Views       */
+    /* ***************** */
 
     /// @notice Returns the underlying ERC20 token
     /// @return Underlying ERC20 token
@@ -117,6 +138,11 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Returns the length of the unstake window
     /// @return Number of seconds in the unstake window
     function getUnstakeWindowSeconds() external view returns (uint256);
+
+    /// @notice Returns the start time of the latest cooldown period for a given user
+    /// @param user Address of the user
+    /// @return Timestamp when the user's latest cooldown period started
+    function getCooldownStartTime(address user) external view returns (uint256);
 
     /// @notice Returns whether the contract is in a post-slashing state
     /// @dev In a post-slashing state, staking and slashing are disabled, and users can redeem without cooldown
@@ -132,6 +158,30 @@ interface IStakedToken is IERC20Metadata {
     /// @param amountToRedeem Amount of staked tokens to redeem
     /// @return Amount of underlying tokens that would be received at the current exchange rate
     function previewRedeem(uint256 amountToRedeem) external view returns (uint256);
+
+    /// @notice Calculates a new cooldown timestamp
+    /// @dev Calculation depends on the sender/receiver situation, as follows:
+    ///  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0, we take the one of the recipient
+    ///  - Weighted average of from/to cooldown timestamps if:
+    ///    - The sender doesn't have the cooldown activated (timestamp 0).
+    ///    - The sender timestamp is expired
+    ///    - The sender has a "worse" timestamp
+    ///  - If the receiver's cooldown timestamp expired (too old), the next is 0
+    /// @param fromCooldownTimestamp Cooldown timestamp of the sender
+    /// @param amountToReceive Amount of staked tokens to receive
+    /// @param toAddress Address of the recipient
+    /// @param toBalance Current balance of the receiver
+    /// @return The new cooldown timestamp
+    function getNextCooldownTimestamp(
+        uint256 fromCooldownTimestamp,
+        uint256 amountToReceive,
+        address toAddress,
+        uint256 toBalance
+    ) external view returns (uint256);
+
+    /* ****************** */
+    /*   External Users   */
+    /* ****************** */
 
     /// @notice Stakes tokens from the sender and starts earning rewards
     /// @param amount Amount of underlying tokens to stake
@@ -157,6 +207,10 @@ interface IStakedToken is IERC20Metadata {
     /// @dev Can't be called if the user is not staking
     function cooldown() external;
 
+    /* ****************** */
+    /*    SafetyModule    */
+    /* ****************** */
+
     /// @notice Sends underlying tokens to the given address, lowers the exchange rate accordingly, and
     /// changes the contract's state to `POST_SLASHING`, which disables staking, cooldown period and
     /// further slashing until the state is returned to `RUNNING`
@@ -174,6 +228,14 @@ interface IStakedToken is IERC20Metadata {
 
     /// @notice Sets `isInPostSlashingState` to false, which re-enables staking, slashing and cooldown period
     function settleSlashing() external;
+
+    /// @notice Updates the stored SMRewardDistributor contract
+    /// @param _newRewardDistributor Address of the new SMRewardDistributor contract
+    function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external;
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
 
     /// @notice Changes the SafetyModule contract used for reward management
     /// @param _newSafetyModule Address of the new SafetyModule contract

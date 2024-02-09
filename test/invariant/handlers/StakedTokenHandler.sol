@@ -197,7 +197,7 @@ contract StakedTokenHandler is Test {
         }
         uint256 cooldownPeriod = stakedToken.getCooldownSeconds();
         uint256 unstakeWindow = stakedToken.getUnstakeWindowSeconds();
-        uint256 cooldownStart = stakedToken.stakersCooldowns(currentActor);
+        uint256 cooldownStart = stakedToken.getCooldownStartTime(currentActor);
         uint256 cooldownEnd = cooldownStart + cooldownPeriod;
         bool inPostSlashingState = stakedToken.isInPostSlashingState();
         if (cooldownEnd <= block.timestamp || inPostSlashingState) {

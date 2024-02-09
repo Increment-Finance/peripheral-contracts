@@ -36,10 +36,10 @@ contract AuctionModuleHandler is Test {
     uint256 internal currentAuction;
 
     modifier useAuction(uint256 auctionIndexSeed) {
-        if (auctionModule.nextAuctionId() == 0) {
+        if (auctionModule.getNextAuctionId() == 0) {
             return;
         }
-        currentAuction = bound(auctionIndexSeed, 0, auctionModule.nextAuctionId() - 1);
+        currentAuction = bound(auctionIndexSeed, 0, auctionModule.getNextAuctionId() - 1);
         _;
     }
 
@@ -87,7 +87,7 @@ contract AuctionModuleHandler is Test {
             auctionModule.completeAuction(currentAuction);
             return;
         }
-        if (currentAuction >= auctionModule.nextAuctionId()) {
+        if (currentAuction >= auctionModule.getNextAuctionId()) {
             vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", currentAuction));
             auctionModule.buyLots(currentAuction, numLotsToBuy);
             return;
@@ -134,8 +134,8 @@ contract AuctionModuleHandler is Test {
         IERC20 auctionToken = auctionModule.getAuctionToken(currentAuction);
         uint256 expectedTokenBalance = auctionToken.balanceOf(currentActor) + purchaseAmount;
         uint256 expectedPaymentBalance = paymentToken.balanceOf(currentActor) - paymentAmount;
-        uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(currentAuction) + purchaseAmount;
-        uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(currentAuction) + paymentAmount;
+        uint256 totalTokensSold = auctionModule.getTokensSold(currentAuction) + purchaseAmount;
+        uint256 totalFundsRaised = auctionModule.getFundsRaised(currentAuction) + paymentAmount;
         uint256 remainingLots = auctionModule.getRemainingLots(currentAuction) - numLotsToBuy;
 
         vm.expectEmit(false, false, false, true);
@@ -174,7 +174,7 @@ contract AuctionModuleHandler is Test {
             auctionModule.completeAuction(currentAuction);
             return;
         }
-        if (currentAuction >= auctionModule.nextAuctionId()) {
+        if (currentAuction >= auctionModule.getNextAuctionId()) {
             vm.expectRevert(abi.encodeWithSignature("AuctionModule_InvalidAuctionId(uint256)", currentAuction));
             auctionModule.completeAuction(currentAuction);
             return;
@@ -198,8 +198,8 @@ contract AuctionModuleHandler is Test {
 
         // Get expected values
         uint128 lotSize = uint128(auctionModule.getCurrentLotSize(currentAuction));
-        uint256 totalTokensSold = auctionModule.tokensSoldPerAuction(currentAuction);
-        uint256 totalFundsRaised = auctionModule.fundsRaisedPerAuction(currentAuction);
+        uint256 totalTokensSold = auctionModule.getTokensSold(currentAuction);
+        uint256 totalFundsRaised = auctionModule.getFundsRaised(currentAuction);
         uint256 remainingLots = auctionModule.getRemainingLots(currentAuction);
 
         vm.expectEmit(false, false, false, true);

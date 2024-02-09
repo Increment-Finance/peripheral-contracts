@@ -13,7 +13,7 @@ import {IPerpetual} from "increment-protocol/interfaces/IPerpetual.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // libraries
-import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
+import {PRBMathUD60x18, PRBMath} from "prb-math/contracts/PRBMathUD60x18.sol";
 
 /// @title RewardDistributor
 /// @author webthethird
@@ -24,38 +24,39 @@ import {PRBMathUD60x18} from "prb-math/contracts/PRBMathUD60x18.sol";
 /// interface used by the ClearingHouse to update user rewards any time a user's position is updated
 abstract contract RewardDistributor is IRewardDistributor, RewardController {
     using SafeERC20 for IERC20Metadata;
+    using PRBMath for uint256;
     using PRBMathUD60x18 for uint256;
     using PRBMathUD60x18 for uint88;
 
     /// @notice Address of the reward token vault
-    address public ecosystemReserve;
+    address public immutable ecosystemReserve;
 
     /// @notice Rewards accrued and not yet claimed by user
     /// @dev First address is user, second is reward token
-    mapping(address => mapping(address => uint256)) public rewardsAccruedByUser;
+    mapping(address => mapping(address => uint256)) internal _rewardsAccruedByUser;
 
     /// @notice Total rewards accrued and not claimed by all users
     /// @dev Address is reward token
-    mapping(address => uint256) public totalUnclaimedRewards;
+    mapping(address => uint256) internal _totalUnclaimedRewards;
 
     /// @notice Latest LP/staking positions per user and market
     /// @dev First address is user, second is the market
-    mapping(address => mapping(address => uint256)) public lpPositionsPerUser;
+    mapping(address => mapping(address => uint256)) internal _lpPositionsPerUser;
 
     /// @notice Reward accumulator for market rewards per reward token, as a number of reward tokens
     /// per LP/staked token
     /// @dev First address is reward token, second is the market
-    mapping(address => mapping(address => uint256)) public cumulativeRewardPerLpToken;
+    mapping(address => mapping(address => uint256)) internal _cumulativeRewardPerLpToken;
 
     /// @notice Reward accumulator value per reward token when user rewards were last updated
     /// @dev First address is user, second is reward token, third is the market
-    mapping(address => mapping(address => mapping(address => uint256))) public cumulativeRewardPerLpTokenPerUser;
+    mapping(address => mapping(address => mapping(address => uint256))) internal _cumulativeRewardPerLpTokenPerUser;
 
     /// @notice Timestamp of the most recent update to the per-market reward accumulator
-    mapping(address => uint256) public timeOfLastCumRewardUpdate;
+    mapping(address => uint256) internal _timeOfLastCumRewardUpdate;
 
     /// @notice Total LP/staked tokens registered for rewards per market
-    mapping(address => uint256) public totalLiquidityPerMarket;
+    mapping(address => uint256) internal _totalLiquidityPerMarket;
 
     /// @notice RewardDistributor constructor
     /// @param _ecosystemReserve Address of the EcosystemReserve contract, which holds the reward tokens
@@ -64,17 +65,51 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     }
 
     /* ****************** */
-    /*     Governance     */
+    /*   External Views   */
     /* ****************** */
 
     /// @inheritdoc IRewardDistributor
-    /// @dev Can only be called by governance
-    function initMarketStartTime(address _market) external virtual onlyRole(GOVERNANCE) {
-        if (timeOfLastCumRewardUpdate[_market] != 0) {
-            revert RewardDistributor_AlreadyInitializedStartTime(_market);
-        }
-        timeOfLastCumRewardUpdate[_market] = block.timestamp;
+    function rewardsAccruedByUser(address _user, address _rewardToken) external view returns (uint256) {
+        return _rewardsAccruedByUser[_user][_rewardToken];
     }
+
+    /// @inheritdoc IRewardDistributor
+    function totalUnclaimedRewards(address _rewardToken) external view returns (uint256) {
+        return _totalUnclaimedRewards[_rewardToken];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function lpPositionsPerUser(address _user, address _market) external view returns (uint256) {
+        return _lpPositionsPerUser[_user][_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function cumulativeRewardPerLpToken(address _rewardToken, address _market) external view returns (uint256) {
+        return _cumulativeRewardPerLpToken[_rewardToken][_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function cumulativeRewardPerLpTokenPerUser(address _user, address _rewardToken, address _market)
+        external
+        view
+        returns (uint256)
+    {
+        return _cumulativeRewardPerLpTokenPerUser[_user][_rewardToken][_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function timeOfLastCumRewardUpdate(address _market) external view returns (uint256) {
+        return _timeOfLastCumRewardUpdate[_market];
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function totalLiquidityPerMarket(address _market) external view returns (uint256) {
+        return _totalLiquidityPerMarket[_market];
+    }
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
 
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by governance
@@ -106,31 +141,30 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             uint256 weight = _marketWeights[i];
             if (weight == 0) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
-            if (weight > 10000) {
-                revert RewardController_WeightExceedsMax(weight, 10000);
+            if (weight > MAX_BASIS_POINTS) {
+                revert RewardController_WeightExceedsMax(weight, MAX_BASIS_POINTS);
             }
             totalWeight += weight;
-            marketWeightsByToken[_rewardToken][market] = weight;
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
+            _marketWeightsByToken[_rewardToken][market] = weight;
             emit NewWeight(market, _rewardToken, weight);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
-        if (totalWeight != 10000) {
-            revert RewardController_IncorrectWeightsSum(totalWeight, 10000);
+        if (totalWeight != MAX_BASIS_POINTS) {
+            revert RewardController_IncorrectWeightsSum(totalWeight, MAX_BASIS_POINTS);
         }
         // Add reward token info
         rewardTokens.push(_rewardToken);
-        rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
-        rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
-        rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
-        rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
-        rewardInfoByToken[_rewardToken].marketAddresses = _markets;
+        _rewardInfoByToken[_rewardToken].token = IERC20Metadata(_rewardToken);
+        _rewardInfoByToken[_rewardToken].initialTimestamp = uint80(block.timestamp);
+        _rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
+        _rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
+        _rewardInfoByToken[_rewardToken].marketAddresses = _markets;
 
         emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
@@ -138,16 +172,16 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @inheritdoc IRewardDistributor
     /// @dev Can only be called by governance
     function removeRewardToken(address _rewardToken) external onlyRole(GOVERNANCE) {
-        if (_rewardToken == address(0) || rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
+        if (_rewardToken == address(0) || _rewardInfoByToken[_rewardToken].token != IERC20Metadata(_rewardToken)) {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
 
         // Update rewards for all markets before removal
-        uint256 numMarkets = rewardInfoByToken[_rewardToken].marketAddresses.length;
+        uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
         for (uint256 i; i < numMarkets;) {
-            _updateMarketRewards(rewardInfoByToken[_rewardToken].marketAddresses[i]);
+            _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
 
@@ -157,7 +191,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         for (uint256 i; i < numRewards;) {
             if (rewardTokens[i] != _rewardToken) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
@@ -168,11 +202,11 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             break;
         }
         // Delete reward token info
-        delete rewardInfoByToken[_rewardToken];
+        delete _rewardInfoByToken[_rewardToken];
 
         // Determine how much of the removed token should be sent back to governance
         uint256 balance = _rewardTokenBalance(_rewardToken);
-        uint256 unclaimedAccruals = totalUnclaimedRewards[_rewardToken];
+        uint256 unclaimedAccruals = _totalUnclaimedRewards[_rewardToken];
         uint256 unaccruedBalance;
         if (balance >= unclaimedAccruals) {
             unaccruedBalance = balance - unclaimedAccruals;
@@ -181,16 +215,6 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         }
 
         emit RewardTokenRemoved(_rewardToken, unclaimedAccruals, unaccruedBalance);
-    }
-
-    /// @inheritdoc IRewardDistributor
-    /// @dev Can only be called by governance
-    function setEcosystemReserve(address _newEcosystemReserve) external onlyRole(GOVERNANCE) {
-        if (_newEcosystemReserve == address(0)) {
-            revert RewardDistributor_InvalidZeroAddress();
-        }
-        emit EcosystemReserveUpdated(ecosystemReserve, _newEcosystemReserve);
-        ecosystemReserve = _newEcosystemReserve;
     }
 
     /* ****************** */
@@ -204,7 +228,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             address market = _markets[i];
             _registerPosition(msg.sender, market);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }
@@ -215,6 +239,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     }
 
     /// @inheritdoc IRewardDistributor
+    /// @dev Non-reentrant because `_distributeReward` transfers reward tokens to the user
     function claimRewardsFor(address _user, address[] memory _rewardTokens)
         public
         override
@@ -225,23 +250,25 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         for (uint256 i; i < numMarkets;) {
             _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         uint256 numTokens = _rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = _rewardTokens[i];
-            uint256 rewards = rewardsAccruedByUser[_user][token];
+            uint256 rewards = _rewardsAccruedByUser[_user][token];
             if (rewards != 0) {
                 uint256 remainingRewards = _distributeReward(token, _user, rewards);
-                rewardsAccruedByUser[_user][token] = remainingRewards;
-                emit RewardClaimed(_user, token, rewards - remainingRewards);
+                _rewardsAccruedByUser[_user][token] = remainingRewards;
+                if (rewards != remainingRewards) {
+                    emit RewardClaimed(_user, token, rewards - remainingRewards);
+                }
                 if (remainingRewards != 0) {
-                    emit RewardTokenShortfall(token, totalUnclaimedRewards[token]);
+                    emit RewardTokenShortfall(token, _totalUnclaimedRewards[token]);
                 }
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
     }
@@ -253,44 +280,50 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @inheritdoc RewardController
     function _updateMarketRewards(address market) internal override {
         uint256 numTokens = rewardTokens.length;
-        uint256 deltaTime = block.timestamp - timeOfLastCumRewardUpdate[market];
+        uint256 deltaTime = block.timestamp - _timeOfLastCumRewardUpdate[market];
         if (deltaTime == 0 || numTokens == 0) return;
-        if (totalLiquidityPerMarket[market] == 0) {
-            timeOfLastCumRewardUpdate[market] = block.timestamp;
+        if (deltaTime == block.timestamp || _totalLiquidityPerMarket[market] == 0) {
+            // Either the market has never been updated or it has no liquidity,
+            // so just initialize the timeOfLastCumRewardUpdate and return
+            _timeOfLastCumRewardUpdate[market] = block.timestamp;
             return;
         }
+        // Each reward token has one reward accumulator per market, so loop over reward tokens and
+        // update each accumulator for the given market
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
+            // Do not accrue rewards if:
+            // - the reward token is paused
+            // - the token's inflation rate is set to 0
+            // - the market has no reward weight for the token
             if (
-                rewardInfoByToken[token].paused || rewardInfoByToken[token].initialInflationRate == 0
-                    || marketWeightsByToken[token][market] == 0
+                _rewardInfoByToken[token].paused || _rewardInfoByToken[token].initialInflationRate == 0
+                    || _marketWeightsByToken[token][market] == 0
             ) {
                 unchecked {
-                    ++i;
+                    ++i; // saves 63 gas per iteration
                 }
                 continue;
             }
-            // Calculate the new cumRewardPerLpToken by adding (inflationRatePerSecond x marketWeight x deltaTime) / liquidity to the previous cumRewardPerLpToken
-            uint256 inflationRate = (
-                rewardInfoByToken[token].initialInflationRate.div(
-                    rewardInfoByToken[token].reductionFactor.pow(
-                        (block.timestamp - rewardInfoByToken[token].initialTimestamp).div(365 days)
-                    )
-                )
-            );
-            uint256 newRewards = (
-                ((((inflationRate * marketWeightsByToken[token][market]) / 10000) * deltaTime) / 365 days) * 1e18
-            ) / totalLiquidityPerMarket[market];
+            // Calculate the new rewards for the given market and reward token as
+            // (inflationRatePerSecond x marketWeight x deltaTime) / totalLiquidity
+            // Note: we divide by totalLiquidity here so users receive rewards proportional to their fraction
+            // of the total liquidity, which may change in between any given user's actions, once we multiply
+            // the difference in accumulator values by the user's position size in `updatePosition`. We also
+            // upscale the accumulator value by 1e18 to avoid precision loss when dividing by totalLiquidity.
+            // Note: using `mulDiv` and `div` here adds ~45 gas per iteration, but greatly improves readability.
+            uint256 newRewards = getInflationRate(token).mulDiv(_marketWeightsByToken[token][market], MAX_BASIS_POINTS)
+                .mulDiv(deltaTime, 365 days).div(_totalLiquidityPerMarket[market]);
             if (newRewards != 0) {
-                cumulativeRewardPerLpToken[token][market] += newRewards;
+                _cumulativeRewardPerLpToken[token][market] += newRewards;
                 emit RewardAccruedToMarket(market, token, newRewards);
             }
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         // Set timeOfLastCumRewardUpdate to the currentTime
-        timeOfLastCumRewardUpdate[market] = block.timestamp;
+        _timeOfLastCumRewardUpdate[market] = block.timestamp;
     }
 
     /// @notice Accrues rewards to a user for a given market
@@ -311,12 +344,12 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         uint256 rewardsRemaining = _rewardTokenBalance(_token);
         if (rewardsRemaining == 0) return _amount;
         if (_amount <= rewardsRemaining) {
+            _totalUnclaimedRewards[_token] -= _amount;
             IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, _amount);
-            totalUnclaimedRewards[_token] -= _amount;
             return 0;
         } else {
+            _totalUnclaimedRewards[_token] -= rewardsRemaining;
             IERC20Metadata(_token).safeTransferFrom(ecosystemReserve, _to, rewardsRemaining);
-            totalUnclaimedRewards[_token] -= rewardsRemaining;
             return _amount - rewardsRemaining;
         }
     }
@@ -333,21 +366,20 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     /// @param _user Address of the user to register
     /// @param _market Address of the market for which to register the user's position
     function _registerPosition(address _user, address _market) internal virtual {
-        if (lpPositionsPerUser[_user][_market] != 0) {
-            revert RewardDistributor_PositionAlreadyRegistered(_user, _market, lpPositionsPerUser[_user][_market]);
+        if (_lpPositionsPerUser[_user][_market] != 0) {
+            revert RewardDistributor_PositionAlreadyRegistered(_user, _market, _lpPositionsPerUser[_user][_market]);
         }
         uint256 lpPosition = _getCurrentPosition(_user, _market);
         if (lpPosition == 0) return;
         _updateMarketRewards(_market);
-        lpPositionsPerUser[_user][_market] = lpPosition;
-        totalLiquidityPerMarket[_market] += lpPosition;
+        _lpPositionsPerUser[_user][_market] = lpPosition;
+        _totalLiquidityPerMarket[_market] += lpPosition;
         uint256 numTokens = rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = rewardTokens[i];
-            uint256 cumulativeReward = cumulativeRewardPerLpToken[token][_market];
-            cumulativeRewardPerLpTokenPerUser[_user][token][_market] = cumulativeReward;
+            _cumulativeRewardPerLpTokenPerUser[_user][token][_market] = _cumulativeRewardPerLpToken[token][_market];
             unchecked {
-                ++i;
+                ++i; // saves 63 gas per iteration
             }
         }
         emit PositionUpdated(_user, _market, 0, lpPosition);

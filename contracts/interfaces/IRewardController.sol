@@ -5,6 +5,10 @@ pragma solidity 0.8.16;
 /// @author webthethird
 /// @notice Interface for the RewardController contract
 interface IRewardController {
+    /* ****************** */
+    /*       Events       */
+    /* ****************** */
+
     /// @notice Emitted when a new reward token is added
     /// @param rewardToken Reward token address
     /// @param initialTimestamp Timestamp when reward token was added
@@ -22,6 +26,14 @@ interface IRewardController {
     /// @param unclaimedRewards The amount of reward tokens still claimable
     /// @param remainingBalance The remaining balance of the reward token, sent to governance
     event RewardTokenRemoved(address indexed rewardToken, uint256 unclaimedRewards, uint256 remainingBalance);
+
+    /// @notice Emitted when accrual for a reward token is paused
+    /// @param rewardToken The reward token address
+    event RewardTokenPaused(address indexed rewardToken);
+
+    /// @notice Emitted when accrual for a reward token is unpaused
+    /// @param rewardToken The reward token address
+    event RewardTokenUnpaused(address indexed rewardToken);
 
     /// @notice Emitted when a reward token is removed from a market's list of rewards
     /// @param market The market address
@@ -46,6 +58,10 @@ interface IRewardController {
     /// @notice Emitted when a new reduction factor is set by governance
     /// @param newFactor The new reduction factor
     event NewReductionFactor(address indexed rewardToken, uint256 newFactor);
+
+    /* ****************** */
+    /*       Errors       */
+    /* ****************** */
 
     /// @notice Error returned when trying to add a reward token if the max number of reward tokens has been reached
     /// @param max The maximum number of reward tokens allowed
@@ -80,10 +96,22 @@ interface IRewardController {
     /// @param max The maximum allowed weight (i.e., 10000)
     error RewardController_WeightExceedsMax(uint256 weight, uint256 max);
 
+    /* ******************* */
+    /*     Public Vars     */
+    /* ******************* */
+
     /// @notice Gets the address of the reward token at the specified index in the array of reward tokens
     /// @param i The index of the reward token
     /// @return The address of the reward token
     function rewardTokens(uint256 i) external view returns (address);
+
+    /* ****************** */
+    /*   External Views   */
+    /* ****************** */
+
+    /// @notice Returns the full list of reward tokens
+    /// @return Array of reward token addresses
+    function getRewardTokens() external view returns (address[] memory);
 
     /// @notice Gets the number of reward tokens
     /// @return Number of reward tokens
@@ -118,13 +146,29 @@ interface IRewardController {
 
     /// @notice Gets the list of all markets receiving a given reward token
     /// @param rewardToken Address of the reward token
-    /// @return List of market addresses
+    /// @return Array of market addresses
     function getRewardMarkets(address rewardToken) external view returns (address[] memory);
 
     /// @notice Gets whether a reward token is paused
     /// @param rewardToken Address of the reward token
     /// @return True if the reward token is paused, false otherwise
     function isTokenPaused(address rewardToken) external view returns (bool);
+
+    /// @notice Gets the maximum allowed inflation rate for a reward token
+    /// @return Maximum allowed inflation rate
+    function getMaxInflationRate() external view returns (uint256);
+
+    /// @notice Gets the minimum allowed reduction factor for a reward token
+    /// @return Minimum allowed reduction factor
+    function getMinReductionFactor() external view returns (uint256);
+
+    /// @notice Gets the maximum allowed number of reward tokens
+    /// @return Maximum allowed number of reward tokens
+    function getMaxRewardTokens() external view returns (uint256);
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
 
     /// @notice Sets the market addresses and reward weights for a reward token
     /// @param rewardToken Address of the reward token
@@ -144,6 +188,10 @@ interface IRewardController {
     /// @param newReductionFactor The new reduction factor, scaled by 1e18
     function updateReductionFactor(address rewardToken, uint88 newReductionFactor) external;
 
+    /* ******************* */
+    /*   Emergency Admin   */
+    /* ******************* */
+
     /// @notice Pause the contract
     function pause() external;
 
@@ -152,7 +200,6 @@ interface IRewardController {
 
     /// @notice Pauses/unpauses the reward accrual for a particular reward token
     /// @dev Does not pause gradual reduction of inflation rate over time due to reduction factor
-    /// @param rewardToken Address of the reward token
-    /// @param paused Whether to pause or unpause the reward token
-    function setPaused(address rewardToken, bool paused) external;
+    /// @param _rewardToken Address of the reward token
+    function togglePausedReward(address _rewardToken) external;
 }
