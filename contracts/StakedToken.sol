@@ -27,13 +27,13 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     using LibMath for uint256;
 
     /// @notice Address of the underlying token to stake
-    IERC20 internal immutable UNDERLYING_TOKEN;
+    IERC20 internal immutable _UNDERLYING_TOKEN;
 
     /// @notice Seconds that user must wait between calling cooldown and redeem
-    uint256 internal immutable COOLDOWN_SECONDS;
+    uint256 internal immutable _COOLDOWN_SECONDS;
 
     /// @notice Seconds available to redeem once the cooldown period is fullfilled
-    uint256 internal immutable UNSTAKE_WINDOW;
+    uint256 internal immutable _UNSTAKE_WINDOW;
 
     /// @notice Address of the SafetyModule contract
     ISafetyModule public safetyModule;
@@ -83,9 +83,9 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         string memory _name,
         string memory _symbol
     ) payable ERC20(_name, _symbol) ERC20Permit(_name) {
-        UNDERLYING_TOKEN = _underlyingToken;
-        COOLDOWN_SECONDS = _cooldownSeconds;
-        UNSTAKE_WINDOW = _unstakeWindow;
+        _UNDERLYING_TOKEN = _underlyingToken;
+        _COOLDOWN_SECONDS = _cooldownSeconds;
+        _UNSTAKE_WINDOW = _unstakeWindow;
         safetyModule = _safetyModule;
         smRewardDistributor = _safetyModule.smRewardDistributor();
         maxStakeAmount = _maxStakeAmount;
@@ -98,17 +98,17 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
 
     /// @inheritdoc IStakedToken
     function getUnderlyingToken() external view returns (IERC20) {
-        return UNDERLYING_TOKEN;
+        return _UNDERLYING_TOKEN;
     }
 
     /// @inheritdoc IStakedToken
     function getCooldownSeconds() external view returns (uint256) {
-        return COOLDOWN_SECONDS;
+        return _COOLDOWN_SECONDS;
     }
 
     /// @inheritdoc IStakedToken
     function getUnstakeWindowSeconds() external view returns (uint256) {
-        return UNSTAKE_WINDOW;
+        return _UNSTAKE_WINDOW;
     }
 
     /// @inheritdoc IStakedToken
@@ -132,23 +132,23 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     /* ****************** */
 
     /// @inheritdoc IStakedToken
-    function stake(uint256 amount) external override {
+    function stake(uint256 amount) external {
         _stake(msg.sender, msg.sender, amount);
     }
 
     /// @inheritdoc IStakedToken
-    function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external override {
+    function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external {
         if (onBehalfOf == address(0)) revert StakedToken_InvalidZeroAddress();
         _stake(msg.sender, onBehalfOf, amount);
     }
 
     /// @inheritdoc IStakedToken
-    function redeem(uint256 amount) external override {
+    function redeem(uint256 amount) external {
         _redeem(msg.sender, msg.sender, amount);
     }
 
     /// @inheritdoc IStakedToken
-    function redeemTo(address to, uint256 amount) external override {
+    function redeemTo(address to, uint256 amount) external {
         if (to == address(0)) revert StakedToken_InvalidZeroAddress();
         _redeem(msg.sender, to, amount);
     }
@@ -180,7 +180,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         uint256 toCooldownTimestamp = _stakersCooldowns[toAddress];
         if (toCooldownTimestamp == 0) return 0;
 
-        uint256 minimalValidCooldownTimestamp = block.timestamp - COOLDOWN_SECONDS - UNSTAKE_WINDOW;
+        uint256 minimalValidCooldownTimestamp = block.timestamp - _COOLDOWN_SECONDS - _UNSTAKE_WINDOW;
 
         if (minimalValidCooldownTimestamp > toCooldownTimestamp) return 0;
         if (minimalValidCooldownTimestamp > fromCooldownTimestamp) {
@@ -221,10 +221,10 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         uint256 underlyingAmount = previewRedeem(amount);
 
         // Update the exchange rate
-        _updateExchangeRate(UNDERLYING_TOKEN.balanceOf(address(this)) - underlyingAmount, totalSupply());
+        _updateExchangeRate(_UNDERLYING_TOKEN.balanceOf(address(this)) - underlyingAmount, totalSupply());
 
         // Send the slashed underlying tokens to the destination
-        UNDERLYING_TOKEN.safeTransfer(destination, underlyingAmount);
+        _UNDERLYING_TOKEN.safeTransfer(destination, underlyingAmount);
 
         emit Slashed(destination, amount, underlyingAmount);
         return underlyingAmount;
@@ -237,10 +237,10 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (from == address(0)) revert StakedToken_InvalidZeroAddress();
 
         // Update the exchange rate
-        _updateExchangeRate(UNDERLYING_TOKEN.balanceOf(address(this)) + amount, totalSupply());
+        _updateExchangeRate(_UNDERLYING_TOKEN.balanceOf(address(this)) + amount, totalSupply());
 
         // Transfer the underlying tokens back to this contract
-        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
+        _UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
         emit FundsReturned(from, amount);
     }
 
@@ -360,7 +360,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         _mint(to, stakeAmount);
 
         // Transfer underlying tokens from the sender
-        UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
+        _UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
 
         // Update user's position and rewards in the SafetyModule
         smRewardDistributor.updatePosition(address(this), to);
@@ -388,11 +388,11 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (!isInPostSlashingState) {
             // Make sure the user's cooldown period is over and the unstake window didn't pass
             uint256 cooldownStartTimestamp = _stakersCooldowns[from];
-            if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS) {
-                revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + COOLDOWN_SECONDS);
+            if (block.timestamp < cooldownStartTimestamp + _COOLDOWN_SECONDS) {
+                revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + _COOLDOWN_SECONDS);
             }
-            if (block.timestamp - cooldownStartTimestamp - COOLDOWN_SECONDS > UNSTAKE_WINDOW) {
-                revert StakedToken_UnstakeWindowFinished(cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW);
+            if (block.timestamp - cooldownStartTimestamp - _COOLDOWN_SECONDS > _UNSTAKE_WINDOW) {
+                revert StakedToken_UnstakeWindowFinished(cooldownStartTimestamp + _COOLDOWN_SECONDS + _UNSTAKE_WINDOW);
             }
         }
 
@@ -408,7 +408,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (balanceOfFrom - amount == 0) delete _stakersCooldowns[from];
 
         // Transfer underlying tokens to the recipient
-        UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
+        _UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
 
         // Update user's position and rewards in the SafetyModule
         smRewardDistributor.updatePosition(address(this), from);
