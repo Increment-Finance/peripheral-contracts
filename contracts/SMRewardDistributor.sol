@@ -386,6 +386,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
 
     /// @inheritdoc RewardDistributor
     function _registerPosition(address _user, address _market) internal override {
+        safetyModule.getStakedTokenIdx(_market); // will revert if not found
         super._registerPosition(_user, _market);
         if (_lpPositionsPerUser[_user][_market] != 0) {
             _multiplierStartTimeByUser[_user][_market] = block.timestamp;
