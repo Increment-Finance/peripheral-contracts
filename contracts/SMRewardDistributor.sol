@@ -130,7 +130,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 ++i; // saves 63 gas per iteration
             }
         }
-        if (prevPosition == 0 || newPosition <= prevPosition) {
+        if (
+            prevPosition == 0 || newPosition < prevPosition
+                || IStakedToken(market).getCooldownStartTime(user) == block.timestamp
+        ) {
             // Removed stake, started cooldown or staked for the first time - need to reset reward multiplier
             if (newPosition != 0) {
                 /**
@@ -139,7 +142,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                  * - If prevPosition == 0, it's the first time the user has staked, naturally they start at 1
                  * - If newPosition < prevPosition, the user has removed some or all of their stake, and the multiplier
                  *   is meant to encourage stakers to keep their tokens staked, so we reset the multiplier to 1
-                 * - If newPosition == prevPosition, the user has started their cooldown period, and to avoid gaming
+                 * - If cooldownStartTime == block.timestamp, the user started their cooldown period, and to avoid gaming
                  *   the system by always remaining in either the cooldown or unstake period, we reset the multiplier
                  */
                 _multiplierStartTimeByUser[user][market] = block.timestamp;
