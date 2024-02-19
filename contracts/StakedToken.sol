@@ -154,7 +154,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     }
 
     /// @inheritdoc IStakedToken
-    function cooldown() external override {
+    function cooldown() external whenNotPaused {
         if (balanceOf(msg.sender) == 0) {
             revert StakedToken_ZeroBalanceAtCooldown();
         }
