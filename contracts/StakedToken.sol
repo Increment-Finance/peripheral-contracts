@@ -391,7 +391,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
             if (block.timestamp < cooldownStartTimestamp + COOLDOWN_SECONDS) {
                 revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + COOLDOWN_SECONDS);
             }
-            if (block.timestamp - cooldownStartTimestamp + COOLDOWN_SECONDS > UNSTAKE_WINDOW) {
+            if (block.timestamp - cooldownStartTimestamp - COOLDOWN_SECONDS > UNSTAKE_WINDOW) {
                 revert StakedToken_UnstakeWindowFinished(cooldownStartTimestamp + COOLDOWN_SECONDS + UNSTAKE_WINDOW);
             }
         }
