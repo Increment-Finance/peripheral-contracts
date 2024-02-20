@@ -425,6 +425,13 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         _underlyingBalance -= underlyingAmount;
         _UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
 
+        // If total supply and assets are zero, reset exchange rate to 1e18
+        if (totalSupply() == 0) {
+            if (_underlyingBalance == 0) {
+                _updateExchangeRate(_underlyingBalance, 0);
+            }
+        }
+
         // Update user's position and rewards in the SafetyModule
         smRewardDistributor.updatePosition(address(this), from);
 
