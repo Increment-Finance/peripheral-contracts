@@ -300,7 +300,11 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     /// @notice Updates the exchange rate of the staked token,
     /// @dev Based on this contract's current underlying token balance and the total supply of the staked token
     function _updateExchangeRate(uint256 totalAssets, uint256 totalShares) internal {
-        exchangeRate = totalAssets.wadDiv(totalShares);
+        if (totalShares == 0) {
+            exchangeRate = 1e18;
+        } else {
+            exchangeRate = totalAssets.wadDiv(totalShares);
+        }
         emit ExchangeRateUpdated(exchangeRate);
     }
 
