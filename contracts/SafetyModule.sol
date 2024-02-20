@@ -23,6 +23,9 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     using PRBMathUD60x18 for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice Address of the governance contract
+    address public immutable governance;
+
     /// @notice Address of the auction module, which sells user funds in the event of an insolvency
     IAuctionModule public auctionModule;
 
@@ -52,6 +55,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
         // in the constructor to avoid having to call `addStakedToken` for each staked token. Otherwise, unless the
         // SMRewardDistributor is also redeployed, `addStakedToken` will revert when trying to re-initialize a staked
         // token in the SMRD which was already initialized when added to the previous SafetyModule.
+        governance = msg.sender;
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
         emit AuctionModuleUpdated(address(0), _auctionModule);
@@ -241,7 +245,14 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /* ****************** */
 
     function _returnFunds(IStakedToken _stakedToken, address _from, uint256 _amount) internal {
-        _stakedToken.returnFunds(_from, _amount);
+        if (_stakedToken.totalSupply() == 0) {
+            // If the staked token has no supply, the underlying tokens are returned to governance, since there
+            // are no stakers and so the returned tokens would not be redeemable by anyone
+            IERC20 underlyingToken = _stakedToken.getUnderlyingToken();
+            underlyingToken.safeTransfer(governance, _amount);
+        } else {
+            _stakedToken.returnFunds(_from, _amount);
+        }
     }
 
     function _settleSlashing(IStakedToken _stakedToken) internal {
