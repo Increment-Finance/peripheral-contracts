@@ -55,6 +55,9 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     /// but it can be lower if users' stakes have been slashed for an auction by the SafetyModule
     uint256 public exchangeRate;
 
+    /// @notice Internal accounting of total underlying token balance
+    uint256 internal _underlyingBalance;
+
     /// @notice Timestamp of the start of the current cooldown period for each user
     mapping(address => uint256) internal _stakersCooldowns;
 
@@ -221,7 +224,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         uint256 underlyingAmount = previewRedeem(amount);
 
         // Update the exchange rate
-        _updateExchangeRate(_UNDERLYING_TOKEN.balanceOf(address(this)) - underlyingAmount, totalSupply());
+        _underlyingBalance -= underlyingAmount;
+        _updateExchangeRate(_underlyingBalance, totalSupply());
 
         // Send the slashed underlying tokens to the destination
         _UNDERLYING_TOKEN.safeTransfer(destination, underlyingAmount);
@@ -237,7 +241,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (from == address(0)) revert StakedToken_InvalidZeroAddress();
 
         // Update the exchange rate
-        _updateExchangeRate(_UNDERLYING_TOKEN.balanceOf(address(this)) + amount, totalSupply());
+        _underlyingBalance += amount;
+        _updateExchangeRate(_underlyingBalance, totalSupply());
 
         // Transfer the underlying tokens back to this contract
         _UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
@@ -346,8 +351,11 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
             revert StakedToken_StakingDisabledInPostSlashingState();
         }
 
-        // Make sure the user's stake balance doesn't exceed the max stake amount
+        // Make sure the user will receive a non-zero amount of staked tokens
         uint256 stakeAmount = previewStake(amount);
+        if (stakeAmount == 0) revert StakedToken_InvalidZeroAmount();
+
+        // Make sure the user's stake balance doesn't exceed the max stake amount
         uint256 balanceOfUser = balanceOf(to);
         if (balanceOfUser + stakeAmount > maxStakeAmount) {
             revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, maxStakeAmount - balanceOfUser);
@@ -360,6 +368,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         _mint(to, stakeAmount);
 
         // Transfer underlying tokens from the sender
+        _underlyingBalance += amount;
         _UNDERLYING_TOKEN.safeTransferFrom(from, address(this), amount);
 
         // Update user's position and rewards in the SafetyModule
@@ -408,7 +417,9 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (balanceOfFrom - amount == 0) delete _stakersCooldowns[from];
 
         // Transfer underlying tokens to the recipient
-        _UNDERLYING_TOKEN.safeTransfer(to, previewRedeem(amount));
+        uint256 underlyingAmount = previewRedeem(amount);
+        _underlyingBalance -= underlyingAmount;
+        _UNDERLYING_TOKEN.safeTransfer(to, underlyingAmount);
 
         // Update user's position and rewards in the SafetyModule
         smRewardDistributor.updatePosition(address(this), from);
