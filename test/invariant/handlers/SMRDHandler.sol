@@ -72,8 +72,7 @@ contract SMRDHandler is Test {
         rewardDistributor.registerPositions(markets);
     }
 
-    function claimRewardsFor(uint256 actorIndexSeed) external {
-        address actor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
+    function claimRewards(uint256 actorIndexSeed) external useActor(actorIndexSeed) {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         uint256 numMarkets = safetyModule.getNumStakedTokens();
         address[] memory markets = new address[](numMarkets);
@@ -89,20 +88,22 @@ contract SMRDHandler is Test {
             newRewardsPerTokenPerMarket[i] = new uint256[](numMarkets);
             for (uint256 j; j < numMarkets; j++) {
                 newRewardsPerTokenPerMarket[i][j] =
-                    _previewNewUserRewardsPerMarket(actor, rewardDistributor.rewardTokens(i), markets[j]);
+                    _previewNewUserRewardsPerMarket(currentActor, rewardDistributor.rewardTokens(i), markets[j]);
             }
             tokens[i] = rewardDistributor.rewardTokens(i);
-            prevBalances[i] = IERC20(tokens[i]).balanceOf(actor);
+            prevBalances[i] = IERC20(tokens[i]).balanceOf(currentActor);
             reserveBalances[i] = IERC20(tokens[i]).balanceOf(rewardDistributor.ecosystemReserve());
-            rewardsAccrued[i] =
-                rewardDistributor.rewardsAccruedByUser(actor, tokens[i]) + _previewNewUserRewards(actor, tokens[i]);
+            rewardsAccrued[i] = rewardDistributor.rewardsAccruedByUser(currentActor, tokens[i])
+                + _previewNewUserRewards(currentActor, tokens[i]);
         }
-        _expectClaimRewardsEvents(actor, markets, tokens, reserveBalances, rewardsAccrued, newRewardsPerTokenPerMarket);
-        rewardDistributor.claimRewardsFor(actor);
+        _expectClaimRewardsEvents(
+            currentActor, markets, tokens, reserveBalances, rewardsAccrued, newRewardsPerTokenPerMarket
+        );
+        rewardDistributor.claimRewards();
         for (uint256 i; i < numRewards; i++) {
             if (rewardsAccrued[i] <= reserveBalances[i]) {
                 assertEq(
-                    IERC20(tokens[i]).balanceOf(actor),
+                    IERC20(tokens[i]).balanceOf(currentActor),
                     prevBalances[i] + rewardsAccrued[i],
                     "SMRDHandler: reward token balance mismatch after claiming"
                 );
@@ -113,7 +114,7 @@ contract SMRDHandler is Test {
                 );
             } else {
                 assertEq(
-                    IERC20(tokens[i]).balanceOf(actor),
+                    IERC20(tokens[i]).balanceOf(currentActor),
                     prevBalances[i] + reserveBalances[i],
                     "SMRDHandler: reward token balance mismatch after claiming (shortfall)"
                 );

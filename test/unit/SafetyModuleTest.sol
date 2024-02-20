@@ -58,19 +58,19 @@ contract SafetyModuleTest is Deployment, Utils {
 
     event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
 
-    uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
-    uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
-    uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
-    uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
-    uint256 constant COOLDOWN_SECONDS = 1 days;
-    uint256 constant UNSTAKE_WINDOW = 10 days;
-    uint256 constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
-    uint256 constant MAX_STAKE_AMOUNT_2 = 100_000e18;
-    uint256 constant INITIAL_MARKET_WEIGHT_0 = 5000;
-    uint256 constant INITIAL_MARKET_WEIGHT_1 = 5000;
+    uint88 public constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint88 public constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint256 public constant INITIAL_MAX_MULTIPLIER = 4e18;
+    uint256 public constant INITIAL_SMOOTHING_VALUE = 30e18;
+    uint256 public constant COOLDOWN_SECONDS = 1 days;
+    uint256 public constant UNSTAKE_WINDOW = 10 days;
+    uint256 public constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
+    uint256 public constant MAX_STAKE_AMOUNT_2 = 100_000e18;
+    uint256 public constant INITIAL_MARKET_WEIGHT_0 = 5000;
+    uint256 public constant INITIAL_MARKET_WEIGHT_1 = 5000;
 
-    address liquidityProviderOne = address(123);
-    address liquidityProviderTwo = address(456);
+    address public liquidityProviderOne = address(123);
+    address public liquidityProviderTwo = address(456);
 
     IncrementToken public rewardsToken;
     IWETH public weth;
@@ -186,6 +186,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _stake(stakedToken2, liquidityProviderOne, balancerPool.balanceOf(liquidityProviderOne));
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_Deployment() public {
         assertEq(safetyModule.getStakedTokens().length, 2, "Staked token count mismatch");
         assertEq(safetyModule.getNumStakedTokens(), 2, "Staked token count mismatch");
@@ -214,6 +215,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*   Staked Rewards   */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_RewardMultiplier() public {
         // Test with smoothing value of 30 and max multiplier of 4
         // These values match those in the spreadsheet used to design the SM rewards
@@ -298,6 +300,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_MultipliedRewardAccrual(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -361,6 +364,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_PreExistingBalances(uint256 maxTokenAmountIntoBalancer) public {
         // liquidityProvider2 starts with 10,000 INCR and 10 WETH
         maxTokenAmountIntoBalancer = bound(maxTokenAmountIntoBalancer, 100e18, 9_000e18);
@@ -431,6 +435,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _claimAndRedeemAll(_getStakedTokens(), newRewardDistributor, liquidityProviderTwo);
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_RewardTokenShortfall(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -478,9 +483,10 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
         // Try to claim reward tokens, expecting RewardTokenShortfall event
+        vm.startPrank(liquidityProviderTwo);
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(address(rewardsToken), rewardPreview + rewardPreview2 + rewardPreview3);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
         assertEq(rewardsToken.balanceOf(liquidityProviderTwo), 10_000e18, "Claimed rewards after shortfall");
 
         // Transfer reward tokens back to the EcosystemReserve
@@ -488,7 +494,8 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardsToken.transfer(address(ecosystemReserve), rewardBalance);
 
         // Claim tokens and check that the accrued rewards were distributed
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18 + rewardPreview + rewardPreview2 + rewardPreview3,
@@ -496,6 +503,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_StakedTokenZeroLiquidity() public {
         // Deploy a third staked token
         StakedToken stakedToken3 = new StakedToken(
@@ -537,6 +545,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_StakedTokenTransfer(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -602,8 +611,11 @@ contract SafetyModuleTest is Deployment, Utils {
             _checkMultiplierAdjustment(address(stakedToken1), liquidityProviderTwo, increaseRatio, 5 days);
 
         // Claim rewards for both users
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        vm.startPrank(liquidityProviderOne);
+        rewardDistributor.claimRewards();
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
 
         // Skip some more time
         skip(10 days - (block.timestamp - newMultiplierStartTime));
@@ -645,6 +657,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderTwo);
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_NextCooldownTimestamp(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -773,6 +786,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*  Slashing/Auctions  */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_StakedTokenExchangeRate(uint256 donatePercent, uint256 slashPercent, uint256 stakeAmount)
         public
     {
@@ -824,6 +838,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18, "after returning the slashed amount");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_AuctionSoldOut(
         uint8 numLots,
         uint128 lotPrice,
@@ -889,6 +904,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_AuctionTimeOut(
         uint8 numLots,
         uint128 lotPrice,
@@ -961,6 +977,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_TerminateAuctionEarly(
         uint8 numLots,
         uint128 lotPrice,
@@ -1025,6 +1042,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.stopPrank();
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_MultipleAuctions(
         uint8[2] memory numLots,
         uint128[2] memory lotPrice,
@@ -1135,6 +1153,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*    Custom Errors    */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_SafetyModuleErrors() public {
         // test staked token already registered
         _expectStakedTokenAlreadyRegistered(address(stakedToken1));
@@ -1181,6 +1200,7 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.auctionEnded(0, 0);
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_SMRDErrors() public {
         /* bounds */
         uint256 lowMaxMultiplier1 = 0;
@@ -1227,18 +1247,22 @@ contract SafetyModuleTest is Deployment, Utils {
         // test paused
         rewardDistributor.pause();
         assertTrue(rewardDistributor.paused(), "SMRD should be paused");
+        vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
         rewardDistributor.unpause();
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused");
         safetyModule.pause();
         assertTrue(rewardDistributor.paused(), "SMRD should be paused when safety module is paused");
+        vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewards();
         safetyModule.unpause();
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused when safety module is unpaused");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_StakedTokenErrors() public {
         // test zero amount
         _expectStakedTokenInvalidZeroAmount();
@@ -1379,6 +1403,7 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.unpause();
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_AuctionModuleErrors() public {
         // start an auction successfully for later tests
         uint256 auctionId = safetyModule.slashAndStartAuction(
@@ -1521,7 +1546,9 @@ contract SafetyModuleTest is Deployment, Utils {
                 _redeem(stakedToken, staker, balance);
             }
         }
-        distributor.claimRewardsFor(staker);
+        vm.startPrank(staker);
+        distributor.claimRewards();
+        vm.stopPrank();
     }
 
     function _calcExpectedMultiplier(uint256 deltaDays) internal view returns (uint256) {
@@ -1730,7 +1757,7 @@ contract SafetyModuleTest is Deployment, Utils {
         balancerVault.joinPool(id, address(this), address(this), joinRequest);
     }
 
-    function _viewNewRewardAccrual(address market, address user) public view returns (uint256[] memory) {
+    function _viewNewRewardAccrual(address market, address user) internal view returns (uint256[] memory) {
         uint256 numTokens = rewardDistributor.getRewardTokenCount();
         uint256[] memory newRewards = new uint256[](numTokens);
         for (uint256 i; i < numTokens; ++i) {

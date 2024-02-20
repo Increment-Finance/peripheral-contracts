@@ -171,13 +171,11 @@ interface IRewardDistributor is IRewardContract {
     function registerPositions(address[] calldata _markets) external;
 
     /// @notice Accrues and then distributes rewards for all markets and reward tokens
-    /// and returns the amount of rewards that were not distributed to the given user
-    /// @param _user Address of the user to claim rewards for
-    function claimRewardsFor(address _user) external;
+    /// and returns the amount of rewards that were not distributed to the user
+    function claimRewards() external;
 
     /// @notice Accrues and then distributes rewards for all markets that receive any of the provided reward tokens
-    /// to the given user
-    /// @param _user Address of the user to claim rewards for
+    /// to the user
     /// @param _rewardTokens Addresses of the reward tokens to claim rewards for
-    function claimRewardsFor(address _user, address[] memory _rewardTokens) external;
+    function claimRewards(address[] memory _rewardTokens) external;
 }
