@@ -179,7 +179,10 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         // Update rewards for all markets before removal
         uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
         for (uint256 i; i < numMarkets;) {
-            _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
+            address market = _rewardInfoByToken[_rewardToken].marketAddresses[i];
+            _updateMarketRewards(market);
+            // Clear the market's weight for the reward token after updating market rewards
+            delete _marketWeightsByToken[_rewardToken][market];
             unchecked {
                 ++i; // saves 63 gas per iteration
             }
