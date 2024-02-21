@@ -1258,6 +1258,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
         rewardDistributor.claimRewards();
+        vm.stopPrank();
         safetyModule.unpause();
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused when safety module is unpaused");
     }

@@ -497,6 +497,7 @@ contract RewardsTest is Deployment, Utils {
         // fail to claim rewards again after token 2 is depleted
         vm.startPrank(liquidityProviderTwo);
         rewardDistributor.claimRewards();
+        vm.stopPrank();
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Tokens claimed after token 2 depleted");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
