@@ -123,6 +123,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
              *
              * newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
              */
+            if (_cumulativeRewardPerLpToken[token][market] < _cumulativeRewardPerLpTokenPerUser[user][token][market]) {
+                // This only happens if a reward token was removed and then re-added, resetting the market accumulator
+                delete _cumulativeRewardPerLpTokenPerUser[user][token][market];
+            }
             uint256 newRewards = prevLpPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
@@ -274,6 +278,10 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
              *
              * newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
              */
+            if (_cumulativeRewardPerLpToken[token][market] < _cumulativeRewardPerLpTokenPerUser[user][token][market]) {
+                // This only happens if a reward token was removed and then re-added, resetting the market accumulator
+                delete _cumulativeRewardPerLpTokenPerUser[user][token][market];
+            }
             uint256 newRewards = lpPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );

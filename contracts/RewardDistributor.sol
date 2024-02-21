@@ -132,12 +132,17 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         if (rewardTokens.length >= MAX_REWARD_TOKENS) {
             revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         }
-        // Validate weights
+
         uint256 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint256 i; i < numMarkets;) {
+            // Accrue other reward tokens to all markets before adding a new reward token
             address market = _markets[i];
             _updateMarketRewards(market);
+            // Reset each market's reward accumulator for the new reward token, in case
+            // the token was previously removed and is being re-added
+            delete _cumulativeRewardPerLpToken[_rewardToken][market];
+            // Validate weights
             uint256 weight = _marketWeights[i];
             if (weight == 0) {
                 unchecked {
@@ -149,6 +154,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 revert RewardController_WeightExceedsMax(weight, MAX_BASIS_POINTS);
             }
             totalWeight += weight;
+            // Store the market's weight for the new reward token
             _marketWeightsByToken[_rewardToken][market] = weight;
             emit NewWeight(market, _rewardToken, weight);
             unchecked {

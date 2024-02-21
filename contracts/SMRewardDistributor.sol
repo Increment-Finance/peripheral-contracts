@@ -104,6 +104,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
              *                  global.cumRewardPerLpToken - user.cumRewardPerLpToken
              *              )
              */
+            if (_cumulativeRewardPerLpToken[token][market] < _cumulativeRewardPerLpTokenPerUser[user][token][market]) {
+                // This only happens if a reward token was removed and then re-added, resetting the market accumulator
+                delete _cumulativeRewardPerLpTokenPerUser[user][token][market];
+            }
             uint256 newRewards = prevPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
@@ -357,6 +361,10 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
              *                  global.cumRewardPerLpToken - user.cumRewardPerLpToken
              *              )
              */
+            if (_cumulativeRewardPerLpToken[token][market] < _cumulativeRewardPerLpTokenPerUser[user][token][market]) {
+                // This only happens if a reward token was removed and then re-added, resetting the market accumulator
+                delete _cumulativeRewardPerLpTokenPerUser[user][token][market];
+            }
             uint256 newRewards = userPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             ).mul(rewardMultiplier);
