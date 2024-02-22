@@ -98,6 +98,9 @@ interface IAuctionModule {
     /// @param lotsRemaining Number of lots remaining
     error AuctionModule_NotEnoughLotsRemaining(uint256 auctionId, uint256 lotsRemaining);
 
+    /// @notice Error returned when governance tries to change the payment token while an auction is active
+    error AuctionModule_CannotReplacePaymentTokenActiveAuction();
+
     /* ***************** */
     /*    Public Vars    */
     /* ***************** */

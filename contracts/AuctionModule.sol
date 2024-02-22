@@ -325,6 +325,9 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         if (address(_newPaymentToken) == address(0)) {
             revert AuctionModule_InvalidZeroAddress(0);
         }
+        if (isAnyAuctionActive()) {
+            revert AuctionModule_CannotReplacePaymentTokenActiveAuction();
+        }
         emit PaymentTokenChanged(address(paymentToken), address(_newPaymentToken));
         paymentToken = _newPaymentToken;
     }
