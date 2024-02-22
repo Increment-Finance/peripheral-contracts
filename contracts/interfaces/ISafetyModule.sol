@@ -80,6 +80,10 @@ interface ISafetyModule {
     /// @param maxAmount The maximum auctionable amount of underlying tokens
     error SafetyModule_InsufficientSlashedTokensForAuction(IERC20 token, uint256 amount, uint256 maxAmount);
 
+    /// @notice Error returned when trying to replace the AuctionModule while an auction is active
+    /// @param auctionId ID of the active auction
+    error SafetyModule_CannotReplaceAuctionModuleActiveAuction(uint256 auctionId);
+
     /* ***************** */
     /*    Public Vars    */
     /* ***************** */

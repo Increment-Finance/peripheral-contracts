@@ -189,6 +189,20 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
     function setAuctionModule(IAuctionModule _newAuctionModule) external onlyRole(GOVERNANCE) {
+        // Check if there are any active auctions
+        uint256 nextAuctionId = auctionModule.getNextAuctionId();
+        if (nextAuctionId != 0) {
+            // Loop through auctions, starting from the most recent
+            for (uint256 i = nextAuctionId - 1; i >= 0;) {
+                // If an auction is active, do not replace the auction module
+                if (auctionModule.isAuctionActive(i)) {
+                    revert SafetyModule_CannotReplaceAuctionModuleActiveAuction(i);
+                }
+                unchecked {
+                    --i; // saves 63 gas per iteration
+                }
+            }
+        }
         emit AuctionModuleUpdated(address(auctionModule), address(_newAuctionModule));
         auctionModule = _newAuctionModule;
     }
