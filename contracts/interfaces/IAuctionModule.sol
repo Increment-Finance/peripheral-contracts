@@ -178,6 +178,10 @@ interface IAuctionModule {
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
 
+    /// @notice Returns whether any auction is still active
+    /// @return True if any auction is still active, false otherwise
+    function isAnyAuctionActive() external view returns (bool);
+
     /* ****************** */
     /*   External Users   */
     /* ****************** */
