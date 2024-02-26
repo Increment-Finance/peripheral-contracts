@@ -116,20 +116,22 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
         uint8 _numLots,
         uint128 _lotPrice,
         uint128 _initialLotSize,
-        uint64 _slashPercent,
+        uint256 _slashAmount,
         uint96 _lotIncreaseIncrement,
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
-        if (_slashPercent > 1e18) {
-            revert SafetyModule_InvalidSlashPercentTooHigh();
-        }
-
+        // Make sure the staked token is registered
         IStakedToken stakedToken = stakedTokens[getStakedTokenIdx(_stakedToken)];
 
+        // Only allow slashing up to 99%
+        uint256 maxSlashAmount = stakedToken.totalSupply().mul(0.99e18);
+        if (_slashAmount > maxSlashAmount) {
+            _slashAmount = maxSlashAmount;
+        }
+
         // Slash the staked tokens and transfer the underlying tokens to the auction module
-        uint256 slashAmount = stakedToken.totalSupply().mul(_slashPercent);
-        uint256 underlyingAmount = stakedToken.slash(address(auctionModule), slashAmount);
+        uint256 underlyingAmount = stakedToken.slash(address(auctionModule), _slashAmount);
 
         // Make sure the amount of underlying tokens transferred to the auction module is enough to
         // cover the initial lot size and number of lots to auction
@@ -151,7 +153,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
             _timeLimit
         );
         stakedTokenByAuctionId[auctionId] = stakedToken;
-        emit TokensSlashedForAuction(_stakedToken, slashAmount, underlyingAmount, auctionId);
+        emit TokensSlashedForAuction(_stakedToken, _slashAmount, underlyingAmount, auctionId);
         return auctionId;
     }
 

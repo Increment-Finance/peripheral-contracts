@@ -126,9 +126,10 @@ contract SafetyModuleHandler is Test {
         _lotIncreaseIncrement = uint96(bound(_lotIncreaseIncrement, _initialLotSize / 100, _initialLotSize / 10));
         _lotIncreasePeriod = uint16(bound(_lotIncreasePeriod, 30 minutes, 12 hours));
         _timeLimit = uint32(bound(_timeLimit, 1 days, 4 weeks));
-        _slashPercent = uint64(bound(_slashPercent, 1e16, 1e18));
+        _slashPercent = uint64(bound(_slashPercent, 1e16, 0.99e18));
 
-        uint256 underlyingAmount = stakedToken.previewRedeem(stakedToken.totalSupply().mul(_slashPercent));
+        uint256 slashAmount = stakedToken.totalSupply().mul(_slashPercent);
+        uint256 underlyingAmount = stakedToken.previewRedeem(slashAmount);
         uint256 getNextAuctionId = auctionModule.getNextAuctionId();
         bool expectFail;
 
@@ -159,7 +160,7 @@ contract SafetyModuleHandler is Test {
             _numLots,
             _lotPrice,
             _initialLotSize,
-            _slashPercent,
+            slashAmount,
             _lotIncreaseIncrement,
             _lotIncreasePeriod,
             _timeLimit

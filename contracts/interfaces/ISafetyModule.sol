@@ -70,9 +70,6 @@ interface ISafetyModule {
     /// @param invalidAddress Address that was passed
     error SafetyModule_InvalidStakedToken(address invalidAddress);
 
-    /// @notice Error returned when passing a `slashPercent` value that is greater than 100% (1e18)
-    error SafetyModule_InvalidSlashPercentTooHigh();
-
     /// @notice Error returned when the maximum auctionable amount of underlying tokens is less than
     /// the given initial lot size multiplied by the number of lots when calling `slashAndStartAuction`
     /// @param token The underlying ERC20 token
@@ -129,7 +126,7 @@ interface ISafetyModule {
     /// @param _numLots Number of lots in the auction
     /// @param _lotPrice Fixed price of each lot in the auction
     /// @param _initialLotSize Initial number of underlying tokens in each lot
-    /// @param _slashPercent Percentage of staked tokens to slash, normalized to 1e18
+    /// @param _slashAmount Amount of staked tokens to slash
     /// @param _lotIncreaseIncrement Amount of tokens by which the lot size increases each period
     /// @param _lotIncreasePeriod Number of seconds between each lot size increase
     /// @param _timeLimit Number of seconds before the auction ends if all lots are not sold
@@ -139,7 +136,7 @@ interface ISafetyModule {
         uint8 _numLots,
         uint128 _lotPrice,
         uint128 _initialLotSize,
-        uint64 _slashPercent,
+        uint256 _slashAmount,
         uint96 _lotIncreaseIncrement,
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit

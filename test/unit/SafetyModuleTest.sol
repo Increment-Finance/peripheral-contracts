@@ -1166,7 +1166,7 @@ contract SafetyModuleTest is Deployment, Utils {
         // other auction params
         uint128 lotPrice = 1e18;
         uint8 numLots = 2;
-        uint64 slashPercent = 1e18;
+        uint256 slashAmount = stakedToken1.totalSupply();
         uint96 increment = 1e18;
         uint16 period = 1 hours;
         uint32 timelimit = 5 days;
@@ -1174,23 +1174,15 @@ contract SafetyModuleTest is Deployment, Utils {
         address underlyingToken = address(stakedToken1.getUnderlyingToken());
         _expectInsufficientSlashedTokensForAuction(underlyingToken, numLots * lotSize, stakedToken1.totalSupply());
         safetyModule.slashAndStartAuction(
-            stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
-        );
-
-        // test slash percent too high, over 1e18
-        slashPercent += 1;
-        _expectInvalidSlashPercentTooHigh();
-        safetyModule.slashAndStartAuction(
-            stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+            stakedToken, numLots, lotPrice, lotSize, slashAmount, increment, period, timelimit
         );
 
         // test invalid staked token
         _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.getStakedTokenIdx(liquidityProviderOne);
-        slashPercent -= 1;
         _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.slashAndStartAuction(
-            liquidityProviderOne, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+            liquidityProviderOne, numLots, lotPrice, lotSize, slashAmount, increment, period, timelimit
         );
 
         // test invalid callers
@@ -1407,7 +1399,14 @@ contract SafetyModuleTest is Deployment, Utils {
     function test_AuctionModuleErrors() public {
         // start an auction successfully for later tests
         uint256 auctionId = safetyModule.slashAndStartAuction(
-            address(stakedToken1), 1, 1 ether, 1e18, 0.5e18, 0.1 ether, 1 hours, 10 days
+            address(stakedToken1),
+            1,
+            1 ether,
+            uint128(stakedToken1.totalSupply() / 10),
+            stakedToken1.totalSupply(),
+            0.1 ether,
+            1 hours,
+            10 days
         );
 
         // test invalid zero arguments
@@ -1833,18 +1832,20 @@ contract SafetyModuleTest is Deployment, Utils {
         uint8 numLots,
         uint128 lotPrice,
         uint128 initialLotSize,
-        uint64 slashPercent,
+        uint256 slashPercent,
         uint96 lotIncreaseIncrement,
         uint16 lotIncreasePeriod,
         uint32 timeLimit
     ) internal returns (uint256) {
+        slashPercent = bound(slashPercent, 1e16, 0.99e18);
+        uint256 slashAmount = stakedToken.totalSupply().wadMul(slashPercent);
         uint256 nextId = auctionModule.getNextAuctionId();
         uint256 auctionId = safetyModule.slashAndStartAuction(
             address(stakedToken),
             numLots,
             lotPrice,
             initialLotSize,
-            slashPercent,
+            slashAmount,
             lotIncreaseIncrement,
             lotIncreasePeriod,
             timeLimit
