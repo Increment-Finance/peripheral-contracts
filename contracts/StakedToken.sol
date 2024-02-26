@@ -161,9 +161,6 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (balanceOf(msg.sender) == 0) {
             revert StakedToken_ZeroBalanceAtCooldown();
         }
-        if (isInPostSlashingState) {
-            revert StakedToken_CooldownDisabledInPostSlashingState();
-        }
         //solium-disable-next-line
         _stakersCooldowns[msg.sender] = block.timestamp;
 
@@ -397,16 +394,13 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
         if (amount == 0) revert StakedToken_InvalidZeroAmount();
         if (exchangeRate == 0) revert StakedToken_ZeroExchangeRate();
 
-        // Users can redeem without waiting for the cooldown period in a post-slashing state
-        if (!isInPostSlashingState) {
-            // Make sure the user's cooldown period is over and the unstake window didn't pass
-            uint256 cooldownStartTimestamp = _stakersCooldowns[from];
-            if (block.timestamp < cooldownStartTimestamp + _COOLDOWN_SECONDS) {
-                revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + _COOLDOWN_SECONDS);
-            }
-            if (block.timestamp - cooldownStartTimestamp - _COOLDOWN_SECONDS > _UNSTAKE_WINDOW) {
-                revert StakedToken_UnstakeWindowFinished(cooldownStartTimestamp + _COOLDOWN_SECONDS + _UNSTAKE_WINDOW);
-            }
+        // Make sure the user's cooldown period is over and the unstake window didn't pass
+        uint256 cooldownStartTimestamp = _stakersCooldowns[from];
+        if (block.timestamp < cooldownStartTimestamp + _COOLDOWN_SECONDS) {
+            revert StakedToken_InsufficientCooldown(cooldownStartTimestamp + _COOLDOWN_SECONDS);
+        }
+        if (block.timestamp - cooldownStartTimestamp - _COOLDOWN_SECONDS > _UNSTAKE_WINDOW) {
+            revert StakedToken_UnstakeWindowFinished(cooldownStartTimestamp + _COOLDOWN_SECONDS + _UNSTAKE_WINDOW);
         }
 
         // Check the sender's balance and adjust the redeem amount if necessary
