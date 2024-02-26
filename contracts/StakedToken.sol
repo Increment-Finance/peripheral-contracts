@@ -384,9 +384,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     ///      - The user's staked token balance is zero
     ///      - The amount to redeem is zero
     ///      - The current exchange rate is zero (i.e., all underlying tokens have been slashed)
-    ///      - The contract is not in a post-slashing state, and either:
-    ///          - The user's cooldown period is not over
-    ///          - The unstake window has passed
+    ///      - The user's cooldown period is not over
+    ///      - The unstake window has passed
     /// @param from Address to burn staked tokens from
     /// @param to Address to transfer underlying tokens to
     /// @param amount Amount of staked tokens to redeem
