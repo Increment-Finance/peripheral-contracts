@@ -155,14 +155,6 @@ interface ISafetyModule {
     /// @param _remainingBalance Amount of underlying tokens remaining from the auction
     function auctionEnded(uint256 _auctionId, uint256 _remainingBalance) external;
 
-    /// @notice Donates underlying tokens to a StakedToken contract, raising its exchange rate
-    /// @dev Unsold tokens are returned automatically from the AuctionModule when one ends, so this is meant
-    /// for transferring tokens from some other source, which must approve the StakedToken to transfer first
-    /// @param _stakedToken Address of the StakedToken contract to return underlying tokens to
-    /// @param _from Address of the account to transfer funds from
-    /// @param _amount Amount of underlying tokens to return
-    function returnFunds(address _stakedToken, address _from, uint256 _amount) external;
-
     /// @notice Sends payment tokens raised in auctions from the AuctionModule to the governance treasury
     /// @param _amount Amount of payment tokens to withdraw
     function withdrawFundsRaisedFromAuction(uint256 _amount) external;

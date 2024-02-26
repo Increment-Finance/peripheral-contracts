@@ -9,6 +9,7 @@ import {SafetyModule, ISafetyModule} from "../../contracts/SafetyModule.sol";
 import {StakedToken, IStakedToken} from "../../contracts/StakedToken.sol";
 import {AuctionModule, IAuctionModule} from "../../contracts/AuctionModule.sol";
 import {TestSMRewardDistributor, IRewardDistributor} from "../mocks/TestSMRewardDistributor.sol";
+import {TestSafetyModule} from "../mocks/TestSafetyModule.sol";
 import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 
 // interfaces
@@ -78,7 +79,7 @@ contract SafetyModuleTest is Deployment, Utils {
     StakedToken public stakedToken2;
 
     EcosystemReserve public ecosystemReserve;
-    SafetyModule public safetyModule;
+    TestSafetyModule public safetyModule;
     AuctionModule public auctionModule;
     TestSMRewardDistributor public rewardDistributor;
     IWeightedPoolFactory public weightedPoolFactory;
@@ -102,7 +103,7 @@ contract SafetyModuleTest is Deployment, Utils {
         ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy safety module
-        safetyModule = new SafetyModule(address(0), address(0));
+        safetyModule = new TestSafetyModule(address(0), address(0));
 
         // Deploy auction module
         auctionModule = new AuctionModule(ISafetyModule(address(0)), IERC20(address(usdc)));
@@ -1186,8 +1187,6 @@ contract SafetyModuleTest is Deployment, Utils {
         // test invalid staked token
         _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.getStakedTokenIdx(liquidityProviderOne);
-        _expectInvalidStakedToken(liquidityProviderOne);
-        safetyModule.returnFunds(liquidityProviderOne, liquidityProviderTwo, 1e18);
         slashPercent -= 1;
         _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.slashAndStartAuction(

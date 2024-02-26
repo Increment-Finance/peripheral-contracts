@@ -174,13 +174,6 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function returnFunds(address _stakedToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE) {
-        IStakedToken stakedToken = stakedTokens[getStakedTokenIdx(_stakedToken)];
-        _returnFunds(stakedToken, _from, _amount);
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance
     function withdrawFundsRaisedFromAuction(uint256 _amount) external onlyRole(GOVERNANCE) {
         IERC20 paymentToken = auctionModule.paymentToken();
         paymentToken.safeTransfer(msg.sender, _amount);

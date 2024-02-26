@@ -227,42 +227,6 @@ contract SafetyModuleHandler is Test {
         }
     }
 
-    function returnFunds(uint256 stakedTokenIndexSeed, uint256 amount) external useGovernance {
-        amount = bound(amount, 0, type(uint256).max / 1e18);
-        IStakedToken stakedToken =
-            safetyModule.stakedTokens(bound(stakedTokenIndexSeed, 0, safetyModule.getNumStakedTokens() - 1));
-        if (amount == 0) {
-            vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
-            safetyModule.returnFunds(address(stakedToken), governance, amount);
-            return;
-        }
-        if (stakedToken.totalSupply() == 0) {
-            vm.expectRevert(); // Division by zero
-            safetyModule.returnFunds(address(stakedToken), governance, amount);
-            return;
-        }
-        IERC20 underlyingToken = stakedToken.getUnderlyingToken();
-        underlyingToken.approve(address(stakedToken), amount);
-        uint256 prevGovernanceBalance = underlyingToken.balanceOf(governance);
-        if (prevGovernanceBalance < amount) {
-            vm.expectRevert();
-            safetyModule.returnFunds(address(stakedToken), governance, amount);
-            return;
-        }
-        uint256 prevStakedTokenBalance = underlyingToken.balanceOf(address(stakedToken));
-        uint256 prevExchangeRate = stakedToken.exchangeRate();
-        vm.expectEmit(false, false, false, true);
-        emit FundsReturned(governance, amount);
-        safetyModule.returnFunds(address(stakedToken), governance, amount);
-        assertEq(underlyingToken.balanceOf(governance), prevGovernanceBalance - amount, "Governance balance mismatch");
-        assertEq(
-            underlyingToken.balanceOf(address(stakedToken)),
-            prevStakedTokenBalance + amount,
-            "Staked token balance mismatch"
-        );
-        assertGt(stakedToken.exchangeRate(), prevExchangeRate, "Exchange rate mismatch");
-    }
-
     function withdrawFundsRaisedFromAuction(uint256 amount) external useGovernance {
         IERC20 paymentToken = auctionModule.paymentToken();
         uint256 allowance = paymentToken.allowance(address(auctionModule), address(safetyModule));
