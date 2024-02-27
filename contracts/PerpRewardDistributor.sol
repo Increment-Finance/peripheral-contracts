@@ -109,83 +109,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @param market Address of the perpetual market
     /// @param user Address of the liquidity provier
     function updatePosition(address market, address user) external virtual override onlyClearingHouse {
-        // Accrue rewards to the market
-        _updateMarketRewards(market);
-
-        // Update the total liquidity in the market
-        uint256 prevLpPosition = _lpPositionsPerUser[user][market];
-        uint256 newLpPosition = _getCurrentPosition(user, market);
-        _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
-
-        // Accrue rewards to the user for each reward token
-        uint256 numTokens = rewardTokens.length;
-        for (uint256 i; i < numTokens;) {
-            address token = rewardTokens[i];
-            /**
-             * Accumulator values are denominated in `rewards per LP token` or `reward/LP`, with changes in the market's
-             * total liquidity baked into the accumulators every time `_updateMarketRewards` is called. Each time a user
-             * accrues rewards we make a copy of the current global value, `_cumulativeRewardPerLpToken[token][market]`,
-             * for the user and store it in `_cumulativeRewardPerLpTokenPerUser[user][token][market]`. Thus, subtracting
-             * the user's stored value from the current global value gives the new reward/LP accrued to the market since
-             * the user last accrued rewards. Multiplying this by the user's LP position gives the new rewards accrued
-             * to the user before accounting for any penalties.
-             *
-             * newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken)
-             */
-            if (_cumulativeRewardPerLpToken[token][market] < _cumulativeRewardPerLpTokenPerUser[user][token][market]) {
-                // This only happens if a reward token was removed and then re-added, resetting the market accumulator
-                delete _cumulativeRewardPerLpTokenPerUser[user][token][market];
-            }
-            uint256 newRewards = prevLpPosition.mul(
-                _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
-            );
-            if (newLpPosition < prevLpPosition) {
-                // Removed liquidity - need to check if within early withdrawal threshold
-                uint256 deltaTime = block.timestamp - _withdrawTimerStartByUserByMarket[user][market];
-                if (deltaTime < _earlyWithdrawalThreshold) {
-                    // Early withdrawal - apply penalty
-                    // Penalty is linearly proportional to the time remaining in the early withdrawal period
-                    uint256 penalty = (newRewards * (_earlyWithdrawalThreshold - deltaTime)) / _earlyWithdrawalThreshold;
-                    newRewards -= penalty;
-                    emit EarlyWithdrawalPenaltyApplied(user, market, token, penalty);
-                }
-            }
-            // Update the user's stored accumulator value
-            _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
-            if (newRewards == 0) {
-                unchecked {
-                    ++i; // saves 63 gas per iteration
-                }
-                continue;
-            }
-            // Update the user's rewards and total unclaimed rewards
-            _rewardsAccruedByUser[user][token] += newRewards;
-            _totalUnclaimedRewards[token] += newRewards;
-            emit RewardAccruedToUser(user, token, market, newRewards);
-
-            // Check for reward token shortfall
-            uint256 rewardTokenBalance = _rewardTokenBalance(token);
-            if (_totalUnclaimedRewards[token] > rewardTokenBalance) {
-                emit RewardTokenShortfall(token, _totalUnclaimedRewards[token] - rewardTokenBalance);
-            }
-
-            unchecked {
-                ++i; // saves 63 gas per iteration
-            }
-        }
-        if (newLpPosition != 0) {
-            // Added or partially removed liquidity - reset early withdrawal timer
-            _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
-            emit EarlyWithdrawalTimerReset(user, market, block.timestamp + _earlyWithdrawalThreshold);
-        } else {
-            // Full withdrawal, so next deposit is an initial deposit
-            delete _withdrawTimerStartByUserByMarket[user][market];
-            emit EarlyWithdrawalTimerReset(user, market, 0);
-        }
-
-        // Update the user's stored lp position
-        _lpPositionsPerUser[user][market] = newLpPosition;
-        emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
+        _accrueRewards(market, user);
     }
 
     /* ****************** */
@@ -253,24 +177,33 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         return IPerpetual(market).getLpLiquidity(user);
     }
 
-    /// @notice Accrues rewards to a user for a given market
-    /// @dev Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
-    /// LP position is handled by `updatePosition`
+    /// @notice Accrues rewards and updates the stored LP position of a user and the total liquidity in the market
+    /// @dev Called by `updatePosition`, which can only be called by the ClearingHouse when an LP's position changes,
+    ///      and `claimRewards`, which always passes `msg.sender` as the user
     /// @param market Address of the market in `ClearingHouse.perpetuals`
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
-        // Do not accrue rewards for the given market before the early withdrawal threshold has passed, because
-        // we cannot apply penalties to rewards that have already been accrued
-        if (block.timestamp < _withdrawTimerStartByUserByMarket[user][market] + _earlyWithdrawalThreshold) return;
-        uint256 lpPosition = _lpPositionsPerUser[user][market];
-        if (lpPosition != _getCurrentPosition(user, market)) {
-            // Only occurs if the user has a pre-existing liquidity position and has not registered for rewards,
-            // since any change in LP position calls `updatePosition` which updates `_lpPositionsPerUser`
-            revert RewardDistributor_UserPositionMismatch(user, market, lpPosition, _getCurrentPosition(user, market));
-        }
-        // Accrue rewards to the market, or initialize it and return if it has no liquidity
+        // Accrue rewards to the market
         _updateMarketRewards(market);
-        if (_totalLiquidityPerMarket[market] == 0) return;
+
+        // Compare the user's stored LP position to the current LP position
+        uint256 prevLpPosition = _lpPositionsPerUser[user][market];
+        uint256 newLpPosition = _getCurrentPosition(user, market);
+        if (newLpPosition != prevLpPosition) {
+            // Called by `updatePosition`
+            // Update the total liquidity in the market
+            _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newLpPosition - prevLpPosition;
+            // Update the user's stored stake position
+            _lpPositionsPerUser[user][market] = newLpPosition;
+            emit PositionUpdated(user, market, prevLpPosition, newLpPosition);
+        } else {
+            // Called by `claimRewards`
+            // Do not accrue rewards for the given market before the early withdrawal threshold has passed, because
+            // we cannot apply penalties to rewards that have already been accrued
+            if (block.timestamp < _withdrawTimerStartByUserByMarket[user][market] + _earlyWithdrawalThreshold) return;
+            // Return if the market has no liquidity
+            if (_totalLiquidityPerMarket[market] == 0) return;
+        }
 
         // Accrue rewards to the user for each reward token
         uint256 numTokens = rewardTokens.length;
@@ -291,9 +224,20 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
                 // This only happens if a reward token was removed and then re-added, resetting the market accumulator
                 delete _cumulativeRewardPerLpTokenPerUser[user][token][market];
             }
-            uint256 newRewards = lpPosition.mul(
+            uint256 newRewards = prevLpPosition.mul(
                 _cumulativeRewardPerLpToken[token][market] - _cumulativeRewardPerLpTokenPerUser[user][token][market]
             );
+            if (newLpPosition < prevLpPosition) {
+                // Removed liquidity - need to check if within early withdrawal threshold
+                uint256 deltaTime = block.timestamp - _withdrawTimerStartByUserByMarket[user][market];
+                if (deltaTime < _earlyWithdrawalThreshold) {
+                    // Early withdrawal - apply penalty
+                    // Penalty is linearly proportional to the time remaining in the early withdrawal period
+                    uint256 penalty = (newRewards * (_earlyWithdrawalThreshold - deltaTime)) / _earlyWithdrawalThreshold;
+                    newRewards -= penalty;
+                    emit EarlyWithdrawalPenaltyApplied(user, market, token, penalty);
+                }
+            }
             // Update the user's stored accumulator value
             _cumulativeRewardPerLpTokenPerUser[user][token][market] = _cumulativeRewardPerLpToken[token][market];
             if (newRewards == 0) {
@@ -314,6 +258,18 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             }
             unchecked {
                 ++i; // saves 63 gas per iteration
+            }
+        }
+        if (newLpPosition != prevLpPosition) {
+            // Called by `updatePosition`
+            if (newLpPosition != 0) {
+                // Added or partially removed liquidity - reset early withdrawal timer
+                _withdrawTimerStartByUserByMarket[user][market] = block.timestamp;
+                emit EarlyWithdrawalTimerReset(user, market, block.timestamp + _earlyWithdrawalThreshold);
+            } else {
+                // Full withdrawal, so next deposit is an initial deposit
+                delete _withdrawTimerStartByUserByMarket[user][market];
+                emit EarlyWithdrawalTimerReset(user, market, 0);
             }
         }
     }
