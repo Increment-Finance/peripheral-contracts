@@ -107,7 +107,7 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
     /// @notice Accrues rewards and updates the stored LP position of a user and the total LP of a market
     /// @dev Only callable by the clearing house, executes whenever a user's liquidity is updated for any reason
     /// @param market Address of the perpetual market
-    /// @param user Address of the liquidity provier
+    /// @param user Address of the liquidity provider
     function updatePosition(address market, address user) external virtual override onlyClearingHouse {
         _accrueRewards(market, user);
     }
