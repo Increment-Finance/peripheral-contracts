@@ -312,8 +312,8 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     /// @param to Address to transfer to
     /// @param amount Amount to transfer
     function _transfer(address from, address to, uint256 amount) internal override whenNotPaused {
+        uint256 balanceOfTo = balanceOf(to);
         if (from != to) {
-            uint256 balanceOfTo = balanceOf(to);
             if (balanceOfTo + amount > maxStakeAmount) {
                 revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, maxStakeAmount - balanceOfTo);
             }
@@ -327,9 +327,15 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
 
         super._transfer(from, to, amount);
 
-        // Update positions and accrue rewards to both users
+        // Update positions and accrue rewards to the sender
         smRewardDistributor.updatePosition(address(this), from);
-        smRewardDistributor.updatePosition(address(this), to);
+        if (balanceOfTo == 0) {
+            // Only update position and rewards for the recipient if they had no balance before,
+            // to prevent forcing the recipient to accrue rewards at a lower multiplier than desired.
+            // The next time the recipient accrues rewards, their position will be updated then.
+            // If recipient had no balance before, they should begin accruing rewards upon receipt.
+            smRewardDistributor.updatePosition(address(this), to);
+        }
     }
 
     /// @notice Internal staking function, accrues rewards after updating user's position
