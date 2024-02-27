@@ -364,8 +364,13 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
 
         // Make sure the user's stake balance doesn't exceed the max stake amount
         uint256 balanceOfUser = balanceOf(to);
-        if (balanceOfUser + stakeAmount > maxStakeAmount) {
-            revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, maxStakeAmount - balanceOfUser);
+        if (balanceOfUser >= maxStakeAmount) {
+            // Revert if the user already has the max stake amount
+            revert StakedToken_AboveMaxStakeAmount(maxStakeAmount, 0);
+        } else if (balanceOfUser + stakeAmount > maxStakeAmount) {
+            // Adjust the amount if the user would exceed the max stake amount
+            stakeAmount = maxStakeAmount - balanceOfUser;
+            amount = previewRedeem(stakeAmount);
         }
 
         // Update cooldown timestamp
