@@ -234,9 +234,9 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         return IStakedToken(token).balanceOf(staker);
     }
 
-    /// @notice Accrues rewards to a user for a given staked token
-    /// @dev Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
-    /// stake position is handled by `updatePosition`
+    /// @notice Accrues rewards and updates the stored stake position of a user and the total tokens staked
+    /// @dev Called by `updatePosition`, which can only be called by a StakedToken when a user's stake changes,
+    ///      and `claimRewards`, which always passes `msg.sender` as the user
     /// @param market Address of the token in `stakedTokens`
     /// @param user Address of the user
     function _accrueRewards(address market, address user) internal virtual override {
