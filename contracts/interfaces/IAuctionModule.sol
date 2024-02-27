@@ -101,6 +101,8 @@ interface IAuctionModule {
     /// @notice Error returned when governance tries to change the payment token while an auction is active
     error AuctionModule_CannotReplacePaymentTokenActiveAuction();
 
+    error AuctionModule_TokenAlreadyInAuction(address token);
+
     /* ***************** */
     /*    Public Vars    */
     /* ***************** */
