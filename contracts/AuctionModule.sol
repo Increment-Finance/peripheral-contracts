@@ -66,6 +66,8 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     /// @notice Mapping of auction IDs to the number of payment tokens raised in that auction
     mapping(uint256 => uint256) internal _fundsRaisedPerAuction;
 
+    /// @notice Mapping of ERC20 tokens to the internally tracked balance of this contract
+    /// @dev Used to enforce that only one auction may be active for a given token at a time
     mapping(IERC20 => uint256) internal _tokenBalancesInAuction;
 
     /// @notice Modifier for functions that should only be called by the SafetyModule
