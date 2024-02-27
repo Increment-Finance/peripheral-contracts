@@ -375,7 +375,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
             (block.timestamp - _auctions[_auctionId].startTime) / _auctions[_auctionId].lotIncreasePeriod;
         uint256 lotSize =
             _auctions[_auctionId].initialLotSize + incrementPeriods * _auctions[_auctionId].lotIncreaseIncrement;
-        uint256 tokenBalance = _tokenBalancesInAuction[address(_auctions[_auctionId].token)];
+        uint256 tokenBalance = _tokenBalancesInAuction[_auctions[_auctionId].token];
         uint256 remainingLots = _auctions[_auctionId].remainingLots;
         if (lotSize * remainingLots > tokenBalance) {
             lotSize = tokenBalance / remainingLots;
@@ -387,14 +387,14 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         // Approvals
         IERC20 auctionToken = _auctions[_auctionId].token;
         IStakedToken stakedToken = safetyModule.stakedTokenByAuctionId(_auctionId);
-        uint256 remainingBalance = _tokenBalancesInAuction[address(auctionToken)];
+        uint256 remainingBalance = _tokenBalancesInAuction[auctionToken];
         uint256 fundsRaised = _fundsRaisedPerAuction[_auctionId];
         uint256 finalLotSize = _getCurrentLotSize(_auctionId);
 
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         if (remainingBalance != 0) {
             auctionToken.approve(address(stakedToken), remainingBalance);
-            _tokenBalancesInAuction[address(auctionToken)] = 0;
+            _tokenBalancesInAuction[auctionToken] = 0;
         }
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called
         if (fundsRaised != 0) {
