@@ -156,7 +156,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
 
     /// @inheritdoc IAuctionModule
     function isAnyAuctionActive() public view returns (bool) {
-        for (uint256 i = _nextAuctionId - 1; i >= 0; i++) {
+        for (uint256 i = _nextAuctionId - 1; i >= 0; i--) {
             if (_auctions[i].active && block.timestamp < _auctions[i].endTime) {
                 return true;
             }
