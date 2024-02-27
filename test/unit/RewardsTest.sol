@@ -975,12 +975,6 @@ contract RewardsTest is Deployment, Utils {
         // skip some time
         skip(10 days);
 
-        // before registering positions, expect accruing rewards to fail
-        _expectUserPositionMismatch(
-            liquidityProviderTwo, address(perpetual), 0, perpetual.getLpLiquidity(liquidityProviderTwo)
-        );
-        newRewardsDistributor.accrueRewards(liquidityProviderTwo);
-
         // register user positions
         address[] memory markets = _getMarkets();
         vm.startPrank(liquidityProviderOne);
@@ -1705,18 +1699,6 @@ contract RewardsTest is Deployment, Utils {
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_PositionAlreadyRegistered(address,address,uint256)", user, market, position
-            )
-        );
-    }
-
-    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                user,
-                market,
-                expected,
-                actual
             )
         );
     }

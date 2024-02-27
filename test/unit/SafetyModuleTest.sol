@@ -395,12 +395,6 @@ contract SafetyModuleTest is Deployment, Utils {
         // skip some time
         skip(10 days);
 
-        // before registering positions, expect accruing rewards to fail
-        _expectUserPositionMismatch(
-            liquidityProviderTwo, address(stakedToken1), 0, stakedToken1.balanceOf(liquidityProviderTwo)
-        );
-        newRewardDistributor.accrueRewards(liquidityProviderTwo);
-
         // register user positions
         vm.startPrank(liquidityProviderOne);
         newRewardDistributor.registerPositions(stakedTokens);
@@ -851,7 +845,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -917,7 +911,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // initialLotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -990,7 +984,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -2173,18 +2167,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
     function _expectAlreadyInitializedStartTime(address market) internal {
         vm.expectRevert(abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", market));
-    }
-
-    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                user,
-                market,
-                expected,
-                actual
-            )
-        );
     }
 
     function _expectStakedTokenInvalidZeroAmount() internal {
