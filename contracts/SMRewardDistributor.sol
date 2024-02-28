@@ -320,7 +320,7 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
                 // Full removal - set multiplier to 0 until the user stakes again
                 delete _multiplierStartTimeByUser[user][market];
             }
-        } else {
+        } else if (newPosition > prevPosition) {
             /**
              * User added to their existing stake - need to update multiplier start time
              * Rationale:
