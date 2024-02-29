@@ -142,6 +142,7 @@ contract StakedToken is IStakedToken, ERC20Permit, IncreAccessControl, Pausable 
     /// @inheritdoc IStakedToken
     function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external {
         if (onBehalfOf == address(0)) revert StakedToken_InvalidZeroAddress();
+        if (balanceOf(onBehalfOf) != 0) revert StakedToken_NoStakingOnBehalfOfExistingStaker();
         _stake(msg.sender, onBehalfOf, amount);
     }
 
