@@ -57,6 +57,8 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
     /// @notice ID of the next auction
     uint256 internal _nextAuctionId;
 
+    uint256 internal _numCompletedAuctions;
+
     /// @notice Mapping of auction IDs to auction information
     mapping(uint256 => Auction) internal _auctions;
 
@@ -156,12 +158,7 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
 
     /// @inheritdoc IAuctionModule
     function isAnyAuctionActive() public view returns (bool) {
-        for (uint256 i = _nextAuctionId - 1; i >= 0; i--) {
-            if (_auctions[i].active && block.timestamp < _auctions[i].endTime) {
-                return true;
-            }
-        }
-        return false;
+        return _nextAuctionId != _numCompletedAuctions;
     }
 
     /* ***************** */
@@ -390,6 +387,9 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         uint256 remainingBalance = _tokenBalancesInAuction[auctionToken];
         uint256 fundsRaised = _fundsRaisedPerAuction[_auctionId];
         uint256 finalLotSize = _getCurrentLotSize(_auctionId);
+
+        // Increment the number of completed auctions
+        _numCompletedAuctions += 1;
 
         // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         if (remainingBalance != 0) {
