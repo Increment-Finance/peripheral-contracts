@@ -98,6 +98,11 @@ interface IAuctionModule {
     /// @param lotsRemaining Number of lots remaining
     error AuctionModule_NotEnoughLotsRemaining(uint256 auctionId, uint256 lotsRemaining);
 
+    /// @notice Error returned when governance tries to change the payment token while an auction is active
+    error AuctionModule_CannotReplacePaymentTokenActiveAuction();
+
+    error AuctionModule_TokenAlreadyInAuction(address token);
+
     /* ***************** */
     /*    Public Vars    */
     /* ***************** */
@@ -177,6 +182,10 @@ interface IAuctionModule {
     /// @param _auctionId ID of the auction
     /// @return True if the auction is still active, false otherwise
     function isAuctionActive(uint256 _auctionId) external view returns (bool);
+
+    /// @notice Returns whether any auction is still active
+    /// @return True if any auction is still active, false otherwise
+    function isAnyAuctionActive() external view returns (bool);
 
     /* ****************** */
     /*   External Users   */

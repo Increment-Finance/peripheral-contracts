@@ -9,6 +9,7 @@ import {SafetyModule, ISafetyModule} from "../../contracts/SafetyModule.sol";
 import {StakedToken, IStakedToken} from "../../contracts/StakedToken.sol";
 import {AuctionModule, IAuctionModule} from "../../contracts/AuctionModule.sol";
 import {TestSMRewardDistributor, IRewardDistributor} from "../mocks/TestSMRewardDistributor.sol";
+import {TestSafetyModule} from "../mocks/TestSafetyModule.sol";
 import {EcosystemReserve} from "../../contracts/EcosystemReserve.sol";
 
 // interfaces
@@ -58,19 +59,19 @@ contract SafetyModuleTest is Deployment, Utils {
 
     event PaymentTokenChanged(address oldPaymentToken, address newPaymentToken);
 
-    uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
-    uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
-    uint256 constant INITIAL_MAX_MULTIPLIER = 4e18;
-    uint256 constant INITIAL_SMOOTHING_VALUE = 30e18;
-    uint256 constant COOLDOWN_SECONDS = 1 days;
-    uint256 constant UNSTAKE_WINDOW = 10 days;
-    uint256 constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
-    uint256 constant MAX_STAKE_AMOUNT_2 = 100_000e18;
-    uint256 constant INITIAL_MARKET_WEIGHT_0 = 5000;
-    uint256 constant INITIAL_MARKET_WEIGHT_1 = 5000;
+    uint88 public constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint88 public constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint256 public constant INITIAL_MAX_MULTIPLIER = 4e18;
+    uint256 public constant INITIAL_SMOOTHING_VALUE = 30e18;
+    uint256 public constant COOLDOWN_SECONDS = 1 days;
+    uint256 public constant UNSTAKE_WINDOW = 10 days;
+    uint256 public constant MAX_STAKE_AMOUNT_1 = 1_000_000e18;
+    uint256 public constant MAX_STAKE_AMOUNT_2 = 100_000e18;
+    uint256 public constant INITIAL_MARKET_WEIGHT_0 = 5000;
+    uint256 public constant INITIAL_MARKET_WEIGHT_1 = 5000;
 
-    address liquidityProviderOne = address(123);
-    address liquidityProviderTwo = address(456);
+    address public liquidityProviderOne = address(123);
+    address public liquidityProviderTwo = address(456);
 
     IncrementToken public rewardsToken;
     IWETH public weth;
@@ -78,7 +79,7 @@ contract SafetyModuleTest is Deployment, Utils {
     StakedToken public stakedToken2;
 
     EcosystemReserve public ecosystemReserve;
-    SafetyModule public safetyModule;
+    TestSafetyModule public safetyModule;
     AuctionModule public auctionModule;
     TestSMRewardDistributor public rewardDistributor;
     IWeightedPoolFactory public weightedPoolFactory;
@@ -102,7 +103,7 @@ contract SafetyModuleTest is Deployment, Utils {
         ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy safety module
-        safetyModule = new SafetyModule(address(0), address(0));
+        safetyModule = new TestSafetyModule(address(0), address(0));
 
         // Deploy auction module
         auctionModule = new AuctionModule(ISafetyModule(address(0)), IERC20(address(usdc)));
@@ -186,6 +187,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _stake(stakedToken2, liquidityProviderOne, balancerPool.balanceOf(liquidityProviderOne));
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_Deployment() public {
         assertEq(safetyModule.getStakedTokens().length, 2, "Staked token count mismatch");
         assertEq(safetyModule.getNumStakedTokens(), 2, "Staked token count mismatch");
@@ -214,6 +216,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*   Staked Rewards   */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_RewardMultiplier() public {
         // Test with smoothing value of 30 and max multiplier of 4
         // These values match those in the spreadsheet used to design the SM rewards
@@ -298,6 +301,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_MultipliedRewardAccrual(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -361,6 +365,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_PreExistingBalances(uint256 maxTokenAmountIntoBalancer) public {
         // liquidityProvider2 starts with 10,000 INCR and 10 WETH
         maxTokenAmountIntoBalancer = bound(maxTokenAmountIntoBalancer, 100e18, 9_000e18);
@@ -389,12 +394,6 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // skip some time
         skip(10 days);
-
-        // before registering positions, expect accruing rewards to fail
-        _expectUserPositionMismatch(
-            liquidityProviderTwo, address(stakedToken1), 0, stakedToken1.balanceOf(liquidityProviderTwo)
-        );
-        newRewardDistributor.accrueRewards(liquidityProviderTwo);
 
         // register user positions
         vm.startPrank(liquidityProviderOne);
@@ -431,6 +430,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _claimAndRedeemAll(_getStakedTokens(), newRewardDistributor, liquidityProviderTwo);
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_RewardTokenShortfall(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -478,9 +478,10 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
 
         // Try to claim reward tokens, expecting RewardTokenShortfall event
+        vm.startPrank(liquidityProviderTwo);
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(address(rewardsToken), rewardPreview + rewardPreview2 + rewardPreview3);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
         assertEq(rewardsToken.balanceOf(liquidityProviderTwo), 10_000e18, "Claimed rewards after shortfall");
 
         // Transfer reward tokens back to the EcosystemReserve
@@ -488,7 +489,8 @@ contract SafetyModuleTest is Deployment, Utils {
         rewardsToken.transfer(address(ecosystemReserve), rewardBalance);
 
         // Claim tokens and check that the accrued rewards were distributed
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             10_000e18 + rewardPreview + rewardPreview2 + rewardPreview3,
@@ -496,6 +498,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_StakedTokenZeroLiquidity() public {
         // Deploy a third staked token
         StakedToken stakedToken3 = new StakedToken(
@@ -537,6 +540,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_StakedTokenTransfer(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -567,7 +571,8 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.transfer(liquidityProviderTwo, balances1[0]);
         vm.stopPrank();
 
-        // Check that both users accrued rewards according to their initial balances and multipliers
+        // Check that user 1 accrued rewards according to their initial balance and multiplier,
+        // while user 2 has not accrued rewards yet since they already had a staking position
         _checkRewards(
             address(rewardsToken),
             liquidityProviderOne,
@@ -578,6 +583,13 @@ contract SafetyModuleTest is Deployment, Utils {
             prevTotalLiquidity,
             0
         );
+        assertEq(
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)),
+            0,
+            "Rewards should be 0: user 2"
+        );
+        // Accrue and check rewards for user 2
+        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
         _checkRewards(
             address(rewardsToken),
             liquidityProviderTwo,
@@ -602,8 +614,11 @@ contract SafetyModuleTest is Deployment, Utils {
             _checkMultiplierAdjustment(address(stakedToken1), liquidityProviderTwo, increaseRatio, 5 days);
 
         // Claim rewards for both users
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        vm.startPrank(liquidityProviderOne);
+        rewardDistributor.claimRewards();
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
 
         // Skip some more time
         skip(10 days - (block.timestamp - newMultiplierStartTime));
@@ -641,10 +656,71 @@ contract SafetyModuleTest is Deployment, Utils {
             0
         );
 
+        // Transfer tokens back to user 1 and check that their position is updated
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.transfer(liquidityProviderOne, stakeAmount);
+        vm.stopPrank();
+        assertEq(
+            rewardDistributor.lpPositionsPerUser(liquidityProviderOne, address(stakedToken1)),
+            stakeAmount,
+            "User 1 position mismatch after transfer"
+        );
+
         // redeem all staked tokens and claim rewards (for gas measurement)
         _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderTwo);
     }
 
+    // solhint-disable-next-line func-name-mixedcase
+    function testFuzz_PausingAccrual(uint256 stakeAmount1, uint256 stakeAmount2) public {
+        /* bounds */
+        stakeAmount1 = bound(stakeAmount1, 100e18, 10_000e18);
+        stakeAmount2 = bound(stakeAmount2, 100e18, 10_000e18);
+
+        // stake
+        deal(address(rewardsToken), liquidityProviderTwo, stakeAmount1);
+        deal(address(balancerPool), liquidityProviderTwo, stakeAmount2);
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount1);
+        _stake(stakedToken2, liquidityProviderTwo, stakeAmount2);
+
+        // pause accrual
+        vm.startPrank(address(this));
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not paused");
+
+        // skip some time
+        skip(10 days);
+
+        // unpause accrual
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(!rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not unpaused");
+
+        // skip some more time
+        skip(10 days);
+
+        // store initial state before accruing rewards
+        uint256[] memory multipliers = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = new uint256[](2);
+        skipTimes[0] = 10 days;
+        skipTimes[1] = 10 days;
+
+        // check that rewards are accrued for only the 10 days after unpausing
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
+        );
+    }
+
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_NextCooldownTimestamp(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
@@ -773,6 +849,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*  Slashing/Auctions  */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_StakedTokenExchangeRate(uint256 donatePercent, uint256 slashPercent, uint256 stakeAmount)
         public
     {
@@ -824,6 +901,7 @@ contract SafetyModuleTest is Deployment, Utils {
         _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18, "after returning the slashed amount");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_AuctionSoldOut(
         uint8 numLots,
         uint128 lotPrice,
@@ -835,7 +913,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -889,6 +967,7 @@ contract SafetyModuleTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_AuctionTimeOut(
         uint8 numLots,
         uint128 lotPrice,
@@ -900,7 +979,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // initialLotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -961,6 +1040,7 @@ contract SafetyModuleTest is Deployment, Utils {
         assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_TerminateAuctionEarly(
         uint8 numLots,
         uint128 lotPrice,
@@ -972,7 +1052,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -1025,6 +1105,57 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.stopPrank();
     }
 
+    // solhint-disable-next-line func-name-mixedcase
+    function testFuzz_RedeemAllDuringAuction(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
+        initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
+        uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
+
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
+        );
+
+        // User 1 (the only staker) redeems during the auction at the lowered exchange rate
+        uint256 balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderOne);
+        uint256 exchangeRate = stakedToken1.exchangeRate();
+        uint256 expectedBalance = balanceBefore + stakedToken1.totalSupply().wadMul(exchangeRate);
+        _redeem(stakedToken1, liquidityProviderOne, stakedToken1.totalSupply());
+        uint256 balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderOne);
+        assertEq(balanceAfter, expectedBalance, "User balance mismatch after redeeming during the auction");
+        assertEq(stakedToken1.totalSupply(), 0, "Total supply should be 0 after redeeming");
+        assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate should be reset after last staker redeems");
+
+        // Terminate the auction early and check that funds are returned to governance
+        balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(address(this));
+        safetyModule.terminateAuction(auctionId);
+        expectedBalance = balanceBefore + auctionableBalance;
+        balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(address(this));
+        assertEq(balanceAfter, expectedBalance, "Governance balance mismatch after terminating the auction");
+    }
+
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_MultipleAuctions(
         uint8[2] memory numLots,
         uint128[2] memory lotPrice,
@@ -1038,8 +1169,8 @@ contract SafetyModuleTest is Deployment, Utils {
         numLots[1] = uint8(bound(numLots[1], 2, 10));
         lotPrice[0] = uint128(bound(lotPrice[0], 1e8, 1e12)); // denominated in USDC w/ 6 decimals
         lotPrice[1] = uint128(bound(lotPrice[1], 1e8, 1e12));
-        slashPercent[0] = uint64(bound(slashPercent[0], 1e16, 1e18));
-        slashPercent[1] = uint64(bound(slashPercent[1], 1e16, 1e18));
+        slashPercent[0] = uint64(bound(slashPercent[0], 1e16, 0.99e18));
+        slashPercent[1] = uint64(bound(slashPercent[1], 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256[] memory auctionableBalance = new uint256[](2);
         auctionableBalance[0] = stakedToken1.totalSupply().wadMul(slashPercent[0]);
@@ -1135,6 +1266,7 @@ contract SafetyModuleTest is Deployment, Utils {
     /*    Custom Errors    */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_SafetyModuleErrors() public {
         // test staked token already registered
         _expectStakedTokenAlreadyRegistered(address(stakedToken1));
@@ -1146,41 +1278,49 @@ contract SafetyModuleTest is Deployment, Utils {
         // other auction params
         uint128 lotPrice = 1e18;
         uint8 numLots = 2;
-        uint64 slashPercent = 1e18;
+        uint256 slashAmount = stakedToken1.totalSupply();
         uint96 increment = 1e18;
         uint16 period = 1 hours;
         uint32 timelimit = 5 days;
         address stakedToken = address(stakedToken1);
         address underlyingToken = address(stakedToken1.getUnderlyingToken());
-        _expectInsufficientSlashedTokensForAuction(underlyingToken, numLots * lotSize, stakedToken1.totalSupply());
-        safetyModule.slashAndStartAuction(
-            stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+        _expectInsufficientSlashedTokensForAuction(
+            underlyingToken, numLots * lotSize, stakedToken1.totalSupply().wadMul(0.99e18)
         );
-
-        // test slash percent too high, over 1e18
-        slashPercent += 1;
-        _expectInvalidSlashPercentTooHigh();
         safetyModule.slashAndStartAuction(
-            stakedToken, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+            stakedToken, numLots, lotPrice, lotSize, slashAmount, increment, period, timelimit
         );
 
         // test invalid staked token
         _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.getStakedTokenIdx(liquidityProviderOne);
         _expectInvalidStakedToken(liquidityProviderOne);
-        safetyModule.returnFunds(liquidityProviderOne, liquidityProviderTwo, 1e18);
-        slashPercent -= 1;
-        _expectInvalidStakedToken(liquidityProviderOne);
         safetyModule.slashAndStartAuction(
-            liquidityProviderOne, numLots, lotPrice, lotSize, slashPercent, increment, period, timelimit
+            liquidityProviderOne, numLots, lotPrice, lotSize, slashAmount, increment, period, timelimit
         );
 
         // test invalid callers
         vm.startPrank(liquidityProviderOne);
         _expectCallerIsNotAuctionModule(liquidityProviderOne);
         safetyModule.auctionEnded(0, 0);
+        vm.stopPrank();
+
+        // test setting auction module during auction
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            1,
+            1 ether,
+            uint128(stakedToken1.totalSupply() / 10),
+            stakedToken1.totalSupply(),
+            0.1 ether,
+            1 hours,
+            10 days
+        );
+        _expectCannotReplaceAuctionModuleActiveAuction();
+        safetyModule.setAuctionModule(IAuctionModule(address(0)));
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_SMRDErrors() public {
         /* bounds */
         uint256 lowMaxMultiplier1 = 0;
@@ -1227,22 +1367,27 @@ contract SafetyModuleTest is Deployment, Utils {
         // test paused
         rewardDistributor.pause();
         assertTrue(rewardDistributor.paused(), "SMRD should be paused");
+        vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
         rewardDistributor.unpause();
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused");
         safetyModule.pause();
         assertTrue(rewardDistributor.paused(), "SMRD should be paused when safety module is paused");
+        vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
         safetyModule.unpause();
         assertTrue(!rewardDistributor.paused(), "SMRD should not be paused when safety module is unpaused");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_StakedTokenErrors() public {
         // test zero amount
         _expectStakedTokenInvalidZeroAmount();
-        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, 0);
+        stakedToken1.stakeOnBehalfOf(liquidityProviderTwo, 0);
         _expectStakedTokenInvalidZeroAmount();
         stakedToken1.redeemTo(liquidityProviderOne, 0);
         vm.startPrank(address(safetyModule));
@@ -1266,33 +1411,40 @@ contract SafetyModuleTest is Deployment, Utils {
         _expectZeroBalanceAtCooldown();
         stakedToken1.cooldown();
 
+        // test no staking on behalf of staker
+        uint256 govBalance = rewardsToken.balanceOf(address(this));
+        rewardsToken.approve(address(stakedToken1), govBalance);
+        _expectNoStakingOnBehalf();
+        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, govBalance);
+
         // test above max stake amount
-        uint256 invalidStakeAmount1 = type(uint256).max / 2;
-        uint256 invalidStakeAmount2 = MAX_STAKE_AMOUNT_2 + 1;
-        _expectAboveMaxStakeAmount(
-            MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
-        );
-        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount1);
-        _expectAboveMaxStakeAmount(
-            MAX_STAKE_AMOUNT_2, MAX_STAKE_AMOUNT_2 - stakedToken2.balanceOf(liquidityProviderOne)
-        );
-        stakedToken2.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount2);
-        deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount1);
+        deal(address(stakedToken1.getUnderlyingToken()), liquidityProviderOne, MAX_STAKE_AMOUNT_1);
+        deal(address(stakedToken2.getUnderlyingToken()), liquidityProviderOne, MAX_STAKE_AMOUNT_2);
+        vm.startPrank(liquidityProviderOne);
+        // first stake the max amount, then try to stake more, expecting it to fail
+        stakedToken1.stake(MAX_STAKE_AMOUNT_1);
+        stakedToken2.stake(MAX_STAKE_AMOUNT_2);
+        _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_1, 0);
+        stakedToken1.stake(1);
+        _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_2, 0);
+        stakedToken2.stake(1);
+        vm.stopPrank();
+        // stake on behalf of user 2, then try transferring to user 1, expecting it to fail
+        stakedToken1.stakeOnBehalfOf(liquidityProviderTwo, govBalance);
+        uint256 user2Balance = stakedToken1.balanceOf(liquidityProviderTwo);
         vm.startPrank(liquidityProviderTwo);
-        _expectAboveMaxStakeAmount(
-            MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
-        );
-        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_1, 0);
+        stakedToken1.transfer(liquidityProviderOne, user2Balance);
         // change max stake amount and try again, expecting it to succeed
         vm.stopPrank();
         stakedToken1.setMaxStakeAmount(type(uint256).max);
         vm.startPrank(liquidityProviderTwo);
         vm.expectEmit(false, false, false, true);
-        emit Transfer(liquidityProviderTwo, liquidityProviderOne, invalidStakeAmount1);
-        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        emit Transfer(liquidityProviderTwo, liquidityProviderOne, user2Balance);
+        stakedToken1.transfer(liquidityProviderOne, user2Balance);
         // transfer the amount back so that subsequent tests work
         vm.startPrank(liquidityProviderOne);
-        stakedToken1.transfer(liquidityProviderTwo, invalidStakeAmount1);
+        stakedToken1.transfer(liquidityProviderTwo, user2Balance);
 
         // test insufficient cooldown
         stakedToken1.cooldown();
@@ -1354,8 +1506,6 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         _expectStakingDisabledInPostSlashingState();
         stakedToken1.stake(1);
-        _expectCooldownDisabledInPostSlashingState();
-        stakedToken1.cooldown();
         vm.stopPrank();
 
         // test paused
@@ -1379,10 +1529,18 @@ contract SafetyModuleTest is Deployment, Utils {
         safetyModule.unpause();
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_AuctionModuleErrors() public {
         // start an auction successfully for later tests
         uint256 auctionId = safetyModule.slashAndStartAuction(
-            address(stakedToken1), 1, 1 ether, 1e18, 0.5e18, 0.1 ether, 1 hours, 10 days
+            address(stakedToken1),
+            1,
+            1 ether,
+            uint128(stakedToken1.totalSupply() / 10),
+            stakedToken1.totalSupply(),
+            0.1 ether,
+            1 hours,
+            10 days
         );
 
         // test invalid zero arguments
@@ -1408,6 +1566,16 @@ contract SafetyModuleTest is Deployment, Utils {
         auctionModule.setSafetyModule(ISafetyModule(address(0)));
         _expectInvalidZeroArgument(1);
         auctionModule.buyLots(auctionId, 0);
+
+        // test token already in auction
+        vm.startPrank(address(safetyModule));
+        _expectTokenAlreadyInAuction(address(rewardsToken));
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 1, 1);
+        vm.stopPrank();
+
+        // test setting payment token during auction
+        _expectCannotReplacePaymentTokenActiveAuction();
+        auctionModule.setPaymentToken(usdc);
 
         // test invalid auction ID
         _expectInvalidAuctionId(1);
@@ -1521,7 +1689,9 @@ contract SafetyModuleTest is Deployment, Utils {
                 _redeem(stakedToken, staker, balance);
             }
         }
-        distributor.claimRewardsFor(staker);
+        vm.startPrank(staker);
+        distributor.claimRewards();
+        vm.stopPrank();
     }
 
     function _calcExpectedMultiplier(uint256 deltaDays) internal view returns (uint256) {
@@ -1730,7 +1900,7 @@ contract SafetyModuleTest is Deployment, Utils {
         balancerVault.joinPool(id, address(this), address(this), joinRequest);
     }
 
-    function _viewNewRewardAccrual(address market, address user) public view returns (uint256[] memory) {
+    function _viewNewRewardAccrual(address market, address user) internal view returns (uint256[] memory) {
         uint256 numTokens = rewardDistributor.getRewardTokenCount();
         uint256[] memory newRewards = new uint256[](numTokens);
         for (uint256 i; i < numTokens; ++i) {
@@ -1806,22 +1976,25 @@ contract SafetyModuleTest is Deployment, Utils {
         uint8 numLots,
         uint128 lotPrice,
         uint128 initialLotSize,
-        uint64 slashPercent,
+        uint256 slashPercent,
         uint96 lotIncreaseIncrement,
         uint16 lotIncreasePeriod,
         uint32 timeLimit
     ) internal returns (uint256) {
+        slashPercent = bound(slashPercent, 1e16, 0.99e18);
+        uint256 slashAmount = stakedToken.totalSupply().wadMul(slashPercent);
         uint256 nextId = auctionModule.getNextAuctionId();
         uint256 auctionId = safetyModule.slashAndStartAuction(
             address(stakedToken),
             numLots,
             lotPrice,
             initialLotSize,
-            slashPercent,
+            slashAmount,
             lotIncreaseIncrement,
             lotIncreasePeriod,
             timeLimit
         );
+        assertTrue(auctionModule.isAnyAuctionActive(), "Auction should be active");
         assertEq(auctionId, nextId, "Auction ID mismatch");
         assertEq(auctionModule.getNextAuctionId(), nextId + 1, "Next auction ID mismatch");
         assertEq(auctionModule.getCurrentLotSize(auctionId), initialLotSize, "Initial lot size mismatch");
@@ -2036,11 +2209,19 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 numMarkets = safetyModule.getNumStakedTokens();
         require(numMarkets == skipTimes.length, "Invalid input");
         for (uint256 i; i < numMarkets; ++i) {
+            console.log("skipTimes[%s] = %s", i, skipTimes[i]);
+            console.log("balances[%s] = %s", i, balances[i]);
+            console.log("multipliers[%s] = %s", i, multipliers[i]);
+            console.log("initialCumRewards[%s] = %s", i, initialCumRewards[i]);
+            console.log("priorTotalLiquidity[%s] = %s", i, priorTotalLiquidity[i]);
+            console.log("weights[%s] = %s", i, weights[i]);
             uint256 cumulativeRewards = distributor.cumulativeRewardPerLpToken(
                 token, address(safetyModule.stakedTokens(i))
             ) - initialCumRewards[i];
+            console.log("cumulativeRewards = %s", cumulativeRewards);
             uint256 expectedCumulativeRewards =
                 _calcExpectedCumulativeRewards(token, skipTimes[i], priorTotalLiquidity[i], weights[i]);
+            console.log("expectedCumulativeRewards = %s", expectedCumulativeRewards);
             assertApproxEqRel(
                 cumulativeRewards,
                 expectedCumulativeRewards,
@@ -2147,18 +2328,6 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", market));
     }
 
-    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                user,
-                market,
-                expected,
-                actual
-            )
-        );
-    }
-
     function _expectStakedTokenInvalidZeroAmount() internal {
         vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
     }
@@ -2195,8 +2364,8 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
     }
 
-    function _expectCooldownDisabledInPostSlashingState() internal {
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_CooldownDisabledInPostSlashingState()"));
+    function _expectNoStakingOnBehalf() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_NoStakingOnBehalfOfExistingStaker()"));
     }
 
     function _expectInvalidZeroArgument(uint256 argIdx) internal {
@@ -2225,5 +2394,17 @@ contract SafetyModuleTest is Deployment, Utils {
 
     function _expectAuctionNotActive(uint256 auctionId) internal {
         vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+    }
+
+    function _expectTokenAlreadyInAuction(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_TokenAlreadyInAuction(address)", token));
+    }
+
+    function _expectCannotReplacePaymentTokenActiveAuction() internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_CannotReplacePaymentTokenActiveAuction()"));
+    }
+
+    function _expectCannotReplaceAuctionModuleActiveAuction() internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CannotReplaceAuctionModuleActiveAuction()"));
     }
 }

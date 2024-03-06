@@ -40,15 +40,15 @@ contract RewardsTest is Deployment, Utils {
     event NewFundsAdmin(address indexed fundsAdmin);
     event EcosystemReserveUpdated(address prevEcosystemReserve, address newEcosystemReserve);
 
-    uint88 constant INITIAL_INFLATION_RATE = 1463753e18;
-    uint88 constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
-    uint256 constant INITIAL_WITHDRAW_THRESHOLD = 10 days;
-    uint256 constant INITIAL_MARKET_WEIGHT_0 = 7500;
-    uint256 constant INITIAL_MARKET_WEIGHT_1 = 2500;
+    uint88 public constant INITIAL_INFLATION_RATE = 1463753e18;
+    uint88 public constant INITIAL_REDUCTION_FACTOR = 1.189207115e18;
+    uint256 public constant INITIAL_WITHDRAW_THRESHOLD = 10 days;
+    uint256 public constant INITIAL_MARKET_WEIGHT_0 = 7500;
+    uint256 public constant INITIAL_MARKET_WEIGHT_1 = 2500;
 
-    address liquidityProviderOne = address(123);
-    address liquidityProviderTwo = address(456);
-    address traderOne = address(789);
+    address public liquidityProviderOne = address(123);
+    address public liquidityProviderTwo = address(456);
+    address public traderOne = address(789);
 
     IncrementToken public rewardsToken;
     IncrementToken public rewardsToken2;
@@ -133,6 +133,7 @@ contract RewardsTest is Deployment, Utils {
 
     // run tests via source .env && forge test --match <TEST_NAME> --fork-url $ETH_NODE_URI_MAINNET -vv
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_Deployment() public {
         assertEq(rewardDistributor.getMaxInflationRate(), 5e24, "Max inflation rate mismatch");
         assertEq(rewardDistributor.getMinReductionFactor(), 1e18, "Min reduction factor mismatch");
@@ -164,6 +165,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_InflationAndReduction(
         uint256 timeIncrement,
         uint88 initialInflationRate,
@@ -205,6 +207,7 @@ contract RewardsTest is Deployment, Utils {
         assertApproxEqRel(accruedRewards, approxRewards, 5e16, "Incorrect annual rewards");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_RewardControllerErrors() public {
         uint88 inflationRate1 = uint88(5e24 + 1);
         uint88 inflationRate2 = type(uint88).max;
@@ -272,6 +275,7 @@ contract RewardsTest is Deployment, Utils {
     /*  RewardDistributor  */
     /* ******************* */
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_DelayedDeposit(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
@@ -323,6 +327,7 @@ contract RewardsTest is Deployment, Utils {
         _accrueAndCheckUserRewards(address(rewardsToken), liquidityProviderTwo, 0);
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_MultipleRewardTokens(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
@@ -386,9 +391,9 @@ contract RewardsTest is Deployment, Utils {
         address[] memory tokens = new address[](2);
         tokens[0] = address(rewardsToken);
         tokens[1] = address(rewardsToken2);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
+        rewardDistributor.claimRewards(tokens);
         // try claiming twice in a row to ensure rewards aren't distributed twice
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
+        rewardDistributor.claimRewards(tokens);
 
         // check claimed rewards for user 2
         assertEq(rewardsToken.balanceOf(liquidityProviderTwo), accruedRewards[0][1], "Incorrect claimed balance");
@@ -408,6 +413,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_ShortfallMultipleRewards(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
@@ -455,9 +461,10 @@ contract RewardsTest is Deployment, Utils {
         }
 
         // claim rewards for user 2, causing shortfall for token 2
+        vm.startPrank(liquidityProviderTwo);
         vm.expectEmit(false, false, false, true);
         emit RewardTokenShortfall(address(rewardsToken2), accruedRewards[1][0] + accruedRewards[1][1] - 10e18);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
         assertEq(
             rewardsToken.balanceOf(liquidityProviderTwo),
             accruedRewards[0][1],
@@ -488,7 +495,9 @@ contract RewardsTest is Deployment, Utils {
         accruedRewards[1][1] = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken2));
 
         // fail to claim rewards again after token 2 is depleted
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo);
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
         assertEq(rewardsToken2.balanceOf(liquidityProviderTwo), 10e18, "Tokens claimed after token 2 depleted");
         assertEq(
             rewardDistributor.totalUnclaimedRewards(address(rewardsToken2)),
@@ -521,7 +530,8 @@ contract RewardsTest is Deployment, Utils {
         );
 
         // claim both rewards for user 1, without replenishing the ecosystem reserve with rewardToken2
-        rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
+        vm.startPrank(liquidityProviderOne);
+        rewardDistributor.claimRewards(tokens);
         assertEq(
             rewardsToken.balanceOf(liquidityProviderOne),
             accruedRewards[0][0],
@@ -538,8 +548,9 @@ contract RewardsTest is Deployment, Utils {
         deal(address(rewardsToken2), address(ecosystemReserve), 20_000_000e18);
 
         // claim rewards for both users
-        rewardDistributor.claimRewardsFor(liquidityProviderOne, tokens);
-        rewardDistributor.claimRewardsFor(liquidityProviderTwo, tokens);
+        rewardDistributor.claimRewards(tokens);
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards(tokens);
         assertEq(
             rewardsToken2.balanceOf(liquidityProviderOne),
             accruedRewards[1][0],
@@ -557,6 +568,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_EarlyWithdrawal(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
@@ -641,6 +653,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_PausingAccrual(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
@@ -679,6 +692,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_AddNewMarket(uint256 providedLiquidity1, uint256 providedLiquidity2, uint256 providedLiquidity3)
         public
     {
@@ -753,6 +767,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_TenMarketsTwoTokens(uint256[10] memory providedLiquidity, uint256[9] memory rewardWeights)
         public
     {
@@ -854,6 +869,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_DelistAndReplace(
         uint256 providedLiquidity1,
         uint256 providedLiquidity2,
@@ -931,6 +947,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_PreExistingLiquidity(uint256 providedLiquidity1, uint256 providedLiquidity2) public {
         /* bounds */
         providedLiquidity1 = bound(providedLiquidity1, 100e18, 10_000e18);
@@ -957,12 +974,6 @@ contract RewardsTest is Deployment, Utils {
 
         // skip some time
         skip(10 days);
-
-        // before registering positions, expect accruing rewards to fail
-        _expectUserPositionMismatch(
-            liquidityProviderTwo, address(perpetual), 0, perpetual.getLpLiquidity(liquidityProviderTwo)
-        );
-        newRewardsDistributor.accrueRewards(liquidityProviderTwo);
 
         // register user positions
         address[] memory markets = _getMarkets();
@@ -995,6 +1006,7 @@ contract RewardsTest is Deployment, Utils {
         );
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_RewardDistributorErrors() public {
         // updatePosition
         _expectCallerIsNotClearingHouse(address(this));
@@ -1044,19 +1056,20 @@ contract RewardsTest is Deployment, Utils {
         assertTrue(rewardDistributor.paused(), "Reward distributor not paused when clearing house is paused");
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewards();
         vm.stopPrank();
         clearingHouse.unpause();
         rewardDistributor.pause();
         assertTrue(rewardDistributor.paused(), "Reward distributor not paused directly");
         vm.startPrank(liquidityProviderOne);
         vm.expectRevert(bytes("Pausable: paused"));
-        rewardDistributor.claimRewardsFor(liquidityProviderOne);
+        rewardDistributor.claimRewards();
         vm.stopPrank();
         rewardDistributor.unpause();
         assertTrue(!rewardDistributor.paused(), "Reward distributor not unpaused directly");
     }
 
+    // solhint-disable-next-line func-name-mixedcase
     function test_EcosystemReserve() public {
         // access control errors
         vm.startPrank(liquidityProviderOne);
@@ -1581,6 +1594,7 @@ contract RewardsTest is Deployment, Utils {
     }
 
     function _deployTestPerpetual() internal returns (TestPerpetual) {
+        // solhint-disable-next-line var-name-mixedcase
         AggregatorV3Interface dai_baseOracle =
             AggregatorV3Interface(address(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9));
         VBase vBase3 =
@@ -1685,18 +1699,6 @@ contract RewardsTest is Deployment, Utils {
         vm.expectRevert(
             abi.encodeWithSignature(
                 "RewardDistributor_PositionAlreadyRegistered(address,address,uint256)", user, market, position
-            )
-        );
-    }
-
-    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                user,
-                market,
-                expected,
-                actual
             )
         );
     }

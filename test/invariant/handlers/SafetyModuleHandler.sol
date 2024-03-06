@@ -126,9 +126,10 @@ contract SafetyModuleHandler is Test {
         _lotIncreaseIncrement = uint96(bound(_lotIncreaseIncrement, _initialLotSize / 100, _initialLotSize / 10));
         _lotIncreasePeriod = uint16(bound(_lotIncreasePeriod, 30 minutes, 12 hours));
         _timeLimit = uint32(bound(_timeLimit, 1 days, 4 weeks));
-        _slashPercent = uint64(bound(_slashPercent, 1e16, 1e18));
+        _slashPercent = uint64(bound(_slashPercent, 1e16, 0.99e18));
 
-        uint256 underlyingAmount = stakedToken.previewRedeem(stakedToken.totalSupply().mul(_slashPercent));
+        uint256 slashAmount = stakedToken.totalSupply().mul(_slashPercent);
+        uint256 underlyingAmount = stakedToken.previewRedeem(slashAmount);
         uint256 getNextAuctionId = auctionModule.getNextAuctionId();
         bool expectFail;
 
@@ -159,7 +160,7 @@ contract SafetyModuleHandler is Test {
             _numLots,
             _lotPrice,
             _initialLotSize,
-            _slashPercent,
+            slashAmount,
             _lotIncreaseIncrement,
             _lotIncreasePeriod,
             _timeLimit
@@ -225,42 +226,6 @@ contract SafetyModuleHandler is Test {
             );
             assertGt(stakedToken.exchangeRate(), exchangeRate, "Exchange rate mismatch after termination");
         }
-    }
-
-    function returnFunds(uint256 stakedTokenIndexSeed, uint256 amount) external useGovernance {
-        amount = bound(amount, 0, type(uint256).max / 1e18);
-        IStakedToken stakedToken =
-            safetyModule.stakedTokens(bound(stakedTokenIndexSeed, 0, safetyModule.getNumStakedTokens() - 1));
-        if (amount == 0) {
-            vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
-            safetyModule.returnFunds(address(stakedToken), governance, amount);
-            return;
-        }
-        if (stakedToken.totalSupply() == 0) {
-            vm.expectRevert(); // Division by zero
-            safetyModule.returnFunds(address(stakedToken), governance, amount);
-            return;
-        }
-        IERC20 underlyingToken = stakedToken.getUnderlyingToken();
-        underlyingToken.approve(address(stakedToken), amount);
-        uint256 prevGovernanceBalance = underlyingToken.balanceOf(governance);
-        if (prevGovernanceBalance < amount) {
-            vm.expectRevert();
-            safetyModule.returnFunds(address(stakedToken), governance, amount);
-            return;
-        }
-        uint256 prevStakedTokenBalance = underlyingToken.balanceOf(address(stakedToken));
-        uint256 prevExchangeRate = stakedToken.exchangeRate();
-        vm.expectEmit(false, false, false, true);
-        emit FundsReturned(governance, amount);
-        safetyModule.returnFunds(address(stakedToken), governance, amount);
-        assertEq(underlyingToken.balanceOf(governance), prevGovernanceBalance - amount, "Governance balance mismatch");
-        assertEq(
-            underlyingToken.balanceOf(address(stakedToken)),
-            prevStakedTokenBalance + amount,
-            "Staked token balance mismatch"
-        );
-        assertGt(stakedToken.exchangeRate(), prevExchangeRate, "Exchange rate mismatch");
     }
 
     function withdrawFundsRaisedFromAuction(uint256 amount) external useGovernance {

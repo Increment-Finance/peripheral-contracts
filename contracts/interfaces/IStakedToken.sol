@@ -81,10 +81,9 @@ interface IStakedToken is IERC20Metadata {
     /// @notice Error returned when the caller tries to slash while the contract is in a post-slashing state
     error StakedToken_SlashingDisabledInPostSlashingState();
 
-    /// @notice Error returned when the caller tries to activate the cooldown period while the contract is
-    /// in a post-slashing state
-    /// @dev In a post-slashing state, users can redeem without waiting for the cooldown period
-    error StakedToken_CooldownDisabledInPostSlashingState();
+    /// @notice Error returned when the caller tries to stake on behalf of a user who has staked already
+    /// @dev Required to prevent griefing stakers by forcing them to accrue rewards at a lower multiplier
+    error StakedToken_NoStakingOnBehalfOfExistingStaker();
 
     /// @notice Error returned when the caller tries to redeem before the cooldown period is over
     /// @param cooldownEndTimestamp Timestamp when the cooldown period ends

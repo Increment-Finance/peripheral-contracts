@@ -132,12 +132,17 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         if (rewardTokens.length >= MAX_REWARD_TOKENS) {
             revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         }
-        // Validate weights
+
         uint256 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint256 i; i < numMarkets;) {
+            // Accrue other reward tokens to all markets before adding a new reward token
             address market = _markets[i];
             _updateMarketRewards(market);
+            // Reset each market's reward accumulator for the new reward token, in case
+            // the token was previously removed and is being re-added
+            delete _cumulativeRewardPerLpToken[_rewardToken][market];
+            // Validate weights
             uint256 weight = _marketWeights[i];
             if (weight == 0) {
                 unchecked {
@@ -149,6 +154,7 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
                 revert RewardController_WeightExceedsMax(weight, MAX_BASIS_POINTS);
             }
             totalWeight += weight;
+            // Store the market's weight for the new reward token
             _marketWeightsByToken[_rewardToken][market] = weight;
             emit NewWeight(market, _rewardToken, weight);
             unchecked {
@@ -176,10 +182,11 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             revert RewardController_InvalidRewardTokenAddress(_rewardToken);
         }
 
-        // Update rewards for all markets before removal
+        // Clear the market's weight for the reward token after updating market rewards
         uint256 numMarkets = _rewardInfoByToken[_rewardToken].marketAddresses.length;
         for (uint256 i; i < numMarkets;) {
-            _updateMarketRewards(_rewardInfoByToken[_rewardToken].marketAddresses[i]);
+            address market = _rewardInfoByToken[_rewardToken].marketAddresses[i];
+            delete _marketWeightsByToken[_rewardToken][market];
             unchecked {
                 ++i; // saves 63 gas per iteration
             }
@@ -234,21 +241,16 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
     }
 
     /// @inheritdoc IRewardDistributor
-    function claimRewardsFor(address _user) public override {
-        claimRewardsFor(_user, rewardTokens);
+    function claimRewards() public override {
+        claimRewards(rewardTokens);
     }
 
     /// @inheritdoc IRewardDistributor
     /// @dev Non-reentrant because `_distributeReward` transfers reward tokens to the user
-    function claimRewardsFor(address _user, address[] memory _rewardTokens)
-        public
-        override
-        nonReentrant
-        whenNotPaused
-    {
+    function claimRewards(address[] memory _rewardTokens) public override nonReentrant whenNotPaused {
         uint256 numMarkets = _getNumMarkets();
         for (uint256 i; i < numMarkets;) {
-            _accrueRewards(_getMarketAddress(_getMarketIdx(i)), _user);
+            _accrueRewards(_getMarketAddress(_getMarketIdx(i)), msg.sender);
             unchecked {
                 ++i; // saves 63 gas per iteration
             }
@@ -256,12 +258,12 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         uint256 numTokens = _rewardTokens.length;
         for (uint256 i; i < numTokens;) {
             address token = _rewardTokens[i];
-            uint256 rewards = _rewardsAccruedByUser[_user][token];
+            uint256 rewards = _rewardsAccruedByUser[msg.sender][token];
             if (rewards != 0) {
-                uint256 remainingRewards = _distributeReward(token, _user, rewards);
-                _rewardsAccruedByUser[_user][token] = remainingRewards;
+                uint256 remainingRewards = _distributeReward(token, msg.sender, rewards);
+                _rewardsAccruedByUser[msg.sender][token] = remainingRewards;
                 if (rewards != remainingRewards) {
-                    emit RewardClaimed(_user, token, rewards - remainingRewards);
+                    emit RewardClaimed(msg.sender, token, rewards - remainingRewards);
                 }
                 if (remainingRewards != 0) {
                     emit RewardTokenShortfall(token, _totalUnclaimedRewards[token]);

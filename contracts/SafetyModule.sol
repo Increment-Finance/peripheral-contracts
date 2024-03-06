@@ -23,6 +23,9 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     using PRBMathUD60x18 for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice Address of the governance contract
+    address public immutable governance;
+
     /// @notice Address of the auction module, which sells user funds in the event of an insolvency
     IAuctionModule public auctionModule;
 
@@ -52,6 +55,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
         // in the constructor to avoid having to call `addStakedToken` for each staked token. Otherwise, unless the
         // SMRewardDistributor is also redeployed, `addStakedToken` will revert when trying to re-initialize a staked
         // token in the SMRD which was already initialized when added to the previous SafetyModule.
+        governance = msg.sender;
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
         emit AuctionModuleUpdated(address(0), _auctionModule);
@@ -112,20 +116,22 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
         uint8 _numLots,
         uint128 _lotPrice,
         uint128 _initialLotSize,
-        uint64 _slashPercent,
+        uint256 _slashAmount,
         uint96 _lotIncreaseIncrement,
         uint16 _lotIncreasePeriod,
         uint32 _timeLimit
     ) external onlyRole(GOVERNANCE) returns (uint256) {
-        if (_slashPercent > 1e18) {
-            revert SafetyModule_InvalidSlashPercentTooHigh();
-        }
-
+        // Make sure the staked token is registered
         IStakedToken stakedToken = stakedTokens[getStakedTokenIdx(_stakedToken)];
 
+        // Only allow slashing up to 99%
+        uint256 maxSlashAmount = stakedToken.totalSupply().mul(0.99e18);
+        if (_slashAmount > maxSlashAmount) {
+            _slashAmount = maxSlashAmount;
+        }
+
         // Slash the staked tokens and transfer the underlying tokens to the auction module
-        uint256 slashAmount = stakedToken.totalSupply().mul(_slashPercent);
-        uint256 underlyingAmount = stakedToken.slash(address(auctionModule), slashAmount);
+        uint256 underlyingAmount = stakedToken.slash(address(auctionModule), _slashAmount);
 
         // Make sure the amount of underlying tokens transferred to the auction module is enough to
         // cover the initial lot size and number of lots to auction
@@ -147,17 +153,17 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
             _timeLimit
         );
         stakedTokenByAuctionId[auctionId] = stakedToken;
-        emit TokensSlashedForAuction(_stakedToken, slashAmount, underlyingAmount, auctionId);
+        emit TokensSlashedForAuction(_stakedToken, _slashAmount, underlyingAmount, auctionId);
         return auctionId;
     }
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
     function terminateAuction(uint256 _auctionId) external onlyRole(GOVERNANCE) {
-        auctionModule.terminateAuction(_auctionId);
         IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
         IStakedToken stakedToken = stakedTokenByAuctionId[_auctionId];
         uint256 remainingBalance = auctionToken.balanceOf(address(auctionModule));
+        auctionModule.terminateAuction(_auctionId);
         // Remaining balance should always be non-zero, since the only way the auction module could run out
         // of auction tokens is if they are all sold, in which case the auction would have ended on its own
         // But just in case, check to avoid reverting
@@ -170,13 +176,6 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
 
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
-    function returnFunds(address _stakedToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE) {
-        IStakedToken stakedToken = stakedTokens[getStakedTokenIdx(_stakedToken)];
-        _returnFunds(stakedToken, _from, _amount);
-    }
-
-    /// @inheritdoc ISafetyModule
-    /// @dev Only callable by governance
     function withdrawFundsRaisedFromAuction(uint256 _amount) external onlyRole(GOVERNANCE) {
         IERC20 paymentToken = auctionModule.paymentToken();
         paymentToken.safeTransfer(msg.sender, _amount);
@@ -185,6 +184,12 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
     function setAuctionModule(IAuctionModule _newAuctionModule) external onlyRole(GOVERNANCE) {
+        if (address(auctionModule) != address(0)) {
+            // Check if there are any active auctions
+            if (auctionModule.isAnyAuctionActive()) {
+                revert SafetyModule_CannotReplaceAuctionModuleActiveAuction();
+            }
+        }
         emit AuctionModuleUpdated(address(auctionModule), address(_newAuctionModule));
         auctionModule = _newAuctionModule;
     }
@@ -241,7 +246,14 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /* ****************** */
 
     function _returnFunds(IStakedToken _stakedToken, address _from, uint256 _amount) internal {
-        _stakedToken.returnFunds(_from, _amount);
+        if (_stakedToken.totalSupply() == 0) {
+            // If the staked token has no supply, the underlying tokens are returned to governance, since there
+            // are no stakers and so the returned tokens would not be redeemable by anyone
+            IERC20 underlyingToken = _stakedToken.getUnderlyingToken();
+            underlyingToken.safeTransfer(governance, _amount);
+        } else {
+            _stakedToken.returnFunds(_from, _amount);
+        }
     }
 
     function _settleSlashing(IStakedToken _stakedToken) internal {

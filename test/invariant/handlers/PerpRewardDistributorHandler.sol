@@ -73,7 +73,7 @@ contract PerpRewardDistributorHandler is Test {
         rewardDistributor.registerPositions(markets);
     }
 
-    function claimRewardsFor(uint256 actorIndexSeed) external useActor(actorIndexSeed) {
+    function claimRewards(uint256 actorIndexSeed) external useActor(actorIndexSeed) {
         uint256 numRewards = rewardDistributor.getRewardTokenCount();
         uint256 numMarkets = clearingHouse.getNumMarkets();
         address[] memory markets = new address[](numMarkets);
@@ -100,7 +100,7 @@ contract PerpRewardDistributorHandler is Test {
         _expectClaimRewardsEvents(
             currentActor, markets, tokens, reserveBalances, rewardsAccrued, newRewardsPerTokenPerMarket
         );
-        rewardDistributor.claimRewardsFor(currentActor);
+        rewardDistributor.claimRewards();
         for (uint256 i; i < numRewards; i++) {
             if (rewardsAccrued[i] <= reserveBalances[i]) {
                 assertEq(
