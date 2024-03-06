@@ -395,12 +395,6 @@ contract SafetyModuleTest is Deployment, Utils {
         // skip some time
         skip(10 days);
 
-        // before registering positions, expect accruing rewards to fail
-        _expectUserPositionMismatch(
-            liquidityProviderTwo, address(stakedToken1), 0, stakedToken1.balanceOf(liquidityProviderTwo)
-        );
-        newRewardDistributor.accrueRewards(liquidityProviderTwo);
-
         // register user positions
         vm.startPrank(liquidityProviderOne);
         newRewardDistributor.registerPositions(stakedTokens);
@@ -1172,7 +1166,9 @@ contract SafetyModuleTest is Deployment, Utils {
         uint32 timelimit = 5 days;
         address stakedToken = address(stakedToken1);
         address underlyingToken = address(stakedToken1.getUnderlyingToken());
-        _expectInsufficientSlashedTokensForAuction(underlyingToken, numLots * lotSize, stakedToken1.totalSupply());
+        _expectInsufficientSlashedTokensForAuction(
+            underlyingToken, numLots * lotSize, stakedToken1.totalSupply().wadMul(0.99e18)
+        );
         safetyModule.slashAndStartAuction(
             stakedToken, numLots, lotPrice, lotSize, slashAmount, increment, period, timelimit
         );
@@ -1258,7 +1254,7 @@ contract SafetyModuleTest is Deployment, Utils {
     function test_StakedTokenErrors() public {
         // test zero amount
         _expectStakedTokenInvalidZeroAmount();
-        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, 0);
+        stakedToken1.stakeOnBehalfOf(liquidityProviderTwo, 0);
         _expectStakedTokenInvalidZeroAmount();
         stakedToken1.redeemTo(liquidityProviderOne, 0);
         vm.startPrank(address(safetyModule));
@@ -1283,32 +1279,31 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.cooldown();
 
         // test above max stake amount
-        uint256 invalidStakeAmount1 = type(uint256).max / 2;
-        uint256 invalidStakeAmount2 = MAX_STAKE_AMOUNT_2 + 1;
-        _expectAboveMaxStakeAmount(
-            MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
-        );
-        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount1);
-        _expectAboveMaxStakeAmount(
-            MAX_STAKE_AMOUNT_2, MAX_STAKE_AMOUNT_2 - stakedToken2.balanceOf(liquidityProviderOne)
-        );
-        stakedToken2.stakeOnBehalfOf(liquidityProviderOne, invalidStakeAmount2);
-        deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount1);
+        uint256 invalidStakeAmount = type(uint256).max / 2;
+        deal(address(stakedToken1.getUnderlyingToken()), liquidityProviderOne, MAX_STAKE_AMOUNT_1);
+        deal(address(stakedToken2.getUnderlyingToken()), liquidityProviderOne, MAX_STAKE_AMOUNT_2);
+        vm.startPrank(liquidityProviderOne);
+        // first stake the max amount, then try to stake more, expecting it to fail
+        stakedToken1.stake(MAX_STAKE_AMOUNT_1);
+        stakedToken2.stake(MAX_STAKE_AMOUNT_2);
+        _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_1, 0);
+        stakedToken1.stake(1);
+        _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_2, 0);
+        stakedToken2.stake(1);
+        deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount);
         vm.startPrank(liquidityProviderTwo);
-        _expectAboveMaxStakeAmount(
-            MAX_STAKE_AMOUNT_1, MAX_STAKE_AMOUNT_1 - stakedToken1.balanceOf(liquidityProviderOne)
-        );
-        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_1, 0);
+        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount);
         // change max stake amount and try again, expecting it to succeed
         vm.stopPrank();
         stakedToken1.setMaxStakeAmount(type(uint256).max);
         vm.startPrank(liquidityProviderTwo);
         vm.expectEmit(false, false, false, true);
-        emit Transfer(liquidityProviderTwo, liquidityProviderOne, invalidStakeAmount1);
-        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount1);
+        emit Transfer(liquidityProviderTwo, liquidityProviderOne, invalidStakeAmount);
+        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount);
         // transfer the amount back so that subsequent tests work
         vm.startPrank(liquidityProviderOne);
-        stakedToken1.transfer(liquidityProviderTwo, invalidStakeAmount1);
+        stakedToken1.transfer(liquidityProviderTwo, invalidStakeAmount);
 
         // test insufficient cooldown
         stakedToken1.cooldown();
@@ -1370,8 +1365,6 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         _expectStakingDisabledInPostSlashingState();
         stakedToken1.stake(1);
-        _expectCooldownDisabledInPostSlashingState();
-        stakedToken1.cooldown();
         vm.stopPrank();
 
         // test paused
@@ -2175,18 +2168,6 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("RewardDistributor_AlreadyInitializedStartTime(address)", market));
     }
 
-    function _expectUserPositionMismatch(address user, address market, uint256 expected, uint256 actual) internal {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "RewardDistributor_UserPositionMismatch(address,address,uint256,uint256)",
-                user,
-                market,
-                expected,
-                actual
-            )
-        );
-    }
-
     function _expectStakedTokenInvalidZeroAmount() internal {
         vm.expectRevert(abi.encodeWithSignature("StakedToken_InvalidZeroAmount()"));
     }
@@ -2223,8 +2204,8 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.expectRevert(abi.encodeWithSignature("StakedToken_StakingDisabledInPostSlashingState()"));
     }
 
-    function _expectCooldownDisabledInPostSlashingState() internal {
-        vm.expectRevert(abi.encodeWithSignature("StakedToken_CooldownDisabledInPostSlashingState()"));
+    function _expectNoStakingOnBehalf() internal {
+        vm.expectRevert(abi.encodeWithSignature("StakedToken_NoStakingOnBehalfOfExistingStaker()"));
     }
 
     function _expectInvalidZeroArgument(uint256 argIdx) internal {
