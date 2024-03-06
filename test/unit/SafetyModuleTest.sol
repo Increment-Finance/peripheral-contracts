@@ -1046,6 +1046,56 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     // solhint-disable-next-line func-name-mixedcase
+    function testFuzz_RedeemAllDuringAuction(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
+        initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
+        uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
+
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
+        );
+
+        // User 1 (the only staker) redeems during the auction at the lowered exchange rate
+        uint256 balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderOne);
+        uint256 exchangeRate = stakedToken1.exchangeRate();
+        uint256 expectedBalance = balanceBefore + stakedToken1.totalSupply().wadMul(exchangeRate);
+        _redeem(stakedToken1, liquidityProviderOne, stakedToken1.totalSupply());
+        uint256 balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderOne);
+        assertEq(balanceAfter, expectedBalance, "User balance mismatch after redeeming during the auction");
+        assertEq(stakedToken1.totalSupply(), 0, "Total supply should be 0 after redeeming");
+        assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate should be reset after last staker redeems");
+
+        // Terminate the auction early and check that funds are returned to governance
+        balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(address(this));
+        safetyModule.terminateAuction(auctionId);
+        expectedBalance = balanceBefore + auctionableBalance;
+        balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(address(this));
+        assertEq(balanceAfter, expectedBalance, "Governance balance mismatch after terminating the auction");
+    }
+
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_MultipleAuctions(
         uint8[2] memory numLots,
         uint128[2] memory lotPrice,
@@ -1193,6 +1243,20 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         _expectCallerIsNotAuctionModule(liquidityProviderOne);
         safetyModule.auctionEnded(0, 0);
+
+        // test setting auction module during auction
+        safetyModule.slashAndStartAuction(
+            address(stakedToken1),
+            1,
+            1 ether,
+            uint128(stakedToken1.totalSupply() / 10),
+            stakedToken1.totalSupply(),
+            0.1 ether,
+            1 hours,
+            10 days
+        );
+        _expectCannotReplaceAuctionModuleActiveAuction();
+        safetyModule.setAuctionModule(IAuctionModule(address(0)));
     }
 
     // solhint-disable-next-line func-name-mixedcase
@@ -1433,6 +1497,16 @@ contract SafetyModuleTest is Deployment, Utils {
         auctionModule.setSafetyModule(ISafetyModule(address(0)));
         _expectInvalidZeroArgument(1);
         auctionModule.buyLots(auctionId, 0);
+
+        // test token already in auction
+        vm.startPrank(address(safetyModule));
+        _expectTokenAlreadyInAuction(address(rewardsToken));
+        auctionModule.startAuction(rewardsToken, 1, 1, 1, 1, 1, 1);
+        vm.stopPrank();
+
+        // test setting payment token during auction
+        _expectCannotReplacePaymentTokenActiveAuction();
+        auctionModule.setPaymentToken(usdc);
 
         // test invalid auction ID
         _expectInvalidAuctionId(1);
@@ -1851,6 +1925,7 @@ contract SafetyModuleTest is Deployment, Utils {
             lotIncreasePeriod,
             timeLimit
         );
+        assertTrue(auctionModule.isAnyAuctionActive(), "Auction should be active");
         assertEq(auctionId, nextId, "Auction ID mismatch");
         assertEq(auctionModule.getNextAuctionId(), nextId + 1, "Next auction ID mismatch");
         assertEq(auctionModule.getCurrentLotSize(auctionId), initialLotSize, "Initial lot size mismatch");
@@ -2250,5 +2325,17 @@ contract SafetyModuleTest is Deployment, Utils {
 
     function _expectAuctionNotActive(uint256 auctionId) internal {
         vm.expectRevert(abi.encodeWithSignature("AuctionModule_AuctionNotActive(uint256)", auctionId));
+    }
+
+    function _expectTokenAlreadyInAuction(address token) internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_TokenAlreadyInAuction(address)", token));
+    }
+
+    function _expectCannotReplacePaymentTokenActiveAuction() internal {
+        vm.expectRevert(abi.encodeWithSignature("AuctionModule_CannotReplacePaymentTokenActiveAuction()"));
+    }
+
+    function _expectCannotReplaceAuctionModuleActiveAuction() internal {
+        vm.expectRevert(abi.encodeWithSignature("SafetyModule_CannotReplaceAuctionModuleActiveAuction()"));
     }
 }
