@@ -1243,6 +1243,7 @@ contract SafetyModuleTest is Deployment, Utils {
         vm.startPrank(liquidityProviderOne);
         _expectCallerIsNotAuctionModule(liquidityProviderOne);
         safetyModule.auctionEnded(0, 0);
+        vm.stopPrank();
 
         // test setting auction module during auction
         safetyModule.slashAndStartAuction(
