@@ -656,6 +656,16 @@ contract SafetyModuleTest is Deployment, Utils {
             0
         );
 
+        // Transfer tokens back to user 1 and check that their position is updated
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.transfer(liquidityProviderOne, stakeAmount);
+        vm.stopPrank();
+        assertEq(
+            rewardDistributor.lpPositionsPerUser(liquidityProviderOne, address(stakedToken1)),
+            stakeAmount,
+            "User 1 position mismatch after transfer"
+        );
+
         // redeem all staked tokens and claim rewards (for gas measurement)
         _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderTwo);
     }
