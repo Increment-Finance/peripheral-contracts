@@ -391,9 +391,14 @@ contract AuctionModule is IAuctionModule, IncreAccessControl, Pausable, Reentran
         // Increment the number of completed auctions
         _numCompletedAuctions += 1;
 
-        // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
         if (remainingBalance != 0) {
-            auctionToken.approve(address(stakedToken), remainingBalance);
+            if (stakedToken.totalSupply() == 0) {
+                // Remaining balance will be returned to governance, since there are no stakers
+                auctionToken.safeTransfer(address(safetyModule), remainingBalance);
+            } else {
+                // SafetyModule will tell the StakedToken to transfer the remaining balance to itself
+                auctionToken.approve(address(stakedToken), remainingBalance);
+            }
             _tokenBalancesInAuction[auctionToken] = 0;
         }
         // SafetyModule will transfer funds to governance when `withdrawFundsRaisedFromAuction` is called

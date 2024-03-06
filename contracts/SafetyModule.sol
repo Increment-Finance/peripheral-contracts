@@ -160,10 +160,10 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// @inheritdoc ISafetyModule
     /// @dev Only callable by governance
     function terminateAuction(uint256 _auctionId) external onlyRole(GOVERNANCE) {
-        auctionModule.terminateAuction(_auctionId);
         IERC20 auctionToken = auctionModule.getAuctionToken(_auctionId);
         IStakedToken stakedToken = stakedTokenByAuctionId[_auctionId];
         uint256 remainingBalance = auctionToken.balanceOf(address(auctionModule));
+        auctionModule.terminateAuction(_auctionId);
         // Remaining balance should always be non-zero, since the only way the auction module could run out
         // of auction tokens is if they are all sold, in which case the auction would have ended on its own
         // But just in case, check to avoid reverting
