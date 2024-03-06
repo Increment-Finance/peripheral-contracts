@@ -661,6 +661,56 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     // solhint-disable-next-line func-name-mixedcase
+    function testFuzz_PausingAccrual(uint256 stakeAmount1, uint256 stakeAmount2) public {
+        /* bounds */
+        stakeAmount1 = bound(stakeAmount1, 100e18, 10_000e18);
+        stakeAmount2 = bound(stakeAmount2, 100e18, 10_000e18);
+
+        // stake
+        deal(address(rewardsToken), liquidityProviderTwo, stakeAmount1);
+        deal(address(balancerPool), liquidityProviderTwo, stakeAmount2);
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount1);
+        _stake(stakedToken2, liquidityProviderTwo, stakeAmount2);
+
+        // pause accrual
+        vm.startPrank(address(this));
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not paused");
+
+        // skip some time
+        skip(10 days);
+
+        // unpause accrual
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(!rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not unpaused");
+
+        // skip some more time
+        skip(10 days);
+
+        // store initial state before accruing rewards
+        uint256[] memory multipliers = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
+        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = new uint256[](2);
+        skipTimes[0] = 10 days;
+        skipTimes[1] = 10 days;
+
+        // check that rewards are accrued for only the 10 days after unpausing
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers,
+            skipTimes,
+            balances,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
+        );
+    }
+
+    // solhint-disable-next-line func-name-mixedcase
     function testFuzz_NextCooldownTimestamp(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
