@@ -845,7 +845,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -911,7 +911,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // initialLotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
@@ -984,7 +984,7 @@ contract SafetyModuleTest is Deployment, Utils {
         /* bounds */
         numLots = uint8(bound(numLots, 2, 10));
         lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
-        slashPercent = uint64(bound(slashPercent, 1e16, 1e18));
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
         initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));

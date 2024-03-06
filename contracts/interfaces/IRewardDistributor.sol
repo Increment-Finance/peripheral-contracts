@@ -62,17 +62,6 @@ interface IRewardDistributor is IRewardContract {
     /// @param position Position of the user
     error RewardDistributor_PositionAlreadyRegistered(address user, address market, uint256 position);
 
-    /// @notice Error returned if a user's position stored in the RewardDistributor does not match their current position in a given market
-    /// @dev Only possible when the user had a pre-existing position in the market before the RewardDistributor
-    /// was deployed, and has not called `registerPositions` yet
-    /// @param user Address of the user
-    /// @param market Address of the market
-    /// @param storedPosition Position stored in the RewardDistributor
-    /// @param actualPosition Current position of the user
-    error RewardDistributor_UserPositionMismatch(
-        address user, address market, uint256 storedPosition, uint256 actualPosition
-    );
-
     /// @notice Error returned when the zero address is passed to a function that expects a non-zero address
     error RewardDistributor_InvalidZeroAddress();
 

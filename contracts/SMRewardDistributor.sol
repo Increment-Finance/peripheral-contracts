@@ -243,14 +243,20 @@ contract SMRewardDistributor is RewardDistributor, ISMRewardDistributor {
         // Accrue rewards to the market
         _updateMarketRewards(market);
 
+        // Compare the user's stored LP position to the current LP position
         uint256 prevPosition = _lpPositionsPerUser[user][market];
         uint256 newPosition = _getCurrentPosition(user, market);
         if (newPosition != prevPosition) {
+            // Called by `updatePosition`
             // Update the total liquidity in the market
             _totalLiquidityPerMarket[market] = _totalLiquidityPerMarket[market] + newPosition - prevPosition;
             // Update the user's stored stake position
             _lpPositionsPerUser[user][market] = newPosition;
             emit PositionUpdated(user, market, prevPosition, newPosition);
+        } else {
+            // Called by `claimRewards`
+            // Return if the market has no liquidity
+            if (_totalLiquidityPerMarket[market] == 0) return;
         }
 
         // Accrue rewards to the user for each reward token
