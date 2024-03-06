@@ -1411,8 +1411,13 @@ contract SafetyModuleTest is Deployment, Utils {
         _expectZeroBalanceAtCooldown();
         stakedToken1.cooldown();
 
+        // test no staking on behalf of staker
+        uint256 govBalance = rewardsToken.balanceOf(address(this));
+        rewardsToken.approve(address(stakedToken1), govBalance);
+        _expectNoStakingOnBehalf();
+        stakedToken1.stakeOnBehalfOf(liquidityProviderOne, govBalance);
+
         // test above max stake amount
-        uint256 invalidStakeAmount = type(uint256).max / 2;
         deal(address(stakedToken1.getUnderlyingToken()), liquidityProviderOne, MAX_STAKE_AMOUNT_1);
         deal(address(stakedToken2.getUnderlyingToken()), liquidityProviderOne, MAX_STAKE_AMOUNT_2);
         vm.startPrank(liquidityProviderOne);
@@ -1423,20 +1428,23 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.stake(1);
         _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_2, 0);
         stakedToken2.stake(1);
-        deal(address(stakedToken1), liquidityProviderTwo, invalidStakeAmount);
+        vm.stopPrank();
+        // stake on behalf of user 2, then try transferring to user 1, expecting it to fail
+        stakedToken1.stakeOnBehalfOf(liquidityProviderTwo, govBalance);
+        uint256 user2Balance = stakedToken1.balanceOf(liquidityProviderTwo);
         vm.startPrank(liquidityProviderTwo);
         _expectAboveMaxStakeAmount(MAX_STAKE_AMOUNT_1, 0);
-        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount);
+        stakedToken1.transfer(liquidityProviderOne, user2Balance);
         // change max stake amount and try again, expecting it to succeed
         vm.stopPrank();
         stakedToken1.setMaxStakeAmount(type(uint256).max);
         vm.startPrank(liquidityProviderTwo);
         vm.expectEmit(false, false, false, true);
-        emit Transfer(liquidityProviderTwo, liquidityProviderOne, invalidStakeAmount);
-        stakedToken1.transfer(liquidityProviderOne, invalidStakeAmount);
+        emit Transfer(liquidityProviderTwo, liquidityProviderOne, user2Balance);
+        stakedToken1.transfer(liquidityProviderOne, user2Balance);
         // transfer the amount back so that subsequent tests work
         vm.startPrank(liquidityProviderOne);
-        stakedToken1.transfer(liquidityProviderTwo, invalidStakeAmount);
+        stakedToken1.transfer(liquidityProviderTwo, user2Balance);
 
         // test insufficient cooldown
         stakedToken1.cooldown();
