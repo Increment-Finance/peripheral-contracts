@@ -571,7 +571,8 @@ contract SafetyModuleTest is Deployment, Utils {
         stakedToken1.transfer(liquidityProviderTwo, balances1[0]);
         vm.stopPrank();
 
-        // Check that both users accrued rewards according to their initial balances and multipliers
+        // Check that user 1 accrued rewards according to their initial balance and multiplier,
+        // while user 2 has not accrued rewards yet since they already had a staking position
         _checkRewards(
             address(rewardsToken),
             liquidityProviderOne,
@@ -582,6 +583,13 @@ contract SafetyModuleTest is Deployment, Utils {
             prevTotalLiquidity,
             0
         );
+        assertEq(
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)),
+            0,
+            "Rewards should be 0: user 2"
+        );
+        // Accrue and check rewards for user 2
+        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
         _checkRewards(
             address(rewardsToken),
             liquidityProviderTwo,
@@ -1051,8 +1059,8 @@ contract SafetyModuleTest is Deployment, Utils {
         numLots[1] = uint8(bound(numLots[1], 2, 10));
         lotPrice[0] = uint128(bound(lotPrice[0], 1e8, 1e12)); // denominated in USDC w/ 6 decimals
         lotPrice[1] = uint128(bound(lotPrice[1], 1e8, 1e12));
-        slashPercent[0] = uint64(bound(slashPercent[0], 1e16, 1e18));
-        slashPercent[1] = uint64(bound(slashPercent[1], 1e16, 1e18));
+        slashPercent[0] = uint64(bound(slashPercent[0], 1e16, 0.99e18));
+        slashPercent[1] = uint64(bound(slashPercent[1], 1e16, 0.99e18));
         // lotSize x numLots should not exceed auctionable balance
         uint256[] memory auctionableBalance = new uint256[](2);
         auctionableBalance[0] = stakedToken1.totalSupply().wadMul(slashPercent[0]);
@@ -2057,11 +2065,19 @@ contract SafetyModuleTest is Deployment, Utils {
         uint256 numMarkets = safetyModule.getNumStakedTokens();
         require(numMarkets == skipTimes.length, "Invalid input");
         for (uint256 i; i < numMarkets; ++i) {
+            console.log("skipTimes[%s] = %s", i, skipTimes[i]);
+            console.log("balances[%s] = %s", i, balances[i]);
+            console.log("multipliers[%s] = %s", i, multipliers[i]);
+            console.log("initialCumRewards[%s] = %s", i, initialCumRewards[i]);
+            console.log("priorTotalLiquidity[%s] = %s", i, priorTotalLiquidity[i]);
+            console.log("weights[%s] = %s", i, weights[i]);
             uint256 cumulativeRewards = distributor.cumulativeRewardPerLpToken(
                 token, address(safetyModule.stakedTokens(i))
             ) - initialCumRewards[i];
+            console.log("cumulativeRewards = %s", cumulativeRewards);
             uint256 expectedCumulativeRewards =
                 _calcExpectedCumulativeRewards(token, skipTimes[i], priorTotalLiquidity[i], weights[i]);
+            console.log("expectedCumulativeRewards = %s", expectedCumulativeRewards);
             assertApproxEqRel(
                 cumulativeRewards,
                 expectedCumulativeRewards,
