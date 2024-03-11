@@ -19,6 +19,7 @@ interface ILimitOrderBook {
     event OrderFilled(address indexed trader, uint256 orderId);
     event OrderChanged(address indexed trader, uint256 orderId);
     event OrderCancelled(address indexed trader, uint256 orderId);
+    event OrderExpired(address indexed trader, uint256 orderId);
 
     error LimitOrderBook_InvalidPrice();
     error LimitOrderBook_InvalidAmount();
@@ -30,6 +31,7 @@ interface ILimitOrderBook {
     error LimitOrderBook_InvalidSenderNotOrderOwner(address sender, address owner);
     error LimitOrderBook_OrderExpired(uint256 expiry);
     error LimitOrderBook_OrderNotExpired(uint256 expiry);
+    error LimitOrderBook_TipFeeTransferFailed(address to, uint256 amount);
 
     function createOrder(
         LibPerpetual.Side side,

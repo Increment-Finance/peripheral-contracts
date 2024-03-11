@@ -66,7 +66,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
             revert LimitOrderBook_InvalidMarketIdx();
         }
 
-        LimitOrder memory order = new LimitOrder({
+        LimitOrder memory order = LimitOrder({
             account: msg.sender,
             side: side,
             marketIdx: marketIdx,
@@ -80,7 +80,9 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         nextOrderId += 1;
         limitOrders[orderId] = order;
         openOrders.push(orderId);
+
         emit OrderCreated(msg.sender, orderId);
+        return orderId;
     }
 
     function changeOrder(
@@ -109,20 +111,24 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         if (msg.sender != limitOrders[orderId].account) {
             revert LimitOrderBook_InvalidSenderNotOrderOwner(msg.sender, limitOrders[orderId].account);
         }
-        if (tipFee != limitOrders[orderId].tipFee) {
-            if (tipFee > limitOrders[orderId].tipFee) {
-                if (msg.value != tipFee - limitOrders[orderId].tipFee) {
-                    revert LimitOrderBook_InvalidFeeValue(msg.value, tipFee - limitOrders[orderId].tipFee);
-                }
-            } else {
-                payable(msg.sender).call{value: limitOrders[orderId].tipFee - tipFee}("");
-            }
-        }
         limitOrders[orderId].limitPrice = limitPrice;
         limitOrders[orderId].amount = amount;
         limitOrders[orderId].expiry = expiry;
         limitOrders[orderId].slippage = slippage;
-        limitOrders[orderId].tipFee = tipFee;
+        if (tipFee != limitOrders[orderId].tipFee) {
+            uint256 oldTipFee = limitOrders[orderId].tipFee;
+            limitOrders[orderId].tipFee = tipFee;
+            if (tipFee > oldTipFee) {
+                if (msg.value != tipFee - oldTipFee) {
+                    revert LimitOrderBook_InvalidFeeValue(msg.value, tipFee - oldTipFee);
+                }
+            } else {
+                (bool success, ) = payable(msg.sender).call{value: oldTipFee - tipFee}("");
+                if (!success) {
+                    revert LimitOrderBook_TipFeeTransferFailed(msg.sender, oldTipFee - tipFee);
+                }
+            }
+        }
 
         emit OrderChanged(msg.sender, orderId);
     }
@@ -155,10 +161,25 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         }
 
         // remove order from open orders
-
+        uint256 numOrders = openOrders.length;
+        for (uint256 i = 0; i < numOrders; i++) {
+            if (openOrders[i] == orderId) {
+                openOrders[i] = openOrders[numOrders - 1];
+                openOrders.pop();
+                break;
+            }
+        }
         // delete order from limitOrders
+        uint256 tipFee = limitOrders[orderId].tipFee;
+        delete limitOrders[orderId];
 
         // transfer tip fee back to order owner
+        (bool success, ) = payable(msg.sender).call{value: tipFee}("");
+        if (!success) {
+            revert LimitOrderBook_TipFeeTransferFailed(msg.sender, tipFee);
+        }
+
+        emit OrderCancelled(msg.sender, orderId);
     }
 
     function closeExpiredOrder(uint256 orderId) external {
@@ -170,10 +191,25 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         }
 
         // remove order from open orders
-
+        uint256 numOrders = openOrders.length;
+        for (uint256 i = 0; i < numOrders; i++) {
+            if (openOrders[i] == orderId) {
+                openOrders[i] = openOrders[numOrders - 1];
+                openOrders.pop();
+                break;
+            }
+        }
         // delete order from limitOrders
+        uint256 tipFee = limitOrders[orderId].tipFee;
+        delete limitOrders[orderId];
 
         // transfer tip fee to caller
+        (bool success, ) = payable(msg.sender).call{value: tipFee}("");
+        if (!success) {
+            revert LimitOrderBook_TipFeeTransferFailed(msg.sender, tipFee);
+        }
+
+        emit OrderExpired(msg.sender, orderId);
     }
 
     function getOrder(uint256 orderId) external view returns (LimitOrder memory) {
