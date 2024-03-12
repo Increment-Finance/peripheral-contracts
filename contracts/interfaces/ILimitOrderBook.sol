@@ -32,6 +32,7 @@ interface ILimitOrderBook {
     error LimitOrderBook_OrderExpired(uint256 expiry);
     error LimitOrderBook_OrderNotExpired(uint256 expiry);
     error LimitOrderBook_TipFeeTransferFailed(address to, uint256 amount);
+    error LimitOrderBook_AccountDoesNotSupportLimitOrders(address account);
 
     function createOrder(
         LibPerpetual.Side side,

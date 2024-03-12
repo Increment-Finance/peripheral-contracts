@@ -64,6 +64,9 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         if (CLEARING_HOUSE.perpetuals(marketIdx) == IPerpetual(address(0))) {
             revert LimitOrderBook_InvalidMarketIdx();
         }
+        if (!IIncrementLimitOrderModule(msg.sender).supportsInterface(type(IIncrementLimitOrderModule).interfaceId)) {
+            revert LimitOrderBook_AccountDoesNotSupportLimitOrders(msg.sender);
+        }
 
         LimitOrder memory order = LimitOrder({
             account: msg.sender,
@@ -122,7 +125,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
                     revert LimitOrderBook_InvalidFeeValue(msg.value, tipFee - oldTipFee);
                 }
             } else {
-                (bool success, ) = payable(msg.sender).call{value: oldTipFee - tipFee}("");
+                (bool success,) = payable(msg.sender).call{value: oldTipFee - tipFee}("");
                 if (!success) {
                     revert LimitOrderBook_TipFeeTransferFailed(msg.sender, oldTipFee - tipFee);
                 }
@@ -159,7 +162,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         IIncrementLimitOrderModule(order.account).executeLimitOrder(order);
 
         // transfer tip fee to caller
-        (bool success, ) = payable(msg.sender).call{value: order.tipFee}("");
+        (bool success,) = payable(msg.sender).call{value: order.tipFee}("");
         if (!success) {
             revert LimitOrderBook_TipFeeTransferFailed(msg.sender, order.tipFee);
         }
@@ -189,7 +192,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         delete limitOrders[orderId];
 
         // transfer tip fee back to order owner
-        (bool success, ) = payable(msg.sender).call{value: tipFee}("");
+        (bool success,) = payable(msg.sender).call{value: tipFee}("");
         if (!success) {
             revert LimitOrderBook_TipFeeTransferFailed(msg.sender, tipFee);
         }
@@ -220,7 +223,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         delete limitOrders[orderId];
 
         // transfer tip fee to caller
-        (bool success, ) = payable(msg.sender).call{value: tipFee}("");
+        (bool success,) = payable(msg.sender).call{value: tipFee}("");
         if (!success) {
             revert LimitOrderBook_TipFeeTransferFailed(msg.sender, tipFee);
         }
