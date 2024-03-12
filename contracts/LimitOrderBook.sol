@@ -12,6 +12,7 @@ import {IPerpetual} from "@increment/interfaces/IPerpetual.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {IClearingHouseViewer} from "@increment/interfaces/IClearingHouseViewer.sol";
 import {ILimitOrderBook} from "./interfaces/ILimitOrderBook.sol";
+import {IIncrementLimitOrderModule} from "./interfaces/IIncrementLimitOrderModule.sol";
 
 // libraries
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -25,16 +26,14 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
     using LibMath for uint256;
 
     IClearingHouse public immutable CLEARING_HOUSE;
-    IClearingHouseViewer public immutable CLEARING_HOUSE_VIEWER;
 
     uint256 public minTipFee;
     mapping(uint256 => LimitOrder) public limitOrders;
     uint256[] public openOrders;
     uint256 public nextOrderId;
 
-    constructor(IClearingHouse _clearingHouse, IClearingHouseViewer _clearingHouseViewer, uint256 _minTipFee) {
+    constructor(IClearingHouse _clearingHouse, uint256 _minTipFee) {
         CLEARING_HOUSE = _clearingHouse;
-        CLEARING_HOUSE_VIEWER = _clearingHouseViewer;
         minTipFee = _minTipFee;
     }
 
@@ -137,19 +136,35 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
         }
-        if (limitOrders[orderId].expiry <= block.timestamp) {
-            revert LimitOrderBook_OrderExpired(limitOrders[orderId].expiry);
+        LimitOrder memory order = limitOrders[orderId];
+        if (order.expiry <= block.timestamp) {
+            revert LimitOrderBook_OrderExpired(order.expiry);
         }
 
         // ensure limit order is still valid
 
-        // call executeLimitOrder function on user's smart account
-
         // remove order from open orders
-
+        uint256 numOrders = openOrders.length;
+        for (uint256 i = 0; i < numOrders; i++) {
+            if (openOrders[i] == orderId) {
+                openOrders[i] = openOrders[numOrders - 1];
+                openOrders.pop();
+                break;
+            }
+        }
         // delete order from limitOrders
+        delete limitOrders[orderId];
+
+        // call executeLimitOrder function on user's smart account
+        IIncrementLimitOrderModule(order.account).executeLimitOrder(order);
 
         // transfer tip fee to caller
+        (bool success, ) = payable(msg.sender).call{value: order.tipFee}("");
+        if (!success) {
+            revert LimitOrderBook_TipFeeTransferFailed(msg.sender, order.tipFee);
+        }
+
+        emit OrderFilled(order.account, orderId);
     }
 
     function cancelOrder(uint256 orderId) external {
@@ -200,6 +215,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
             }
         }
         // delete order from limitOrders
+        address account = limitOrders[orderId].account;
         uint256 tipFee = limitOrders[orderId].tipFee;
         delete limitOrders[orderId];
 
@@ -209,7 +225,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
             revert LimitOrderBook_TipFeeTransferFailed(msg.sender, tipFee);
         }
 
-        emit OrderExpired(msg.sender, orderId);
+        emit OrderExpired(account, orderId);
     }
 
     function getOrder(uint256 orderId) external view returns (LimitOrder memory) {
