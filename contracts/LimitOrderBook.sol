@@ -78,8 +78,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
             slippage: slippage,
             tipFee: tipFee
         });
-        uint256 orderId = nextOrderId;
-        nextOrderId += 1;
+        uint256 orderId = nextOrderId++;
         limitOrders[orderId] = order;
         openOrders.push(orderId);
 
