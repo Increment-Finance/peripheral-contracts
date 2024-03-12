@@ -110,21 +110,33 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         if (expiry <= block.timestamp) {
             revert LimitOrderBook_InvalidExpiry();
         }
-        if (msg.sender != limitOrders[orderId].account) {
-            revert LimitOrderBook_InvalidSenderNotOrderOwner(msg.sender, limitOrders[orderId].account);
+        LimitOrder memory order = limitOrders[orderId];
+        if (msg.sender != order.account) {
+            revert LimitOrderBook_InvalidSenderNotOrderOwner(msg.sender, order.account);
         }
-        limitOrders[orderId].limitPrice = limitPrice;
-        limitOrders[orderId].amount = amount;
-        limitOrders[orderId].expiry = expiry;
-        limitOrders[orderId].slippage = slippage;
-        if (tipFee != limitOrders[orderId].tipFee) {
-            uint256 oldTipFee = limitOrders[orderId].tipFee;
+
+        if (limitPrice != order.limitPrice) {
+            limitOrders[orderId].limitPrice = limitPrice;
+        }
+        if (amount != order.amount) {
+            limitOrders[orderId].amount = amount;
+        }
+        if (expiry != order.expiry) {
+            limitOrders[orderId].expiry = expiry;
+        }
+        if (slippage != order.slippage) {
+            limitOrders[orderId].slippage = slippage;
+        }
+        if (tipFee != order.tipFee) {
+            uint256 oldTipFee = order.tipFee;
             limitOrders[orderId].tipFee = tipFee;
             if (tipFee > oldTipFee) {
+                // Raising tipFee - msg.value must be equal to the difference
                 if (msg.value != tipFee - oldTipFee) {
                     revert LimitOrderBook_InvalidFeeValue(msg.value, tipFee - oldTipFee);
                 }
             } else {
+                // Lowering tipFee - return the difference to the user
                 (bool success,) = payable(msg.sender).call{value: oldTipFee - tipFee}("");
                 if (!success) {
                     revert LimitOrderBook_TipFeeTransferFailed(msg.sender, oldTipFee - tipFee);
@@ -148,11 +160,14 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
 
         // remove order from open orders
         uint256 numOrders = openOrders.length;
-        for (uint256 i = 0; i < numOrders; i++) {
+        for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
                 openOrders[i] = openOrders[numOrders - 1];
                 openOrders.pop();
                 break;
+            }
+            unchecked {
+                ++i;
             }
         }
         // delete order from limitOrders
@@ -180,11 +195,14 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
 
         // remove order from open orders
         uint256 numOrders = openOrders.length;
-        for (uint256 i = 0; i < numOrders; i++) {
+        for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
                 openOrders[i] = openOrders[numOrders - 1];
                 openOrders.pop();
                 break;
+            }
+            unchecked {
+                ++i;
             }
         }
         // delete order from limitOrders
@@ -210,11 +228,14 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
 
         // remove order from open orders
         uint256 numOrders = openOrders.length;
-        for (uint256 i = 0; i < numOrders; i++) {
+        for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
                 openOrders[i] = openOrders[numOrders - 1];
                 openOrders.pop();
                 break;
+            }
+            unchecked {
+                ++i;
             }
         }
         // delete order from limitOrders
