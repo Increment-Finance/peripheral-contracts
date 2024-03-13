@@ -4,9 +4,16 @@ pragma solidity ^0.8.16;
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
 interface ILimitOrderBook {
+    enum OrderType {
+        LIMIT,
+        STOP
+    }
+
     struct LimitOrder {
         address account;
         LibPerpetual.Side side;
+        OrderType orderType;
+        bool reduceOnly;
         uint256 marketIdx;
         uint256 limitPrice;
         uint256 amount;
@@ -26,6 +33,7 @@ interface ILimitOrderBook {
     error LimitOrderBook_InvalidExpiry();
     error LimitOrderBook_InvalidMarketIdx();
     error LimitOrderBook_InvalidOrderId();
+    error LimitOrderBook_InvalidSlippage();
     error LimitOrderBook_InsufficientTipFee();
     error LimitOrderBook_InvalidFeeValue(uint256 value, uint256 expected);
     error LimitOrderBook_InvalidSenderNotOrderOwner(address sender, address owner);
@@ -33,9 +41,17 @@ interface ILimitOrderBook {
     error LimitOrderBook_OrderNotExpired(uint256 expiry);
     error LimitOrderBook_TipFeeTransferFailed(address to, uint256 amount);
     error LimitOrderBook_AccountDoesNotSupportLimitOrders(address account);
+    error LimitOrderBook_NoPositionToReduce(address account, uint256 marketIdx);
+    error LimitOrderBook_CannotReduceLongPositionWithLongOrder();
+    error LimitOrderBook_CannotReduceShortPositionWithShortOrder();
+    error LimitOrderBook_InvalidPriceAtFill(
+        uint256 price, uint256 limitPrice, uint256 maxSlippage, LibPerpetual.Side side
+    );
 
     function createOrder(
         LibPerpetual.Side side,
+        OrderType orderType,
+        bool reduceOnly,
         uint256 marketIdx,
         uint256 limitPrice,
         uint256 amount,
