@@ -39,6 +39,8 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
 
     function createOrder(
         LibPerpetual.Side side,
+        OrderType orderType,
+        bool reduceOnly,
         uint256 marketIdx,
         uint256 limitPrice,
         uint256 amount,
@@ -71,6 +73,8 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         LimitOrder memory order = LimitOrder({
             account: msg.sender,
             side: side,
+            orderType: orderType,
+            reduceOnly: reduceOnly,
             marketIdx: marketIdx,
             limitPrice: limitPrice,
             amount: amount,
@@ -156,6 +160,33 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         }
 
         // ensure limit order is still valid
+        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
+        if (order.reduceOnly) {
+            if (!perpetual.isTraderPositionOpen(order.account)) {
+                revert LimitOrderBook_NoPositionToReduce(order.account, order.marketIdx);
+            }
+            LibPerpetual.TraderPosition memory position = perpetual.getTraderPosition(order.account);
+            if (order.side == LibPerpetual.Side.Long) {
+                if (position.positionSize > 0) {
+                    revert LimitOrderBook_CannotReduceLongPositionWithLongOrder();
+                }
+            } else {
+                if (position.positionSize < 0) {
+                    revert LimitOrderBook_CannotReduceShortPositionWithShortOrder();
+                }
+            }
+        }
+        uint256 targetPrice = order.limitPrice;
+        uint256 price = order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice();
+        if (order.side == LibPerpetual.Side.Long) {
+            if (price > targetPrice.wadMul(1e18 + order.slippage)) {
+                revert LimitOrderBook_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
+            }
+        } else {
+            if (price < targetPrice.wadMul(1e18 - order.slippage)) {
+                revert LimitOrderBook_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
+            }
+        }
 
         // remove order from open orders
         uint256 numOrders = openOrders.length;
