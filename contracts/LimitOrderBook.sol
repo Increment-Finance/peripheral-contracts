@@ -63,6 +63,9 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         if (limitPrice == 0) {
             revert LimitOrderBook_InvalidPrice();
         }
+        if (slippage > 1e18) {
+            revert LimitOrderBook_InvalidSlippage();
+        }
         if (CLEARING_HOUSE.perpetuals(marketIdx) == IPerpetual(address(0))) {
             revert LimitOrderBook_InvalidMarketIdx();
         }
@@ -112,6 +115,9 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         }
         if (expiry <= block.timestamp) {
             revert LimitOrderBook_InvalidExpiry();
+        }
+        if (slippage > 1e18) {
+            revert LimitOrderBook_InvalidSlippage();
         }
         LimitOrder memory order = limitOrders[orderId];
         if (msg.sender != order.account) {
