@@ -15,7 +15,7 @@ interface ILimitOrderBook {
         OrderType orderType;
         bool reduceOnly;
         uint256 marketIdx;
-        uint256 limitPrice;
+        uint256 targetPrice;
         uint256 amount;
         uint256 expiry;
         uint256 slippage;
@@ -53,7 +53,7 @@ interface ILimitOrderBook {
         OrderType orderType,
         bool reduceOnly,
         uint256 marketIdx,
-        uint256 limitPrice,
+        uint256 targetPrice,
         uint256 amount,
         uint256 expiry,
         uint256 slippage,
@@ -62,7 +62,7 @@ interface ILimitOrderBook {
 
     function changeOrder(
         uint256 orderId,
-        uint256 limitPrice,
+        uint256 targetPrice,
         uint256 amount,
         uint256 expiry,
         uint256 slippage,

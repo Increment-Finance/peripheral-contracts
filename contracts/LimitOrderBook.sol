@@ -37,7 +37,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         OrderType orderType,
         bool reduceOnly,
         uint256 marketIdx,
-        uint256 limitPrice,
+        uint256 targetPrice,
         uint256 amount,
         uint256 expiry,
         uint256 slippage,
@@ -55,7 +55,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         if (amount == 0) {
             revert LimitOrderBook_InvalidAmount();
         }
-        if (limitPrice == 0) {
+        if (targetPrice == 0) {
             revert LimitOrderBook_InvalidPrice();
         }
         if (slippage > 1e18) {
@@ -74,7 +74,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
             orderType: orderType,
             reduceOnly: reduceOnly,
             marketIdx: marketIdx,
-            limitPrice: limitPrice,
+            targetPrice: targetPrice,
             amount: amount,
             expiry: expiry,
             slippage: slippage,
@@ -90,7 +90,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
 
     function changeOrder(
         uint256 orderId,
-        uint256 limitPrice,
+        uint256 targetPrice,
         uint256 amount,
         uint256 expiry,
         uint256 slippage,
@@ -105,7 +105,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         if (amount == 0) {
             revert LimitOrderBook_InvalidAmount();
         }
-        if (limitPrice == 0) {
+        if (targetPrice == 0) {
             revert LimitOrderBook_InvalidPrice();
         }
         if (expiry <= block.timestamp) {
@@ -119,8 +119,8 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
             revert LimitOrderBook_InvalidSenderNotOrderOwner(msg.sender, order.account);
         }
 
-        if (limitPrice != order.limitPrice) {
-            limitOrders[orderId].limitPrice = limitPrice;
+        if (targetPrice != order.targetPrice) {
+            limitOrders[orderId].targetPrice = targetPrice;
         }
         if (amount != order.amount) {
             limitOrders[orderId].amount = amount;
@@ -178,9 +178,10 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
                 }
             }
         }
-        uint256 targetPrice = order.limitPrice;
+        uint256 targetPrice = order.targetPrice;
         // for limit orders, check the market price, and for stop orders, check the index price
-        uint256 price = order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice();
+        uint256 price =
+            order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
         if (order.side == LibPerpetual.Side.Long) {
             // for long orders, price must be less than or equal to the target price + slippage
             if (price > targetPrice.wadMul(1e18 + order.slippage)) {
