@@ -22,16 +22,28 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
 
     IClearingHouse public immutable CLEARING_HOUSE;
 
+    /// @notice The minimum tip fee to accept per order
     uint256 public minTipFee;
-    mapping(uint256 => LimitOrder) public limitOrders;
-    uint256[] public openOrders;
+
+    /// @notice The next order id to use
     uint256 public nextOrderId;
+
+    /// @notice Array of order ids for open orders
+    uint256[] public openOrders;
+
+    /// @notice Mapping from order id to order info
+    mapping(uint256 => LimitOrder) public limitOrders;
 
     constructor(IClearingHouse _clearingHouse, uint256 _minTipFee) {
         CLEARING_HOUSE = _clearingHouse;
         minTipFee = _minTipFee;
     }
 
+    /* ****************** */
+    /*   External Users   */
+    /* ****************** */
+
+    /// @inheritdoc ILimitOrderBook
     function createOrder(
         LibPerpetual.Side side,
         OrderType orderType,
@@ -42,7 +54,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         uint256 expiry,
         uint256 slippage,
         uint256 tipFee
-    ) external payable whenNotPaused returns (uint256) {
+    ) external payable whenNotPaused returns (uint256 orderId) {
         if (tipFee < minTipFee) {
             revert LimitOrderBook_InsufficientTipFee();
         }
@@ -56,7 +68,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
             revert LimitOrderBook_InvalidAmount();
         }
         if (targetPrice == 0) {
-            revert LimitOrderBook_InvalidPrice();
+            revert LimitOrderBook_InvalidTargetPrice();
         }
         if (slippage > 1e18) {
             revert LimitOrderBook_InvalidSlippage();
@@ -80,7 +92,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
             slippage: slippage,
             tipFee: tipFee
         });
-        uint256 orderId = nextOrderId++;
+        orderId = nextOrderId++;
         limitOrders[orderId] = order;
         openOrders.push(orderId);
 
@@ -88,6 +100,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         return orderId;
     }
 
+    /// @inheritdoc ILimitOrderBook
     function changeOrder(
         uint256 orderId,
         uint256 targetPrice,
@@ -106,7 +119,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
             revert LimitOrderBook_InvalidAmount();
         }
         if (targetPrice == 0) {
-            revert LimitOrderBook_InvalidPrice();
+            revert LimitOrderBook_InvalidTargetPrice();
         }
         if (expiry <= block.timestamp) {
             revert LimitOrderBook_InvalidExpiry();
@@ -151,6 +164,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         emit OrderChanged(msg.sender, orderId);
     }
 
+    /// @inheritdoc ILimitOrderBook
     function fillOrder(uint256 orderId) external whenNotPaused {
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
@@ -221,6 +235,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         emit OrderFilled(order.account, orderId);
     }
 
+    /// @inheritdoc ILimitOrderBook
     function cancelOrder(uint256 orderId) external {
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
@@ -254,6 +269,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         emit OrderCancelled(msg.sender, orderId);
     }
 
+    /// @inheritdoc ILimitOrderBook
     function closeExpiredOrder(uint256 orderId) external {
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
@@ -288,6 +304,11 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         emit OrderExpired(account, orderId);
     }
 
+    /* ***************** */
+    /*       Views       */
+    /* ***************** */
+
+    /// @inheritdoc ILimitOrderBook
     function getOrder(uint256 orderId) external view returns (LimitOrder memory) {
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
@@ -295,6 +316,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         return limitOrders[orderId];
     }
 
+    /// @inheritdoc ILimitOrderBook
     function getTipFee(uint256 orderId) external view returns (uint256) {
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
@@ -302,10 +324,18 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         return limitOrders[orderId].tipFee;
     }
 
+    /* ******************* */
+    /*   Emergency Admin   */
+    /* ******************* */
+
+    /// @inheritdoc ILimitOrderBook
+    /// @dev Only callable by emergency admin
     function pause() external override onlyRole(EMERGENCY_ADMIN) {
         _pause();
     }
 
+    /// @inheritdoc ILimitOrderBook
+    /// @dev Only callable by emergency admin
     function unpause() external override onlyRole(EMERGENCY_ADMIN) {
         _unpause();
     }
