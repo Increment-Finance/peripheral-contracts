@@ -80,6 +80,21 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
             revert LimitOrderBook_AccountDoesNotSupportLimitOrders(msg.sender);
         }
 
+        // check if the order can be executed immediately as a market trade
+        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(marketIdx);
+        uint256 price = orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
+        if (side == LibPerpetual.Side.Long) {
+            if (price <= targetPrice) {
+                IIncrementLimitOrderModule(msg.sender).executeMarketOrder(marketIdx, amount, side);
+                return type(uint256).max;
+            }
+        } else {
+            if (price >= targetPrice) {
+                IIncrementLimitOrderModule(msg.sender).executeMarketOrder(marketIdx, amount, side);
+                return type(uint256).max;
+            }
+        }
+
         LimitOrder memory order = LimitOrder({
             account: msg.sender,
             side: side,
