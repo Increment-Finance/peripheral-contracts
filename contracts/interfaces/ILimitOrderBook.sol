@@ -78,4 +78,8 @@ interface ILimitOrderBook {
     function getOrder(uint256 orderId) external view returns (LimitOrder memory);
 
     function getTipFee(uint256 orderId) external view returns (uint256);
+
+    function pause() external;
+
+    function unpause() external;
 }

@@ -3,11 +3,9 @@ pragma solidity ^0.8.16;
 
 // contracts
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 
 // interfaces
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPerpetual} from "@increment/interfaces/IPerpetual.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {IClearingHouseViewer} from "@increment/interfaces/IClearingHouseViewer.sol";
@@ -15,13 +13,10 @@ import {ILimitOrderBook} from "./interfaces/ILimitOrderBook.sol";
 import {IIncrementLimitOrderModule} from "./interfaces/IIncrementLimitOrderModule.sol";
 
 // libraries
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LibMath} from "@increment/lib/LibMath.sol";
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
-import {LibReserve} from "@increment/lib/LibReserve.sol";
 
-contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, ReentrancyGuard {
-    using SafeERC20 for IERC20;
+contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
     using LibMath for int256;
     using LibMath for uint256;
 
@@ -47,7 +42,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         uint256 expiry,
         uint256 slippage,
         uint256 tipFee
-    ) external payable returns (uint256) {
+    ) external payable whenNotPaused returns (uint256) {
         if (tipFee < minTipFee) {
             revert LimitOrderBook_InsufficientTipFee();
         }
@@ -156,7 +151,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         emit OrderChanged(msg.sender, orderId);
     }
 
-    function fillOrder(uint256 orderId) external {
+    function fillOrder(uint256 orderId) external whenNotPaused {
         if (orderId >= nextOrderId) {
             revert LimitOrderBook_InvalidOrderId();
         }
@@ -168,6 +163,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
         // ensure limit order is still valid
         IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
         if (order.reduceOnly) {
+            // reduce-only is only valid if the trader has an open position on the opposite side
             if (!perpetual.isTraderPositionOpen(order.account)) {
                 revert LimitOrderBook_NoPositionToReduce(order.account, order.marketIdx);
             }
@@ -183,12 +179,15 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
             }
         }
         uint256 targetPrice = order.limitPrice;
+        // for limit orders, check the market price, and for stop orders, check the index price
         uint256 price = order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice();
         if (order.side == LibPerpetual.Side.Long) {
+            // for long orders, price must be less than or equal to the target price + slippage
             if (price > targetPrice.wadMul(1e18 + order.slippage)) {
                 revert LimitOrderBook_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
             }
         } else {
+            // for short orders, price must be greater than or equal to the target price - slippage
             if (price < targetPrice.wadMul(1e18 - order.slippage)) {
                 revert LimitOrderBook_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
             }
@@ -300,5 +299,13 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable, Reentr
             revert LimitOrderBook_InvalidOrderId();
         }
         return limitOrders[orderId].tipFee;
+    }
+
+    function pause() external override onlyRole(EMERGENCY_ADMIN) {
+        _pause();
+    }
+
+    function unpause() external override onlyRole(EMERGENCY_ADMIN) {
+        _unpause();
     }
 }
