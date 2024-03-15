@@ -191,7 +191,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
 
         // ensure limit order is still valid
         IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
-        if (order.reduceOnly) {
+        if (order.reduceOnly || order.orderType == OrderType.STOP) {
             // reduce-only is only valid if the trader has an open position on the opposite side
             if (!perpetual.isTraderPositionOpen(order.account)) {
                 revert LimitOrderBook_NoPositionToReduce(order.account, order.marketIdx);
