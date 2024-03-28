@@ -110,19 +110,19 @@ contract RewardsTest is Deployment, Utils {
         clearingHouse.addRewardContract(rewardDistributor);
 
         // Update ClearingHouse params to remove min open notional
-        clearingHouse.setParameters(
-            IClearingHouse.ClearingHouseParams({
-                minMargin: 0.025 ether,
-                minMarginAtCreation: 0.055 ether,
-                minPositiveOpenNotional: 0 ether,
-                liquidationReward: 0.015 ether,
-                insuranceRatio: 0.1 ether,
-                liquidationRewardInsuranceShare: 0.5 ether,
-                liquidationDiscount: 0.95 ether,
-                nonUACollSeizureDiscount: 0.75 ether,
-                uaDebtSeizureThreshold: 10000 ether
-            })
-        );
+        // clearingHouse.setParameters(
+        //     IClearingHouse.ClearingHouseParams({
+        //         minMargin: 0.025 ether,
+        //         minMarginAtCreation: 0.055 ether,
+        //         minPositiveOpenNotional: 34.99 ether,
+        //         liquidationReward: 0.015 ether,
+        //         insuranceRatio: 0.1 ether,
+        //         liquidationRewardInsuranceShare: 0.5 ether,
+        //         liquidationDiscount: 0.95 ether,
+        //         nonUACollSeizureDiscount: 0.75 ether,
+        //         uaDebtSeizureThreshold: 10000 ether
+        //     })
+        // );
         vBase.setHeartBeat(30 days);
         eth_vBase.setHeartBeat(30 days);
     }
@@ -582,10 +582,12 @@ contract RewardsTest is Deployment, Utils {
         reductionRatio = bound(reductionRatio, 1e16, 5e17);
         thresholdTime = bound(thresholdTime, 1 days, 10 days);
         skipTime = bound(skipTime, thresholdTime / 10, thresholdTime / 2);
+        console.log("reductionRatio = %s.%s%", reductionRatio / 1e16, reductionRatio % 1e16);
 
         // set early withdrawal threshold and provide liquidity
         rewardDistributor.setEarlyWithdrawalThreshold(thresholdTime);
         _provideLiquidityBothPerps(liquidityProviderTwo, providedLiquidity1, providedLiquidity2);
+        LibPerpetual.LiquidityProviderPosition memory lpPosition = perpetual.getLpPosition(liquidityProviderTwo);
 
         // skip some time
         skip(skipTime);
@@ -598,7 +600,13 @@ contract RewardsTest is Deployment, Utils {
         skipTimes[1] = 0; // removing liquidity will only accrue rewards for the first market
 
         // remove some liquidity from and accrue rewards for first perpetual
+        if (int256(lpPosition.openNotional).abs().toUint256().wadMul(1e18 - reductionRatio) < 35 ether) {
+            reductionRatio = 1e18 - (uint256(35e18).wadDiv(int256(lpPosition.openNotional).abs().toUint256()));
+            console.log("New reductionRatio = %s.%s%", reductionRatio / 1e16, reductionRatio % 1e16);
+        }
+        console.log("Removing some liquidity first time");
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
+        lpPosition = perpetual.getLpPosition(liquidityProviderTwo);
 
         // check that early withdrawal penalty was applied to rewards
         uint256 accruedRewards = _checkRewards(
@@ -615,6 +623,11 @@ contract RewardsTest is Deployment, Utils {
         prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
 
         // remove some liquidity again from first perpetual
+        if (int256(lpPosition.openNotional).abs().toUint256().wadMul(1e18 - reductionRatio) < 35 ether) {
+            reductionRatio = 1e18 - (uint256(35e18).wadDiv(int256(lpPosition.openNotional).abs().toUint256())) - 1;
+            console.log("New reductionRatio = %s.%s%", reductionRatio / 1e16, reductionRatio % 1e16);
+        }
+        console.log("Removing some liquidity second time");
         _removeSomeLiquidity(liquidityProviderTwo, perpetual, reductionRatio);
 
         // remove all liquidity from and accrue rewards for second perpetual
@@ -651,6 +664,7 @@ contract RewardsTest is Deployment, Utils {
             block.timestamp,
             "Early withdrawal timer not reset after adding liquidity"
         );
+        // assertTrue(false);
     }
 
     // solhint-disable-next-line func-name-mixedcase
@@ -1506,11 +1520,14 @@ contract RewardsTest is Deployment, Utils {
     }
 
     function _removeSomeLiquidity(address user, TestPerpetual perp, uint256 reductionRatio) internal {
-        uint256 lpBalance = perp.getLpPosition(user).liquidityBalance;
+        LibPerpetual.LiquidityProviderPosition memory lpPosition = perp.getLpPosition(user);
+        uint256 lpBalance = lpPosition.liquidityBalance;
         uint256 amount = (lpBalance * reductionRatio) / 1e18;
         uint256 idx = _getMarketIdx(address(perp));
         vm.startPrank(user);
         uint256 proposedAmount = _getLiquidityProviderProposedAmount(user, perp, reductionRatio);
+        console.log("amount = %s", amount);
+        console.log("proposedAmount = %s", proposedAmount);
         clearingHouse.removeLiquidity(idx, amount, [uint256(0), uint256(0)], proposedAmount, 0);
 
         // clearingHouse.withdrawAll(ua);
