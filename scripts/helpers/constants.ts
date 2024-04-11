@@ -18,13 +18,13 @@ export default {
     },
   },
   perpRewardParams: {
-    initialInflationRate: parseEther("1463753"),
+    initialInflationRate: parseEther("1171002.34"),
     initialReductionFactor: parseEther("1.189207115"),
     earlyWithdrawalThreshold: "864000", // 10 days
     rewardWeights: [parseUnits("100", 2)],
   },
   smRewardParams: {
-    initialInflationRate: parseEther("1463753"),
+    initialInflationRate: parseEther("292750.59"),
     initialReductionFactor: parseEther("1.189207115"),
     maxMultiplier: parseUnits("4", 18),
     smoothingValue: parseUnits("30", 18),
