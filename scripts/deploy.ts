@@ -1,4 +1,3 @@
-import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import {
   parseEther,
   ZeroAddress,
@@ -6,7 +5,6 @@ import {
   Contract,
   Interface,
 } from "ethers";
-import { utils } from "zksync-ethers";
 import * as hre from "hardhat";
 
 import { deployContract, getWallet } from "./helpers/utils";
@@ -14,7 +12,6 @@ import constants from "./helpers/constants";
 
 export default async function () {
   const wallet = getWallet();
-  const deployer = new Deployer(hre, wallet);
   const deployerAddress = await wallet.getAddress();
   const rewardTokenAddress = constants.addresses.L2_TOKEN;
   const governorAddress = constants.addresses.L2_GOVERNOR;
