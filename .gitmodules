@@ -1,6 +1,3 @@
-[submodule "lib/increment-protocol"]
-	path = lib/increment-protocol
-	url = git@github.com:Increment-Finance/increment-protocol
 [submodule "lib/governance"]
 	path = lib/increment-governance
 	url = git@github.com:Increment-Finance/governance
