@@ -110,7 +110,7 @@ contract SafetyModuleInvariantTest is Test {
         weights[1] = 5000;
 
         // Deploy safety module
-        safetyModule = new SafetyModule(address(0), address(0));
+        safetyModule = new SafetyModule(address(0), address(0), address(this));
 
         // Deploy auction module
         usdc = IERC20Metadata(USDC);
