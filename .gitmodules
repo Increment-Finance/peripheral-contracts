@@ -4,3 +4,6 @@
 [submodule "lib/solidity-stringutils"]
 	path = lib/solidity-stringutils
 	url = git@github.com:Arachnid/solidity-stringutils
+[submodule "lib/increment-protocol"]
+	path = lib/increment-protocol
+	url = https://github.com/Increment-Finance/increment-protocol
