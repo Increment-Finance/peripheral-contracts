@@ -6,6 +6,8 @@ import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
 
 // interfaces
+import {IClaveRegistry} from "clave-contracts/contracts/interfaces/IClaveRegistry.sol";
+import {IModuleManager} from "clave-contracts/contracts/interfaces/IModuleManager.sol";
 import {IPerpetual} from "@increment/interfaces/IPerpetual.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {IClearingHouseViewer} from "@increment/interfaces/IClearingHouseViewer.sol";
@@ -21,6 +23,9 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
     using LibMath for uint256;
 
     IClearingHouse public immutable CLEARING_HOUSE;
+    IClaveRegistry public immutable CLAVE_REGISTRY;
+
+    IIncrementLimitOrderModule public claveModule;
 
     /// @notice The minimum tip fee to accept per order
     uint256 public minTipFee;
@@ -34,8 +39,15 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
     /// @notice Mapping from order id to order info
     mapping(uint256 => LimitOrder) public limitOrders;
 
-    constructor(IClearingHouse _clearingHouse, uint256 _minTipFee) {
+    constructor(
+        IClearingHouse _clearingHouse,
+        IClaveRegistry _claveRegistry,
+        IIncrementLimitOrderModule _module,
+        uint256 _minTipFee
+    ) {
         CLEARING_HOUSE = _clearingHouse;
+        CLAVE_REGISTRY = _claveRegistry;
+        claveModule = _module;
         minTipFee = _minTipFee;
     }
 
@@ -76,7 +88,10 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         if (CLEARING_HOUSE.perpetuals(marketIdx) == IPerpetual(address(0))) {
             revert LimitOrderBook_InvalidMarketIdx();
         }
-        if (!IIncrementLimitOrderModule(msg.sender).supportsInterface(type(IIncrementLimitOrderModule).interfaceId)) {
+        if (!CLAVE_REGISTRY.isClave(msg.sender)) {
+            revert LimitOrderBook_AccountIsNotClave(msg.sender);
+        }
+        if (!IModuleManager(msg.sender).isModule(address(claveModule))) {
             revert LimitOrderBook_AccountDoesNotSupportLimitOrders(msg.sender);
         }
 
@@ -85,12 +100,12 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         uint256 price = orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
         if (side == LibPerpetual.Side.Long) {
             if (price <= targetPrice) {
-                IIncrementLimitOrderModule(msg.sender).executeMarketOrder(marketIdx, amount, side);
+                claveModule.executeMarketOrder(marketIdx, amount, msg.sender, side);
                 return type(uint256).max;
             }
         } else {
             if (price >= targetPrice) {
-                IIncrementLimitOrderModule(msg.sender).executeMarketOrder(marketIdx, amount, side);
+                claveModule.executeMarketOrder(marketIdx, amount, msg.sender, side);
                 return type(uint256).max;
             }
         }
@@ -239,7 +254,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         delete limitOrders[orderId];
 
         // call executeLimitOrder function on user's smart account
-        IIncrementLimitOrderModule(order.account).executeLimitOrder(order);
+        claveModule.executeLimitOrder(order);
 
         // transfer tip fee to caller
         (bool success,) = payable(msg.sender).call{value: order.tipFee}("");
