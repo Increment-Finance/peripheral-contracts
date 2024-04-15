@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 // contracts
-import {EIP712} from "clave-contracts/contracts/helpers/EIP712.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 // interfaces
 import {IClaveAccount} from "clave-contracts/contracts/interfaces/IClave.sol";
@@ -17,6 +17,8 @@ import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712 {
     ILimitOrderBook public immutable LIMIT_ORDER_BOOK;
     IClearingHouse public immutable CLEARING_HOUSE;
+
+    mapping(address => bool) private _initialized;
 
     modifier onlyLimitOrderBook() {
         if (msg.sender != address(LIMIT_ORDER_BOOK)) {
@@ -58,7 +60,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712 {
             revert Errors.MODULE_NOT_ADDED_CORRECTLY();
         }
 
-        // RecoveryConfig memory config = abi.decode(initData, (RecoveryConfig));
+        _initialized[msg.sender] = true;
 
         emit Inited(msg.sender);
 
@@ -77,10 +79,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712 {
             revert Errors.MODULE_NOT_REMOVED_CORRECTLY();
         }
 
-        // delete recoveryConfigs[msg.sender];
+        delete _initialized[msg.sender];
 
         emit Disabled(msg.sender);
 
         // _stopRecovery();
+    }
+
+    function isInited(address account) public view returns (bool) {
+        return _initialized[account];
     }
 }
