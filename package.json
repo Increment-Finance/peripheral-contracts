@@ -31,5 +31,9 @@
     "ethers": "^6.9.2",
     "hardhat": "^2.19.4",
     "zksync-ethers": "^6.0.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.0",
+    "@openzeppelin/contracts-upgradeable": "^4.8.0"
   }
 }
