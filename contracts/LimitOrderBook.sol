@@ -334,6 +334,22 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         emit OrderExpired(account, orderId);
     }
 
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
+    /// @inheritdoc ILimitOrderBook
+    function setMinTipFee(uint256 newMinTipFee) external onlyRole(GOVERNANCE) {
+        emit MinTipFeeUpdated(minTipFee, newMinTipFee);
+        minTipFee = newMinTipFee;
+    }
+
+    /// @inheritdoc ILimitOrderBook
+    function setClaveModule(IIncrementLimitOrderModule newModule) external onlyRole(GOVERNANCE) {
+        emit LimitOrderModuleUpdated(claveModule, newModule);
+        claveModule = newModule;
+    }
+
     /* ***************** */
     /*       Views       */
     /* ***************** */

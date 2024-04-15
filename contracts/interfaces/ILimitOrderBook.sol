@@ -68,6 +68,16 @@ interface ILimitOrderBook {
     /// @param orderId The order's unique identifier
     event OrderExpired(address indexed trader, uint256 orderId);
 
+    /// @notice Emitted when governance updates the minimum required tip for keepers
+    /// @param oldMinTip The previous minTipFee amount
+    /// @param newMinTip The new minTipFee amount
+    event MinTipFeeUpdated(uint256 oldMinTip, uint256 newMinTip);
+
+    /// @notice Emitted when governance updates the address of the IncrementLimitOrderModule
+    /// @param oldMinTip The previous limit order module address
+    /// @param newMinTip The new limit order module address
+    event LimitOrderModuleUpdated(address oldModule, address newModule);
+
     /* ****************** */
     /*       Errors       */
     /* ****************** */
@@ -116,7 +126,11 @@ interface ILimitOrderBook {
     /// @param amount The amount of ETH to transfer
     error LimitOrderBook_TipFeeTransferFailed(address to, uint256 amount);
 
-    /// @notice Error emitted when trying to create an order from an account that does not implement the IIncrementLimitOrderModule interface
+    /// @notice Error emitted when trying to create an order from an account that is not a Clave
+    /// @param account The address of the account
+    error LimitOrderBook_AccountIsNotClave(address account);
+
+    /// @notice Error emitted when trying to create an order from an account that does not support the IIncrementLimitOrderModule module
     /// @param account The address of the account
     error LimitOrderBook_AccountDoesNotSupportLimitOrders(address account);
 
@@ -202,6 +216,18 @@ interface ILimitOrderBook {
     /// @notice Closes an existing limit order if expired
     /// @dev The `tipFee` in ETH is paid to the keeper who closes the order
     function closeExpiredOrder(uint256 orderId) external;
+
+    /* ****************** */
+    /*     Governance     */
+    /* ****************** */
+
+    /// @notice Updates the minimum tip fee for placing limit orders
+    /// @param newMinTipFee The new value of `minTipFee`
+    function setMinTipFee(uint256 newMinTipFee) external;
+
+    /// @notice Updates the address of the IncrementLimitOrderModule
+    /// @param newModule The new IncrementLimitOrderModule
+    function setClaveModule(IIncrementLimitOrderModule newModule) external;
 
     /* ***************** */
     /*       Views       */
