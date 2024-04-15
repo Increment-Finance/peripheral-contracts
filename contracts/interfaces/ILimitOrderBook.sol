@@ -74,8 +74,8 @@ interface ILimitOrderBook {
     event MinTipFeeUpdated(uint256 oldMinTip, uint256 newMinTip);
 
     /// @notice Emitted when governance updates the address of the IncrementLimitOrderModule
-    /// @param oldMinTip The previous limit order module address
-    /// @param newMinTip The new limit order module address
+    /// @param oldModule The previous limit order module address
+    /// @param newModule The new limit order module address
     event LimitOrderModuleUpdated(address oldModule, address newModule);
 
     /* ****************** */
