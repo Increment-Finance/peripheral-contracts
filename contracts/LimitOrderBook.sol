@@ -339,6 +339,53 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         return limitOrders[orderId].tipFee;
     }
 
+    /// @inheritdoc ILimitOrderBook
+    function canFillOrder(uint256 orderId) external view returns (bool) {
+        if (orderId >= nextOrderId) {
+            revert LimitOrderBook_InvalidOrderId();
+        }
+        LimitOrder memory order = limitOrders[orderId];
+        if (order.expiry <= block.timestamp) {
+            return false;
+        }
+
+        // ensure limit order is still valid
+        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
+        if (order.reduceOnly || order.orderType == OrderType.STOP) {
+            // reduce-only is only valid if the trader has an open position on the opposite side
+            if (!perpetual.isTraderPositionOpen(order.account)) {
+                return false;
+            }
+            LibPerpetual.TraderPosition memory position = perpetual.getTraderPosition(order.account);
+            if (order.side == LibPerpetual.Side.Long) {
+                if (position.positionSize > 0) {
+                    return false;
+                }
+            } else {
+                if (position.positionSize < 0) {
+                    return false;
+                }
+            }
+        }
+        uint256 targetPrice = order.targetPrice;
+        // for limit orders, check the market price, and for stop orders, check the index price
+        uint256 price =
+            order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
+        if (order.side == LibPerpetual.Side.Long) {
+            // for long orders, price must be less than or equal to the target price + slippage
+            if (price > targetPrice.wadMul(1e18 + order.slippage)) {
+                return false;
+            }
+        } else {
+            // for short orders, price must be greater than or equal to the target price - slippage
+            if (price < targetPrice.wadMul(1e18 - order.slippage)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /* ******************* */
     /*   Emergency Admin   */
     /* ******************* */

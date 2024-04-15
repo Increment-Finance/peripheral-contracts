@@ -217,6 +217,11 @@ interface ILimitOrderBook {
     /// @return tipFee The order's tip fee amount
     function getTipFee(uint256 orderId) external view returns (uint256);
 
+    /// @notice Returns whether the order can be filled
+    /// @param orderId The order's unique identifier
+    /// @return canFill Whether the order can be filled
+    function canFillOrder(uint256 orderId) external view returns (bool);
+
     /* ******************* */
     /*   Emergency Admin   */
     /* ******************* */
