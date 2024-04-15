@@ -10,8 +10,9 @@ import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
 interface IIncrementLimitOrderModule is IModule {
     error LimitOrderModule_OnlyLimitOrderBook();
+    error LimitOrderModule_ModuleNotInited();
 
     function executeLimitOrder(ILimitOrderBook.LimitOrder memory order) external;
 
-    function executeMarketOrder(uint256 marketIdx, uint256 amount, LibPerpetual.Side side) external;
+    function executeMarketOrder(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side) external;
 }

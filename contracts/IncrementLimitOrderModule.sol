@@ -39,7 +39,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         // execute limit order
     }
 
-    function executeMarketOrder(uint256 marketIdx, uint256 amount, LibPerpetual.Side side)
+    function executeMarketOrder(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side)
         external
         override
         onlyLimitOrderBook
@@ -73,7 +73,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
      */
     function disable() external override {
         if (!isInited(msg.sender)) {
-            revert Errors.RECOVERY_NOT_INITED();
+            revert LimitOrderModule_ModuleNotInited();
         }
 
         if (IClaveAccount(msg.sender).isModule(address(this))) {
