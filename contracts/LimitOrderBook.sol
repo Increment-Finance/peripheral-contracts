@@ -345,9 +345,9 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
     }
 
     /// @inheritdoc ILimitOrderBook
-    function setClaveModule(IIncrementLimitOrderModule newModule) external onlyRole(GOVERNANCE) {
-        emit LimitOrderModuleUpdated(claveModule, newModule);
-        claveModule = newModule;
+    function setClaveModule(address newModule) external onlyRole(GOVERNANCE) {
+        emit LimitOrderModuleUpdated(address(claveModule), newModule);
+        claveModule = IIncrementLimitOrderModule(newModule);
     }
 
     /* ***************** */

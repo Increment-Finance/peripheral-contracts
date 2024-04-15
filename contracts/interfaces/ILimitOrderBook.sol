@@ -227,7 +227,7 @@ interface ILimitOrderBook {
 
     /// @notice Updates the address of the IncrementLimitOrderModule
     /// @param newModule The new IncrementLimitOrderModule
-    function setClaveModule(IIncrementLimitOrderModule newModule) external;
+    function setClaveModule(address newModule) external;
 
     /* ***************** */
     /*       Views       */
