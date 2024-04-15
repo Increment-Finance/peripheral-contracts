@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.20;
 
 // interfaces
 import {IModule} from "clave-contracts/contracts/interfaces/IModule.sol";
