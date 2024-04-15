@@ -3,18 +3,19 @@ pragma solidity ^0.8.20;
 
 // contracts
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 // interfaces
 import {IClaveAccount} from "clave-contracts/contracts/interfaces/IClave.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {ILimitOrderBook} from "./interfaces/ILimitOrderBook.sol";
-import {IIncrementLimitOrderModule} from "./interfaces/IIncrementLimitOrderModule.sol";
+import {IIncrementLimitOrderModule, IModule} from "./interfaces/IIncrementLimitOrderModule.sol";
 
 // libraries
 import {Errors} from "clave-contracts/contracts/libraries/Errors.sol";
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
-contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712 {
+contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165 {
     ILimitOrderBook public immutable LIMIT_ORDER_BOOK;
     IClearingHouse public immutable CLEARING_HOUSE;
 
@@ -88,5 +89,10 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712 {
 
     function isInited(address account) public view returns (bool) {
         return _initialized[account];
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IModule).interfaceId || interfaceId == type(IIncrementLimitOrderModule).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 }
