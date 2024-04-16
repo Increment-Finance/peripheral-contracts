@@ -4,11 +4,11 @@ pragma solidity ^0.8.20;
 // contracts
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {ClearingHouseViewer} from "@increment/ClearingHouseViewer.sol";
 
 // interfaces
 import {IClaveAccount} from "clave-contracts/contracts/interfaces/IClave.sol";
 import {IModuleManager} from "clave-contracts/contracts/interfaces/IModuleManager.sol";
+import {IClearingHouseViewer} from "@increment/interfaces/IClearingHouseViewer.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "@increment/interfaces/IPerpetual.sol";
 import {ILimitOrderBook} from "./interfaces/ILimitOrderBook.sol";
@@ -21,7 +21,7 @@ import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165 {
     ILimitOrderBook public immutable LIMIT_ORDER_BOOK;
     IClearingHouse public immutable CLEARING_HOUSE;
-    ClearingHouseViewer public immutable CLEARING_HOUSE_VIEWER;
+    IClearingHouseViewer public immutable CLEARING_HOUSE_VIEWER;
 
     mapping(address => bool) private _initialized;
 
@@ -37,7 +37,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         string memory version,
         ILimitOrderBook limitOrderBook,
         IClearingHouse clearingHouse,
-        ClearingHouseViewer clearingHouseViewer
+        IClearingHouseViewer clearingHouseViewer
     ) EIP712(name, version) {
         LIMIT_ORDER_BOOK = limitOrderBook;
         CLEARING_HOUSE = clearingHouse;
@@ -58,37 +58,25 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         if (perp.isTraderPositionOpen(account)) {
             // Account has an open position
             // Determine if we are opening a reverse position or increasing/reducing the current position
-            LibPerpetual.TraderPosition memory traderPosition = perp.getTraderPosition(account);
-            LibPerpetual.Side currentSide =
-                traderPosition.positionSize > 0 ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
             // Check if the current side is the same as the market order side
-            if (currentSide == side) {
+            if (_isSameSide(perp, account, side)) {
                 // Increasing position
-                uint256 minAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, amount, side);
-                _changePosition(marketIdx, amount, minAmount, side);
+                _changePosition(marketIdx, amount, account, side);
             } else {
                 // Reducing or reversing position
-                bool isReversing; // TODO: Implement this check
-                if (isReversing) {
+                uint256 closeProposedAmount =
+                    CLEARING_HOUSE_VIEWER.getTraderProposedAmount(marketIdx, account, 1e18, 100, 0);
+                if (closeProposedAmount < amount) {
                     // Reversing position
-                    uint256 closeProposedAmount = // TODO: Confirm that this is the correct amount
-                     CLEARING_HOUSE_VIEWER.getTraderProposedAmount(marketIdx, account, 1e18, 100, 0);
-                    uint256 closeMinAmount; // TODO: Implement this
-                    uint256 openProposedAmount; // TODO: Implement this
-                    uint256 openMinAmount; // TODO: Implement this
-                    _openReversePosition(
-                        marketIdx, closeProposedAmount, closeMinAmount, openProposedAmount, openMinAmount, side
-                    );
+                    _openReversePosition(marketIdx, amount, closeProposedAmount, account, side);
                 } else {
                     // Reducing position
-                    uint256 minAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, amount, side);
-                    _changePosition(marketIdx, amount, minAmount, side);
+                    _changePosition(marketIdx, amount, account, side);
                 }
             }
         } else {
             // Account does not have an open position
-            uint256 minAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, amount, side);
-            _changePosition(marketIdx, amount, minAmount, side);
+            _changePosition(marketIdx, amount, account, side);
         }
     }
 
@@ -141,10 +129,43 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
             || super.supportsInterface(interfaceId);
     }
 
-    function _changePosition(uint256 marketIdx, uint256 amount, uint256 minAmount, LibPerpetual.Side side) internal {
+    function _isSameSide(IPerpetual perp, address account, LibPerpetual.Side side) internal returns (bool) {
+        LibPerpetual.TraderPosition memory traderPosition = perp.getTraderPosition(account);
+        LibPerpetual.Side currentSide =
+            traderPosition.positionSize > 0 ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
+        return currentSide == side;
+    }
+
+    function _changePosition(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side) internal {
+        uint256 minAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, amount, side);
+        _changePosition(marketIdx, amount, minAmount, account, side);
+    }
+
+    function _changePosition(
+        uint256 marketIdx,
+        uint256 amount,
+        uint256 minAmount,
+        address account,
+        LibPerpetual.Side side
+    ) internal {
         bytes memory data =
             abi.encodeWithSelector(IClearingHouse.changePosition.selector, marketIdx, amount, minAmount, side);
         IModuleManager(account).executeFromModule(address(CLEARING_HOUSE), 0, data);
+    }
+
+    function _openReversePosition(
+        uint256 marketIdx,
+        uint256 amount,
+        uint256 closeProposedAmount,
+        address account,
+        LibPerpetual.Side side
+    ) internal {
+        uint256 closeMinAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, closeProposedAmount, side);
+        uint256 openProposedAmount = amount - closeProposedAmount;
+        uint256 openMinAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, openProposedAmount, side);
+        _openReversePosition(
+            marketIdx, closeProposedAmount, closeMinAmount, openProposedAmount, openMinAmount, account, side
+        );
     }
 
     function _openReversePosition(
@@ -153,6 +174,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         uint256 closeMinAmount,
         uint256 openProposedAmount,
         uint256 openMinAmount,
+        address account,
         LibPerpetual.Side side
     ) internal {
         bytes memory data = abi.encodeWithSelector(
