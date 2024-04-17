@@ -94,11 +94,13 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
             revert Errors.MODULE_NOT_ADDED_CORRECTLY();
         }
 
+        if (initData.length > 0) {
+            revert LimitOrderModule_InitDataShouldBeEmpty();
+        }
+
         _initialized[msg.sender] = true;
 
         emit Inited(msg.sender);
-
-        // _updateConfig(config);
     }
 
     /**
@@ -116,8 +118,6 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         delete _initialized[msg.sender];
 
         emit Disabled(msg.sender);
-
-        // _stopRecovery();
     }
 
     function isInited(address account) public view returns (bool) {
