@@ -119,19 +119,18 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         ) {
             // Target price has been met
             // Check for reduce-only conditions
-            if (!reduceOnly && orderType == OrderType.LIMIT) {
-                _executeMarketOrder(marketIdx, amount, msg.sender, side);
-                return type(uint256).max;
-            } else if (perpetual.isTraderPositionOpen(msg.sender) && !_isSameSide(perpetual, msg.sender, side)) {
-                // Reduce-only is only valid if the trader has an open position on the opposite side,
-                // and the order amount is less than or equal to amount required to close the position
-                uint256 closeProposedAmount =
-                    CLEARING_HOUSE_VIEWER.getTraderProposedAmount(marketIdx, msg.sender, 1e18, 100, 0);
-                if (closeProposedAmount >= amount) {
-                    // Reducing position
+            if (reduceOnly || orderType == OrderType.STOP) {
+                // Reduce-only order
+                if (_isReduceOnlyValid(marketIdx, amount, msg.sender, perpetual, side)) {
+                    // Reduce-only is only valid if the trader has an open position on the opposite side,
+                    // and the order amount is less than or equal to amount required to close the position
                     _executeMarketOrder(marketIdx, amount, msg.sender, side);
                     return type(uint256).max;
                 }
+            } else {
+                // Not a reduce-only order
+                _executeMarketOrder(marketIdx, amount, msg.sender, side);
+                return type(uint256).max;
             }
         }
 
@@ -406,16 +405,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         if (order.reduceOnly || order.orderType == OrderType.STOP) {
             // Reduce-only is only valid if the trader has an open position on the opposite side,
             // and the order amount is less than or equal to amount required to close the position
-            if (!perpetual.isTraderPositionOpen(order.account)) {
-                return false;
-            }
-            if (_isSameSide(perpetual, order.account, order.side)) {
-                return false;
-            }
-            uint256 closeProposedAmount =
-                CLEARING_HOUSE_VIEWER.getTraderProposedAmount(order.marketIdx, order.account, 1e18, 100, 0);
-            if (closeProposedAmount < order.amount) {
-                // Reversing position
+            if (!_isReduceOnlyValid(order.marketIdx, order.amount, order.account, perpetual, order.side)) {
                 return false;
             }
         }
@@ -547,6 +537,23 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         LibPerpetual.Side currentSide =
             traderPosition.positionSize > 0 ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
         return currentSide == side;
+    }
+
+    function _isReduceOnlyValid(
+        uint256 marketIdx,
+        uint256 amount,
+        address account,
+        IPerpetual perp,
+        LibPerpetual.Side side
+    ) internal view returns (bool) {
+        if (!perp.isTraderPositionOpen(account)) {
+            return false;
+        }
+        if (_isSameSide(perp, account, side)) {
+            return false;
+        }
+        uint256 closeProposedAmount = CLEARING_HOUSE_VIEWER.getTraderProposedAmount(marketIdx, account, 1e18, 100, 0);
+        return closeProposedAmount >= amount;
     }
 
     function _changePosition(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side) internal {
