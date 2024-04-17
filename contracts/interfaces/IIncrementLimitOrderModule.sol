@@ -144,6 +144,9 @@ interface IIncrementLimitOrderModule is IModule {
     /// @notice Error emitted when trying to fill a reduce-only order with the wrong side
     error LimitOrderModule_CannotReduceShortPositionWithShortOrder();
 
+    /// @notice Error emitted when trying to fill a reduce-only order would reverse the position
+    error LimitOrderModule_ReduceOnlyCannotReversePosition();
+
     /// @notice Error emitted when trying to fill an order with an invalid price
     error LimitOrderModule_InvalidPriceAtFill(
         uint256 price, uint256 limitPrice, uint256 maxSlippage, LibPerpetual.Side side
