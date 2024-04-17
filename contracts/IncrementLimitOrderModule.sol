@@ -258,29 +258,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             }
         }
 
-        // Remove orderId from open orders array
-        uint256 numOrders = openOrders.length;
-        for (uint256 i; i < numOrders;) {
-            if (openOrders[i] == orderId) {
-                openOrders[i] = openOrders[numOrders - 1];
-                openOrders.pop();
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-        // Delete order from limitOrders mapping
-        delete limitOrders[orderId];
+        // Remove order from storage
+        _removeOrder(orderId);
 
         // Execute the limit order
         _executeLimitOrder(order);
 
         // Transfer tip fee to caller
-        (bool success,) = payable(msg.sender).call{value: order.tipFee}("");
-        if (!success) {
-            revert LimitOrderModule_TipFeeTransferFailed(msg.sender, order.tipFee);
-        }
+        _transferTipFee(msg.sender, tipFee);
 
         emit OrderFilled(order.account, orderId);
     }
@@ -296,27 +281,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             revert LimitOrderModule_InvalidSenderNotOrderOwner(msg.sender, limitOrders[orderId].account);
         }
 
-        // Remove orderId from open orders array
-        uint256 numOrders = openOrders.length;
-        for (uint256 i; i < numOrders;) {
-            if (openOrders[i] == orderId) {
-                openOrders[i] = openOrders[numOrders - 1];
-                openOrders.pop();
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-        // Delete order from limitOrders mapping
+        // Get tip fee before deleting order
         uint256 tipFee = limitOrders[orderId].tipFee;
-        delete limitOrders[orderId];
+
+        // Remove order from storage
+        _removeOrder(orderId);
 
         // Transfer tip fee back to order owner
-        (bool success,) = payable(msg.sender).call{value: tipFee}("");
-        if (!success) {
-            revert LimitOrderModule_TipFeeTransferFailed(msg.sender, tipFee);
-        }
+        _transferTipFee(msg.sender, tipFee);
 
         emit OrderCancelled(msg.sender, orderId);
     }
@@ -332,28 +304,15 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             revert LimitOrderModule_OrderNotExpired(limitOrders[orderId].expiry);
         }
 
-        // Remove orderId from open orders array
-        uint256 numOrders = openOrders.length;
-        for (uint256 i; i < numOrders;) {
-            if (openOrders[i] == orderId) {
-                openOrders[i] = openOrders[numOrders - 1];
-                openOrders.pop();
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-        // Delete order from limitOrders mapping
+        // Get account and tip fee before deleting order
         address account = limitOrders[orderId].account;
         uint256 tipFee = limitOrders[orderId].tipFee;
-        delete limitOrders[orderId];
+
+        // Remove order from storage
+        _removeOrder(orderId);
 
         // Transfer tip fee to caller
-        (bool success,) = payable(msg.sender).call{value: tipFee}("");
-        if (!success) {
-            revert LimitOrderModule_TipFeeTransferFailed(msg.sender, tipFee);
-        }
+        _transferTipFee(msg.sender, tipFee);
 
         emit OrderExpired(account, orderId);
     }
@@ -535,6 +494,29 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         } else {
             // Account does not have an open position
             _changePosition(marketIdx, amount, account, side);
+        }
+    }
+
+    function _removeOrder(uint256 orderId) internal {
+        uint256 numOrders = openOrders.length;
+        for (uint256 i; i < numOrders;) {
+            if (openOrders[i] == orderId) {
+                openOrders[i] = openOrders[numOrders - 1];
+                openOrders.pop();
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+        // Delete order from limitOrders mapping
+        delete limitOrders[orderId];
+    }
+
+    function _transferTipFee(address recipient, uint256 tipFee) internal {
+        (bool success,) = payable(recipient).call{value: tipFee}("");
+        if (!success) {
+            revert LimitOrderModule_TipFeeTransferFailed(recipient, tipFee);
         }
     }
 
