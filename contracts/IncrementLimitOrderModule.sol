@@ -129,7 +129,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, ERC165 {
             || super.supportsInterface(interfaceId);
     }
 
-    function _isSameSide(IPerpetual perp, address account, LibPerpetual.Side side) internal returns (bool) {
+    function _isSameSide(IPerpetual perp, address account, LibPerpetual.Side side) internal view returns (bool) {
         LibPerpetual.TraderPosition memory traderPosition = perp.getTraderPosition(account);
         LibPerpetual.Side currentSide =
             traderPosition.positionSize > 0 ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
@@ -137,7 +137,12 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, ERC165 {
     }
 
     function _changePosition(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side) internal {
-        uint256 minAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, amount, side);
+        uint256 minAmount;
+        if (side == LibPerpetual.Side.Long) {
+            minAmount = CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, amount);
+        } else {
+            minAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, amount);
+        }
         _changePosition(marketIdx, amount, minAmount, account, side);
     }
 
@@ -160,9 +165,16 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, ERC165 {
         address account,
         LibPerpetual.Side side
     ) internal {
-        uint256 closeMinAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, closeProposedAmount, side);
         uint256 openProposedAmount = amount - closeProposedAmount;
-        uint256 openMinAmount = CLEARING_HOUSE_VIEWER.getTraderDy(marketIdx, openProposedAmount, side);
+        uint256 closeMinAmount;
+        uint256 openMinAmount;
+        if (side == LibPerpetual.Side.Long) {
+            closeMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, closeProposedAmount);
+            openMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, openProposedAmount);
+        } else {
+            closeMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, closeProposedAmount);
+            openMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, openProposedAmount);
+        }
         _openReversePosition(
             marketIdx, closeProposedAmount, closeMinAmount, openProposedAmount, openMinAmount, account, side
         );
