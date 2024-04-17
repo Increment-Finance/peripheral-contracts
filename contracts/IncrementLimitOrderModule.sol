@@ -265,7 +265,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         _executeLimitOrder(order);
 
         // Transfer tip fee to caller
-        _transferTipFee(msg.sender, tipFee);
+        _transferTipFee(msg.sender, order.tipFee);
 
         emit OrderFilled(order.account, orderId);
     }
