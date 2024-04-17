@@ -44,11 +44,13 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         CLEARING_HOUSE_VIEWER = clearingHouseViewer;
     }
 
+    /// @inheritdoc IIncrementLimitOrderModule
     function executeLimitOrder(ILimitOrderBook.LimitOrder memory order) external override {
         // Checks to confirm that the limit order can be executed occur in the LimitOrderBook
         executeMarketOrder(order.marketIdx, order.amount, order.account, order.side);
     }
 
+    /// @inheritdoc IIncrementLimitOrderModule
     function executeMarketOrder(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side)
         public
         override
@@ -81,11 +83,9 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         }
     }
 
-    /**
-     * @notice Initialize the module for the calling account with the given config
-     * @dev Module must not be already inited for the account
-     * @param initData bytes calldata
-     */
+    /// @notice Initialize the module for the calling account
+    /// @dev Module must not be already inited for the account
+    /// @param initData Must be empty
     function init(bytes calldata initData) external override {
         if (isInited(msg.sender)) {
             revert Errors.ALREADY_INITED();
@@ -104,9 +104,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         emit Inited(msg.sender);
     }
 
-    /**
-     * @notice Disable the module for the calling account
-     */
+    /// @notice Disable the module for the calling account
     function disable() external override {
         if (!isInited(msg.sender)) {
             revert LimitOrderModule_ModuleNotInited();
@@ -121,10 +119,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
         emit Disabled(msg.sender);
     }
 
+    /// @notice Returns if the given account is inited
+    /// @param account Account to check for
+    /// @return True if the account is inited, false otherwise
     function isInited(address account) public view returns (bool) {
         return _initialized[account];
     }
 
+    /// @inheritdoc IERC165
     function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IModule).interfaceId || interfaceId == type(IIncrementLimitOrderModule).interfaceId
             || super.supportsInterface(interfaceId);
