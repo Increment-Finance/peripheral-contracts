@@ -24,8 +24,13 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     using LibMath for int256;
     using LibMath for uint256;
 
+    /// @notice ClearingHouse contract for executing orders
     IClearingHouse public immutable CLEARING_HOUSE;
+
+    /// @notice ClearingHouseViewer contract for computing expected/proposed amounts
     IClearingHouseViewer public immutable CLEARING_HOUSE_VIEWER;
+
+    /// @notice ClaveRegistry contract for checking if account is a Clave
     IClaveRegistry public immutable CLAVE_REGISTRY;
 
     /// @notice The minimum tip fee to accept per order
@@ -40,18 +45,24 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /// @notice Mapping from order id to order info
     mapping(uint256 => LimitOrder) public limitOrders;
 
+    /// @notice Mapping from account to whether the module is initialized for the account
+    /// @dev Set by `init` and `disable`, which must be called when adding/removing module to/from account respectively
     mapping(address => bool) private _initialized;
 
+    /// @param clearingHouse The address of the Increment Protocol ClearingHouse contract
+    /// @param clearingHouseViewer The address of the Increment Protocol ClearingHouseViewer contract
+    /// @param claveRegistry The address of the ClaveRegistry contract
+    /// @param initialMinTipFee The initial minimum tip fee required per order to pay keepers
     constructor(
         IClearingHouse clearingHouse,
         IClearingHouseViewer clearingHouseViewer,
-        IClaveRegistry _claveRegistry,
-        uint256 _minTipFee
+        IClaveRegistry claveRegistry,
+        uint256 initialMinTipFee
     ) {
         CLEARING_HOUSE = clearingHouse;
         CLEARING_HOUSE_VIEWER = clearingHouseViewer;
-        CLAVE_REGISTRY = _claveRegistry;
-        minTipFee = _minTipFee;
+        CLAVE_REGISTRY = claveRegistry;
+        minTipFee = initialMinTipFee;
     }
 
     /* ****************** */
@@ -70,6 +81,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         uint256 slippage,
         uint256 tipFee
     ) external payable whenNotPaused returns (uint256 orderId) {
+        // Validate inputs
         if (tipFee < minTipFee) {
             revert LimitOrderModule_InsufficientTipFee();
         }
@@ -98,7 +110,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             revert LimitOrderModule_AccountDoesNotSupportLimitOrders(msg.sender);
         }
 
-        // check if the order can be executed immediately as a market trade
+        // Check if the order can be executed immediately as a market trade
         IPerpetual perpetual = CLEARING_HOUSE.perpetuals(marketIdx);
         uint256 price = orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
         if (side == LibPerpetual.Side.Long) {
@@ -113,6 +125,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             }
         }
 
+        // Store the order
         LimitOrder memory order = LimitOrder({
             account: msg.sender,
             side: side,
@@ -142,6 +155,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         uint256 slippage,
         uint256 tipFee
     ) external payable {
+        // Validate inputs
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
         }
@@ -165,6 +179,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             revert LimitOrderModule_InvalidSenderNotOrderOwner(msg.sender, order.account);
         }
 
+        // Check for changes, storing only new values
         if (targetPrice != order.targetPrice) {
             limitOrders[orderId].targetPrice = targetPrice;
         }
@@ -199,18 +214,18 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @inheritdoc IIncrementLimitOrderModule
     function fillOrder(uint256 orderId) external whenNotPaused {
+        // Ensure limit order exists
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
         }
+        // Ensure limit order is still valid
         LimitOrder memory order = limitOrders[orderId];
         if (order.expiry <= block.timestamp) {
             revert LimitOrderModule_OrderExpired(order.expiry);
         }
-
-        // ensure limit order is still valid
         IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
         if (order.reduceOnly || order.orderType == OrderType.STOP) {
-            // reduce-only is only valid if the trader has an open position on the opposite side
+            // Reduce-only is only valid if the trader has an open position on the opposite side
             if (!perpetual.isTraderPositionOpen(order.account)) {
                 revert LimitOrderModule_NoPositionToReduce(order.account, order.marketIdx);
             }
@@ -225,23 +240,25 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 }
             }
         }
+
+        // Ensure that target price has been met
         uint256 targetPrice = order.targetPrice;
-        // for limit orders, check the market price, and for stop orders, check the index price
+        // For limit orders, check the market price, and for stop orders, check the index price
         uint256 price =
             order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
         if (order.side == LibPerpetual.Side.Long) {
-            // for long orders, price must be less than or equal to the target price + slippage
+            // For long orders, price must be less than or equal to the target price + slippage
             if (price > targetPrice.wadMul(1e18 + order.slippage)) {
                 revert LimitOrderModule_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
             }
         } else {
-            // for short orders, price must be greater than or equal to the target price - slippage
+            // For short orders, price must be greater than or equal to the target price - slippage
             if (price < targetPrice.wadMul(1e18 - order.slippage)) {
                 revert LimitOrderModule_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
             }
         }
 
-        // remove order from open orders
+        // Remove orderId from open orders array
         uint256 numOrders = openOrders.length;
         for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
@@ -253,13 +270,13 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 ++i;
             }
         }
-        // delete order from limitOrders
+        // Delete order from limitOrders mapping
         delete limitOrders[orderId];
 
-        // call executeLimitOrder function on the IncrementLimitOrderModule
+        // Execute the limit order
         _executeLimitOrder(order);
 
-        // transfer tip fee to caller
+        // Transfer tip fee to caller
         (bool success,) = payable(msg.sender).call{value: order.tipFee}("");
         if (!success) {
             revert LimitOrderModule_TipFeeTransferFailed(msg.sender, order.tipFee);
@@ -270,14 +287,16 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @inheritdoc IIncrementLimitOrderModule
     function cancelOrder(uint256 orderId) external {
+        // Ensure limit order exists
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
         }
+        // Ensure only the order creator can cancel it
         if (msg.sender != limitOrders[orderId].account) {
             revert LimitOrderModule_InvalidSenderNotOrderOwner(msg.sender, limitOrders[orderId].account);
         }
 
-        // remove order from open orders
+        // Remove orderId from open orders array
         uint256 numOrders = openOrders.length;
         for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
@@ -289,11 +308,11 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 ++i;
             }
         }
-        // delete order from limitOrders
+        // Delete order from limitOrders mapping
         uint256 tipFee = limitOrders[orderId].tipFee;
         delete limitOrders[orderId];
 
-        // transfer tip fee back to order owner
+        // Transfer tip fee back to order owner
         (bool success,) = payable(msg.sender).call{value: tipFee}("");
         if (!success) {
             revert LimitOrderModule_TipFeeTransferFailed(msg.sender, tipFee);
@@ -304,14 +323,16 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @inheritdoc IIncrementLimitOrderModule
     function closeExpiredOrder(uint256 orderId) external {
+        // Ensure limit order exists
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
         }
+        // Ensure that order has expired
         if (limitOrders[orderId].expiry > block.timestamp) {
             revert LimitOrderModule_OrderNotExpired(limitOrders[orderId].expiry);
         }
 
-        // remove order from open orders
+        // Remove orderId from open orders array
         uint256 numOrders = openOrders.length;
         for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
@@ -323,12 +344,12 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 ++i;
             }
         }
-        // delete order from limitOrders
+        // Delete order from limitOrders mapping
         address account = limitOrders[orderId].account;
         uint256 tipFee = limitOrders[orderId].tipFee;
         delete limitOrders[orderId];
 
-        // transfer tip fee to caller
+        // Transfer tip fee to caller
         (bool success,) = payable(msg.sender).call{value: tipFee}("");
         if (!success) {
             revert LimitOrderModule_TipFeeTransferFailed(msg.sender, tipFee);
@@ -341,14 +362,15 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /// @dev Module must not be already inited for the account
     /// @param initData Must be empty
     function init(bytes calldata initData) external override {
+        // Clave module safety checks
         if (isInited(msg.sender)) {
             revert Errors.ALREADY_INITED();
         }
-
         if (!IClaveAccount(msg.sender).isModule(address(this))) {
             revert Errors.MODULE_NOT_ADDED_CORRECTLY();
         }
 
+        // Other Clave modules use initData for user configuration, but that is not necessary here
         if (initData.length > 0) {
             revert LimitOrderModule_InitDataShouldBeEmpty();
         }
@@ -360,10 +382,10 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @notice Disable the module for the calling account
     function disable() external override {
+        // Clave module safety checks
         if (!isInited(msg.sender)) {
             revert LimitOrderModule_ModuleNotInited();
         }
-
         if (IClaveAccount(msg.sender).isModule(address(this))) {
             revert Errors.MODULE_NOT_REMOVED_CORRECTLY();
         }
@@ -395,18 +417,18 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @inheritdoc IIncrementLimitOrderModule
     function canFillOrder(uint256 orderId) external view returns (bool) {
+        // Ensure limit order exists
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
         }
+        // Ensure limit order is still valid
         LimitOrder memory order = limitOrders[orderId];
         if (order.expiry <= block.timestamp) {
             return false;
         }
-
-        // ensure limit order is still valid
         IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
         if (order.reduceOnly || order.orderType == OrderType.STOP) {
-            // reduce-only is only valid if the trader has an open position on the opposite side
+            // Reduce-only is only valid if the trader has an open position on the opposite side
             if (!perpetual.isTraderPositionOpen(order.account)) {
                 return false;
             }
@@ -421,17 +443,19 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 }
             }
         }
+
+        // Ensure target price has been met
         uint256 targetPrice = order.targetPrice;
-        // for limit orders, check the market price, and for stop orders, check the index price
+        // For limit orders, check the market price, and for stop orders, check the index price
         uint256 price =
             order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
         if (order.side == LibPerpetual.Side.Long) {
-            // for long orders, price must be less than or equal to the target price + slippage
+            // For long orders, price must be less than or equal to the target price + slippage
             if (price > targetPrice.wadMul(1e18 + order.slippage)) {
                 return false;
             }
         } else {
-            // for short orders, price must be greater than or equal to the target price - slippage
+            // For short orders, price must be greater than or equal to the target price - slippage
             if (price < targetPrice.wadMul(1e18 - order.slippage)) {
                 return false;
             }
@@ -483,7 +507,6 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /* ****************** */
 
     function _executeLimitOrder(LimitOrder memory order) internal {
-        // Checks to confirm that the limit order can be executed occur in the LimitOrderBook
         _executeMarketOrder(order.marketIdx, order.amount, order.account, order.side);
     }
 
