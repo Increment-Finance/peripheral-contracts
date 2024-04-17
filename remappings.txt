@@ -1,4 +1,4 @@
-@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
+@openzeppelin/contracts-upgradeable/=lib/increment-governance/lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin/contracts/=lib/increment-protocol/lib/openzeppelin-contracts/contracts/
 prb-math/=lib/increment-protocol/lib/prb-math
 @increment/=lib/increment-protocol/contracts/

@@ -28,9 +28,6 @@ jobs:
         with:
           version: nightly
 
-      - name: Install dependencies
-        run: npm i
-
       - name: Compile
         run: forge build
 
