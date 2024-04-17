@@ -215,11 +215,11 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /// @inheritdoc IIncrementLimitOrderModule
     function fillOrder(uint256 orderId) external whenNotPaused {
         // Ensure limit order exists
-        if (orderId >= nextOrderId) {
+        LimitOrder memory order = limitOrders[orderId];
+        if (orderId >= nextOrderId || order.account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();
         }
         // Ensure limit order is still valid
-        LimitOrder memory order = limitOrders[orderId];
         if (order.expiry <= block.timestamp) {
             revert LimitOrderModule_OrderExpired(order.expiry);
         }
@@ -296,7 +296,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /// @inheritdoc IIncrementLimitOrderModule
     function closeExpiredOrder(uint256 orderId) external {
         // Ensure limit order exists
-        if (orderId >= nextOrderId) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();
         }
         // Ensure that order has expired
@@ -360,7 +360,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @inheritdoc IIncrementLimitOrderModule
     function getOrder(uint256 orderId) external view returns (LimitOrder memory) {
-        if (orderId >= nextOrderId) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();
         }
         return limitOrders[orderId];
@@ -368,7 +368,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
 
     /// @inheritdoc IIncrementLimitOrderModule
     function getTipFee(uint256 orderId) external view returns (uint256) {
-        if (orderId >= nextOrderId) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();
         }
         return limitOrders[orderId].tipFee;
@@ -377,11 +377,11 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /// @inheritdoc IIncrementLimitOrderModule
     function canFillOrder(uint256 orderId) external view returns (bool) {
         // Ensure limit order exists
-        if (orderId >= nextOrderId) {
+        LimitOrder memory order = limitOrders[orderId];
+        if (orderId >= nextOrderId || order.account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();
         }
         // Ensure limit order is still valid
-        LimitOrder memory order = limitOrders[orderId];
         if (order.expiry <= block.timestamp) {
             return false;
         }
@@ -498,6 +498,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     }
 
     function _removeOrder(uint256 orderId) internal {
+        // Find and remove orderId from openOrders array
         uint256 numOrders = openOrders.length;
         for (uint256 i; i < numOrders;) {
             if (openOrders[i] == orderId) {
@@ -508,6 +509,10 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             unchecked {
                 ++i;
             }
+        }
+        // Ensure order was found and removed
+        if (openOrders.length == numOrders) {
+            revert LimitOrderModule_InvalidOrderId();
         }
         // Delete order from limitOrders mapping
         delete limitOrders[orderId];
