@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 // contracts
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 // interfaces
@@ -18,7 +17,7 @@ import {IIncrementLimitOrderModule, IModule} from "./interfaces/IIncrementLimitO
 import {Errors} from "clave-contracts/contracts/libraries/Errors.sol";
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
-contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165 {
+contract IncrementLimitOrderModule is IIncrementLimitOrderModule, ERC165 {
     ILimitOrderBook public immutable LIMIT_ORDER_BOOK;
     IClearingHouse public immutable CLEARING_HOUSE;
     IClearingHouseViewer public immutable CLEARING_HOUSE_VIEWER;
@@ -33,12 +32,10 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
     }
 
     constructor(
-        string memory name,
-        string memory version,
         ILimitOrderBook limitOrderBook,
         IClearingHouse clearingHouse,
         IClearingHouseViewer clearingHouseViewer
-    ) EIP712(name, version) {
+    ) {
         LIMIT_ORDER_BOOK = limitOrderBook;
         CLEARING_HOUSE = clearingHouse;
         CLEARING_HOUSE_VIEWER = clearingHouseViewer;
