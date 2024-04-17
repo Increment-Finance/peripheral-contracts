@@ -253,7 +253,7 @@ contract LimitOrderBook is ILimitOrderBook, IncreAccessControl, Pausable {
         // delete order from limitOrders
         delete limitOrders[orderId];
 
-        // call executeLimitOrder function on user's smart account
+        // call executeLimitOrder function on the IncrementLimitOrderModule
         claveModule.executeLimitOrder(order);
 
         // transfer tip fee to caller

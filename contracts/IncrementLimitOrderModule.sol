@@ -45,6 +45,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, EIP712, ERC165
     }
 
     function executeLimitOrder(ILimitOrderBook.LimitOrder memory order) external override {
+        // Checks to confirm that the limit order can be executed occur in the LimitOrderBook
         executeMarketOrder(order.marketIdx, order.amount, order.account, order.side);
     }
 
