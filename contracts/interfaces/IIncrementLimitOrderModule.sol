@@ -81,6 +81,9 @@ interface IIncrementLimitOrderModule is IModule {
     /*       Errors       */
     /* ****************** */
 
+    /// @notice Error emitted when the caller of `createOrder` is not `order.account`
+    error LimitOrderModule_InvalidAccount();
+
     /// @notice Error emitted when an invalid zero price is given as input
     error LimitOrderModule_InvalidTargetPrice();
 
