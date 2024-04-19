@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.16;
+pragma solidity ^0.8.16;
 
 // contracts
 import {Deployment} from "../../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
@@ -1448,7 +1448,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // test insufficient cooldown
         stakedToken1.cooldown();
-        uint256 cooldownStartTimestamp = block.timestamp;
+        uint256 cooldownStartTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
         uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
         _expectInsufficientCooldown(cooldownStartTimestamp + 1 days);
         stakedToken1.redeem(stakedBalance);
