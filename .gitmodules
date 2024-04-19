@@ -10,3 +10,6 @@
 [submodule "lib/clave-contracts"]
 	path = lib/clave-contracts
 	url = https://github.com/getclave/clave-contracts
+[submodule "lib/nomad-xyz/ExcessivelySafeCall"]
+	path = lib/nomad-xyz/ExcessivelySafeCall
+	url = https://github.com/nomad-xyz/ExcessivelySafeCall
