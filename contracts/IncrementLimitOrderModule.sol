@@ -125,11 +125,15 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                     // Reduce-only is only valid if the trader has an open position on the opposite side,
                     // and the order amount is less than or equal to amount required to close the position
                     _executeMarketOrder(marketIdx, amount, msg.sender, side);
+                    // Since the order was executed immediately, transfer tip fee back to user
+                    _transferTipFee(msg.sender, tipFee);
                     return type(uint256).max;
                 }
             } else {
                 // Not a reduce-only order
                 _executeMarketOrder(marketIdx, amount, msg.sender, side);
+                // Since the order was executed immediately, transfer tip fee back to user
+                _transferTipFee(msg.sender, tipFee);
                 return type(uint256).max;
             }
         }
