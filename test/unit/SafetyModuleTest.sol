@@ -1448,7 +1448,7 @@ contract SafetyModuleTest is Deployment, Utils {
 
         // test insufficient cooldown
         stakedToken1.cooldown();
-        uint256 cooldownStartTimestamp = block.timestamp;
+        uint256 cooldownStartTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
         uint256 stakedBalance = stakedToken1.balanceOf(liquidityProviderOne);
         _expectInsufficientCooldown(cooldownStartTimestamp + 1 days);
         stakedToken1.redeem(stakedBalance);
