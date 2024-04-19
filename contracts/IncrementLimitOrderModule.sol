@@ -70,87 +70,69 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /* ****************** */
 
     /// @inheritdoc IIncrementLimitOrderModule
-    function createOrder(
-        LibPerpetual.Side side,
-        OrderType orderType,
-        bool reduceOnly,
-        uint256 marketIdx,
-        uint256 targetPrice,
-        uint256 amount,
-        uint256 expiry,
-        uint256 slippage,
-        uint256 tipFee
-    ) external payable whenNotPaused returns (uint256 orderId) {
+    function createOrder(LimitOrder memory order) external payable whenNotPaused returns (uint256 orderId) {
         // Validate inputs
-        if (tipFee < minTipFee) {
+        if (order.account != msg.sender) {
+            revert LimitOrderModule_InvalidAccount();
+        }
+        if (order.tipFee < minTipFee) {
             revert LimitOrderModule_InsufficientTipFee();
         }
-        if (msg.value != tipFee) {
-            revert LimitOrderModule_InvalidFeeValue(msg.value, tipFee);
+        if (msg.value != order.tipFee) {
+            revert LimitOrderModule_InvalidFeeValue(msg.value, order.tipFee);
         }
-        if (expiry <= block.timestamp) {
+        if (order.expiry <= block.timestamp) {
             revert LimitOrderModule_InvalidExpiry();
         }
-        if (amount == 0) {
+        if (order.amount == 0) {
             revert LimitOrderModule_InvalidAmount();
         }
-        if (targetPrice == 0) {
+        if (order.targetPrice == 0) {
             revert LimitOrderModule_InvalidTargetPrice();
         }
-        if (slippage > 1e18) {
+        if (order.slippage > 1e18) {
             revert LimitOrderModule_InvalidSlippage();
         }
-        if (CLEARING_HOUSE.perpetuals(marketIdx) == IPerpetual(address(0))) {
+        if (CLEARING_HOUSE.perpetuals(order.marketIdx) == IPerpetual(address(0))) {
             revert LimitOrderModule_InvalidMarketIdx();
         }
         if (!CLAVE_REGISTRY.isClave(msg.sender)) {
             revert LimitOrderModule_AccountIsNotClave(msg.sender);
         }
-        if (!IModuleManager(msg.sender).isModule(address(this))) {
+        if (!IClaveAccount(msg.sender).isModule(address(this))) {
             revert LimitOrderModule_AccountDoesNotSupportLimitOrders(msg.sender);
         }
 
         // Check if the order can be executed immediately as a market trade
-        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(marketIdx);
-        uint256 price = orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
+        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
+        uint256 price =
+            order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
         if (
-            (side == LibPerpetual.Side.Long && price <= targetPrice)
-                || (side == LibPerpetual.Side.Short && price >= targetPrice)
+            (order.side == LibPerpetual.Side.Long && price <= order.targetPrice)
+                || (order.side == LibPerpetual.Side.Short && price >= order.targetPrice)
         ) {
             // Target price has been met
             // Check for reduce-only conditions
-            if (reduceOnly || orderType == OrderType.STOP) {
+            if (order.reduceOnly || order.orderType == OrderType.STOP) {
                 // Reduce-only order
-                if (_isReduceOnlyValid(marketIdx, amount, msg.sender, perpetual, side)) {
+                if (_isReduceOnlyValid(order.marketIdx, order.amount, msg.sender, perpetual, order.side)) {
                     // Reduce-only is only valid if the trader has an open position on the opposite side,
                     // and the order amount is less than or equal to amount required to close the position
-                    _executeMarketOrder(marketIdx, amount, msg.sender, side);
+                    _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
                     // Since the order was executed immediately, transfer tip fee back to user
-                    _transferTipFee(msg.sender, tipFee);
+                    _transferTipFee(msg.sender, order.tipFee);
                     return type(uint256).max;
                 }
             } else {
                 // Not a reduce-only order
-                _executeMarketOrder(marketIdx, amount, msg.sender, side);
+                _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
                 // Since the order was executed immediately, transfer tip fee back to user
-                _transferTipFee(msg.sender, tipFee);
+                _transferTipFee(msg.sender, order.tipFee);
                 return type(uint256).max;
             }
         }
 
         // Store the order
-        LimitOrder memory order = LimitOrder({
-            account: msg.sender,
-            side: side,
-            orderType: orderType,
-            reduceOnly: reduceOnly,
-            marketIdx: marketIdx,
-            targetPrice: targetPrice,
-            amount: amount,
-            expiry: expiry,
-            slippage: slippage,
-            tipFee: tipFee
-        });
         orderId = nextOrderId++;
         limitOrders[orderId] = order;
         openOrders.push(orderId);

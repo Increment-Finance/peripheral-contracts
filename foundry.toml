@@ -1,7 +1,6 @@
 [profile.default]
 ffi = true
 fuzz_runs = 256
-via_ir = true
 optimizer = true
 optimizer_runs = 999999
 src = 'contracts'

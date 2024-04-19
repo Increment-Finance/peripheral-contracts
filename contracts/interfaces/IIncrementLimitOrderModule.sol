@@ -174,27 +174,19 @@ interface IIncrementLimitOrderModule is IModule {
 
     /// @notice Creates a new limit order
     /// @dev The `tipFee` in ETH must be sent with the transaction
-    /// @param side The side of the order, e.g., LONG or SHORT
-    /// @param orderType The type of the order, e.g., LIMIT or STOP
-    /// @param reduceOnly Whether the order is reduce only
-    /// @param marketIdx The market's index in the clearing house
-    /// @param targetPrice The price at which to execute the order, 18 decimals
-    /// @param amount The amount in vQuote (if LONG) or vBase (if SHORT) to sell, 18 decimals
-    /// @param expiry The timestamp at which the order expires
-    /// @param slippage The maximum slippage percent allowed for the order, 18 decimals
-    /// @param tipFee The fee paid to the keeper who executes the order in ETH, 18 decimals
+    /// @param order The order's info, including:
+    ///        account: The trader's account
+    ///        side: The side of the order, e.g., LONG or SHORT
+    ///        orderType: The type of the order, e.g., LIMIT or STOP
+    ///        reduceOnly: Whether the order is reduce only
+    ///        marketIdx: The market's index in the clearing house
+    ///        targetPrice: The price at which to execute the order, 18 decimals
+    ///        amount: The amount in vQuote (if LONG) or vBase (if SHORT) to sell, 18 decimals
+    ///        expiry: The timestamp at which the order expires
+    ///        slippage: The maximum slippage percent allowed for the order, 18 decimals
+    ///        tipFee: The fee paid to the keeper who executes the order in ETH, 18 decimals
     /// @return orderId The order's unique identifier
-    function createOrder(
-        LibPerpetual.Side side,
-        OrderType orderType,
-        bool reduceOnly,
-        uint256 marketIdx,
-        uint256 targetPrice,
-        uint256 amount,
-        uint256 expiry,
-        uint256 slippage,
-        uint256 tipFee
-    ) external payable returns (uint256 orderId);
+    function createOrder(LimitOrder memory order) external payable returns (uint256 orderId);
 
     /// @notice Changes an existing limit order
     /// @dev If the `tipFee` is increased, the difference must be sent with the transaction, and if it is decreased, the difference will be refunded
