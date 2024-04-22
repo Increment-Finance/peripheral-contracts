@@ -121,6 +121,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                     _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
                     // Since the order was executed immediately, transfer tip fee back to user
                     _transferTipFee(msg.sender, order.tipFee);
+                    emit OrderFilled(msg.sender, type(uint256).max);
                     return type(uint256).max;
                 }
             } else {
@@ -128,6 +129,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
                 // Since the order was executed immediately, transfer tip fee back to user
                 _transferTipFee(msg.sender, order.tipFee);
+                emit OrderFilled(msg.sender, type(uint256).max);
                 return type(uint256).max;
             }
         }
