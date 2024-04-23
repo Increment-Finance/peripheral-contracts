@@ -199,10 +199,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 }
             } else {
                 // Lowering tipFee - return the difference to the user
-                (bool success,) = payable(msg.sender).call{value: oldTipFee - tipFee}("");
-                if (!success) {
-                    revert LimitOrderModule_TipFeeTransferFailed(msg.sender, oldTipFee - tipFee);
-                }
+                _transferTipFee(msg.sender, oldTipFee - tipFee);
             }
         }
 
