@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 // contracts
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IncreAccessControl, AccessControl} from "@increment/utils/IncreAccessControl.sol";
 
 // interfaces
@@ -20,7 +21,7 @@ import {Errors} from "clave-contracts/contracts/libraries/Errors.sol";
 import {LibMath} from "@increment/lib/LibMath.sol";
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
-contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessControl, Pausable {
+contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessControl, Pausable, ReentrancyGuard {
     using LibMath for int256;
     using LibMath for uint256;
 
@@ -70,7 +71,13 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /* ****************** */
 
     /// @inheritdoc IIncrementLimitOrderModule
-    function createOrder(LimitOrder memory order) external payable whenNotPaused returns (uint256 orderId) {
+    function createOrder(LimitOrder memory order)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 orderId)
+    {
         // Validate inputs
         if (order.account != msg.sender) {
             revert LimitOrderModule_InvalidAccount();
@@ -151,7 +158,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         uint256 expiry,
         uint256 slippage,
         uint256 tipFee
-    ) external payable {
+    ) external payable nonReentrant {
         // Validate inputs
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
@@ -207,7 +214,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
-    function fillOrder(uint256 orderId) external whenNotPaused {
+    function fillOrder(uint256 orderId) external nonReentrant whenNotPaused {
         // Ensure limit order exists
         LimitOrder memory order = limitOrders[orderId];
         if (orderId >= nextOrderId || order.account == address(0)) {
@@ -263,7 +270,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
-    function cancelOrder(uint256 orderId) external {
+    function cancelOrder(uint256 orderId) external nonReentrant {
         // Ensure limit order exists
         if (orderId >= nextOrderId) {
             revert LimitOrderModule_InvalidOrderId();
@@ -286,7 +293,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
-    function closeExpiredOrder(uint256 orderId) external {
+    function closeExpiredOrder(uint256 orderId) external nonReentrant {
         // Ensure limit order exists
         if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();
