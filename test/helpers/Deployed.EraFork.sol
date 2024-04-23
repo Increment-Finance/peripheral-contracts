@@ -8,6 +8,7 @@ import {Vault} from "@increment/Vault.sol";
 import {ClearingHouse} from "@increment/ClearingHouse.sol";
 import {ClearingHouseViewer} from "@increment/ClearingHouseViewer.sol";
 import {Perpetual} from "@increment/Perpetual.sol";
+import {USDCMock} from "@increment/utils/USDCMock.sol";
 import {BatchCaller, Call} from "clave-contracts/contracts/batch/BatchCaller.sol";
 import {MockValidator} from "clave-contracts/contracts/test/MockValidator.sol";
 import {ClaveProxy} from "clave-contracts/contracts/ClaveProxy.sol";
@@ -26,6 +27,7 @@ abstract contract Deployed is Test {
 
     /* fork addresses */
     address constant UA_ADDRESS = 0xfc840c55b791a1DbAF5C588116a8fC0b4859d227;
+    address constant GOVERNANCE = 0x3082263EC78fa714a48F62869a77dABa0FfeF583;
     address constant VAULT = 0x703500cAF3c79aF68BB3dc85A6846d1C7999C672;
     address constant CLEARING_HOUSE = 0x9200536A28b0Bf5d02b7d8966cd441EDc173dE61;
     address constant CLEARING_HOUSE_VIEWER = 0xc8A34A3cfB835018B800c9A50ab0a71149Da13Fb;
@@ -37,6 +39,7 @@ abstract contract Deployed is Test {
 
     /* Increment contracts */
     UA public ua;
+    USDCMock public usdcMock;
     Vault public vault;
     ClearingHouse public clearingHouse;
     ClearingHouseViewer public viewer;
@@ -70,6 +73,12 @@ abstract contract Deployed is Test {
         address owner = accountFactory.owner();
         vm.startPrank(owner);
         accountFactory.changeDeployer(address(this));
+        vm.stopPrank();
+
+        /* add mock USDC to UA reserves */
+        usdcMock = new USDCMock("USDC Mock", "USDC", 6);
+        vm.startPrank(GOVERNANCE);
+        ua.addReserveToken(usdcMock, 1e25);
         vm.stopPrank();
     }
 }
