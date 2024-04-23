@@ -29,6 +29,7 @@ import {
 import {MessageHashUtils} from "clave-contracts/contracts/helpers/EIP712.sol";
 import {LibMath} from "increment-protocol/lib/LibMath.sol";
 import {LibPerpetual} from "increment-protocol/lib/LibPerpetual.sol";
+import {LibReserve} from "increment-protocol/lib/LibReserve.sol";
 import {console2 as console} from "forge/console2.sol";
 
 contract LimitOrderTest is Deployed, Utils {
@@ -67,6 +68,12 @@ contract LimitOrderTest is Deployed, Utils {
     }
 
     receive() external payable {
+        console.log("LimitOrderTest.receive: msg.value = %s", msg.value);
+        require(false);
+    }
+
+    fallback() external payable {
+        console.log("LimitOrderTest.fallback: msg.value = %s", msg.value);
         require(false);
     }
 
@@ -85,7 +92,7 @@ contract LimitOrderTest is Deployed, Utils {
     function test_CustomErrors() public {
         IClaveAccount account = _deployClaveAccount(traderOne);
         deal(address(account), 1 ether);
-        // _fundAndPrepareClaveAccount(account, 1000 ether);
+        _fundAndPrepareClaveAccount(account, 1000 ether);
 
         // createOrder
         vm.startPrank(traderOne.addr);
@@ -115,7 +122,7 @@ contract LimitOrderTest is Deployed, Utils {
         order.expiry = expiry;
         _expectInvalidAmount();
         limitOrderModule.createOrder{value: 0.1 ether}(order);
-        order.amount = 1000 ether;
+        order.amount = 100 ether;
         _expectInvalidTargetPrice();
         limitOrderModule.createOrder{value: 0.1 ether}(order);
         order.targetPrice = perpetual.marketPrice().wadMul(0.95e18);
@@ -178,11 +185,49 @@ contract LimitOrderTest is Deployed, Utils {
         // fillOrder
         _expectInvalidOrderId();
         limitOrderModule.fillOrder(1);
+        // fillOrder - reduce-only errors
         _expectNoPositionToReduce(address(account), 0);
         limitOrderModule.fillOrder(0);
-        // TODO: find ways to reach remaining reduce-only and invalid price errors
+        // - Open a long position - cannot reduce position with same side order
+        data = abi.encodeCall(clearingHouse.changePosition, (0, 100 ether, 0, LibPerpetual.Side.Long));
+        _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        vm.startPrank(keeperOne.addr);
+        _expectCannotReducePositionWithSameSideOrder();
+        limitOrderModule.fillOrder(0);
+        // - Reverse to short position - long order would reverse position
+        uint256 proposedAmount = viewer.getTraderProposedAmount(0, address(account), 1e18, 100, 0);
+        data = abi.encodeCall(
+            clearingHouse.openReversePosition, (0, proposedAmount, 0, proposedAmount, 0, LibPerpetual.Side.Short)
+        );
+        _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        vm.startPrank(keeperOne.addr);
+        proposedAmount = viewer.getTraderProposedAmount(0, address(account), 1e18, 100, 0);
+        _expectReduceOnlyCannotReversePosition();
+        limitOrderModule.fillOrder(0);
+        // fillOrder - invalid price error
+        // - Extend short position so long order would only reduce position
+        data = abi.encodeCall(clearingHouse.changePosition, (0, 0.1 ether, 0, LibPerpetual.Side.Short));
+        _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        _expectInvalidPriceAtFill(perpetual.marketPrice(), order.targetPrice, order.slippage, order.side);
+        limitOrderModule.fillOrder(0);
+        // fillOrder - transfer tip fee failed error
+        // - Change target price to current price
+        data = abi.encodeCall(
+            limitOrderModule.changeOrder,
+            (0, perpetual.marketPrice(), order.amount, order.expiry, order.slippage, order.tipFee)
+        );
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        // - Call fillOrder from this test contract, which reverts in `receive()`
+        // TODO: figure out why this check is failing - should revert in `this.receive()`
+        _expectTipFeeTransferFailed(address(this), order.tipFee);
+        limitOrderModule.fillOrder(0);
+        // fillOrder - order expired error
+        // TODO: figure out why this check is failing - order should be expired after skipping 2 days
         skip(2 days);
-        // TODO: figure out why this is failing
         _expectOrderExpired(order.expiry);
         limitOrderModule.fillOrder(0);
 
@@ -297,8 +342,12 @@ contract LimitOrderTest is Deployed, Utils {
     }
 
     function _fundAndPrepareClaveAccount(IClaveAccount account, uint256 amount) internal {
-        deal(address(ua), address(account), amount);
+        uint256 usdcAmount = LibReserve.wadToToken(usdcMock.decimals(), amount);
+        usdcMock.mint(address(account), usdcAmount);
         vm.startPrank(address(account));
+        usdcMock.approve(address(ua), usdcAmount);
+        ua.mintWithReserve(usdcMock, usdcAmount);
+        assertGe(ua.balanceOf(address(account)), amount, "Failed to mint UA with mock reserve");
         ua.approve(address(vault), amount);
         clearingHouse.deposit(amount, ua);
         vm.stopPrank();
@@ -374,12 +423,8 @@ contract LimitOrderTest is Deployed, Utils {
         vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_NoPositionToReduce(address,uint256)", account, idx));
     }
 
-    function _expectCannotReduceLongPositionWithLongOrder() internal {
-        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_CannotReduceLongPositionWithLongOrder()"));
-    }
-
-    function _expectCannotReduceShortPositionWithShortOrder() internal {
-        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_CannotReduceShortPositionWithShortOrder()"));
+    function _expectCannotReducePositionWithSameSideOrder() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_CannotReducePositionWithSameSideOrder()"));
     }
 
     function _expectReduceOnlyCannotReversePosition() internal {
