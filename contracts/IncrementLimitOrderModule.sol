@@ -240,16 +240,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         // For limit orders, check the market price, and for stop orders, check the index price
         uint256 price =
             order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
-        if (order.side == LibPerpetual.Side.Long) {
+        if (
+            order.side == LibPerpetual.Side.Long
+                ? price > targetPrice.wadMul(1e18 + order.slippage)
+                : price < targetPrice.wadMul(1e18 - order.slippage)
+        ) {
             // For long orders, price must be less than or equal to the target price + slippage
-            if (price > targetPrice.wadMul(1e18 + order.slippage)) {
-                revert LimitOrderModule_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
-            }
-        } else {
             // For short orders, price must be greater than or equal to the target price - slippage
-            if (price < targetPrice.wadMul(1e18 - order.slippage)) {
-                revert LimitOrderModule_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
-            }
+            revert LimitOrderModule_InvalidPriceAtFill(price, targetPrice, order.slippage, order.side);
         }
 
         // Remove order from storage
