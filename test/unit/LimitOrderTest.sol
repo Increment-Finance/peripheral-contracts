@@ -14,6 +14,7 @@ import {IncrementLimitOrderModule} from "../../contracts/IncrementLimitOrderModu
 import {IClaveAccount} from "clave-contracts/contracts/interfaces/IClave.sol";
 import "increment-protocol/interfaces/IPerpetual.sol";
 import "increment-protocol/interfaces/IClearingHouse.sol";
+import {IIncrementLimitOrderModule} from "../../contracts/interfaces/IIncrementLimitOrderModule.sol";
 
 // libraries
 import {
@@ -65,17 +66,140 @@ contract LimitOrderTest is Deployed, Utils {
         limitOrderModule = new IncrementLimitOrderModule(clearingHouse, viewer, claveRegistry, 0.01 ether);
     }
 
-    function test_deployAccount() public {
-        IClaveAccount account = _deployClaveAccount(lpOne);
+    receive() external payable {
+        require(false);
+    }
+
+    function test_DeployAccount() public {
+        IClaveAccount account = _deployClaveAccount(traderOne);
 
         assertTrue(claveRegistry.isClave(address(account)));
-        assertTrue(account.r1IsOwner(_getPubKey(lpOne)));
+        assertTrue(account.r1IsOwner(_getPubKey(traderOne)));
         assertFalse(account.isModule(address(limitOrderModule)));
 
-        _addModule(lpOne);
+        _addModule(traderOne);
 
         assertTrue(account.isModule(address(limitOrderModule)));
     }
+
+    function test_CustomErrors() public {
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        deal(address(account), 1 ether);
+        // _fundAndPrepareClaveAccount(account, 1000 ether);
+
+        // createOrder
+        vm.startPrank(traderOne.addr);
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: address(0),
+            side: LibPerpetual.Side.Long,
+            orderType: IIncrementLimitOrderModule.OrderType.LIMIT,
+            reduceOnly: true,
+            marketIdx: 1,
+            targetPrice: 0,
+            amount: 0,
+            expiry: 0,
+            slippage: 1e18 + 1,
+            tipFee: 0
+        });
+        _expectInvalidAccount();
+        limitOrderModule.createOrder(order);
+        order.account = traderOne.addr;
+        _expectInsufficientTipFee();
+        limitOrderModule.createOrder(order);
+        order.tipFee = 0.1 ether;
+        _expectInvalidFeeValue(0, 0.1 ether);
+        limitOrderModule.createOrder(order);
+        _expectInvalidExpiry();
+        limitOrderModule.createOrder{value: 0.1 ether}(order);
+        uint256 expiry = block.timestamp + 1 days;
+        order.expiry = expiry;
+        _expectInvalidAmount();
+        limitOrderModule.createOrder{value: 0.1 ether}(order);
+        order.amount = 1000 ether;
+        _expectInvalidTargetPrice();
+        limitOrderModule.createOrder{value: 0.1 ether}(order);
+        order.targetPrice = perpetual.marketPrice().wadMul(0.95e18);
+        _expectInvalidSlippage();
+        limitOrderModule.createOrder{value: 0.1 ether}(order);
+        order.slippage = 1e16;
+        _expectInvalidMarketIdx();
+        limitOrderModule.createOrder{value: 0.1 ether}(order);
+        order.marketIdx = 0;
+        _expectAccountIsNotClave(traderOne.addr);
+        limitOrderModule.createOrder{value: 0.1 ether}(order);
+        order.account = address(account);
+        vm.stopPrank();
+        bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        Transaction memory _tx =
+            _getSignedTransaction(address(limitOrderModule), address(account), 0.1 ether, data, traderOne);
+        _expectAccountDoesNotSupportLimitOrders(address(account));
+        _executeTransactionFromBootloader(account, _tx);
+        // create order successfully
+        _addModule(traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // changeOrder
+        vm.startPrank(traderOne.addr);
+        _expectInvalidOrderId();
+        limitOrderModule.changeOrder(1, 0, 0, 0, 0, 0);
+        _expectInsufficientTipFee();
+        limitOrderModule.changeOrder(0, 0, 0, 0, 0, 0);
+        _expectInvalidAmount();
+        limitOrderModule.changeOrder(0, 0, 0, 0, 0, 0.2 ether);
+        _expectInvalidTargetPrice();
+        limitOrderModule.changeOrder(0, 0, 100 ether, 0, 0, 0.2 ether);
+        uint256 targetPrice = perpetual.marketPrice().wadMul(0.99e18);
+        _expectInvalidExpiry();
+        limitOrderModule.changeOrder(0, targetPrice, 100 ether, 0, 0, 0.2 ether);
+        _expectInvalidSlippage();
+        limitOrderModule.changeOrder(0, targetPrice, 100 ether, expiry, 1e19, 0.2 ether);
+        _expectInvalidSenderNotOrderOwner(traderOne.addr, address(account));
+        limitOrderModule.changeOrder(0, targetPrice, 100 ether, expiry, 1e15, 0.2 ether);
+        vm.stopPrank();
+        data = abi.encodeCall(limitOrderModule.changeOrder, (0, targetPrice, 100 ether, expiry, 1e15, 0.2 ether));
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0.2 ether, data, traderOne);
+        _expectInvalidFeeValue(0.2 ether, 0.1 ether);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // cancelOrder
+        vm.startPrank(traderOne.addr);
+        _expectInvalidOrderId();
+        limitOrderModule.cancelOrder(1);
+        _expectInvalidSenderNotOrderOwner(traderOne.addr, address(account));
+        limitOrderModule.cancelOrder(0);
+
+        // closeExpiredOrder
+        vm.startPrank(keeperOne.addr);
+        _expectInvalidOrderId();
+        limitOrderModule.closeExpiredOrder(1);
+        _expectOrderNotExpired(expiry);
+        limitOrderModule.closeExpiredOrder(0);
+
+        // fillOrder
+        _expectInvalidOrderId();
+        limitOrderModule.fillOrder(1);
+        _expectNoPositionToReduce(address(account), 0);
+        limitOrderModule.fillOrder(0);
+        // TODO: find ways to reach remaining reduce-only and invalid price errors
+        skip(2 days);
+        // TODO: figure out why this is failing
+        _expectOrderExpired(order.expiry);
+        limitOrderModule.fillOrder(0);
+
+        // TODO: init and disable
+
+        // views
+        _expectInvalidOrderId();
+        limitOrderModule.getOrder(1);
+        _expectInvalidOrderId();
+        limitOrderModule.getTipFee(1);
+        _expectInvalidOrderId();
+        limitOrderModule.canFillOrder(1);
+    }
+
+    /* ***************** */
+    /*   Clave Helpers   */
+    /* ***************** */
 
     function _deployClaveAccount(Vm.Wallet memory wallet) internal returns (IClaveAccount clave) {
         if (accounts[wallet.addr] != IClaveAccount(address(0))) {
@@ -100,7 +224,7 @@ contract LimitOrderTest is Deployed, Utils {
         bytes memory moduleData = abi.encodePacked(address(limitOrderModule));
         bytes memory addModuleCalldata = abi.encodeWithSelector(account.addModule.selector, moduleData);
         Transaction memory transaction =
-            _getSignedTransaction(address(account), address(account), addModuleCalldata, wallet);
+            _getSignedTransaction(address(account), address(account), 0, addModuleCalldata, wallet);
         _executeTransactionFromBootloader(account, transaction);
     }
 
@@ -114,7 +238,7 @@ contract LimitOrderTest is Deployed, Utils {
         return abi.encode(wallet.publicKeyX, wallet.publicKeyY);
     }
 
-    function _getSignedTransaction(address to, address from, bytes memory data, Vm.Wallet memory wallet)
+    function _getSignedTransaction(address to, address from, uint256 value, bytes memory data, Vm.Wallet memory wallet)
         internal
         view
         returns (Transaction memory)
@@ -130,7 +254,7 @@ contract LimitOrderTest is Deployed, Utils {
             maxPriorityFeePerGas: 1 ether,
             paymaster: 0,
             nonce: NONCE_HOLDER_SYSTEM_CONTRACT.getMinNonce(from),
-            value: 0,
+            value: value,
             reserved: _reserved,
             data: data,
             signature: bytes(""),
@@ -145,5 +269,142 @@ contract LimitOrderTest is Deployed, Utils {
         (bytes32 r, bytes32 s) = vm.signP256(wallet.privateKey, digest);
         transaction.signature = abi.encode(r, s);
         return transaction;
+    }
+
+    /* ***************** */
+    /* Increment Helpers */
+    /* ***************** */
+
+    function _provideLiquidity(uint256 depositAmount, address user, IPerpetual perp) internal {
+        vm.startPrank(user);
+
+        clearingHouse.deposit(depositAmount, ua);
+        uint256 quoteAmount = depositAmount / 2;
+        uint256 baseAmount = quoteAmount.wadDiv(perp.indexPrice().toUint256());
+        clearingHouse.provideLiquidity(_getMarketIdx(address(perp)), [quoteAmount, baseAmount], 0);
+        vm.stopPrank();
+    }
+
+    function _getMarketIdx(address perp) internal view returns (uint256) {
+        uint256 numMarkets = clearingHouse.getNumMarkets();
+        for (uint256 i; i < numMarkets; ++i) {
+            uint256 idx = clearingHouse.id(i);
+            if (perp == address(clearingHouse.perpetuals(idx))) {
+                return idx;
+            }
+        }
+        return type(uint256).max;
+    }
+
+    function _fundAndPrepareClaveAccount(IClaveAccount account, uint256 amount) internal {
+        deal(address(ua), address(account), amount);
+        vm.startPrank(address(account));
+        ua.approve(address(vault), amount);
+        clearingHouse.deposit(amount, ua);
+        vm.stopPrank();
+    }
+
+    /* ***************** */
+    /*   Error Helpers   */
+    /* ***************** */
+
+    function _expectInvalidAccount() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidAccount()"));
+    }
+
+    function _expectInvalidTargetPrice() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidTargetPrice()"));
+    }
+
+    function _expectInvalidAmount() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidAmount()"));
+    }
+
+    function _expectInvalidExpiry() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidExpiry()"));
+    }
+
+    function _expectInvalidMarketIdx() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidMarketIdx()"));
+    }
+
+    function _expectInvalidOrderId() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidOrderId()"));
+    }
+
+    function _expectInvalidSlippage() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidSlippage()"));
+    }
+
+    function _expectInsufficientTipFee() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InsufficientTipFee()"));
+    }
+
+    function _expectInvalidFeeValue(uint256 value, uint256 expected) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InvalidFeeValue(uint256,uint256)", value, expected));
+    }
+
+    function _expectInvalidSenderNotOrderOwner(address sender, address owner) internal {
+        vm.expectRevert(
+            abi.encodeWithSignature("LimitOrderModule_InvalidSenderNotOrderOwner(address,address)", sender, owner)
+        );
+    }
+
+    function _expectOrderExpired(uint256 expiry) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_OrderExpired(uint256)", expiry));
+    }
+
+    function _expectOrderNotExpired(uint256 expiry) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_OrderNotExpired(uint256)", expiry));
+    }
+
+    function _expectTipFeeTransferFailed(address to, uint256 amount) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_TipFeeTransferFailed(address,uint256)", to, amount));
+    }
+
+    function _expectAccountIsNotClave(address account) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_AccountIsNotClave(address)", account));
+    }
+
+    function _expectAccountDoesNotSupportLimitOrders(address account) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_AccountDoesNotSupportLimitOrders(address)", account));
+    }
+
+    function _expectNoPositionToReduce(address account, uint256 idx) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_NoPositionToReduce(address,uint256)", account, idx));
+    }
+
+    function _expectCannotReduceLongPositionWithLongOrder() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_CannotReduceLongPositionWithLongOrder()"));
+    }
+
+    function _expectCannotReduceShortPositionWithShortOrder() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_CannotReduceShortPositionWithShortOrder()"));
+    }
+
+    function _expectReduceOnlyCannotReversePosition() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_ReduceOnlyCannotReversePosition()"));
+    }
+
+    function _expectInvalidPriceAtFill(uint256 price, uint256 limitPrice, uint256 maxSlippage, LibPerpetual.Side side)
+        internal
+    {
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "LimitOrderModule_InvalidPriceAtFill(uint256,uint256,uint256,uint8)",
+                price,
+                limitPrice,
+                maxSlippage,
+                side
+            )
+        );
+    }
+
+    function _expectModuleNotInited() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_ModuleNotInited()"));
+    }
+
+    function _expectInitDataShouldBeEmpty() internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InitDataShouldBeEmpty()"));
     }
 }
