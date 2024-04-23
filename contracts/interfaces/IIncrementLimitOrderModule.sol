@@ -142,10 +142,7 @@ interface IIncrementLimitOrderModule is IModule {
     error LimitOrderModule_NoPositionToReduce(address account, uint256 marketIdx);
 
     /// @notice Error emitted when trying to fill a reduce-only order with the wrong side
-    error LimitOrderModule_CannotReduceLongPositionWithLongOrder();
-
-    /// @notice Error emitted when trying to fill a reduce-only order with the wrong side
-    error LimitOrderModule_CannotReduceShortPositionWithShortOrder();
+    error LimitOrderModule_CannotReducePositionWithSameSideOrder();
 
     /// @notice Error emitted when trying to fill a reduce-only order would reverse the position
     error LimitOrderModule_ReduceOnlyCannotReversePosition();

@@ -224,15 +224,8 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             if (!perpetual.isTraderPositionOpen(order.account)) {
                 revert LimitOrderModule_NoPositionToReduce(order.account, order.marketIdx);
             }
-            LibPerpetual.TraderPosition memory position = perpetual.getTraderPosition(order.account);
-            if (order.side == LibPerpetual.Side.Long) {
-                if (position.positionSize > 0) {
-                    revert LimitOrderModule_CannotReduceLongPositionWithLongOrder();
-                }
-            } else {
-                if (position.positionSize < 0) {
-                    revert LimitOrderModule_CannotReduceShortPositionWithShortOrder();
-                }
+            if (_isSameSide(perpetual, order.account, order.side)) {
+                revert LimitOrderModule_CannotReducePositionWithSameSideOrder();
             }
             uint256 closeProposedAmount =
                 CLEARING_HOUSE_VIEWER.getTraderProposedAmount(order.marketIdx, order.account, 1e18, 100, 0);
