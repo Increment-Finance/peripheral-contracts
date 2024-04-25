@@ -254,6 +254,64 @@ contract LimitOrderTest is Deployed, Utils {
         limitOrderModule.canFillOrder(1);
     }
 
+    function test_ExecuteOrdersImmediately() public {
+        IClaveAccount accountOne = _deployClaveAccount(traderOne);
+        IClaveAccount accountTwo = _deployClaveAccount(traderTwo);
+        address accountAddressOne = address(accountOne);
+        address accountAddressTwo = address(accountTwo);
+        _addModule(traderOne);
+        _addModule(traderTwo);
+        deal(accountAddressOne, 1 ether);
+        deal(accountAddressTwo, 1 ether);
+        _fundAndPrepareClaveAccount(accountOne, 1000 ether);
+        _fundAndPrepareClaveAccount(accountTwo, 1000 ether);
+
+        // Long limit order at 1% over current price
+        uint256 currentPrice = perpetual.marketPrice();
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: accountAddressOne,
+            side: LibPerpetual.Side.Long,
+            orderType: IIncrementLimitOrderModule.OrderType.LIMIT,
+            reduceOnly: false,
+            marketIdx: 0,
+            targetPrice: currentPrice.wadMul(1.01e18),
+            amount: 100 ether,
+            expiry: block.timestamp + 1 days,
+            slippage: 1e16,
+            tipFee: 0.1 ether
+        });
+        bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        Transaction memory _tx =
+            _getSignedTransaction(address(limitOrderModule), accountAddressOne, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(accountOne, _tx);
+        assertTrue(perpetual.isTraderPositionOpen(accountAddressOne));
+        LibPerpetual.TraderPosition memory positionOne = perpetual.getTraderPosition(accountAddressOne);
+        assertGt(positionOne.positionSize, 0);
+        assertEq(limitOrderModule.nextOrderId(), 0);
+        assertEq(accountAddressOne.balance, 1 ether);
+
+        // Short limit order at 1% under current price
+        currentPrice = perpetual.marketPrice();
+        order.account = accountAddressTwo;
+        order.side = LibPerpetual.Side.Short;
+        order.targetPrice = currentPrice.wadMul(0.99e18);
+        data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        _tx = _getSignedTransaction(address(limitOrderModule), accountAddressTwo, 0.1 ether, data, traderTwo);
+        _executeTransactionFromBootloader(accountTwo, _tx);
+        uint256 nextOrderId = limitOrderModule.nextOrderId();
+        if (nextOrderId > 0) {
+            bool canFill = limitOrderModule.canFillOrder(nextOrderId - 1);
+            assertFalse(canFill);
+            assertFalse(perpetual.isTraderPositionOpen(accountAddressTwo));
+        } else {
+            assertTrue(perpetual.isTraderPositionOpen(accountAddressTwo));
+            LibPerpetual.TraderPosition memory positionTwo = perpetual.getTraderPosition(accountAddressTwo);
+            assertLt(int256(positionTwo.positionSize), int256(0));
+            assertEq(limitOrderModule.nextOrderId(), 0);
+            assertEq(accountAddressTwo.balance, 1 ether);
+        }
+    }
+
     /* ***************** */
     /*   Clave Helpers   */
     /* ***************** */
