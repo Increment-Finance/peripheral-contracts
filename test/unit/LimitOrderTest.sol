@@ -122,7 +122,7 @@ contract LimitOrderTest is Deployed, Utils {
         order.expiry = expiry;
         _expectInvalidAmount();
         limitOrderModule.createOrder{value: 0.1 ether}(order);
-        order.amount = 100 ether;
+        order.amount = 50 ether;
         _expectInvalidTargetPrice();
         limitOrderModule.createOrder{value: 0.1 ether}(order);
         order.targetPrice = perpetual.marketPrice().wadMul(0.95e18);
@@ -154,16 +154,16 @@ contract LimitOrderTest is Deployed, Utils {
         _expectInvalidAmount();
         limitOrderModule.changeOrder(0, 0, 0, 0, 0, 0.2 ether);
         _expectInvalidTargetPrice();
-        limitOrderModule.changeOrder(0, 0, 100 ether, 0, 0, 0.2 ether);
+        limitOrderModule.changeOrder(0, 0, 50 ether, 0, 0, 0.2 ether);
         uint256 targetPrice = perpetual.marketPrice().wadMul(0.99e18);
         _expectInvalidExpiry();
-        limitOrderModule.changeOrder(0, targetPrice, 100 ether, 0, 0, 0.2 ether);
+        limitOrderModule.changeOrder(0, targetPrice, 50 ether, 0, 0, 0.2 ether);
         _expectInvalidSlippage();
-        limitOrderModule.changeOrder(0, targetPrice, 100 ether, expiry, 1e19, 0.2 ether);
+        limitOrderModule.changeOrder(0, targetPrice, 50 ether, expiry, 1e19, 0.2 ether);
         _expectInvalidSenderNotOrderOwner(traderOne.addr, address(account));
-        limitOrderModule.changeOrder(0, targetPrice, 100 ether, expiry, 1e15, 0.2 ether);
+        limitOrderModule.changeOrder(0, targetPrice, 50 ether, expiry, 1e15, 0.2 ether);
         vm.stopPrank();
-        data = abi.encodeCall(limitOrderModule.changeOrder, (0, targetPrice, 100 ether, expiry, 1e15, 0.2 ether));
+        data = abi.encodeCall(limitOrderModule.changeOrder, (0, targetPrice, 50 ether, expiry, 1e15, 0.2 ether));
         _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0.2 ether, data, traderOne);
         _expectInvalidFeeValue(0.2 ether, 0.1 ether);
         _executeTransactionFromBootloader(account, _tx);
@@ -189,7 +189,7 @@ contract LimitOrderTest is Deployed, Utils {
         _expectNoPositionToReduce(address(account), 0);
         limitOrderModule.fillOrder(0);
         // - Open a long position - cannot reduce position with same side order
-        data = abi.encodeCall(clearingHouse.changePosition, (0, 100 ether, 0, LibPerpetual.Side.Long));
+        data = abi.encodeCall(clearingHouse.changePosition, (0, 35 ether, 0, LibPerpetual.Side.Long));
         _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
         _executeTransactionFromBootloader(account, _tx);
         vm.startPrank(keeperOne.addr);
@@ -208,20 +208,32 @@ contract LimitOrderTest is Deployed, Utils {
         limitOrderModule.fillOrder(0);
         // fillOrder - invalid price error
         // - Extend short position so long order would only reduce position
-        data = abi.encodeCall(clearingHouse.changePosition, (0, 0.1 ether, 0, LibPerpetual.Side.Short));
+        data = abi.encodeCall(clearingHouse.changePosition, (0, 0.01 ether, 0, LibPerpetual.Side.Short));
         _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
         _executeTransactionFromBootloader(account, _tx);
         _expectInvalidPriceAtFill(perpetual.marketPrice(), order.targetPrice, order.slippage, order.side);
         limitOrderModule.fillOrder(0);
-        // fillOrder - transfer tip fee failed error
-        // - Change target price to current price
+        // fillOrder - order execution reverted error
+        // - Change target price to current price, with high amount to trigger UnderOpenNotionalAmountRequired
         data = abi.encodeCall(
             limitOrderModule.changeOrder,
-            (0, perpetual.marketPrice(), order.amount, order.expiry, order.slippage, order.tipFee)
+            (0, perpetual.marketPrice(), 50 ether, order.expiry, order.slippage, order.tipFee)
         );
         _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
         _executeTransactionFromBootloader(account, _tx);
-        // - Call fillOrder from this test contract, which reverts in `receive()`
+        // - Call `fillOrder` from keeper
+        vm.startPrank(keeperOne.addr);
+        _expectOrderExecutionReverted(abi.encodeWithSignature("ClearingHouse_UnderOpenNotionalAmountRequired()"));
+        limitOrderModule.fillOrder(0);
+        // fillOrder - transfer tip fee failed error
+        // - Change to lower order amount so it can be executed
+        data = abi.encodeCall(
+            limitOrderModule.changeOrder,
+            (0, perpetual.marketPrice(), 5 ether, order.expiry, order.slippage, order.tipFee)
+        );
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        // - Call `fillOrder` from this test contract, which reverts in `receive()`
         // TODO: figure out why this check is failing - should revert in `this.receive()`
         // _expectTipFeeTransferFailed(address(this), order.tipFee);
         // limitOrderModule.fillOrder(0);
@@ -443,6 +455,10 @@ contract LimitOrderTest is Deployed, Utils {
                 side
             )
         );
+    }
+
+    function _expectOrderExecutionReverted(bytes memory err) internal {
+        vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_OrderExecutionReverted(bytes)", err));
     }
 
     function _expectModuleNotInited() internal {
