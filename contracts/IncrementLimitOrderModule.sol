@@ -14,6 +14,7 @@ import {IModuleManager} from "clave-contracts/contracts/interfaces/IModuleManage
 import {IClearingHouseViewer} from "@increment/interfaces/IClearingHouseViewer.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "@increment/interfaces/IPerpetual.sol";
+import {ISimulator} from "./interfaces/ISimulator.sol";
 import {IIncrementLimitOrderModule, IModule} from "./interfaces/IIncrementLimitOrderModule.sol";
 
 // libraries
@@ -125,19 +126,23 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 if (_isReduceOnlyValid(order.marketIdx, order.amount, msg.sender, perpetual, order.side)) {
                     // Reduce-only is only valid if the trader has an open position on the opposite side,
                     // and the order amount is less than or equal to amount required to close the position
-                    _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
+                    (bool success,) = _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
+                    if (success) {
+                        // Since the order was executed immediately, transfer tip fee back to user
+                        _transferTipFee(msg.sender, order.tipFee);
+                        emit OrderFilled(msg.sender, type(uint256).max);
+                        return type(uint256).max;
+                    }
+                }
+            } else {
+                // Not a reduce-only order
+                (bool success,) = _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
+                if (success) {
                     // Since the order was executed immediately, transfer tip fee back to user
                     _transferTipFee(msg.sender, order.tipFee);
                     emit OrderFilled(msg.sender, type(uint256).max);
                     return type(uint256).max;
                 }
-            } else {
-                // Not a reduce-only order
-                _executeMarketOrder(order.marketIdx, order.amount, msg.sender, order.side);
-                // Since the order was executed immediately, transfer tip fee back to user
-                _transferTipFee(msg.sender, order.tipFee);
-                emit OrderFilled(msg.sender, type(uint256).max);
-                return type(uint256).max;
             }
         }
 
@@ -261,7 +266,10 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         _removeOrder(orderId);
 
         // Execute the limit order
-        _executeLimitOrder(order);
+        (bool success, bytes memory err) = _executeLimitOrder(order);
+        if (!success) {
+            revert LimitOrderModule_OrderExecutionReverted(err);
+        }
 
         // Transfer tip fee to caller
         _transferTipFee(msg.sender, order.tipFee);
@@ -353,6 +361,38 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         emit Disabled(msg.sender);
     }
 
+    /**
+     * @notice Performs a call on a targetContract and internally reverts execution to avoid side effects (making it static).
+     * @dev Based on https://github.com/gnosis/util-contracts/blob/main/contracts/storage/StorageSimulation.sol
+     *      but using call instead of delegatecall.
+     *
+     * This method always reverts with data equal to `abi.encode(bool(success), bytes(response))`.
+     * Specifically, the `returndata` after a call to this method will be:
+     * `success:bool || response.length:uint256 || response:bytes`.
+     *
+     * Should be used as follows (note: casting to ISimulator only necessary in view functions):
+     * ```
+     * try ISimulator(address(this)).simulateAndRevert(targetContract, calldataPayload) {
+     *    // Should never be reached
+     * } catch (bytes memory response) {
+     *    (bool success, bytes memory returnData) = abi.decode(response, (bool, bytes));
+     * }
+     * ```
+     *
+     * @param targetContract Address of the contract to simulate the call to.
+     * @param calldataPayload Calldata that should be sent to the target contract (encoded method name and arguments).
+     */
+    function simulateAndRevert(address targetContract, bytes memory calldataPayload) external {
+        assembly {
+            let success := call(gas(), targetContract, 0, add(calldataPayload, 0x20), mload(calldataPayload), 0, 0)
+
+            mstore(0x00, success)
+            mstore(0x20, returndatasize())
+            returndatacopy(0x40, 0, returndatasize())
+            revert(0, add(returndatasize(), 0x40))
+        }
+    }
+
     /* ***************** */
     /*       Views       */
     /* ***************** */
@@ -410,7 +450,15 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             }
         }
 
-        return true;
+        // Simulate execution to check for reverting edge-cases in protocol contracts
+        bytes memory executeFromModuleData =
+            abi.encodeCall(IModuleManager.executeFromModule, (address(CLEARING_HOUSE), 0, _getExecuteOrderData(order)));
+        try ISimulator(address(this)).simulateAndRevert(order.account, executeFromModuleData) {
+            revert("simulateAndRevert didn't revert!");
+        } catch (bytes memory response) {
+            (bool success,) = abi.decode(response, (bool, bytes));
+            return success;
+        }
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
@@ -455,11 +503,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /*      Internal      */
     /* ****************** */
 
-    function _executeLimitOrder(LimitOrder memory order) internal {
-        _executeMarketOrder(order.marketIdx, order.amount, order.account, order.side);
+    function _executeLimitOrder(LimitOrder memory order) internal returns (bool, bytes memory) {
+        return _executeMarketOrder(order.marketIdx, order.amount, order.account, order.side);
     }
 
-    function _executeMarketOrder(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side) internal {
+    function _executeMarketOrder(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side)
+        internal
+        returns (bool success, bytes memory err)
+    {
         IPerpetual perp = CLEARING_HOUSE.perpetuals(marketIdx);
         // Check if account has an open position already
         if (perp.isTraderPositionOpen(account)) {
@@ -468,22 +519,75 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             // Check if the current side is the same as the market order side
             if (_isSameSide(perp, account, side)) {
                 // Increasing position
-                _changePosition(marketIdx, amount, account, side);
+                (success, err) = _changePosition(marketIdx, amount, account, side);
             } else {
                 // Reducing or reversing position
                 uint256 closeProposedAmount =
                     CLEARING_HOUSE_VIEWER.getTraderProposedAmount(marketIdx, account, 1e18, 100, 0);
                 if (closeProposedAmount < amount) {
                     // Reversing position
-                    _openReversePosition(marketIdx, amount, closeProposedAmount, account, side);
+                    (success, err) = _openReversePosition(marketIdx, amount, closeProposedAmount, account, side);
                 } else {
                     // Reducing position
-                    _changePosition(marketIdx, amount, account, side);
+                    (success, err) = _changePosition(marketIdx, amount, account, side);
                 }
             }
         } else {
             // Account does not have an open position
-            _changePosition(marketIdx, amount, account, side);
+            (success, err) = _changePosition(marketIdx, amount, account, side);
+        }
+    }
+
+    function _getExecuteOrderData(LimitOrder memory order) internal view returns (bytes memory) {
+        return _getExecuteOrderData(order.marketIdx, order.amount, order.account, order.side);
+    }
+
+    function _getExecuteOrderData(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side)
+        internal
+        view
+        returns (bytes memory data)
+    {
+        IPerpetual perp = CLEARING_HOUSE.perpetuals(marketIdx);
+        // Check if account has an open position already
+        if (perp.isTraderPositionOpen(account)) {
+            // Account has an open position
+            // Determine if we are opening a reverse position or increasing/reducing the current position
+            // Check if the current side is the same as the market order side
+            if (_isSameSide(perp, account, side)) {
+                // Increasing position
+                uint256 minAmount = _getMinAmount(marketIdx, amount, side);
+                data =
+                    abi.encodeWithSelector(IClearingHouse.changePosition.selector, marketIdx, amount, minAmount, side);
+            } else {
+                // Reducing or reversing position
+                uint256 closeProposedAmount =
+                    CLEARING_HOUSE_VIEWER.getTraderProposedAmount(marketIdx, account, 1e18, 100, 0);
+                if (closeProposedAmount < amount) {
+                    // Reversing position
+                    uint256 openProposedAmount = amount - closeProposedAmount;
+                    (uint256 closeMinAmount, uint256 openMinAmount) =
+                        _getMinAmounts(marketIdx, closeProposedAmount, openProposedAmount, side);
+                    data = abi.encodeWithSelector(
+                        IClearingHouse.openReversePosition.selector,
+                        marketIdx,
+                        closeProposedAmount,
+                        closeMinAmount,
+                        openProposedAmount,
+                        openMinAmount,
+                        side
+                    );
+                } else {
+                    // Reducing position
+                    uint256 minAmount = _getMinAmount(marketIdx, amount, side);
+                    data = abi.encodeWithSelector(
+                        IClearingHouse.changePosition.selector, marketIdx, amount, minAmount, side
+                    );
+                }
+            }
+        } else {
+            // Account does not have an open position
+            uint256 minAmount = _getMinAmount(marketIdx, amount, side);
+            data = abi.encodeWithSelector(IClearingHouse.changePosition.selector, marketIdx, amount, minAmount, side);
         }
     }
 
@@ -539,14 +643,35 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         return closeProposedAmount >= amount;
     }
 
-    function _changePosition(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side) internal {
-        uint256 minAmount;
+    function _getMinAmount(uint256 marketIdx, uint256 amount, LibPerpetual.Side side) internal view returns (uint256) {
         if (side == LibPerpetual.Side.Long) {
-            minAmount = CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, amount);
+            return CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, amount);
         } else {
-            minAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, amount);
+            return CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, amount);
         }
-        _changePosition(marketIdx, amount, minAmount, account, side);
+    }
+
+    function _getMinAmounts(
+        uint256 marketIdx,
+        uint256 closeProposedAmount,
+        uint256 openProposedAmount,
+        LibPerpetual.Side side
+    ) internal view returns (uint256 closeMinAmount, uint256 openMinAmount) {
+        if (side == LibPerpetual.Side.Long) {
+            closeMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, closeProposedAmount);
+            openMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVBaseAmount(marketIdx, openProposedAmount);
+        } else {
+            closeMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, closeProposedAmount);
+            openMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, openProposedAmount);
+        }
+    }
+
+    function _changePosition(uint256 marketIdx, uint256 amount, address account, LibPerpetual.Side side)
+        internal
+        returns (bool, bytes memory)
+    {
+        uint256 minAmount = _getMinAmount(marketIdx, amount, side);
+        return _changePosition(marketIdx, amount, minAmount, account, side);
     }
 
     function _changePosition(
@@ -555,10 +680,15 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         uint256 minAmount,
         address account,
         LibPerpetual.Side side
-    ) internal {
+    ) internal returns (bool success, bytes memory err) {
         bytes memory data =
             abi.encodeWithSelector(IClearingHouse.changePosition.selector, marketIdx, amount, minAmount, side);
-        IModuleManager(account).executeFromModule(address(CLEARING_HOUSE), 0, data);
+        try IModuleManager(account).executeFromModule(address(CLEARING_HOUSE), 0, data) {
+            success = true;
+        } catch (bytes memory reason) {
+            success = false;
+            err = reason;
+        }
     }
 
     function _openReversePosition(
@@ -567,7 +697,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         uint256 closeProposedAmount,
         address account,
         LibPerpetual.Side side
-    ) internal {
+    ) internal returns (bool, bytes memory) {
         uint256 openProposedAmount = amount - closeProposedAmount;
         uint256 closeMinAmount;
         uint256 openMinAmount;
@@ -578,7 +708,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             closeMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, closeProposedAmount);
             openMinAmount = CLEARING_HOUSE_VIEWER.getExpectedVQuoteAmount(marketIdx, openProposedAmount);
         }
-        _openReversePosition(
+        return _openReversePosition(
             marketIdx, closeProposedAmount, closeMinAmount, openProposedAmount, openMinAmount, account, side
         );
     }
@@ -591,7 +721,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         uint256 openMinAmount,
         address account,
         LibPerpetual.Side side
-    ) internal {
+    ) internal returns (bool success, bytes memory err) {
         bytes memory data = abi.encodeWithSelector(
             IClearingHouse.openReversePosition.selector,
             marketIdx,
@@ -601,6 +731,11 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             openMinAmount,
             side
         );
-        IModuleManager(account).executeFromModule(address(CLEARING_HOUSE), 0, data);
+        try IModuleManager(account).executeFromModule(address(CLEARING_HOUSE), 0, data) {
+            success = true;
+        } catch (bytes memory reason) {
+            success = false;
+            err = reason;
+        }
     }
 }

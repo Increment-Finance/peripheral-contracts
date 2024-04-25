@@ -148,9 +148,17 @@ interface IIncrementLimitOrderModule is IModule {
     error LimitOrderModule_ReduceOnlyCannotReversePosition();
 
     /// @notice Error emitted when trying to fill an order with an invalid price
+    /// @param price The current price
+    /// @param limitPrice The target price for the order
+    /// @param maxSlippage The max slippage percentage for the order
+    /// @param side The direction of the order
     error LimitOrderModule_InvalidPriceAtFill(
         uint256 price, uint256 limitPrice, uint256 maxSlippage, LibPerpetual.Side side
     );
+
+    /// @notice Error emitted when trying to fill an order causes a protocol contract to revert
+    /// @param reason The error data returned by the protocol contract
+    error LimitOrderModule_OrderExecutionReverted(bytes reason);
 
     /// @notice Error emitted when trying to disable a module that has not been initialized
     error LimitOrderModule_ModuleNotInited();
