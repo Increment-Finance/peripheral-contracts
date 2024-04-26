@@ -1,12 +1,14 @@
 [profile.default]
 ffi = true
 fuzz_runs = 256
+via_ir = true
 optimizer = true
 optimizer_runs = 999999
 src = 'contracts'
 out = 'out'
 libs = ['lib']
 gas_reports = ["StakedToken", "SafetyModule", "AuctionModule", "TestSMRewardDistributor", "TestPerpRewardDistributor"]
+fs_permissions = [{ access = "read", path = "./"}]
 
 [invariant]
 fail_on_revert = true
