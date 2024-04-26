@@ -279,21 +279,16 @@ contract LimitOrderTest is Deployed, Utils {
     }
 
     function test_ExecuteOrdersImmediately() public {
-        IClaveAccount accountOne = _deployClaveAccount(traderOne);
-        IClaveAccount accountTwo = _deployClaveAccount(traderTwo);
-        address accountAddressOne = address(accountOne);
-        address accountAddressTwo = address(accountTwo);
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        address accountAddress = address(account);
         _addModule(traderOne);
-        _addModule(traderTwo);
-        deal(accountAddressOne, 1 ether);
-        deal(accountAddressTwo, 1 ether);
-        _fundAndPrepareClaveAccount(accountOne, 1000 ether);
-        _fundAndPrepareClaveAccount(accountTwo, 1000 ether);
+        deal(accountAddress, 1 ether);
+        _fundAndPrepareClaveAccount(account, 1000 ether);
 
         // Long limit order at 1% over current price
         uint256 currentPrice = perpetual.marketPrice();
         IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
-            account: accountAddressOne,
+            account: accountAddress,
             side: LibPerpetual.Side.Long,
             orderType: IIncrementLimitOrderModule.OrderType.LIMIT,
             reduceOnly: false,
@@ -306,34 +301,32 @@ contract LimitOrderTest is Deployed, Utils {
         });
         bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
         Transaction memory _tx =
-            _getSignedTransaction(address(limitOrderModule), accountAddressOne, 0.1 ether, data, traderOne);
-        _executeTransactionFromBootloader(accountOne, _tx);
-        assertTrue(perpetual.isTraderPositionOpen(accountAddressOne));
-        LibPerpetual.TraderPosition memory positionOne = perpetual.getTraderPosition(accountAddressOne);
-        assertGt(positionOne.positionSize, 0);
+            _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        // traderOne should have a long position now
+        assertTrue(perpetual.isTraderPositionOpen(accountAddress));
+        LibPerpetual.TraderPosition memory position = perpetual.getTraderPosition(accountAddress);
+        assertGt(position.positionSize, 0);
+        // Since the order was executed immediately, nextOrderId should not change and tipFee should be returned
         assertEq(limitOrderModule.nextOrderId(), 0);
-        assertEq(accountAddressOne.balance, 1 ether);
+        assertEq(accountAddress.balance, 1 ether);
 
-        // Short limit order at 1% under current price
-        currentPrice = perpetual.marketPrice();
-        order.account = accountAddressTwo;
+        // Short stop order at 1% under current price
+        currentPrice = perpetual.indexPrice().toUint256();
         order.side = LibPerpetual.Side.Short;
         order.targetPrice = currentPrice.wadMul(0.99e18);
+        order.orderType = IIncrementLimitOrderModule.OrderType.STOP;
+        order.amount = viewer.getTraderProposedAmount(0, accountAddress, 0.5e18, 100, 0); // reduce long by 50%
         data = abi.encodeCall(limitOrderModule.createOrder, (order));
-        _tx = _getSignedTransaction(address(limitOrderModule), accountAddressTwo, 0.1 ether, data, traderTwo);
-        _executeTransactionFromBootloader(accountTwo, _tx);
-        uint256 nextOrderId = limitOrderModule.nextOrderId();
-        if (nextOrderId > 0) {
-            bool canFill = limitOrderModule.canFillOrder(nextOrderId - 1);
-            assertFalse(canFill);
-            assertFalse(perpetual.isTraderPositionOpen(accountAddressTwo));
-        } else {
-            assertTrue(perpetual.isTraderPositionOpen(accountAddressTwo));
-            LibPerpetual.TraderPosition memory positionTwo = perpetual.getTraderPosition(accountAddressTwo);
-            assertLt(int256(positionTwo.positionSize), int256(0));
-            assertEq(limitOrderModule.nextOrderId(), 0);
-            assertEq(accountAddressTwo.balance, 1 ether);
-        }
+        _tx = _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+        // traderOne should still have a long position open
+        assertTrue(perpetual.isTraderPositionOpen(accountAddress));
+        position = perpetual.getTraderPosition(accountAddress);
+        assertGt(position.positionSize, 0);
+        // Since the order was executed immediately, nextOrderId should not change and tipFee should be returned
+        assertEq(limitOrderModule.nextOrderId(), 0);
+        assertEq(accountAddress.balance, 1 ether);
     }
 
     /* ***************** */
