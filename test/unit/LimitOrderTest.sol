@@ -189,7 +189,7 @@ contract LimitOrderTest is Deployed, Utils {
         _expectNoPositionToReduce(address(account), 0);
         limitOrderModule.fillOrder(0);
         // - Open a long position - cannot reduce position with same side order
-        data = abi.encodeCall(clearingHouse.changePosition, (0, 35 ether, 0, LibPerpetual.Side.Long));
+        data = abi.encodeCall(clearingHouse.changePosition, (0, 50 ether, 0, LibPerpetual.Side.Long));
         _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
         _executeTransactionFromBootloader(account, _tx);
         vm.startPrank(keeperOne.addr);
