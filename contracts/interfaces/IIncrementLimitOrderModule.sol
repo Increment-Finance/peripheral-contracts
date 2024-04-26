@@ -242,7 +242,7 @@ interface IIncrementLimitOrderModule is IModule {
     /// @notice Returns whether the order can be filled
     /// @param orderId The order's unique identifier
     /// @return canFill Whether the order can be filled
-    function canFillOrder(uint256 orderId) external view returns (bool);
+    function canFillOrder(uint256 orderId) external view returns (bool, string memory);
 
     /// @notice Returns whether the module is inited for the given account
     /// @param account Account to check for

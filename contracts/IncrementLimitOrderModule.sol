@@ -414,7 +414,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
-    function canFillOrder(uint256 orderId) external view returns (bool) {
+    function canFillOrder(uint256 orderId) external view returns (bool, string memory) {
         // Ensure limit order exists
         LimitOrder memory order = limitOrders[orderId];
         if (orderId >= nextOrderId || order.account == address(0)) {
@@ -422,14 +422,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         }
         // Ensure limit order is still valid
         if (order.expiry <= block.timestamp) {
-            return false;
+            return (false, "Order has expired");
         }
         IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
         if (order.reduceOnly || order.orderType == OrderType.STOP) {
             // Reduce-only is only valid if the trader has an open position on the opposite side,
             // and the order amount is less than or equal to amount required to close the position
             if (!_isReduceOnlyValid(order.marketIdx, order.amount, order.account, perpetual, order.side)) {
-                return false;
+                return (false, "Reduce-only is invalid");
             }
         }
 
@@ -438,16 +438,14 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         // For limit orders, check the market price, and for stop orders, check the index price
         uint256 price =
             order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
-        if (order.side == LibPerpetual.Side.Long) {
+        if (
+            order.side == LibPerpetual.Side.Long
+                ? price > targetPrice.wadMul(1e18 + order.slippage)
+                : price < targetPrice.wadMul(1e18 - order.slippage)
+        ) {
             // For long orders, price must be less than or equal to the target price + slippage
-            if (price > targetPrice.wadMul(1e18 + order.slippage)) {
-                return false;
-            }
-        } else {
             // For short orders, price must be greater than or equal to the target price - slippage
-            if (price < targetPrice.wadMul(1e18 - order.slippage)) {
-                return false;
-            }
+            return (false, "Target price not met");
         }
 
         // Simulate execution to check for reverting edge-cases in protocol contracts
@@ -457,7 +455,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             revert("simulateAndRevert didn't revert!");
         } catch (bytes memory response) {
             (bool success,) = abi.decode(response, (bool, bytes));
-            return success;
+            return (success, success ? "" : "Order execution reverted");
         }
     }
 
