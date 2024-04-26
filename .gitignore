@@ -8,6 +8,9 @@ zkout/
 /broadcast/*
 /broadcast/*/31337/
 
+# Ignore fuzzing logs
+fuzz-logs.txt
+
 .env
 .idea/
 lib/*

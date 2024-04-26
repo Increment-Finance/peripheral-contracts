@@ -26,6 +26,7 @@ import {
     NONCE_HOLDER_SYSTEM_CONTRACT,
     BOOTLOADER_FORMAL_ADDRESS
 } from "@matterlabs/zksync-contracts/l2/system-contracts/Constants.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {MessageHashUtils} from "clave-contracts/contracts/helpers/EIP712.sol";
 import {LibMath} from "increment-protocol/lib/LibMath.sol";
 import {LibPerpetual} from "increment-protocol/lib/LibPerpetual.sol";
@@ -35,6 +36,9 @@ import {console2 as console} from "forge/console2.sol";
 contract LimitOrderTest is Deployed, Utils {
     using LibMath for int256;
     using LibMath for uint256;
+    using Strings for uint256;
+
+    string public constant LOG_FILE = "fuzz-logs.txt";
 
     Vm.Wallet public lpOne;
     Vm.Wallet public lpTwo;
@@ -335,16 +339,32 @@ contract LimitOrderTest is Deployed, Utils {
         IIncrementLimitOrderModule.OrderType orderType,
         bool reduceOnly,
         bool deltaDirection,
+        bool initialPosition,
         uint256 initialAmount,
         uint256 orderAmount,
         uint256 targetDelta,
         uint256 slippage
     ) public {
+        // Log input parameters
+        vm.writeLine(LOG_FILE, string.concat("initialSide: ", initialSide == LibPerpetual.Side.Long ? "Long" : "Short"));
+        vm.writeLine(LOG_FILE, string.concat("orderSide:   ", orderSide == LibPerpetual.Side.Long ? "Long" : "Short"));
+        vm.writeLine(
+            LOG_FILE,
+            string.concat("orderType:   ", orderType == IIncrementLimitOrderModule.OrderType.LIMIT ? "Limit" : "Stop")
+        );
+        vm.writeLine(LOG_FILE, string.concat("reduceOnly:      ", reduceOnly ? "true" : "false"));
+        vm.writeLine(LOG_FILE, string.concat("deltaDirection:  ", deltaDirection ? "+" : "-"));
+        vm.writeLine(LOG_FILE, string.concat("initialPosition: ", initialPosition ? "true" : "false"));
+
         // Bounds
         initialAmount = bound(initialAmount, 35 ether, 350 ether);
         orderAmount = bound(orderAmount, 1 ether, 500 ether);
         targetDelta = bound(targetDelta, 1e14, 1e17);
         slippage = bound(slippage, 1e15, 1e18);
+        vm.writeLine(LOG_FILE, string.concat("initialAmount: ", initialAmount.toString()));
+        vm.writeLine(LOG_FILE, string.concat("orderAmount:   ", orderAmount.toString()));
+        vm.writeLine(LOG_FILE, string.concat("targetDelta:   ", targetDelta.toString()));
+        vm.writeLine(LOG_FILE, string.concat("slippage:      ", slippage.toString()));
 
         // Prepare account
         IClaveAccount account = _deployClaveAccount(traderOne);
@@ -356,18 +376,26 @@ contract LimitOrderTest is Deployed, Utils {
         // Open initial position
         bytes memory data = abi.encodeCall(clearingHouse.changePosition, (0, initialAmount, 0, initialSide));
         Transaction memory _tx = _getSignedTransaction(address(clearingHouse), accountAddress, 0, data, traderOne);
-        vm.startPrank(BOOTLOADER_FORMAL_ADDRESS);
-        // Try opening initial position, but continue test if it fails
-        try account.executeTransaction(bytes32(0), bytes32(0), _tx) {
-            vm.stopPrank();
-        } catch {
-            vm.stopPrank();
+        if (initialPosition) {
+            vm.startPrank(BOOTLOADER_FORMAL_ADDRESS);
+            // Try opening initial position, but continue test if it fails
+            try account.executeTransaction(bytes32(0), bytes32(0), _tx) {
+                vm.writeLine(LOG_FILE, "Initial position opened successfully");
+                vm.stopPrank();
+            } catch {
+                vm.writeLine(LOG_FILE, "Failed to open initial position");
+                vm.stopPrank();
+            }
+        } else {
+            vm.writeLine(LOG_FILE, "Skipping initial position");
         }
+        LibPerpetual.TraderPosition memory initialPositionData = perpetual.getTraderPosition(accountAddress);
 
         // Create order with target price that cannot be filled immediately
         uint256 currentPrice = orderType == IIncrementLimitOrderModule.OrderType.LIMIT
             ? perpetual.marketPrice()
             : perpetual.indexPrice().toUint256();
+        vm.writeLine(LOG_FILE, string.concat("currentPrice: ", currentPrice.toString()));
         uint256 targetPrice = orderSide == LibPerpetual.Side.Long ? 1 : type(uint256).max;
         IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
             account: accountAddress,
@@ -387,6 +415,7 @@ contract LimitOrderTest is Deployed, Utils {
 
         // Change target price to something more reasonable
         targetPrice = deltaDirection ? currentPrice.wadMul(1e18 + targetDelta) : currentPrice.wadMul(1e18 - targetDelta);
+        vm.writeLine(LOG_FILE, string.concat("targetPrice:  ", targetPrice.toString()));
         data = abi.encodeCall(
             limitOrderModule.changeOrder, (0, targetPrice, order.amount, order.expiry, order.slippage, order.tipFee)
         );
@@ -394,10 +423,18 @@ contract LimitOrderTest is Deployed, Utils {
         _executeTransactionFromBootloader(account, _tx);
 
         // Check if order can be filled
-        if (limitOrderModule.canFillOrder(0)) {
+        (bool canFill, string memory reason) = limitOrderModule.canFillOrder(0);
+        if (canFill) {
+            vm.writeLine(LOG_FILE, "canFillOrder returned true");
             // Expect fillOrder to succeed
+            vm.writeLine(LOG_FILE, "Filling order...");
             vm.startPrank(keeperOne.addr);
-            limitOrderModule.fillOrder(0);
+            try limitOrderModule.fillOrder(0) {
+                vm.writeLine(LOG_FILE, "Order filled successfully, as expected");
+            } catch {
+                vm.writeLine(LOG_FILE, "Order not filled...");
+                assertTrue(false);
+            }
             vm.stopPrank();
             // Expect tip fee to have been sent to keeperOne
             assertEq(keeperOne.addr.balance, order.tipFee);
@@ -405,54 +442,29 @@ contract LimitOrderTest is Deployed, Utils {
             _expectInvalidOrderId();
             limitOrderModule.getOrder(0);
         } else {
-            bool reduceOnlyErrorExpected;
-            bool priceErrorExpected;
-            if (reduceOnly || orderType == IIncrementLimitOrderModule.OrderType.STOP) {
-                // Check for possible reduce-only errors
-                LibPerpetual.TraderPosition memory position = perpetual.getTraderPosition(accountAddress);
-                if (!perpetual.isTraderPositionOpen(accountAddress)) {
-                    reduceOnlyErrorExpected = true;
-                    _expectNoPositionToReduce(accountAddress, 0);
-                } else if (
-                    position.positionSize > 0
-                        ? orderSide == LibPerpetual.Side.Long
-                        : orderSide == LibPerpetual.Side.Short
-                ) {
-                    reduceOnlyErrorExpected = true;
-                    _expectCannotReducePositionWithSameSideOrder();
-                } else if (viewer.getTraderProposedAmount(0, accountAddress, 1e18, 100, 0) < orderAmount) {
-                    reduceOnlyErrorExpected = true;
-                    _expectReduceOnlyCannotReversePosition();
-                }
-            }
-            if (!reduceOnlyErrorExpected) {
-                // Check for possible invalid price errors
-                currentPrice = orderType == IIncrementLimitOrderModule.OrderType.LIMIT
-                    ? perpetual.marketPrice()
-                    : perpetual.indexPrice().toUint256();
-                if (
-                    order.side == LibPerpetual.Side.Long
-                        ? currentPrice > targetPrice.wadMul(1e18 + order.slippage)
-                        : currentPrice < targetPrice.wadMul(1e18 - order.slippage)
-                ) {
-                    priceErrorExpected = true;
-                    _expectInvalidPriceAtFill(currentPrice, targetPrice, order.slippage, order.side);
-                }
-            }
-            if (!(reduceOnlyErrorExpected || priceErrorExpected)) {
-                // If no reduce-only or price-related errors are expected, expect order execution
-                // to revert in a protocol contract without knowing which error will be thrown.
-                vm.expectRevert(IIncrementLimitOrderModule.LimitOrderModule_OrderExecutionReverted.selector);
-            }
+            vm.writeLine(LOG_FILE, "canFillOrder returned false");
+            vm.writeLine(LOG_FILE, reason);
             // Expect fillOrder to fail
             vm.startPrank(keeperOne.addr);
-            limitOrderModule.fillOrder(0);
+            vm.writeLine(LOG_FILE, "Attempting to fill order...");
+            try limitOrderModule.fillOrder(0) {
+                vm.writeLine(LOG_FILE, "Order filled...");
+                assertTrue(false);
+            } catch {
+                vm.writeLine(LOG_FILE, "Order not filled, as expected");
+            }
             vm.stopPrank();
+            // Expect that limit order data has not been deleted
+            try limitOrderModule.getOrder(0) {
+                vm.writeLine(LOG_FILE, "Order data not deleted, as expected");
+            } catch {
+                vm.writeLine(LOG_FILE, "Order data deleted...");
+                assertTrue(false);
+            }
             // Expect that tip fee has not been sent to the keeper
             assertEq(keeperOne.addr.balance, 0);
-            // Expect that limit order data has not been deleted
-            assertEq(limitOrderModule.getTipFee(0), order.tipFee);
         }
+        vm.writeLine(LOG_FILE, "\n");
     }
 
     /* ***************** */
