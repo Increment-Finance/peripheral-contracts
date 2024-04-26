@@ -243,7 +243,31 @@ contract LimitOrderTest is Deployed, Utils {
         // _expectOrderExpired(order.expiry);
         // limitOrderModule.fillOrder(0);
 
-        // TODO: init and disable
+        // init and disable
+        // init - already inited
+        data = abi.encodeCall(limitOrderModule.init, (bytes("")));
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        _expectAlreadyInited();
+        _executeTransactionFromBootloader(account, _tx);
+        // init - module not added correctly
+        IClaveAccount accountTwo = _deployClaveAccount(traderTwo);
+        _tx = _getSignedTransaction(address(limitOrderModule), address(accountTwo), 0, data, traderTwo);
+        _expectModuleNotAddedCorrectly();
+        _executeTransactionFromBootloader(accountTwo, _tx);
+        // init - data should be empty
+        data = abi.encodeCall(accountTwo.addModule, (abi.encodePacked(address(limitOrderModule), traderTwo.addr)));
+        _tx = _getSignedTransaction(address(accountTwo), address(accountTwo), 0, data, traderTwo);
+        _expectInitDataShouldBeEmpty();
+        _executeTransactionFromBootloader(accountTwo, _tx);
+        // disable - module not inited
+        data = abi.encodeCall(limitOrderModule.disable, ());
+        _tx = _getSignedTransaction(address(limitOrderModule), address(accountTwo), 0, data, traderTwo);
+        _expectModuleNotInited();
+        _executeTransactionFromBootloader(accountTwo, _tx);
+        // disable - module not removed correctly
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        _expectModuleNotRemovedCorrectly();
+        _executeTransactionFromBootloader(account, _tx);
 
         // views
         _expectInvalidOrderId();
@@ -525,5 +549,17 @@ contract LimitOrderTest is Deployed, Utils {
 
     function _expectInitDataShouldBeEmpty() internal {
         vm.expectRevert(abi.encodeWithSignature("LimitOrderModule_InitDataShouldBeEmpty()"));
+    }
+
+    function _expectAlreadyInited() internal {
+        vm.expectRevert(abi.encodeWithSignature("ALREADY_INITED()"));
+    }
+
+    function _expectModuleNotAddedCorrectly() internal {
+        vm.expectRevert(abi.encodeWithSignature("MODULE_NOT_ADDED_CORRECTLY()"));
+    }
+
+    function _expectModuleNotRemovedCorrectly() internal {
+        vm.expectRevert(abi.encodeWithSignature("MODULE_NOT_REMOVED_CORRECTLY()"));
     }
 }
