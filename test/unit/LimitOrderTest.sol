@@ -329,6 +329,132 @@ contract LimitOrderTest is Deployed, Utils {
         assertEq(accountAddress.balance, 1 ether);
     }
 
+    function testFuzz_FillOrderSucceedsOnlyIfCanFillOrder(
+        LibPerpetual.Side initialSide,
+        LibPerpetual.Side orderSide,
+        IIncrementLimitOrderModule.OrderType orderType,
+        bool reduceOnly,
+        bool deltaDirection,
+        uint256 initialAmount,
+        uint256 orderAmount,
+        uint256 targetDelta,
+        uint256 slippage
+    ) public {
+        // Bounds
+        initialAmount = bound(initialAmount, 35 ether, 350 ether);
+        orderAmount = bound(orderAmount, 1 ether, 500 ether);
+        targetDelta = bound(targetDelta, 1e14, 1e17);
+        slippage = bound(slippage, 1e15, 1e18);
+
+        // Prepare account
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        address accountAddress = address(account);
+        _addModule(traderOne);
+        deal(accountAddress, 1 ether);
+        _fundAndPrepareClaveAccount(account, 1000 ether);
+
+        // Open initial position
+        bytes memory data = abi.encodeCall(clearingHouse.changePosition, (0, initialAmount, 0, initialSide));
+        Transaction memory _tx = _getSignedTransaction(address(clearingHouse), accountAddress, 0, data, traderOne);
+        vm.startPrank(BOOTLOADER_FORMAL_ADDRESS);
+        // Try opening initial position, but continue test if it fails
+        try account.executeTransaction(bytes32(0), bytes32(0), _tx) {
+            vm.stopPrank();
+        } catch {
+            vm.stopPrank();
+        }
+
+        // Create order with target price that cannot be filled immediately
+        uint256 currentPrice = orderType == IIncrementLimitOrderModule.OrderType.LIMIT
+            ? perpetual.marketPrice()
+            : perpetual.indexPrice().toUint256();
+        uint256 targetPrice = orderSide == LibPerpetual.Side.Long ? 1 : type(uint256).max;
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: accountAddress,
+            side: orderSide,
+            orderType: orderType,
+            reduceOnly: reduceOnly,
+            marketIdx: 0,
+            targetPrice: targetPrice,
+            amount: orderAmount,
+            expiry: block.timestamp + 1 days,
+            slippage: slippage,
+            tipFee: 0.1 ether
+        });
+        data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        _tx = _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Change target price to something more reasonable
+        targetPrice = deltaDirection ? currentPrice.wadMul(1e18 + targetDelta) : currentPrice.wadMul(1e18 - targetDelta);
+        data = abi.encodeCall(
+            limitOrderModule.changeOrder, (0, targetPrice, order.amount, order.expiry, order.slippage, order.tipFee)
+        );
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Check if order can be filled
+        if (limitOrderModule.canFillOrder(0)) {
+            // Expect fillOrder to succeed
+            vm.startPrank(keeperOne.addr);
+            limitOrderModule.fillOrder(0);
+            vm.stopPrank();
+            // Expect tip fee to have been sent to keeperOne
+            assertEq(keeperOne.addr.balance, order.tipFee);
+            // Expect limit order data to have been deleted
+            _expectInvalidOrderId();
+            limitOrderModule.getOrder(0);
+        } else {
+            bool reduceOnlyErrorExpected;
+            bool priceErrorExpected;
+            if (reduceOnly || orderType == IIncrementLimitOrderModule.OrderType.STOP) {
+                // Check for possible reduce-only errors
+                LibPerpetual.TraderPosition memory position = perpetual.getTraderPosition(accountAddress);
+                if (!perpetual.isTraderPositionOpen(accountAddress)) {
+                    reduceOnlyErrorExpected = true;
+                    _expectNoPositionToReduce(accountAddress, 0);
+                } else if (
+                    position.positionSize > 0
+                        ? orderSide == LibPerpetual.Side.Long
+                        : orderSide == LibPerpetual.Side.Short
+                ) {
+                    reduceOnlyErrorExpected = true;
+                    _expectCannotReducePositionWithSameSideOrder();
+                } else if (viewer.getTraderProposedAmount(0, accountAddress, 1e18, 100, 0) < orderAmount) {
+                    reduceOnlyErrorExpected = true;
+                    _expectReduceOnlyCannotReversePosition();
+                }
+            }
+            if (!reduceOnlyErrorExpected) {
+                // Check for possible invalid price errors
+                currentPrice = orderType == IIncrementLimitOrderModule.OrderType.LIMIT
+                    ? perpetual.marketPrice()
+                    : perpetual.indexPrice().toUint256();
+                if (
+                    order.side == LibPerpetual.Side.Long
+                        ? currentPrice > targetPrice.wadMul(1e18 + order.slippage)
+                        : currentPrice < targetPrice.wadMul(1e18 - order.slippage)
+                ) {
+                    priceErrorExpected = true;
+                    _expectInvalidPriceAtFill(currentPrice, targetPrice, order.slippage, order.side);
+                }
+            }
+            if (!(reduceOnlyErrorExpected || priceErrorExpected)) {
+                // If no reduce-only or price-related errors are expected, expect order execution
+                // to revert in a protocol contract without knowing which error will be thrown.
+                vm.expectRevert(IIncrementLimitOrderModule.LimitOrderModule_OrderExecutionReverted.selector);
+            }
+            // Expect fillOrder to fail
+            vm.startPrank(keeperOne.addr);
+            limitOrderModule.fillOrder(0);
+            vm.stopPrank();
+            // Expect that tip fee has not been sent to the keeper
+            assertEq(keeperOne.addr.balance, 0);
+            // Expect that limit order data has not been deleted
+            assertEq(limitOrderModule.getTipFee(0), order.tipFee);
+        }
+    }
+
     /* ***************** */
     /*   Clave Helpers   */
     /* ***************** */
