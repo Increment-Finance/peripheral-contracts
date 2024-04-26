@@ -398,6 +398,20 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     /* ***************** */
 
     /// @inheritdoc IIncrementLimitOrderModule
+    function getOpenOrderIds() external view returns (uint256[] memory) {
+        return openOrders;
+    }
+
+    /// @inheritdoc IIncrementLimitOrderModule
+    function getOpenOrders() external view returns (LimitOrder[] memory) {
+        LimitOrder[] memory orders = new LimitOrder[](openOrders.length);
+        for (uint256 i; i < openOrders.length; ++i) {
+            orders[i] = limitOrders[openOrders[i]];
+        }
+        return orders;
+    }
+
+    /// @inheritdoc IIncrementLimitOrderModule
     function getOrder(uint256 orderId) external view returns (LimitOrder memory) {
         if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
             revert LimitOrderModule_InvalidOrderId();

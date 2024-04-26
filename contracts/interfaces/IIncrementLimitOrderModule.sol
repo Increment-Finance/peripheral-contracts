@@ -229,6 +229,14 @@ interface IIncrementLimitOrderModule is IModule {
     /*       Views       */
     /* ***************** */
 
+    /// @notice Returns a list of order IDs for all open orders
+    /// @return Array of order IDs
+    function getOpenOrderIds() external view returns (uint256[] memory);
+
+    /// @notice Returns a list of all open orders
+    /// @return Array of LimitOrder structs
+    function getOpenOrders() external view returns (LimitOrder[] memory);
+
     /// @notice Returns the order's info
     /// @param orderId The order's unique identifier
     /// @return order The order's info
