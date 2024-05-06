@@ -14,7 +14,6 @@ import {IModuleManager} from "clave-contracts/contracts/interfaces/IModuleManage
 import {IClearingHouseViewer} from "@increment/interfaces/IClearingHouseViewer.sol";
 import {IClearingHouse} from "@increment/interfaces/IClearingHouse.sol";
 import {IPerpetual} from "@increment/interfaces/IPerpetual.sol";
-import {ISimulator} from "./interfaces/ISimulator.sol";
 import {IIncrementLimitOrderModule, IModule} from "./interfaces/IIncrementLimitOrderModule.sol";
 
 // libraries
@@ -361,38 +360,6 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         emit Disabled(msg.sender);
     }
 
-    /**
-     * @notice Performs a call on a targetContract and internally reverts execution to avoid side effects (making it static).
-     * @dev Based on https://github.com/gnosis/util-contracts/blob/main/contracts/storage/StorageSimulation.sol
-     *      but using call instead of delegatecall.
-     *
-     * This method always reverts with data equal to `abi.encode(bool(success), bytes(response))`.
-     * Specifically, the `returndata` after a call to this method will be:
-     * `success:bool || response.length:uint256 || response:bytes`.
-     *
-     * Should be used as follows (note: casting to ISimulator only necessary in view functions):
-     * ```
-     * try ISimulator(address(this)).simulateAndRevert(targetContract, calldataPayload) {
-     *    // Should never be reached
-     * } catch (bytes memory response) {
-     *    (bool success, bytes memory returnData) = abi.decode(response, (bool, bytes));
-     * }
-     * ```
-     *
-     * @param targetContract Address of the contract to simulate the call to.
-     * @param calldataPayload Calldata that should be sent to the target contract (encoded method name and arguments).
-     */
-    function simulateAndRevert(address targetContract, bytes memory calldataPayload) external {
-        assembly {
-            let success := call(gas(), targetContract, 0, add(calldataPayload, 0x20), mload(calldataPayload), 0, 0)
-
-            mstore(0x00, success)
-            mstore(0x20, returndatasize())
-            returndatacopy(0x40, 0, returndatasize())
-            revert(0, add(returndatasize(), 0x40))
-        }
-    }
-
     /* ***************** */
     /*       Views       */
     /* ***************** */
@@ -425,52 +392,6 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
             revert LimitOrderModule_InvalidOrderId();
         }
         return limitOrders[orderId].tipFee;
-    }
-
-    /// @inheritdoc IIncrementLimitOrderModule
-    function canFillOrder(uint256 orderId) external view returns (bool, string memory) {
-        // Ensure limit order exists
-        LimitOrder memory order = limitOrders[orderId];
-        if (orderId >= nextOrderId || order.account == address(0)) {
-            revert LimitOrderModule_InvalidOrderId();
-        }
-        // Ensure limit order is still valid
-        if (order.expiry <= block.timestamp) {
-            return (false, "Order has expired");
-        }
-        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
-        if (order.reduceOnly || order.orderType == OrderType.STOP) {
-            // Reduce-only is only valid if the trader has an open position on the opposite side,
-            // and the order amount is less than or equal to amount required to close the position
-            if (!_isReduceOnlyValid(order.marketIdx, order.amount, order.account, perpetual, order.side)) {
-                return (false, "Reduce-only is invalid");
-            }
-        }
-
-        // Ensure target price has been met
-        uint256 targetPrice = order.targetPrice;
-        // For limit orders, check the market price, and for stop orders, check the index price
-        uint256 price =
-            order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
-        if (
-            order.side == LibPerpetual.Side.Long
-                ? price > targetPrice.wadMul(1e18 + order.slippage)
-                : price < targetPrice.wadMul(1e18 - order.slippage)
-        ) {
-            // For long orders, price must be less than or equal to the target price + slippage
-            // For short orders, price must be greater than or equal to the target price - slippage
-            return (false, "Target price not met");
-        }
-
-        // Simulate execution to check for reverting edge-cases in protocol contracts
-        bytes memory executeFromModuleData =
-            abi.encodeCall(IModuleManager.executeFromModule, (address(CLEARING_HOUSE), 0, _getExecuteOrderData(order)));
-        try ISimulator(address(this)).simulateAndRevert(order.account, executeFromModuleData) {
-            revert("simulateAndRevert didn't revert!");
-        } catch (bytes memory response) {
-            (bool success,) = abi.decode(response, (bool, bytes));
-            return (success, success ? "" : "Order execution reverted");
-        }
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
