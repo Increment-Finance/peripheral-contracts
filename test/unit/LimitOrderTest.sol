@@ -85,10 +85,12 @@ contract LimitOrderTest is Deployed {
         assertTrue(claveRegistry.isClave(address(account)));
         assertTrue(account.r1IsOwner(_getPubKey(traderOne)));
         assertFalse(account.isModule(address(limitOrderModule)));
+        assertFalse(limitOrderModule.isInited(address(account)));
 
         _addModule(traderOne);
 
         assertTrue(account.isModule(address(limitOrderModule)));
+        assertTrue(limitOrderModule.isInited(address(account)));
     }
 
     function test_CustomErrors() public {
@@ -370,6 +372,7 @@ contract LimitOrderTest is Deployed {
 
         // Now there should be one open order
         assertEq(limitOrderModule.getOpenOrderIds().length, 1);
+        assertEq(limitOrderModule.getOpenOrders()[0].account, accountAddress);
         assertEq(limitOrderModule.nextOrderId(), 1);
         assertEq(accountAddress.balance, 0.9 ether);
 
@@ -425,6 +428,7 @@ contract LimitOrderTest is Deployed {
 
         // Now there should be one open order
         assertEq(limitOrderModule.getOpenOrderIds().length, 1);
+        assertEq(limitOrderModule.getOpenOrders()[0].account, accountAddress);
         assertEq(limitOrderModule.nextOrderId(), 1);
         assertEq(accountAddress.balance, 0.9 ether);
 
@@ -472,6 +476,7 @@ contract LimitOrderTest is Deployed {
 
         // Now there should be one open order
         assertEq(limitOrderModule.getOpenOrderIds().length, 1);
+        assertEq(limitOrderModule.getOpenOrders()[0].account, accountAddress);
         assertEq(limitOrderModule.nextOrderId(), 1);
         assertEq(accountAddress.balance, 0.9 ether);
 
