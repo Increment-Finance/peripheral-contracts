@@ -38,6 +38,10 @@ contract LimitOrderTest is Deployed {
     using LibMath for uint256;
     using Strings for uint256;
 
+    event OrderChanged(address indexed trader, uint256 orderId);
+    event OrderCancelled(address indexed trader, uint256 orderId);
+    event OrderExpired(address indexed trader, uint256 orderId);
+
     string public constant LOG_FILE = "fuzz-logs.txt";
 
     Vm.Wallet public lpOne;
@@ -330,6 +334,151 @@ contract LimitOrderTest is Deployed {
         // Since the order was executed immediately, nextOrderId should not change and tipFee should be returned
         assertEq(limitOrderModule.nextOrderId(), 0);
         assertEq(accountAddress.balance, 1 ether);
+    }
+
+    function test_ChangeOrderUpdatesValuesAndReturnsExcessTipFee() public {
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        address accountAddress = address(account);
+        _addModule(traderOne);
+        deal(accountAddress, 1 ether);
+        _fundAndPrepareClaveAccount(account, 1000 ether);
+
+        // Long limit order at 10% under current price
+        uint256 currentPrice = perpetual.marketPrice();
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: accountAddress,
+            side: LibPerpetual.Side.Long,
+            orderType: IIncrementLimitOrderModule.OrderType.LIMIT,
+            reduceOnly: false,
+            marketIdx: 0,
+            targetPrice: currentPrice.wadMul(0.9e18),
+            amount: 100 ether,
+            expiry: block.timestamp + 1 days,
+            slippage: 1e16,
+            tipFee: 0.1 ether
+        });
+        bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        Transaction memory _tx =
+            _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Now there should be one open order
+        assertEq(limitOrderModule.getOpenOrderIds().length, 1);
+        assertEq(limitOrderModule.nextOrderId(), 1);
+        assertEq(accountAddress.balance, 0.9 ether);
+
+        // Change order params and check for event
+        uint256 newTargetPrice = currentPrice.wadMul(0.95e18);
+        uint256 newAmount = 50 ether;
+        uint256 newExpiry = block.timestamp + 2 days;
+        uint256 newSlippage = 1e17;
+        uint256 newTipFee = 0.05 ether;
+        data = abi.encodeCall(
+            limitOrderModule.changeOrder, (0, newTargetPrice, newAmount, newExpiry, newSlippage, newTipFee)
+        );
+        _tx = _getSignedTransaction(address(limitOrderModule), accountAddress, 0, data, traderOne);
+        vm.expectEmit(false, false, false, true);
+        emit OrderChanged(accountAddress, 0);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Check that the order has been updated
+        IIncrementLimitOrderModule.LimitOrder memory updatedOrder = limitOrderModule.getOrder(0);
+        assertEq(updatedOrder.targetPrice, newTargetPrice);
+        assertEq(updatedOrder.amount, newAmount);
+        assertEq(updatedOrder.expiry, newExpiry);
+        assertEq(updatedOrder.slippage, newSlippage);
+        assertEq(updatedOrder.tipFee, newTipFee);
+        assertEq(accountAddress.balance, 0.95 ether);
+    }
+
+    function test_CancelOrderRemovesOrderAndReturnsTipFee() public {
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        address accountAddress = address(account);
+        _addModule(traderOne);
+        deal(accountAddress, 1 ether);
+        _fundAndPrepareClaveAccount(account, 1000 ether);
+
+        // Long limit order at 10% under current price
+        uint256 currentPrice = perpetual.marketPrice();
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: accountAddress,
+            side: LibPerpetual.Side.Long,
+            orderType: IIncrementLimitOrderModule.OrderType.LIMIT,
+            reduceOnly: false,
+            marketIdx: 0,
+            targetPrice: currentPrice.wadMul(0.9e18),
+            amount: 100 ether,
+            expiry: block.timestamp + 1 days,
+            slippage: 1e16,
+            tipFee: 0.1 ether
+        });
+        bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        Transaction memory _tx =
+            _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Now there should be one open order
+        assertEq(limitOrderModule.getOpenOrderIds().length, 1);
+        assertEq(limitOrderModule.nextOrderId(), 1);
+        assertEq(accountAddress.balance, 0.9 ether);
+
+        // Cancel the order and check for event
+        data = abi.encodeCall(limitOrderModule.cancelOrder, (0));
+        _tx = _getSignedTransaction(address(limitOrderModule), accountAddress, 0, data, traderOne);
+        vm.expectEmit(false, false, false, true);
+        emit OrderCancelled(accountAddress, 0);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Check that order has been removed and tip fee returned
+        assertEq(limitOrderModule.nextOrderId(), 1);
+        assertEq(limitOrderModule.getOpenOrderIds().length, 0);
+        assertEq(accountAddress.balance, 1 ether);
+    }
+
+    function test_CloseExpiredOrderRemovesOrderAndSendsTip() public {
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        address accountAddress = address(account);
+        _addModule(traderOne);
+        deal(accountAddress, 1 ether);
+        _fundAndPrepareClaveAccount(account, 1000 ether);
+
+        // Long limit order at 10% under current price
+        uint256 currentPrice = perpetual.marketPrice();
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: accountAddress,
+            side: LibPerpetual.Side.Long,
+            orderType: IIncrementLimitOrderModule.OrderType.LIMIT,
+            reduceOnly: false,
+            marketIdx: 0,
+            targetPrice: currentPrice.wadMul(0.9e18),
+            amount: 100 ether,
+            expiry: block.timestamp + 1 days,
+            slippage: 1e16,
+            tipFee: 0.1 ether
+        });
+        bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        Transaction memory _tx =
+            _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Now there should be one open order
+        assertEq(limitOrderModule.getOpenOrderIds().length, 1);
+        assertEq(limitOrderModule.nextOrderId(), 1);
+        assertEq(accountAddress.balance, 0.9 ether);
+
+        // Skip 2 days
+        skip(2 days);
+
+        // Close the expired order and check for event
+        vm.startPrank(keeperOne.addr);
+        vm.expectEmit(false, false, false, true);
+        emit OrderExpired(accountAddress, 0);
+        limitOrderModule.closeExpiredOrder(0);
+
+        // Check that order has been removed and tip fee sent to keeper
+        assertEq(limitOrderModule.nextOrderId(), 1);
+        assertEq(limitOrderModule.getOpenOrderIds().length, 0);
+        assertEq(keeperOne.addr.balance, 0.1 ether);
     }
 
     function testFuzz_FillOrderSucceedsOnlyIfCanFillOrder(
