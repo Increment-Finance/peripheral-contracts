@@ -9,6 +9,7 @@ import {ClaveImplementation} from "clave-contracts/contracts/ClaveImplementation
 import {Call} from "clave-contracts/contracts/batch/BatchCaller.sol";
 import {IncrementLimitOrderModule} from "../../contracts/IncrementLimitOrderModule.sol";
 import {CallSimulator} from "../helpers/CallSimulator.sol";
+import {RevertOnReceive} from "../helpers/RevertOnReceive.sol";
 
 // interfaces
 import {IClaveAccount} from "clave-contracts/contracts/interfaces/IClave.sol";
@@ -53,6 +54,7 @@ contract LimitOrderTest is Deployed {
 
     IncrementLimitOrderModule public limitOrderModule;
     CallSimulator public simulator;
+    RevertOnReceive public badKeeper;
 
     mapping(address => IClaveAccount) public accounts;
 
@@ -74,16 +76,7 @@ contract LimitOrderTest is Deployed {
         limitOrderModule = new IncrementLimitOrderModule(clearingHouse, viewer, claveRegistry, 0.01 ether);
         simulator = new CallSimulator();
         simulator.transferOwnership(address(limitOrderModule));
-    }
-
-    receive() external payable {
-        console.log("LimitOrderTest.receive: msg.value = %s", msg.value);
-        require(false, "LimitOrderTest.receive: receive not allowed");
-    }
-
-    fallback() external payable {
-        console.log("LimitOrderTest.fallback: msg.value = %s", msg.value);
-        require(false, "LimitOrderTest.fallback: fallback not allowed");
+        badKeeper = new RevertOnReceive();
     }
 
     function test_DeployAccount() public {
@@ -254,10 +247,11 @@ contract LimitOrderTest is Deployed {
         );
         _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
         _executeTransactionFromBootloader(account, _tx);
-        // - Call `fillOrder` from this test contract, which reverts in `receive()`
-        // TODO: figure out why this check is failing - should revert in `this.receive()`
-        // _expectTipFeeTransferFailed(address(this), order.tipFee);
-        // limitOrderModule.fillOrder(0);
+        // - Call `fillOrder` from the RevertOnReceive contract, which reverts in `receive()`
+        vm.startPrank(address(badKeeper));
+        _expectTipFeeTransferFailed(address(badKeeper), order.tipFee);
+        limitOrderModule.fillOrder(0);
+        vm.stopPrank();
         // fillOrder - order expired error
         // TODO: figure out why this check is failing - order should be expired after skipping 2 days
         // skip(2 days);
