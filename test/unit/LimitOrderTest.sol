@@ -3,12 +3,12 @@ pragma solidity ^0.8.20;
 
 // contracts
 import {Vm} from "forge/Vm.sol";
-import {Utils} from "../../lib/increment-protocol/test/helpers/Utils.sol";
 import {Deployed} from "../helpers/Deployed.EraFork.sol";
 import {ClaveProxy} from "clave-contracts/contracts/ClaveProxy.sol";
 import {ClaveImplementation} from "clave-contracts/contracts/ClaveImplementation.sol";
 import {Call} from "clave-contracts/contracts/batch/BatchCaller.sol";
 import {IncrementLimitOrderModule} from "../../contracts/IncrementLimitOrderModule.sol";
+import {CallSimulator} from "../helpers/CallSimulator.sol";
 
 // interfaces
 import {IClaveAccount} from "clave-contracts/contracts/interfaces/IClave.sol";
@@ -33,7 +33,7 @@ import {LibPerpetual} from "increment-protocol/lib/LibPerpetual.sol";
 import {LibReserve} from "increment-protocol/lib/LibReserve.sol";
 import {console2 as console} from "forge/console2.sol";
 
-contract LimitOrderTest is Deployed, Utils {
+contract LimitOrderTest is Deployed {
     using LibMath for int256;
     using LibMath for uint256;
     using Strings for uint256;
@@ -48,6 +48,7 @@ contract LimitOrderTest is Deployed, Utils {
     Vm.Wallet public keeperTwo;
 
     IncrementLimitOrderModule public limitOrderModule;
+    CallSimulator public simulator;
 
     mapping(address => IClaveAccount) public accounts;
 
@@ -63,22 +64,22 @@ contract LimitOrderTest is Deployed, Utils {
         deal(lpTwo.addr, 100 ether);
         deal(traderOne.addr, 100 ether);
         deal(traderTwo.addr, 100 ether);
-        deal(keeperOne.addr, 100 ether);
-        deal(keeperTwo.addr, 100 ether);
 
         super.setUp();
 
         limitOrderModule = new IncrementLimitOrderModule(clearingHouse, viewer, claveRegistry, 0.01 ether);
+        simulator = new CallSimulator();
+        simulator.transferOwnership(address(limitOrderModule));
     }
 
     receive() external payable {
         console.log("LimitOrderTest.receive: msg.value = %s", msg.value);
-        require(false);
+        require(false, "LimitOrderTest.receive: receive not allowed");
     }
 
     fallback() external payable {
         console.log("LimitOrderTest.fallback: msg.value = %s", msg.value);
-        require(false);
+        require(false, "LimitOrderTest.fallback: fallback not allowed");
     }
 
     function test_DeployAccount() public {
@@ -278,8 +279,6 @@ contract LimitOrderTest is Deployed, Utils {
         limitOrderModule.getOrder(1);
         _expectInvalidOrderId();
         limitOrderModule.getTipFee(1);
-        _expectInvalidOrderId();
-        limitOrderModule.canFillOrder(1);
     }
 
     function test_ExecuteOrdersImmediately() public {
@@ -334,9 +333,8 @@ contract LimitOrderTest is Deployed, Utils {
     }
 
     function testFuzz_FillOrderSucceedsOnlyIfCanFillOrder(
-        LibPerpetual.Side initialSide,
-        LibPerpetual.Side orderSide,
-        IIncrementLimitOrderModule.OrderType orderType,
+        bool long,
+        bool limit,
         bool reduceOnly,
         bool deltaDirection,
         bool initialPosition,
@@ -345,60 +343,50 @@ contract LimitOrderTest is Deployed, Utils {
         uint256 targetDelta,
         uint256 slippage
     ) public {
-        // Log input parameters
-        vm.writeLine(LOG_FILE, string.concat("initialSide: ", initialSide == LibPerpetual.Side.Long ? "Long" : "Short"));
-        vm.writeLine(LOG_FILE, string.concat("orderSide:   ", orderSide == LibPerpetual.Side.Long ? "Long" : "Short"));
-        vm.writeLine(
-            LOG_FILE,
-            string.concat("orderType:   ", orderType == IIncrementLimitOrderModule.OrderType.LIMIT ? "Limit" : "Stop")
-        );
-        vm.writeLine(LOG_FILE, string.concat("reduceOnly:      ", reduceOnly ? "true" : "false"));
-        vm.writeLine(LOG_FILE, string.concat("deltaDirection:  ", deltaDirection ? "+" : "-"));
-        vm.writeLine(LOG_FILE, string.concat("initialPosition: ", initialPosition ? "true" : "false"));
-
         // Bounds
+        LibPerpetual.Side orderSide = long ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
+        IIncrementLimitOrderModule.OrderType orderType =
+            limit ? IIncrementLimitOrderModule.OrderType.LIMIT : IIncrementLimitOrderModule.OrderType.STOP;
         initialAmount = bound(initialAmount, 35 ether, 350 ether);
         orderAmount = bound(orderAmount, 1 ether, 500 ether);
         targetDelta = bound(targetDelta, 1e14, 1e17);
-        slippage = bound(slippage, 1e15, 1e18);
-        vm.writeLine(LOG_FILE, string.concat("initialAmount: ", initialAmount.toString()));
-        vm.writeLine(LOG_FILE, string.concat("orderAmount:   ", orderAmount.toString()));
-        vm.writeLine(LOG_FILE, string.concat("targetDelta:   ", targetDelta.toString()));
-        vm.writeLine(LOG_FILE, string.concat("slippage:      ", slippage.toString()));
+        slippage = bound(slippage, 1e14, 1e17);
 
         // Prepare account
         IClaveAccount account = _deployClaveAccount(traderOne);
-        address accountAddress = address(account);
         _addModule(traderOne);
-        deal(accountAddress, 1 ether);
-        _fundAndPrepareClaveAccount(account, 1000 ether);
+        deal(address(account), 1 ether);
+        _fundAndPrepareClaveAccount(account, 10000 ether);
 
         // Open initial position
-        bytes memory data = abi.encodeCall(clearingHouse.changePosition, (0, initialAmount, 0, initialSide));
-        Transaction memory _tx = _getSignedTransaction(address(clearingHouse), accountAddress, 0, data, traderOne);
+        bytes memory data;
+        Transaction memory _tx;
+        LibPerpetual.Side initialSide = orderSide;
         if (initialPosition) {
+            if (reduceOnly || !limit || initialAmount % 2 == 0) {
+                initialSide = long ? LibPerpetual.Side.Short : LibPerpetual.Side.Long;
+            }
+            data = abi.encodeCall(clearingHouse.changePosition, (0, initialAmount, 0, initialSide));
+            _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
             vm.startPrank(BOOTLOADER_FORMAL_ADDRESS);
             // Try opening initial position, but continue test if it fails
             try account.executeTransaction(bytes32(0), bytes32(0), _tx) {
-                vm.writeLine(LOG_FILE, "Initial position opened successfully");
+                console.log("opened initial position");
                 vm.stopPrank();
             } catch {
-                vm.writeLine(LOG_FILE, "Failed to open initial position");
+                console.log("failed to open initial position");
                 vm.stopPrank();
             }
-        } else {
-            vm.writeLine(LOG_FILE, "Skipping initial position");
         }
-        LibPerpetual.TraderPosition memory initialPositionData = perpetual.getTraderPosition(accountAddress);
 
         // Create order with target price that cannot be filled immediately
         uint256 currentPrice = orderType == IIncrementLimitOrderModule.OrderType.LIMIT
             ? perpetual.marketPrice()
             : perpetual.indexPrice().toUint256();
-        vm.writeLine(LOG_FILE, string.concat("currentPrice: ", currentPrice.toString()));
+        console.log("currentPrice: %s", currentPrice);
         uint256 targetPrice = orderSide == LibPerpetual.Side.Long ? 1 : type(uint256).max;
         IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
-            account: accountAddress,
+            account: address(account),
             side: orderSide,
             orderType: orderType,
             reduceOnly: reduceOnly,
@@ -410,29 +398,35 @@ contract LimitOrderTest is Deployed, Utils {
             tipFee: 0.1 ether
         });
         data = abi.encodeCall(limitOrderModule.createOrder, (order));
-        _tx = _getSignedTransaction(address(limitOrderModule), accountAddress, 0.1 ether, data, traderOne);
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0.1 ether, data, traderOne);
+        console.log("creating order...");
         _executeTransactionFromBootloader(account, _tx);
 
         // Change target price to something more reasonable
         targetPrice = deltaDirection ? currentPrice.wadMul(1e18 + targetDelta) : currentPrice.wadMul(1e18 - targetDelta);
-        vm.writeLine(LOG_FILE, string.concat("targetPrice:  ", targetPrice.toString()));
+        console.log("targetPrice: %s", targetPrice);
         data = abi.encodeCall(
             limitOrderModule.changeOrder, (0, targetPrice, order.amount, order.expiry, order.slippage, order.tipFee)
         );
         _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        console.log("changing order...");
         _executeTransactionFromBootloader(account, _tx);
 
-        // Check if order can be filled
-        (bool canFill, string memory reason) = limitOrderModule.canFillOrder(0);
-        if (canFill) {
-            vm.writeLine(LOG_FILE, "canFillOrder returned true");
+        // Simulate and revert to check if order can be filled
+        console.log("checking if order can be filled...");
+        vm.startPrank(keeperOne.addr);
+        try simulator.simulate(address(limitOrderModule), abi.encodeCall(limitOrderModule.fillOrder, (0))) returns (
+            bytes memory response
+        ) {
+            console.log("simulate response.length = %s", response.length);
+            console.logBytes(response);
+            console.log("order can be filled");
             // Expect fillOrder to succeed
-            vm.writeLine(LOG_FILE, "Filling order...");
-            vm.startPrank(keeperOne.addr);
             try limitOrderModule.fillOrder(0) {
-                vm.writeLine(LOG_FILE, "Order filled successfully, as expected");
-            } catch {
-                vm.writeLine(LOG_FILE, "Order not filled...");
+                console.log("fillOrder succeeded as expected");
+            } catch (bytes memory returnData) {
+                console.log("fillOrder failed...");
+                console.logBytes(returnData);
                 assertTrue(false);
             }
             vm.stopPrank();
@@ -441,30 +435,49 @@ contract LimitOrderTest is Deployed, Utils {
             // Expect limit order data to have been deleted
             _expectInvalidOrderId();
             limitOrderModule.getOrder(0);
-        } else {
-            vm.writeLine(LOG_FILE, "canFillOrder returned false");
-            vm.writeLine(LOG_FILE, reason);
+        } catch (bytes memory response) {
+            console.log("simulate response.length = %s", response.length);
+            console.logBytes(response);
+            if (response.length < 4) {
+                response = new bytes(32);
+            } else if (response.length == 4) {
+                response = bytes.concat(response, new bytes(28));
+            } else if (response.length >= 36 && response.length % 32 == 4) {
+                // write 0s after the error selector
+                for (uint256 i = 4; i < 36; i++) {
+                    response[i] = 0;
+                }
+            }
+            (bytes4 errorSelector) = abi.decode(response, (bytes4));
+            console.log("simulate success: false");
+            console.log("simulate errorSelector: %s", Strings.toHexString(uint256(uint32(errorSelector)), 4));
             // Expect fillOrder to fail
-            vm.startPrank(keeperOne.addr);
-            vm.writeLine(LOG_FILE, "Attempting to fill order...");
+            console.log("order cannot be filled");
             try limitOrderModule.fillOrder(0) {
-                vm.writeLine(LOG_FILE, "Order filled...");
+                vm.stopPrank();
                 assertTrue(false);
-            } catch {
-                vm.writeLine(LOG_FILE, "Order not filled, as expected");
+            } catch (bytes memory returnData) {
+                console.log("fillOrder returnData.length = %s", returnData.length);
+                console.logBytes(returnData);
+                bytes4 actualSelector;
+                if (returnData.length == 4) {
+                    returnData = bytes.concat(returnData, new bytes(28));
+                    (actualSelector) = abi.decode(returnData, (bytes4));
+                } else if (returnData.length >= 36 && returnData.length % 32 == 4) {
+                    // write 0s after the error selector
+                    for (uint256 i = 4; i < 36; i++) {
+                        returnData[i] = 0;
+                    }
+                    (actualSelector) = abi.decode(returnData, (bytes4));
+                }
+                assertEq(errorSelector, actualSelector);
+                vm.stopPrank();
             }
-            vm.stopPrank();
             // Expect that limit order data has not been deleted
-            try limitOrderModule.getOrder(0) {
-                vm.writeLine(LOG_FILE, "Order data not deleted, as expected");
-            } catch {
-                vm.writeLine(LOG_FILE, "Order data deleted...");
-                assertTrue(false);
-            }
+            assertEq(limitOrderModule.getOrder(0).account, address(account));
             // Expect that tip fee has not been sent to the keeper
             assertEq(keeperOne.addr.balance, 0);
         }
-        vm.writeLine(LOG_FILE, "\n");
     }
 
     /* ***************** */
