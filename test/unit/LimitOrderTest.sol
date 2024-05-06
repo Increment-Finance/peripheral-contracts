@@ -150,8 +150,12 @@ contract LimitOrderTest is Deployed {
             _getSignedTransaction(address(limitOrderModule), address(account), 0.1 ether, data, traderOne);
         _expectAccountDoesNotSupportLimitOrders(address(account));
         _executeTransactionFromBootloader(account, _tx);
-        // create order successfully
         _addModule(traderOne);
+        limitOrderModule.pause();
+        vm.expectRevert(bytes("Pausable: paused"));
+        _executeTransactionFromBootloader(account, _tx);
+        limitOrderModule.unpause();
+        // create order successfully
         _executeTransactionFromBootloader(account, _tx);
 
         // changeOrder
@@ -234,6 +238,14 @@ contract LimitOrderTest is Deployed {
         vm.startPrank(keeperOne.addr);
         _expectOrderExecutionReverted(abi.encodeWithSignature("ClearingHouse_UnderOpenNotionalAmountRequired()"));
         limitOrderModule.fillOrder(0);
+        // fillOrder - paused
+        vm.stopPrank();
+        limitOrderModule.pause();
+        vm.startPrank(keeperOne.addr);
+        vm.expectRevert(bytes("Pausable: paused"));
+        limitOrderModule.fillOrder(0);
+        vm.stopPrank();
+        limitOrderModule.unpause();
         // fillOrder - transfer tip fee failed error
         // - Change to lower order amount so it can be executed
         data = abi.encodeCall(
@@ -436,6 +448,9 @@ contract LimitOrderTest is Deployed {
     }
 
     function test_CloseExpiredOrderRemovesOrderAndSendsTip() public {
+        // TODO: remove next line once this issue is resolved: https://github.com/matter-labs/foundry-zksync/issues/344
+        vm.skip(true);
+
         IClaveAccount account = _deployClaveAccount(traderOne);
         address accountAddress = address(account);
         _addModule(traderOne);
