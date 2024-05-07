@@ -395,6 +395,48 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
+    function isTargetPriceMet(uint256 orderId) external view returns (bool) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
+            revert LimitOrderModule_InvalidOrderId();
+        }
+        LimitOrder memory order = limitOrders[orderId];
+        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
+        uint256 price =
+            order.orderType == OrderType.LIMIT ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
+        if (order.side == LibPerpetual.Side.Long) {
+            return price <= order.targetPrice.wadMul(1e18 + order.slippage);
+        } else {
+            return price >= order.targetPrice.wadMul(1e18 - order.slippage);
+        }
+    }
+
+    /// @inheritdoc IIncrementLimitOrderModule
+    function isReduceOnly(uint256 orderId) public view returns (bool) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
+            revert LimitOrderModule_InvalidOrderId();
+        }
+        return limitOrders[orderId].reduceOnly || limitOrders[orderId].orderType == OrderType.STOP;
+    }
+
+    /// @inheritdoc IIncrementLimitOrderModule
+    function isReduceOnlyValid(uint256 orderId) external view returns (bool) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0) || !isReduceOnly(orderId)) {
+            revert LimitOrderModule_InvalidOrderId();
+        }
+        LimitOrder memory order = limitOrders[orderId];
+        IPerpetual perpetual = CLEARING_HOUSE.perpetuals(order.marketIdx);
+        return _isReduceOnlyValid(order.marketIdx, order.amount, order.account, perpetual, order.side);
+    }
+
+    /// @inheritdoc IIncrementLimitOrderModule
+    function isOrderExpired(uint256 orderId) external view returns (bool) {
+        if (orderId >= nextOrderId || limitOrders[orderId].account == address(0)) {
+            revert LimitOrderModule_InvalidOrderId();
+        }
+        return block.timestamp >= limitOrders[orderId].expiry;
+    }
+
+    /// @inheritdoc IIncrementLimitOrderModule
     function isInited(address account) public view returns (bool) {
         return _initialized[account];
     }

@@ -247,6 +247,27 @@ interface IIncrementLimitOrderModule is IModule {
     /// @return tipFee The order's tip fee amount
     function getTipFee(uint256 orderId) external view returns (uint256);
 
+    /// @notice Returns whether the target price is met for the given order, including slippage
+    /// @param orderId The order's unique identifier
+    /// @return True if the target price and slippage conditions are satisfied, false otherwise
+    function isTargetPriceMet(uint256 orderId) external view returns (bool);
+
+    /// @notice Returns whether the given order is reduce-only
+    /// @param orderId The order's unique identifier
+    /// @return True if order.reduceOnly is true or order.orderType is OrderType.STOP, false otherwise
+    function isReduceOnly(uint256 orderId) public view returns (bool);
+
+    /// @notice Returns whether the given order meets the reduce-only conditions
+    /// @dev Reverts if the order is not reduce-only
+    /// @param orderId The order's unique identifier
+    /// @return True if the order is valid for reduce-only, false otherwise
+    function isReduceOnlyValid(uint256 orderId) public view returns (bool);
+
+    /// @notice Returns whether the given order is expired
+    /// @param orderId The order's unique identifier
+    /// @return True if the order is expired, false otherwise
+    function isOrderExpired(uint256 orderId) external view returns (bool);
+
     /// @notice Returns whether the module is inited for the given account
     /// @param account Account to check for
     /// @return True if the account is inited, false otherwise
