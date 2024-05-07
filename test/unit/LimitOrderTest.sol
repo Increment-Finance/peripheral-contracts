@@ -291,6 +291,14 @@ contract LimitOrderTest is Deployed {
         limitOrderModule.getOrder(1);
         _expectInvalidOrderId();
         limitOrderModule.getTipFee(1);
+        _expectInvalidOrderId();
+        limitOrderModule.isTargetPriceMet(1);
+        _expectInvalidOrderId();
+        limitOrderModule.isOrderExpired(1);
+        _expectInvalidOrderId();
+        limitOrderModule.isReduceOnly(1);
+        _expectInvalidOrderId();
+        limitOrderModule.isReduceOnlyValid(1);
     }
 
     function test_ExecuteOrdersImmediately() public {
