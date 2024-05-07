@@ -495,6 +495,61 @@ contract LimitOrderTest is Deployed {
         assertEq(keeperOne.addr.balance, 0.1 ether);
     }
 
+    function testFuzz_TargetPriceIsMetIfWithinSlippage(bool long, bool limit, uint256 targetDelta, uint256 slippage)
+        public
+    {
+        // Bounds
+        LibPerpetual.Side orderSide = long ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
+        IIncrementLimitOrderModule.OrderType orderType =
+            limit ? IIncrementLimitOrderModule.OrderType.LIMIT : IIncrementLimitOrderModule.OrderType.STOP;
+        targetDelta = bound(targetDelta, 1e14, 1e17);
+        slippage = bound(slippage, 1e14, 1e17);
+
+        // Prepare account
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        _addModule(traderOne);
+        deal(address(account), 1 ether);
+        _fundAndPrepareClaveAccount(account, 10000 ether);
+
+        // Create order with target price that can be filled immediately
+        uint256 currentPrice = orderType == IIncrementLimitOrderModule.OrderType.LIMIT
+            ? perpetual.marketPrice()
+            : perpetual.indexPrice().toUint256();
+        uint256 targetPrice = long ? 1 : type(uint256).max;
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: address(account),
+            side: orderSide,
+            orderType: orderType,
+            reduceOnly: false,
+            marketIdx: 0,
+            targetPrice: targetPrice,
+            amount: 100 ether,
+            expiry: block.timestamp + 1 days,
+            slippage: slippage,
+            tipFee: 0.1 ether
+        });
+        bytes memory data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        Transaction memory _tx =
+            _getSignedTransaction(address(limitOrderModule), address(account), 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Change target price to something more reasonable
+        targetPrice = long ? currentPrice.wadDiv(1e18 + targetDelta) : currentPrice.wadDiv(1e18 - targetDelta);
+        data = abi.encodeCall(
+            limitOrderModule.changeOrder, (0, targetPrice, order.amount, order.expiry, order.slippage, order.tipFee)
+        );
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        if (targetDelta > slippage) {
+            // Expect that target price is not met
+            assertFalse(limitOrderModule.isTargetPriceMet(0));
+        } else {
+            // Expect that target price is met
+            assertTrue(limitOrderModule.isTargetPriceMet(0));
+        }
+    }
+
     function testFuzz_FillOrderSucceedsOnlyIfCanFillOrder(
         bool long,
         bool limit,
