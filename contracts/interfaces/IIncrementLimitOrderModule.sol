@@ -255,13 +255,13 @@ interface IIncrementLimitOrderModule is IModule {
     /// @notice Returns whether the given order is reduce-only
     /// @param orderId The order's unique identifier
     /// @return True if order.reduceOnly is true or order.orderType is OrderType.STOP, false otherwise
-    function isReduceOnly(uint256 orderId) public view returns (bool);
+    function isReduceOnly(uint256 orderId) external view returns (bool);
 
     /// @notice Returns whether the given order meets the reduce-only conditions
     /// @dev Reverts if the order is not reduce-only
     /// @param orderId The order's unique identifier
     /// @return True if the order is valid for reduce-only, false otherwise
-    function isReduceOnlyValid(uint256 orderId) public view returns (bool);
+    function isReduceOnlyValid(uint256 orderId) external view returns (bool);
 
     /// @notice Returns whether the given order is expired
     /// @param orderId The order's unique identifier
