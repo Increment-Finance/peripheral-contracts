@@ -558,6 +558,86 @@ contract LimitOrderTest is Deployed {
         }
     }
 
+    function testFuzz_ReduceOnlyValidityConditions(
+        bool longOrder,
+        bool longInitial,
+        bool limit,
+        bool reduceOnly,
+        uint256 initialAmount,
+        uint256 orderAmount,
+        uint256 slippage
+    ) public {
+        // Bounds
+        LibPerpetual.Side orderSide = longOrder ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
+        LibPerpetual.Side initialSide = longInitial ? LibPerpetual.Side.Long : LibPerpetual.Side.Short;
+        IIncrementLimitOrderModule.OrderType orderType =
+            limit ? IIncrementLimitOrderModule.OrderType.LIMIT : IIncrementLimitOrderModule.OrderType.STOP;
+        initialAmount = bound(initialAmount, 35 ether, 350 ether);
+        orderAmount = bound(orderAmount, 1 ether, 500 ether);
+        slippage = bound(slippage, 1e14, 1e16);
+
+        // Prepare account
+        IClaveAccount account = _deployClaveAccount(traderOne);
+        _addModule(traderOne);
+        deal(address(account), 1 ether);
+        _fundAndPrepareClaveAccount(account, 10000 ether);
+
+        // Try opening initial position, but continue test if it fails
+        bytes memory data = abi.encodeCall(clearingHouse.changePosition, (0, initialAmount, 0, initialSide));
+        Transaction memory _tx = _getSignedTransaction(address(clearingHouse), address(account), 0, data, traderOne);
+        bool initialPosition;
+        vm.startPrank(BOOTLOADER_FORMAL_ADDRESS);
+        try account.executeTransaction(bytes32(0), bytes32(0), _tx) {
+            console.log("opened initial position");
+            initialPosition = true;
+            vm.stopPrank();
+        } catch {
+            console.log("failed to open initial position");
+            vm.stopPrank();
+        }
+
+        // Create order with target price that cannot be filled immediately
+        uint256 currentPrice = limit ? perpetual.marketPrice() : perpetual.indexPrice().toUint256();
+        uint256 targetPrice =
+            longOrder ? currentPrice.wadDiv(1e18 + slippage * 2) : currentPrice.wadDiv(1e18 - slippage * 2);
+        IIncrementLimitOrderModule.LimitOrder memory order = IIncrementLimitOrderModule.LimitOrder({
+            account: address(account),
+            side: orderSide,
+            orderType: orderType,
+            reduceOnly: reduceOnly,
+            marketIdx: 0,
+            targetPrice: targetPrice,
+            amount: orderAmount,
+            expiry: block.timestamp + 1 days,
+            slippage: slippage,
+            tipFee: 0.1 ether
+        });
+        data = abi.encodeCall(limitOrderModule.createOrder, (order));
+        _tx = _getSignedTransaction(address(limitOrderModule), address(account), 0.1 ether, data, traderOne);
+        _executeTransactionFromBootloader(account, _tx);
+
+        // Check if order is reduce-only
+        if (reduceOnly || !limit) {
+            // Order is reduce-only
+            assertTrue(limitOrderModule.isReduceOnly(0));
+            if (!initialPosition || longOrder == longInitial) {
+                // If opening initial position failed, or initialSide == orderSide, reduce-only is not valid
+                assertFalse(limitOrderModule.isReduceOnlyValid(0));
+            } else {
+                // If opening initial position succeeded with opposite side, validity depends on orderAmount
+                assertEq(
+                    limitOrderModule.isReduceOnlyValid(0),
+                    orderAmount <= viewer.getTraderProposedAmount(0, address(account), 1e18, 100, 0)
+                );
+            }
+        } else {
+            // Order is not reduce-only, so isReduceOnlyValid should revert
+            assertFalse(limitOrderModule.isReduceOnly(0));
+            _expectInvalidOrderId();
+            limitOrderModule.isReduceOnlyValid(0);
+        }
+    }
+
     function testFuzz_FillOrderSucceedsOnlyIfCanFillOrder(
         bool long,
         bool limit,
