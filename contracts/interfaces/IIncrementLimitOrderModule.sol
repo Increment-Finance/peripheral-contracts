@@ -54,8 +54,9 @@ interface IIncrementLimitOrderModule is IModule {
 
     /// @notice Emitted when an order is filled
     /// @param trader The trader's account
+    /// @param keeper The keeper's account
     /// @param orderId The order's unique identifier
-    event OrderFilled(address indexed trader, uint256 orderId);
+    event OrderFilled(address indexed trader, address indexed keeper, uint256 orderId);
 
     /// @notice Emitted when an order is changed
     /// @param trader The trader's account

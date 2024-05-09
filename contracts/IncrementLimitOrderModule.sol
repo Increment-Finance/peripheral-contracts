@@ -129,7 +129,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                     if (success) {
                         // Since the order was executed immediately, transfer tip fee back to user
                         _transferTipFee(msg.sender, order.tipFee);
-                        emit OrderFilled(msg.sender, type(uint256).max);
+                        emit OrderFilled(msg.sender, address(0), type(uint256).max);
                         return type(uint256).max;
                     }
                 }
@@ -139,7 +139,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
                 if (success) {
                     // Since the order was executed immediately, transfer tip fee back to user
                     _transferTipFee(msg.sender, order.tipFee);
-                    emit OrderFilled(msg.sender, type(uint256).max);
+                    emit OrderFilled(msg.sender, address(0), type(uint256).max);
                     return type(uint256).max;
                 }
             }
@@ -273,7 +273,7 @@ contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessCon
         // Transfer tip fee to caller
         _transferTipFee(msg.sender, order.tipFee);
 
-        emit OrderFilled(order.account, orderId);
+        emit OrderFilled(order.account, msg.sender, orderId);
     }
 
     /// @inheritdoc IIncrementLimitOrderModule
