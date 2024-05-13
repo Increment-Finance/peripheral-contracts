@@ -188,121 +188,7 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function test_Deployment() public {
-        assertEq(safetyModule.getStakedTokens().length, 2, "Staked token count mismatch");
-        assertEq(safetyModule.getNumStakedTokens(), 2, "Staked token count mismatch");
-        assertEq(address(safetyModule.stakedTokens(0)), address(stakedToken1), "Market address mismatch");
-        assertEq(safetyModule.getStakedTokenIdx(address(stakedToken2)), 1, "Staked token index mismatch");
-        assertEq(stakedToken1.balanceOf(liquidityProviderTwo), 0, "Current position mismatch");
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            0,
-            "Reward multiplier mismatch"
-        );
-        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(stakedToken1.balanceOf(liquidityProviderTwo), 100 ether, "Current position mismatch");
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch"
-        );
-        assertEq(address(stakedToken1.getUnderlyingToken()), address(rewardsToken), "Underlying token mismatch");
-        assertEq(stakedToken1.getCooldownSeconds(), COOLDOWN_SECONDS, "Cooldown seconds mismatch");
-        assertEq(stakedToken1.getUnstakeWindowSeconds(), UNSTAKE_WINDOW, "Unstake window mismatch");
-        assertEq(auctionModule.getNextAuctionId(), 0, "Next auction ID mismatch");
-    }
-
-    /* ******************* */
-    /*   Staked Rewards   */
-    /* ******************* */
-
-    // solhint-disable-next-line func-name-mixedcase
-    function test_RewardMultiplier() public {
-        // Test with smoothing value of 30 and max multiplier of 4
-        // These values match those in the spreadsheet used to design the SM rewards
-        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after initial stake"
-        );
-        skip(2 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1.5e18,
-            "Reward multiplier mismatch after 2 days"
-        );
-        // Partially redeeming resets the multiplier to 1
-        _redeem(stakedToken1, liquidityProviderTwo, 50 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after redeeming half"
-        );
-        skip(5 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2e18,
-            "Reward multiplier mismatch after 5 days"
-        );
-        // Staked again pushed the multiplier start time forward by a weighted amount
-        // In this case, the multiplier start time is pushed forward by 2.5 days, because
-        // it had been 5 days ago, and the user doubled their stake
-        _stake(stakedToken1, liquidityProviderTwo, 50 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1.6e18,
-            "Reward multiplier mismatch after staked again"
-        );
-        skip(2.5 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2e18,
-            "Reward multiplier mismatch after another 2.5 days"
-        );
-        // Redeeming completely resets the multiplier to 0
-        _redeem(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            0,
-            "Reward multiplier mismatch after redeeming completely"
-        );
-
-        // Test with smoothing value of 60, doubling the time it takes to reach the same multiplier
-        rewardDistributor.setSmoothingValue(60e18);
-        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after staked with new smoothing value"
-        );
-        skip(4 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1.5e18,
-            "Reward multiplier mismatch after increasing smoothing value"
-        );
-
-        // Test with max multiplier of 6, increasing the multiplier by 50%
-        rewardDistributor.setMaxRewardMultiplier(6e18);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2.25e18,
-            "Reward multiplier mismatch after increasing max multiplier"
-        );
-
-        // Calling cooldown resets the multiplier to 1
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after cooldown"
-        );
-    }
-
-    // solhint-disable-next-line func-name-mixedcase
-    function testFuzz_MultipliedRewardAccrual(uint256 stakeAmount) public {
+    function testFuzz_StakedTokenTransfer(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
 
@@ -310,112 +196,166 @@ contract SafetyModuleTest is Deployment, Utils {
         _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
 
         // Skip some time
-        skip(9 days);
+        skip(5 days);
 
-        // Get reward preview
-        uint256 rewardPreview =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
+        // store initial state before accruing rewards
+        uint256[] memory balances1 = _getUserBalances(liquidityProviderOne);
+        uint256[] memory balances2 = _getUserBalances(liquidityProviderTwo);
+        uint256[] memory multipliers1 = _getRewardMultipliers(rewardDistributor, liquidityProviderOne);
+        uint256[] memory multipliers2 = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = _getSkipTimes(rewardDistributor);
+        skipTimes[1] = 0; // Ignore stakedToken2
 
-        // Get current reward multiplier
-        uint256 rewardMultiplier =
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1));
+        // After 5 days, both users should have 2x multiplier (given smoothing value of 30 and max multiplier of 4)
+        assertEq(multipliers1[0], 2e18, "Reward multiplier mismatch: user 1");
+        assertEq(multipliers2[0], 2e18, "Reward multiplier mismatch: user 2");
 
-        // Get accrued rewards
-        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
+        // Transfer all of user 1's stakedToken1 to user 2, accruing rewards for both users
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown(); // Start cooldown period for the sake of test coverage
+        stakedToken1.transfer(liquidityProviderTwo, balances1[0]);
+        vm.stopPrank();
 
-        // Check that accrued rewards are equal to reward preview
-        assertEq(accruedRewards, rewardPreview, "Accrued rewards preview mismatch");
-
-        // Check that accrued rewards equal stake amount times cumulative reward per token times reward multiplier
-        uint256 cumulativeRewardsPerLpToken =
-            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(stakedToken1));
-        assertEq(
-            accruedRewards,
-            stakeAmount.wadMul(cumulativeRewardsPerLpToken).wadMul(rewardMultiplier),
-            "Accrued rewards mismatch"
+        // Check that user 1 accrued rewards according to their initial balance and multiplier,
+        // while user 2 has not accrued rewards yet since they already had a staking position
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderOne,
+            multipliers1,
+            skipTimes,
+            balances1,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
         );
-
-        // Start cooldown period (accrues rewards)
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
-
-        // Skip cooldown period
-        skip(1 days);
-
-        // Add to reward preview
-        rewardPreview += _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Redeem stakedToken1
-        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
-
-        // Get new accrued rewards
-        accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-
-        // Check that accrued rewards are equal to reward preview
-        assertEq(accruedRewards, rewardPreview, "Accrued rewards preview mismatch");
-
-        // Check that rewards are not accrued after full redeem
-        skip(10 days);
-        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
         assertEq(
             rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)),
-            accruedRewards,
-            "Accrued more rewards after full redeem"
+            0,
+            "Rewards should be 0: user 2"
         );
+        // Accrue and check rewards for user 2
+        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers2,
+            skipTimes,
+            balances2,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
+        );
+
+        // Check that user 1's multiplier is now 0, while user 2's is scaled according to the increase in stake
+        assertEq(
+            rewardDistributor.computeRewardMultiplier(liquidityProviderOne, address(stakedToken1)),
+            0,
+            "Reward multiplier mismatch after transfer: user 1"
+        );
+        // Increase ratio is (newPosition - oldPosition) / newPosition, and is used to adjust the multiplier
+        // see the note in SMRewardDistributor.sol:updatePosition
+        uint256 increaseRatio = balances1[0].wadDiv(balances1[0] + balances2[0]);
+        uint256 newMultiplierStartTime =
+            _checkMultiplierAdjustment(address(stakedToken1), liquidityProviderTwo, increaseRatio, 5 days);
+
+        // Claim rewards for both users
+        vm.startPrank(liquidityProviderOne);
+        rewardDistributor.claimRewards();
+        vm.startPrank(liquidityProviderTwo);
+        rewardDistributor.claimRewards();
+        vm.stopPrank();
+
+        // Skip some more time
+        skip(10 days - (block.timestamp - newMultiplierStartTime));
+
+        // update stored state before accruing rewards
+        balances1 = _getUserBalances(liquidityProviderOne);
+        balances2 = _getUserBalances(liquidityProviderTwo);
+        multipliers1 = _getRewardMultipliers(rewardDistributor, liquidityProviderOne);
+        multipliers2 = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
+        prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        skipTimes = _getSkipTimes(rewardDistributor);
+        skipTimes[1] = 0; // Ignore stakedToken2
+
+        // 10 days after the new multiplier start time, user 2's multiplier should be 2.5
+        assertEq(multipliers1[0], 0, "Reward multiplier mismatch after 10 days: user 1");
+        assertEq(multipliers2[0], 2.5e18, "Reward multiplier mismatch after 10 days: user 2");
+
+        // Check that user 2 accrues rewards according to their new balance and multiplier, while user 1 accrues no rewards
+        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderOne);
+        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
+        assertEq(
+            rewardDistributor.rewardsAccruedByUser(liquidityProviderOne, address(rewardsToken)),
+            0,
+            "Rewards should be 0: user 1"
+        );
+        _checkRewards(
+            address(rewardsToken),
+            liquidityProviderTwo,
+            multipliers2,
+            skipTimes,
+            balances2,
+            prevCumRewards,
+            prevTotalLiquidity,
+            0
+        );
+
+        // Transfer tokens back to user 1 and check that their position is updated
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.transfer(liquidityProviderOne, stakeAmount);
+        vm.stopPrank();
+        assertEq(
+            rewardDistributor.lpPositionsPerUser(liquidityProviderOne, address(stakedToken1)),
+            stakeAmount,
+            "User 1 position mismatch after transfer"
+        );
+
+        // redeem all staked tokens and claim rewards (for gas measurement)
+        _claimAndRedeemAll(_getStakedTokens(), rewardDistributor, liquidityProviderTwo);
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function testFuzz_PreExistingBalances(uint256 maxTokenAmountIntoBalancer) public {
-        // liquidityProvider2 starts with 10,000 INCR and 10 WETH
-        maxTokenAmountIntoBalancer = bound(maxTokenAmountIntoBalancer, 100e18, 9_000e18);
+    function testFuzz_PausingAccrual(uint256 stakeAmount1, uint256 stakeAmount2) public {
+        /* bounds */
+        stakeAmount1 = bound(stakeAmount1, 100e18, 10_000e18);
+        stakeAmount2 = bound(stakeAmount2, 100e18, 10_000e18);
 
-        // join balancer pool as liquidityProvider2
-        _joinBalancerPool(poolId, liquidityProviderTwo, maxTokenAmountIntoBalancer, maxTokenAmountIntoBalancer / 1000);
+        // stake
+        deal(address(rewardsToken), liquidityProviderTwo, stakeAmount1);
+        deal(address(balancerPool), liquidityProviderTwo, stakeAmount2);
+        _stake(stakedToken1, liquidityProviderTwo, stakeAmount1);
+        _stake(stakedToken2, liquidityProviderTwo, stakeAmount2);
 
-        // stake as liquidityProvider2
-        _stake(stakedToken1, liquidityProviderTwo, rewardsToken.balanceOf(liquidityProviderTwo));
-        _stake(stakedToken2, liquidityProviderTwo, balancerPool.balanceOf(liquidityProviderTwo));
-
-        // redeploy reward distributor so it doesn't know of pre-existing balances
-        TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
-            ISafetyModule(address(0)), INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(ecosystemReserve)
-        );
-        safetyModule.setRewardDistributor(newRewardDistributor);
-        newRewardDistributor.setSafetyModule(safetyModule);
-        ecosystemReserve.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
-
-        // add reward token to new reward distributor
-        address[] memory stakedTokens = _getMarkets();
-        uint256[] memory rewardWeights = _getRewardWeights(rewardDistributor, address(rewardsToken));
-        newRewardDistributor.addRewardToken(
-            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakedTokens, rewardWeights
-        );
+        // pause accrual
+        vm.startPrank(address(this));
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not paused");
 
         // skip some time
         skip(10 days);
 
-        // register user positions
-        vm.startPrank(liquidityProviderOne);
-        newRewardDistributor.registerPositions(stakedTokens);
-        vm.startPrank(liquidityProviderTwo);
-        newRewardDistributor.registerPositions(stakedTokens);
-        vm.stopPrank();
+        // unpause accrual
+        rewardDistributor.togglePausedReward(address(rewardsToken));
+        assertTrue(!rewardDistributor.isTokenPaused(address(rewardsToken)), "Rewards not unpaused");
 
         // skip some more time
         skip(10 days);
 
         // store initial state before accruing rewards
+        uint256[] memory multipliers = _getRewardMultipliers(rewardDistributor, liquidityProviderTwo);
         uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
-        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(newRewardDistributor, address(rewardsToken));
-        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(newRewardDistributor);
-        uint256[] memory skipTimes = _getSkipTimes(newRewardDistributor);
-        uint256[] memory multipliers = _getRewardMultipliers(newRewardDistributor, liquidityProviderTwo);
+        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(rewardDistributor, address(rewardsToken));
+        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(rewardDistributor);
+        uint256[] memory skipTimes = new uint256[](2);
+        skipTimes[0] = 10 days;
+        skipTimes[1] = 10 days;
 
-        // check that the user only accrues rewards for the 10 days since registering
-        newRewardDistributor.accrueRewards(liquidityProviderTwo);
+        // check that rewards are accrued for only the 10 days after unpausing
+        rewardDistributor.accrueRewards(liquidityProviderTwo);
         _checkRewards(
-            newRewardDistributor,
             address(rewardsToken),
             liquidityProviderTwo,
             multipliers,
@@ -425,119 +365,187 @@ contract SafetyModuleTest is Deployment, Utils {
             prevTotalLiquidity,
             0
         );
-
-        // redeem all staked tokens and claim rewards (for gas measurement)
-        _claimAndRedeemAll(_getStakedTokens(), newRewardDistributor, liquidityProviderTwo);
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function testFuzz_RewardTokenShortfall(uint256 stakeAmount) public {
+    function testFuzz_NextCooldownTimestamp(uint256 stakeAmount) public {
         /* bounds */
         stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
 
-        // Stake only with stakedToken1 for this test
+        /**
+         * StakedToken.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance)
+         * is from Aave's original StakedToken, and has the following notes:
+         *
+         * Calculation depends on the sender/receiver situation, as follows:
+         *  - If the timestamp of the sender is "better" or the timestamp of the recipient is 0,
+         *    we take the one of the recipient
+         *  - Weighted average of from/to cooldown timestamps if:
+         *    - The sender doesn't have the cooldown activated (timestamp 0).
+         *    - The sender timestamp is expired
+         *    - The sender has a "worse" timestamp
+         *  - If the receiver's cooldown timestamp expired (too old), the next is 0
+         */
+
+        // Define initial arguments
+        uint256 fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
+        uint256 amountToReceive = 100e18;
+        address toAddress = liquidityProviderOne;
+        uint256 toBalance = stakedToken1.balanceOf(liquidityProviderOne);
+
+        // When user first stakes, next cooldown timestamp should be 0 (user 1 staked 10,000 INCR in setUp())
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            0,
+            "Next cooldown timestamp should be 0 after first staked"
+        );
+
+        // Activate cooldown period, so stakersCooldowns[liquidityProviderOne] is set to block.timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
+        assertEq(fromCooldownTimestamp, block.timestamp, "Cooldown timestamp mismatch");
+
+        // Wait for cooldown period and unstake window to pass
+        skip(COOLDOWN_SECONDS + UNSTAKE_WINDOW + 1 days);
+
+        // When recipient's cooldown timestamp is less than minimal valid timestamp, next timestamp should be 0
+        // minimalValidCooldownTimestamp = block.timestamp - COOLDOWN_SECONDS - UNSTAKE_WINDOW
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            0,
+            "Next cooldown timestamp should be 0 when cooldown timestamp is less than minimal valid timestamp"
+        );
+
+        // To test with different from and to addresses, stake with user 2
         _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
+        toAddress = liquidityProviderTwo;
+        toBalance = stakedToken1.balanceOf(liquidityProviderTwo);
 
-        // Remove all reward tokens from EcosystemReserve
-        uint256 rewardBalance = rewardsToken.balanceOf(address(ecosystemReserve));
-        ecosystemReserve.transfer(rewardsToken, address(this), rewardBalance);
+        // Reset user 1 cooldown timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
 
-        // Skip some time
-        skip(10 days);
+        // Skip user 1 cooldown period
+        skip(COOLDOWN_SECONDS);
 
-        // Get reward preview
-        uint256 rewardPreview =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Accrue rewards, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
-        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
-
-        // Skip some more time
-        skip(9 days);
-
-        // Get second reward preview
-        uint256 rewardPreview2 =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Start cooldown period (accrues rewards)
+        // Activate user 2 cooldown period
         vm.startPrank(liquidityProviderTwo);
         stakedToken1.cooldown();
-
-        // Skip cooldown period
-        skip(1 days);
-
-        // Get third reward preview
-        uint256 rewardPreview3 =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Redeem stakedToken1, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview + rewardPreview2 + rewardPreview3);
-        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
-
-        // Try to claim reward tokens, expecting RewardTokenShortfall event
-        vm.startPrank(liquidityProviderTwo);
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview + rewardPreview2 + rewardPreview3);
-        rewardDistributor.claimRewards();
-        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), 10_000e18, "Claimed rewards after shortfall");
-
-        // Transfer reward tokens back to the EcosystemReserve
         vm.stopPrank();
-        rewardsToken.transfer(address(ecosystemReserve), rewardBalance);
+        uint256 toCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderTwo);
 
-        // Claim tokens and check that the accrued rewards were distributed
-        vm.startPrank(liquidityProviderTwo);
-        rewardDistributor.claimRewards();
+        // If user 1's cooldown timestamp is less than user 2's, next cooldown timestamp should be user 2's
         assertEq(
-            rewardsToken.balanceOf(liquidityProviderTwo),
-            10_000e18 + rewardPreview + rewardPreview2 + rewardPreview3,
-            "Incorrect rewards after resolving shortfall"
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            toCooldownTimestamp,
+            "Next cooldown timestamp should be user 2's when user 1's cooldown timestamp is less than user 2's"
+        );
+
+        // Reset user 1 cooldown timestamp
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        fromCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderOne);
+
+        // If sender's cooldown timestamp is greater than or equal to recipient's,
+        // recipient's next timestamp should be weighted average of from and to timestamps
+        uint256 expectedWeightedAverage =
+            _calcWeightedAverageCooldown(fromCooldownTimestamp, toCooldownTimestamp, amountToReceive, toBalance);
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            expectedWeightedAverage,
+            "Next cooldown timestamp should be weighted average when user 1's cooldown timestamp is greater than or equal to user 2's"
+        );
+
+        // Skip user 1 cooldown period and unstake window
+        skip(COOLDOWN_SECONDS + UNSTAKE_WINDOW + 1 days);
+
+        // Reset user 2 cooldown period
+        vm.startPrank(liquidityProviderTwo);
+        stakedToken1.cooldown();
+        vm.stopPrank();
+        toCooldownTimestamp = stakedToken1.getCooldownStartTime(liquidityProviderTwo);
+
+        // Skip user 2 cooldown period
+        skip(COOLDOWN_SECONDS);
+
+        // If fromCooldownTimestamp is less than minimal valid timestamp, block.timestamp should be used
+        expectedWeightedAverage =
+            _calcWeightedAverageCooldown(block.timestamp, toCooldownTimestamp, amountToReceive, toBalance);
+        assertEq(
+            stakedToken1.getNextCooldownTimestamp(fromCooldownTimestamp, amountToReceive, toAddress, toBalance),
+            expectedWeightedAverage,
+            "block.timestamp should be used for fromCooldownTimestamp when computing weighted average after cooldown period and unstake window have passed"
+        );
+
+        // Transfer stake from user 1 to user 2 and check that user 2's cooldown timestamp is updated as expected
+        vm.startPrank(liquidityProviderOne);
+        stakedToken1.transfer(liquidityProviderTwo, amountToReceive);
+        vm.stopPrank();
+        assertEq(
+            stakedToken1.getCooldownStartTime(liquidityProviderTwo),
+            expectedWeightedAverage,
+            "Cooldown timestamp mismatch after transfer"
         );
     }
 
+    /* ******************* */
+    /*  Slashing/Auctions  */
+    /* ******************* */
+
     // solhint-disable-next-line func-name-mixedcase
-    function test_StakedTokenZeroLiquidity() public {
-        // Deploy a third staked token
-        StakedToken stakedToken3 = new StakedToken(
-            rewardsToken, safetyModule, COOLDOWN_SECONDS, UNSTAKE_WINDOW, MAX_STAKE_AMOUNT_1, "Staked INCR 2", "stINCR2"
+    function testFuzz_StakedTokenExchangeRate(uint256 donatePercent, uint256 slashPercent, uint256 stakeAmount)
+        public
+    {
+        /* bounds */
+        donatePercent = bound(donatePercent, 1e16, 1e18);
+        slashPercent = bound(slashPercent, 1e16, 1e18);
+        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+
+        // Check initial conditions
+        uint256 initialSupply = stakedToken1.totalSupply();
+        assertEq(initialSupply, rewardsToken.balanceOf(address(stakedToken1)), "Initial supply mismatch");
+        _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18, "initially");
+
+        // Get amounts from percents
+        uint256 donateAmount = initialSupply.wadMul(donatePercent);
+        uint256 slashAmount = initialSupply.wadMul(slashPercent);
+
+        // Donate some tokens to the staked token and check the resulting exchange rate
+        rewardsToken.approve(address(stakedToken1), donateAmount);
+        safetyModule.returnFunds(address(stakedToken1), address(this), donateAmount);
+        _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18 + donatePercent, "after donating");
+
+        // Slash the donated tokens and check the resulting exchange rate
+        vm.startPrank(address(safetyModule));
+        uint256 slashedDonation = stakedToken1.slash(address(this), stakedToken1.previewStake(donateAmount));
+        assertApproxEqAbs(
+            slashedDonation,
+            donateAmount,
+            10, // 10 wei tolerance for rounding error
+            "Slashed donation mismatch"
         );
+        _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18, "after donating then slashing the same amount");
+        stakedToken1.settleSlashing();
 
-        // Add the third staked token to the safety module
-        safetyModule.addStakedToken(stakedToken3);
-
-        // Update the reward weights
-        address[] memory stakedTokens = _getMarkets();
-        uint256[] memory rewardWeights = new uint256[](3);
-        rewardWeights[0] = 3333;
-        rewardWeights[1] = 3334;
-        rewardWeights[2] = 3333;
-        rewardDistributor.updateRewardWeights(address(rewardsToken), stakedTokens, rewardWeights);
-
-        // Check that stakedToken3 was added to the list of markets for rewards
-        assertEq(
-            rewardDistributor.getRewardMarkets(address(rewardsToken))[2],
-            address(stakedToken3),
-            "Reward token missing for new staked token"
+        // Slash some more tokens and check the resulting exchange rate
+        uint256 slashedAmount = stakedToken1.slash(address(this), slashAmount);
+        vm.stopPrank();
+        assertApproxEqAbs(
+            slashedAmount,
+            slashAmount,
+            10, // 10 wei tolerance for rounding error
+            "Slashed amount mismatch"
         );
+        _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18 - slashPercent, "after slashing");
 
-        // Skip some time
-        skip(10 days);
-
-        // Get reward preview, expecting it to be 0
-        uint256 rewardPreview =
-            _viewNewRewardAccrual(address(stakedToken3), liquidityProviderTwo, address(rewardsToken));
-        assertEq(rewardPreview, 0, "Reward preview should be 0");
-
-        // Accrue rewards, expecting it to accrue 0 rewards
-        rewardDistributor.accrueRewards(address(stakedToken3), liquidityProviderTwo);
-        assertEq(
-            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)),
-            0,
-            "Rewards should be 0"
-        );
+        // Return the slashed tokens to the staked token and check the resulting exchange rate
+        rewardsToken.approve(address(stakedToken1), slashedAmount);
+        safetyModule.returnFunds(address(stakedToken1), address(this), slashedAmount);
+        _checkExchangeRatePreviews(stakedToken1, stakeAmount, 1e18, "after returning the slashed amount");
     }
 
     /* ****************** */

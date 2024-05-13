@@ -188,355 +188,363 @@ contract SafetyModuleTest is Deployment, Utils {
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function test_Deployment() public {
-        assertEq(safetyModule.getStakedTokens().length, 2, "Staked token count mismatch");
-        assertEq(safetyModule.getNumStakedTokens(), 2, "Staked token count mismatch");
-        assertEq(address(safetyModule.stakedTokens(0)), address(stakedToken1), "Market address mismatch");
-        assertEq(safetyModule.getStakedTokenIdx(address(stakedToken2)), 1, "Staked token index mismatch");
-        assertEq(stakedToken1.balanceOf(liquidityProviderTwo), 0, "Current position mismatch");
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            0,
-            "Reward multiplier mismatch"
-        );
-        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(stakedToken1.balanceOf(liquidityProviderTwo), 100 ether, "Current position mismatch");
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch"
-        );
-        assertEq(address(stakedToken1.getUnderlyingToken()), address(rewardsToken), "Underlying token mismatch");
-        assertEq(stakedToken1.getCooldownSeconds(), COOLDOWN_SECONDS, "Cooldown seconds mismatch");
-        assertEq(stakedToken1.getUnstakeWindowSeconds(), UNSTAKE_WINDOW, "Unstake window mismatch");
-        assertEq(auctionModule.getNextAuctionId(), 0, "Next auction ID mismatch");
-    }
-
-    /* ******************* */
-    /*   Staked Rewards   */
-    /* ******************* */
-
-    // solhint-disable-next-line func-name-mixedcase
-    function test_RewardMultiplier() public {
-        // Test with smoothing value of 30 and max multiplier of 4
-        // These values match those in the spreadsheet used to design the SM rewards
-        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after initial stake"
-        );
-        skip(2 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1.5e18,
-            "Reward multiplier mismatch after 2 days"
-        );
-        // Partially redeeming resets the multiplier to 1
-        _redeem(stakedToken1, liquidityProviderTwo, 50 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after redeeming half"
-        );
-        skip(5 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2e18,
-            "Reward multiplier mismatch after 5 days"
-        );
-        // Staked again pushed the multiplier start time forward by a weighted amount
-        // In this case, the multiplier start time is pushed forward by 2.5 days, because
-        // it had been 5 days ago, and the user doubled their stake
-        _stake(stakedToken1, liquidityProviderTwo, 50 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1.6e18,
-            "Reward multiplier mismatch after staked again"
-        );
-        skip(2.5 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2e18,
-            "Reward multiplier mismatch after another 2.5 days"
-        );
-        // Redeeming completely resets the multiplier to 0
-        _redeem(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            0,
-            "Reward multiplier mismatch after redeeming completely"
-        );
-
-        // Test with smoothing value of 60, doubling the time it takes to reach the same multiplier
-        rewardDistributor.setSmoothingValue(60e18);
-        _stake(stakedToken1, liquidityProviderTwo, 100 ether);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after staked with new smoothing value"
-        );
-        skip(4 days);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1.5e18,
-            "Reward multiplier mismatch after increasing smoothing value"
-        );
-
-        // Test with max multiplier of 6, increasing the multiplier by 50%
-        rewardDistributor.setMaxRewardMultiplier(6e18);
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            2.25e18,
-            "Reward multiplier mismatch after increasing max multiplier"
-        );
-
-        // Calling cooldown resets the multiplier to 1
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
-        assertEq(
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1)),
-            1e18,
-            "Reward multiplier mismatch after cooldown"
-        );
-    }
-
-    // solhint-disable-next-line func-name-mixedcase
-    function testFuzz_MultipliedRewardAccrual(uint256 stakeAmount) public {
+    function testFuzz_AuctionSoldOut(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
         /* bounds */
-        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
+        initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
+        uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
 
-        // Stake only with stakedToken1 for this test
-        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
-
-        // Skip some time
-        skip(9 days);
-
-        // Get reward preview
-        uint256 rewardPreview =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Get current reward multiplier
-        uint256 rewardMultiplier =
-            rewardDistributor.computeRewardMultiplier(liquidityProviderTwo, address(stakedToken1));
-
-        // Get accrued rewards
-        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
-        uint256 accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-
-        // Check that accrued rewards are equal to reward preview
-        assertEq(accruedRewards, rewardPreview, "Accrued rewards preview mismatch");
-
-        // Check that accrued rewards equal stake amount times cumulative reward per token times reward multiplier
-        uint256 cumulativeRewardsPerLpToken =
-            rewardDistributor.cumulativeRewardPerLpToken(address(rewardsToken), address(stakedToken1));
-        assertEq(
-            accruedRewards,
-            stakeAmount.wadMul(cumulativeRewardsPerLpToken).wadMul(rewardMultiplier),
-            "Accrued rewards mismatch"
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
         );
 
-        // Start cooldown period (accrues rewards)
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
+        // Buy all the lots at once and check the buyer's resulting balance
+        uint256 balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        _dealAndBuyLots(liquidityProviderTwo, auctionId, numLots, lotPrice);
+        uint256 balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        assertEq(balanceAfter, balanceBefore + initialLotSize * numLots, "Balance mismatch after buying all lots");
 
-        // Skip cooldown period
-        skip(1 days);
+        // Check that the auction is no longer active and unsold tokens have been returned
+        assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after selling out");
+        assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
 
-        // Add to reward preview
-        rewardPreview += _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
+        // Check the state of the StakedToken after slashing is settled and unsold tokens are returned
+        assertTrue(
+            !stakedToken1.isInPostSlashingState(), "Staked token should not be in post slashing state after selling out"
+        );
+        uint256 percentSold = uint256(initialLotSize * numLots).wadDiv(stakedToken1.totalSupply());
+        _checkExchangeRatePreviews(stakedToken1, 1e18, 1e18 - percentSold, "after selling out");
 
-        // Redeem stakedToken1
-        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
-
-        // Get new accrued rewards
-        accruedRewards = rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken));
-
-        // Check that accrued rewards are equal to reward preview
-        assertEq(accruedRewards, rewardPreview, "Accrued rewards preview mismatch");
-
-        // Check that rewards are not accrued after full redeem
-        skip(10 days);
-        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
+        // Withdraw the funds raised from the auction and check the resulting balance
+        uint256 fundsRaised = auctionModule.getFundsRaised(auctionId);
+        assertEq(fundsRaised, lotPrice * numLots, "Funds raised mismatch after selling out");
         assertEq(
-            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)),
-            accruedRewards,
-            "Accrued more rewards after full redeem"
+            usdc.balanceOf(address(safetyModule)),
+            fundsRaised,
+            "Safety module should have the funds raised before withdrawing"
+        );
+        safetyModule.withdrawFundsRaisedFromAuction(fundsRaised);
+        assertEq(
+            usdc.balanceOf(address(this)), fundsRaised, "Balance mismatch after withdrawing funds raised from auction"
+        );
+        assertEq(
+            usdc.balanceOf(address(safetyModule)), 0, "Safety module should have no remaining funds after withdrawing"
         );
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function testFuzz_PreExistingBalances(uint256 maxTokenAmountIntoBalancer) public {
-        // liquidityProvider2 starts with 10,000 INCR and 10 WETH
-        maxTokenAmountIntoBalancer = bound(maxTokenAmountIntoBalancer, 100e18, 9_000e18);
+    function testFuzz_AuctionTimeOut(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e18, 1e22)); // denominated in UA w/ 18 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
+        // initialLotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
+        initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
+        uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
 
-        // join balancer pool as liquidityProvider2
-        _joinBalancerPool(poolId, liquidityProviderTwo, maxTokenAmountIntoBalancer, maxTokenAmountIntoBalancer / 1000);
+        // Change the payment token to UA
+        vm.expectEmit(false, false, false, true);
+        emit PaymentTokenChanged(address(usdc), address(ua));
+        auctionModule.setPaymentToken(IERC20(address(ua)));
 
-        // stake as liquidityProvider2
-        _stake(stakedToken1, liquidityProviderTwo, rewardsToken.balanceOf(liquidityProviderTwo));
-        _stake(stakedToken2, liquidityProviderTwo, balancerPool.balanceOf(liquidityProviderTwo));
-
-        // redeploy reward distributor so it doesn't know of pre-existing balances
-        TestSMRewardDistributor newRewardDistributor = new TestSMRewardDistributor(
-            ISafetyModule(address(0)), INITIAL_MAX_MULTIPLIER, INITIAL_SMOOTHING_VALUE, address(ecosystemReserve)
+        // Start an auction and check the end time
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
         );
-        safetyModule.setRewardDistributor(newRewardDistributor);
-        newRewardDistributor.setSafetyModule(safetyModule);
-        ecosystemReserve.approve(rewardsToken, address(newRewardDistributor), type(uint256).max);
 
-        // add reward token to new reward distributor
-        address[] memory stakedTokens = _getMarkets();
-        uint256[] memory rewardWeights = _getRewardWeights(rewardDistributor, address(rewardsToken));
-        newRewardDistributor.addRewardToken(
-            address(rewardsToken), INITIAL_INFLATION_RATE, INITIAL_REDUCTION_FACTOR, stakedTokens, rewardWeights
+        // Skip one day at a time until the end of the auction without buying any lots,
+        // checking that the currentLotSize x numLots does not exceed auctionable balance
+        uint256 numDays = timeLimit / 1 days;
+        for (uint256 i; i < numDays; i++) {
+            skip(1 days);
+            uint256 currentLotSize = auctionModule.getCurrentLotSize(auctionId);
+            assertLe(
+                currentLotSize * numLots,
+                auctionableBalance,
+                "Current lot size x num lots should not exceed auctionable balance"
+            );
+        }
+        if (block.timestamp < auctionModule.getEndTime(auctionId)) {
+            skip(auctionModule.getEndTime(auctionId) - block.timestamp);
+        }
+
+        // Check that the auction is no longer active and trying to buy lots fails
+        assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after timing out");
+        _expectAuctionNotActive(auctionId);
+        auctionModule.buyLots(auctionId, 1);
+
+        // Complete the auction and check that all tokens were returned
+        vm.startPrank(liquidityProviderOne); // Anyone can complete the auction after it times out
+        uint256 finalLotSize = uint256(initialLotSize) + lotIncreaseIncrement * (timeLimit / lotIncreasePeriod);
+        if (finalLotSize > auctionableBalance / numLots) {
+            finalLotSize = auctionableBalance / numLots;
+        }
+        vm.expectEmit(false, false, false, true);
+        emit Approval(address(auctionModule), address(stakedToken1), auctionableBalance);
+        vm.expectEmit(false, false, false, true);
+        emit AuctionCompleted(auctionId, numLots, finalLotSize, 0, 0);
+        auctionModule.completeAuction(auctionId);
+        assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
+        assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
+    }
+
+    // solhint-disable-next-line func-name-mixedcase
+    function testFuzz_TerminateAuctionEarly(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
+        /* bounds */
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
+        initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
+        uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
+
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
         );
 
-        // skip some time
-        skip(10 days);
+        // Terminate the auction early and check events
+        vm.expectEmit(false, false, false, true);
+        emit Approval(address(auctionModule), address(stakedToken1), auctionableBalance);
+        vm.expectEmit(false, false, false, true);
+        emit AuctionCompleted(auctionId, numLots, initialLotSize, 0, 0);
+        vm.expectEmit(false, false, false, true);
+        emit ExchangeRateUpdated(1e18);
+        vm.expectEmit(false, false, false, true);
+        emit FundsReturned(address(auctionModule), auctionableBalance);
+        vm.expectEmit(false, false, false, true);
+        emit SlashingSettled();
+        vm.expectEmit(false, false, false, true);
+        emit AuctionTerminated(auctionId, address(stakedToken1), address(rewardsToken), auctionableBalance);
+        safetyModule.terminateAuction(auctionId);
 
-        // register user positions
+        // Check that the auction is no longer active and unsold tokens have been returned
+        assertTrue(!auctionModule.isAuctionActive(auctionId), "Auction should not be active after terminating early");
+        assertEq(_getAuctionRemainingBalance(auctionId), 0, "Unsold tokens should be returned from the auction module");
+        assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate mismatch after returning unsold tokens");
+        assertTrue(
+            !stakedToken1.isInPostSlashingState(),
+            "Staked token should not be in post slashing state after terminating the auction"
+        );
+
+        // Check that trying to buy lots or complete the terminated auction fails
         vm.startPrank(liquidityProviderOne);
-        newRewardDistributor.registerPositions(stakedTokens);
-        vm.startPrank(liquidityProviderTwo);
-        newRewardDistributor.registerPositions(stakedTokens);
+        _expectAuctionNotActive(auctionId);
+        auctionModule.buyLots(auctionId, 1);
+        _expectAuctionNotActive(auctionId);
+        auctionModule.completeAuction(auctionId);
         vm.stopPrank();
-
-        // skip some more time
-        skip(10 days);
-
-        // store initial state before accruing rewards
-        uint256[] memory balances = _getUserBalances(liquidityProviderTwo);
-        uint256[] memory prevCumRewards = _getCumulativeRewardsByToken(newRewardDistributor, address(rewardsToken));
-        uint256[] memory prevTotalLiquidity = _getTotalLiquidityPerMarket(newRewardDistributor);
-        uint256[] memory skipTimes = _getSkipTimes(newRewardDistributor);
-        uint256[] memory multipliers = _getRewardMultipliers(newRewardDistributor, liquidityProviderTwo);
-
-        // check that the user only accrues rewards for the 10 days since registering
-        newRewardDistributor.accrueRewards(liquidityProviderTwo);
-        _checkRewards(
-            newRewardDistributor,
-            address(rewardsToken),
-            liquidityProviderTwo,
-            multipliers,
-            skipTimes,
-            balances,
-            prevCumRewards,
-            prevTotalLiquidity,
-            0
-        );
-
-        // redeem all staked tokens and claim rewards (for gas measurement)
-        _claimAndRedeemAll(_getStakedTokens(), newRewardDistributor, liquidityProviderTwo);
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function testFuzz_RewardTokenShortfall(uint256 stakeAmount) public {
+    function testFuzz_RedeemAllDuringAuction(
+        uint8 numLots,
+        uint128 lotPrice,
+        uint128 initialLotSize,
+        uint64 slashPercent,
+        uint16 lotIncreasePeriod,
+        uint32 timeLimit
+    ) public {
         /* bounds */
-        stakeAmount = bound(stakeAmount, 100e18, 10_000e18);
+        numLots = uint8(bound(numLots, 2, 10));
+        lotPrice = uint128(bound(lotPrice, 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        slashPercent = uint64(bound(slashPercent, 1e16, 0.99e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256 auctionableBalance = stakedToken1.totalSupply().wadMul(slashPercent);
+        initialLotSize = uint128(bound(initialLotSize, 1e18, auctionableBalance / numLots));
+        uint96 lotIncreaseIncrement = uint96(bound(initialLotSize / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod = uint16(bound(lotIncreasePeriod, 1 hours, 18 hours));
+        timeLimit = uint32(bound(timeLimit, 5 days, 30 days));
 
-        // Stake only with stakedToken1 for this test
-        _stake(stakedToken1, liquidityProviderTwo, stakeAmount);
-
-        // Remove all reward tokens from EcosystemReserve
-        uint256 rewardBalance = rewardsToken.balanceOf(address(ecosystemReserve));
-        ecosystemReserve.transfer(rewardsToken, address(this), rewardBalance);
-
-        // Skip some time
-        skip(10 days);
-
-        // Get reward preview
-        uint256 rewardPreview =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Accrue rewards, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview);
-        rewardDistributor.accrueRewards(address(stakedToken1), liquidityProviderTwo);
-
-        // Skip some more time
-        skip(9 days);
-
-        // Get second reward preview
-        uint256 rewardPreview2 =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Start cooldown period (accrues rewards)
-        vm.startPrank(liquidityProviderTwo);
-        stakedToken1.cooldown();
-
-        // Skip cooldown period
-        skip(1 days);
-
-        // Get third reward preview
-        uint256 rewardPreview3 =
-            _viewNewRewardAccrual(address(stakedToken1), liquidityProviderTwo, address(rewardsToken));
-
-        // Redeem stakedToken1, expecting RewardTokenShortfall event
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview + rewardPreview2 + rewardPreview3);
-        stakedToken1.redeemTo(liquidityProviderTwo, stakeAmount);
-
-        // Try to claim reward tokens, expecting RewardTokenShortfall event
-        vm.startPrank(liquidityProviderTwo);
-        vm.expectEmit(false, false, false, true);
-        emit RewardTokenShortfall(address(rewardsToken), rewardPreview + rewardPreview2 + rewardPreview3);
-        rewardDistributor.claimRewards();
-        assertEq(rewardsToken.balanceOf(liquidityProviderTwo), 10_000e18, "Claimed rewards after shortfall");
-
-        // Transfer reward tokens back to the EcosystemReserve
-        vm.stopPrank();
-        rewardsToken.transfer(address(ecosystemReserve), rewardBalance);
-
-        // Claim tokens and check that the accrued rewards were distributed
-        vm.startPrank(liquidityProviderTwo);
-        rewardDistributor.claimRewards();
-        assertEq(
-            rewardsToken.balanceOf(liquidityProviderTwo),
-            10_000e18 + rewardPreview + rewardPreview2 + rewardPreview3,
-            "Incorrect rewards after resolving shortfall"
+        // Start an auction and check that it was created correctly
+        uint256 auctionId = _startAndCheckAuction(
+            stakedToken1,
+            numLots,
+            lotPrice,
+            initialLotSize,
+            slashPercent,
+            lotIncreaseIncrement,
+            lotIncreasePeriod,
+            timeLimit
         );
+
+        // User 1 (the only staker) redeems during the auction at the lowered exchange rate
+        uint256 balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderOne);
+        uint256 exchangeRate = stakedToken1.exchangeRate();
+        uint256 expectedBalance = balanceBefore + stakedToken1.totalSupply().wadMul(exchangeRate);
+        _redeem(stakedToken1, liquidityProviderOne, stakedToken1.totalSupply());
+        uint256 balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderOne);
+        assertEq(balanceAfter, expectedBalance, "User balance mismatch after redeeming during the auction");
+        assertEq(stakedToken1.totalSupply(), 0, "Total supply should be 0 after redeeming");
+        assertEq(stakedToken1.exchangeRate(), 1e18, "Exchange rate should be reset after last staker redeems");
+
+        // Terminate the auction early and check that funds are returned to governance
+        balanceBefore = stakedToken1.getUnderlyingToken().balanceOf(address(this));
+        safetyModule.terminateAuction(auctionId);
+        expectedBalance = balanceBefore + auctionableBalance;
+        balanceAfter = stakedToken1.getUnderlyingToken().balanceOf(address(this));
+        assertEq(balanceAfter, expectedBalance, "Governance balance mismatch after terminating the auction");
     }
 
     // solhint-disable-next-line func-name-mixedcase
-    function test_StakedTokenZeroLiquidity() public {
-        // Deploy a third staked token
-        StakedToken stakedToken3 = new StakedToken(
-            rewardsToken, safetyModule, COOLDOWN_SECONDS, UNSTAKE_WINDOW, MAX_STAKE_AMOUNT_1, "Staked INCR 2", "stINCR2"
+    function testFuzz_MultipleAuctions(
+        uint8[2] memory numLots,
+        uint128[2] memory lotPrice,
+        uint128[2] memory initialLotSize,
+        uint64[2] memory slashPercent,
+        uint16[2] memory lotIncreasePeriod,
+        uint32[2] memory timeLimit
+    ) public {
+        /* bounds */
+        numLots[0] = uint8(bound(numLots[0], 2, 10));
+        numLots[1] = uint8(bound(numLots[1], 2, 10));
+        lotPrice[0] = uint128(bound(lotPrice[0], 1e8, 1e12)); // denominated in USDC w/ 6 decimals
+        lotPrice[1] = uint128(bound(lotPrice[1], 1e8, 1e12));
+        slashPercent[0] = uint64(bound(slashPercent[0], 1e16, 0.99e18));
+        slashPercent[1] = uint64(bound(slashPercent[1], 1e16, 0.99e18));
+        // lotSize x numLots should not exceed auctionable balance
+        uint256[] memory auctionableBalance = new uint256[](2);
+        auctionableBalance[0] = stakedToken1.totalSupply().wadMul(slashPercent[0]);
+        auctionableBalance[1] = stakedToken2.totalSupply().wadMul(slashPercent[1]);
+        initialLotSize[0] = uint128(bound(initialLotSize[0], 1e16, auctionableBalance[0] / numLots[0]));
+        initialLotSize[1] = uint128(bound(initialLotSize[1], 1e16, auctionableBalance[1] / numLots[1]));
+        uint96[] memory lotIncreaseIncrement = new uint96[](2);
+        lotIncreaseIncrement[0] = uint96(bound(initialLotSize[0] / 50, 2e16, type(uint96).max));
+        lotIncreaseIncrement[1] = uint96(bound(initialLotSize[1] / 50, 2e16, type(uint96).max));
+        lotIncreasePeriod[0] = uint16(bound(lotIncreasePeriod[0], 1 hours, 18 hours));
+        lotIncreasePeriod[1] = uint16(bound(lotIncreasePeriod[1], 1 hours, 18 hours));
+        timeLimit[0] = uint32(bound(timeLimit[0], 5 days, 30 days));
+        timeLimit[1] = uint32(bound(timeLimit[1], 5 days, 30 days));
+
+        // Start auctions and check that they are created correctly
+        uint256 auctionId1 = _startAndCheckAuction(
+            stakedToken1,
+            numLots[0],
+            lotPrice[0],
+            initialLotSize[0],
+            slashPercent[0],
+            lotIncreaseIncrement[0],
+            lotIncreasePeriod[0],
+            timeLimit[0]
+        );
+        uint256 auctionId2 = _startAndCheckAuction(
+            stakedToken2,
+            numLots[1],
+            lotPrice[1],
+            initialLotSize[1],
+            slashPercent[1],
+            lotIncreaseIncrement[1],
+            lotIncreasePeriod[1],
+            timeLimit[1]
         );
 
-        // Add the third staked token to the safety module
-        safetyModule.addStakedToken(stakedToken3);
-
-        // Update the reward weights
-        address[] memory stakedTokens = _getMarkets();
-        uint256[] memory rewardWeights = new uint256[](3);
-        rewardWeights[0] = 3333;
-        rewardWeights[1] = 3334;
-        rewardWeights[2] = 3333;
-        rewardDistributor.updateRewardWeights(address(rewardsToken), stakedTokens, rewardWeights);
-
-        // Check that stakedToken3 was added to the list of markets for rewards
+        // Buy all the lots at once and check the buyer's resulting balances
+        uint256[] memory balanceBefore = new uint256[](2);
+        balanceBefore[0] = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        balanceBefore[1] = stakedToken2.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        _dealAndBuyLots(liquidityProviderTwo, auctionId1, numLots[0], lotPrice[0]);
+        _dealAndBuyLots(liquidityProviderTwo, auctionId2, numLots[1], lotPrice[1]);
+        uint256[] memory balanceAfter = new uint256[](2);
+        balanceAfter[0] = stakedToken1.getUnderlyingToken().balanceOf(liquidityProviderTwo);
+        balanceAfter[1] = stakedToken2.getUnderlyingToken().balanceOf(liquidityProviderTwo);
         assertEq(
-            rewardDistributor.getRewardMarkets(address(rewardsToken))[2],
-            address(stakedToken3),
-            "Reward token missing for new staked token"
+            balanceAfter[0],
+            balanceBefore[0] + initialLotSize[0] * numLots[0],
+            "Balance mismatch after buying all lots: auction 1"
+        );
+        assertEq(
+            balanceAfter[1],
+            balanceBefore[1] + initialLotSize[1] * numLots[1],
+            "Balance mismatch after buying all lots: auction 2"
         );
 
-        // Skip some time
-        skip(10 days);
+        // Check that the auctions are no longer active and unsold tokens have been returned
+        assertTrue(!auctionModule.isAuctionActive(auctionId1), "Auction should not be active after selling out");
+        assertTrue(!auctionModule.isAuctionActive(auctionId2), "Auction should not be active after selling out");
+        assertEq(_getAuctionRemainingBalance(auctionId1), 0, "Unsold tokens should be returned from the auction module");
+        assertEq(_getAuctionRemainingBalance(auctionId2), 0, "Unsold tokens should be returned from the auction module");
 
-        // Get reward preview, expecting it to be 0
-        uint256 rewardPreview =
-            _viewNewRewardAccrual(address(stakedToken3), liquidityProviderTwo, address(rewardsToken));
-        assertEq(rewardPreview, 0, "Reward preview should be 0");
+        // Check the state of the StakedTokens after slashing is settled and unsold tokens are returned
+        uint256[] memory percentSold = new uint256[](2);
+        percentSold[0] = uint256(initialLotSize[0] * numLots[0]).wadDiv(stakedToken1.totalSupply());
+        percentSold[1] = uint256(initialLotSize[1] * numLots[1]).wadDiv(stakedToken2.totalSupply());
+        _checkExchangeRatePreviews(stakedToken1, 1e18, 1e18 - percentSold[0], "after selling out auction 1");
+        _checkExchangeRatePreviews(stakedToken2, 1e18, 1e18 - percentSold[1], "after selling out auction 2");
 
-        // Accrue rewards, expecting it to accrue 0 rewards
-        rewardDistributor.accrueRewards(address(stakedToken3), liquidityProviderTwo);
+        // Withdraw the funds raised from the auctions and check the resulting balance
+        uint256[] memory fundsRaised = new uint256[](2);
+        fundsRaised[0] = auctionModule.getFundsRaised(auctionId1);
+        fundsRaised[1] = auctionModule.getFundsRaised(auctionId2);
+        assertEq(fundsRaised[0], lotPrice[0] * numLots[0], "Funds raised mismatch after selling out auction 1");
+        assertEq(fundsRaised[1], lotPrice[1] * numLots[1], "Funds raised mismatch after selling out auction 2");
         assertEq(
-            rewardDistributor.rewardsAccruedByUser(liquidityProviderTwo, address(rewardsToken)),
-            0,
-            "Rewards should be 0"
+            usdc.balanceOf(address(safetyModule)),
+            fundsRaised[0] + fundsRaised[1],
+            "Safety module should have the funds raised before withdrawing"
+        );
+        safetyModule.withdrawFundsRaisedFromAuction(fundsRaised[0] + fundsRaised[1]);
+        assertEq(
+            usdc.balanceOf(address(this)),
+            fundsRaised[0] + fundsRaised[1],
+            "Balance mismatch after withdrawing funds raised from auction"
+        );
+        assertEq(
+            usdc.balanceOf(address(safetyModule)), 0, "Safety module should have no remaining funds after withdrawing"
         );
     }
 
