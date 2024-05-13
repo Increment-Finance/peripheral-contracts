@@ -21,6 +21,9 @@ import {Errors} from "clave-contracts/contracts/libraries/Errors.sol";
 import {LibMath} from "@increment/lib/LibMath.sol";
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
+/// @title Increment x Clave Limit Order Module
+/// @author webthethird
+/// @notice Limit order book module for Increment Protocol, allowing users with a Clave smart account to create orders that can be filled conditionally on their behalf by keepers
 contract IncrementLimitOrderModule is IIncrementLimitOrderModule, IncreAccessControl, Pausable, ReentrancyGuard {
     using LibMath for int256;
     using LibMath for uint256;

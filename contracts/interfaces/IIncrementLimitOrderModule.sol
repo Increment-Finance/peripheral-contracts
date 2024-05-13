@@ -7,6 +7,9 @@ import {IModule} from "clave-contracts/contracts/interfaces/IModule.sol";
 // libraries
 import {LibPerpetual} from "@increment/lib/LibPerpetual.sol";
 
+/// @title IIncrementLimitOrderModule
+/// @author webthethird
+/// @notice Interface for the Increment x Clave Limit Order Module
 interface IIncrementLimitOrderModule is IModule {
     /* ******************* */
     /*   Data Structures   */
