@@ -1,6 +1,6 @@
 # SafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/SafetyModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/SafetyModule.sol)
 
 **Inherits:**
 [ISafetyModule](/contracts/interfaces/ISafetyModule.sol/interface.ISafetyModule.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -12,6 +12,14 @@ Handles reward accrual and distribution for staked tokens, and allows governance
 percentage of user funds in the event of an insolvency in the vault
 
 ## State Variables
+
+### governance
+
+Address of the governance contract
+
+```solidity
+address public immutable governance;
+```
 
 ### auctionModule
 
@@ -47,15 +55,6 @@ mapping(uint256 => IStakedToken) public stakedTokenByAuctionId;
 
 ## Functions
 
-### onlyStakedToken
-
-Modifier for functions that can only be called by a registered StakedToken contract,
-i.e., `updatePosition`
-
-```solidity
-modifier onlyStakedToken();
-```
-
 ### onlyAuctionModule
 
 Modifier for functions that can only be called by the AuctionModule contract,
@@ -70,15 +69,16 @@ modifier onlyAuctionModule();
 SafetyModule constructor
 
 ```solidity
-constructor(address _auctionModule, address _smRewardDistributor) payable;
+constructor(address _auctionModule, address _smRewardDistributor, address _governance) payable;
 ```
 
 **Parameters**
 
-| Name                   | Type      | Description                                                                         |
-| ---------------------- | --------- | ----------------------------------------------------------------------------------- |
-| `_auctionModule`       | `address` | Address of the auction module, which sells user funds in the event of an insolvency |
-| `_smRewardDistributor` | `address` | Address of the SMRewardDistributor contract, which distributes rewards to stakers   |
+| Name                   | Type      | Description                                                                                         |
+| ---------------------- | --------- | --------------------------------------------------------------------------------------------------- |
+| `_auctionModule`       | `address` | Address of the auction module, which sells user funds in the event of an insolvency                 |
+| `_smRewardDistributor` | `address` | Address of the SMRewardDistributor contract, which distributes rewards to stakers                   |
+| `_governance`          | `address` | Address of the governance contract, where unsold StakedToken funds are sent if there are no stakers |
 
 ### getStakedTokens
 
@@ -130,23 +130,6 @@ function getStakedTokenIdx(address token) public view returns (uint256);
 | -------- | --------- | ----------------------------------------------------- |
 | `<none>` | `uint256` | Index of the staked token in the `stakedTokens` array |
 
-### updatePosition
-
-Updates the position of a user for a given staked token and accrues rewards to the user
-
-_Only callable by a registered StakedToken contract_
-
-```solidity
-function updatePosition(address stakedToken, address staker) external override nonReentrant onlyStakedToken;
-```
-
-**Parameters**
-
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `stakedToken` | `address` | Address of the staked token |
-| `staker`      | `address` | Address of the staker       |
-
 ### auctionEnded
 
 Called by the AuctionModule when an auction ends, and returns the remaining balance of
@@ -178,7 +161,7 @@ function slashAndStartAuction(
     uint8 _numLots,
     uint128 _lotPrice,
     uint128 _initialLotSize,
-    uint64 _slashPercent,
+    uint256 _slashAmount,
     uint96 _lotIncreaseIncrement,
     uint16 _lotIncreasePeriod,
     uint32 _timeLimit
@@ -193,7 +176,7 @@ function slashAndStartAuction(
 | `_numLots`              | `uint8`   | Number of lots in the auction                                      |
 | `_lotPrice`             | `uint128` | Fixed price of each lot in the auction                             |
 | `_initialLotSize`       | `uint128` | Initial number of underlying tokens in each lot                    |
-| `_slashPercent`         | `uint64`  | Percentage of staked tokens to slash, normalized to 1e18           |
+| `_slashAmount`          | `uint256` | Amount of staked tokens to slash                                   |
 | `_lotIncreaseIncrement` | `uint96`  | Amount of tokens by which the lot size increases each period       |
 | `_lotIncreasePeriod`    | `uint16`  | Number of seconds between each lot size increase                   |
 | `_timeLimit`            | `uint32`  | Number of seconds before the auction ends if all lots are not sold |
@@ -219,24 +202,6 @@ function terminateAuction(uint256 _auctionId) external onlyRole(GOVERNANCE);
 | Name         | Type      | Description       |
 | ------------ | --------- | ----------------- |
 | `_auctionId` | `uint256` | ID of the auction |
-
-### returnFunds
-
-Donates underlying tokens to a StakedToken contract, raising its exchange rate
-
-_Only callable by governance_
-
-```solidity
-function returnFunds(address _stakedToken, address _from, uint256 _amount) external onlyRole(GOVERNANCE);
-```
-
-**Parameters**
-
-| Name           | Type      | Description                                                        |
-| -------------- | --------- | ------------------------------------------------------------------ |
-| `_stakedToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
-| `_from`        | `address` | Address of the account to transfer funds from                      |
-| `_amount`      | `uint256` | Amount of underlying tokens to return                              |
 
 ### withdrawFundsRaisedFromAuction
 

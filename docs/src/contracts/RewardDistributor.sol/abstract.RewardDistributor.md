@@ -1,6 +1,6 @@
 # RewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/RewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/RewardDistributor.sol)
 
 **Inherits:**
 [IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md), [RewardController](/contracts/RewardController.sol/abstract.RewardController.md)
@@ -257,22 +257,6 @@ function totalLiquidityPerMarket(address _market) external view returns (uint256
 | -------- | --------- | ---------------------------------------- |
 | `<none>` | `uint256` | Stored total number of tokens per market |
 
-### initMarketStartTime
-
-Sets the start time for accruing rewards to a market which has not been initialized yet
-
-_Can only be called by governance_
-
-```solidity
-function initMarketStartTime(address _market) external virtual onlyRole(GOVERNANCE);
-```
-
-**Parameters**
-
-| Name      | Type      | Description                                                     |
-| --------- | --------- | --------------------------------------------------------------- |
-| `_market` | `address` | Address of the market (i.e., perpetual market or staking token) |
-
 ### addRewardToken
 
 Adds a new reward token
@@ -332,42 +316,36 @@ function registerPositions(address[] calldata _markets) external;
 | ---------- | ----------- | ------------------------------------- |
 | `_markets` | `address[]` | Addresses of the markets to sync with |
 
-### claimRewardsFor
+### claimRewards
 
 Accrues and then distributes rewards for all markets and reward tokens
-and returns the amount of rewards that were not distributed to the given user
+and returns the amount of rewards that were not distributed to the user
 
 ```solidity
-function claimRewardsFor(address _user) public override;
+function claimRewards() public override;
 ```
 
-**Parameters**
-
-| Name    | Type      | Description                              |
-| ------- | --------- | ---------------------------------------- |
-| `_user` | `address` | Address of the user to claim rewards for |
-
-### claimRewardsFor
+### claimRewards
 
 Accrues and then distributes rewards for all markets and reward tokens
-and returns the amount of rewards that were not distributed to the given user
+and returns the amount of rewards that were not distributed to the user
+
+_Non-reentrant because `_distributeReward` transfers reward tokens to the user_
 
 ```solidity
-function claimRewardsFor(address _user, address[] memory _rewardTokens) public override nonReentrant whenNotPaused;
+function claimRewards(address[] memory _rewardTokens) public override nonReentrant whenNotPaused;
 ```
-
-**Parameters**
-
-| Name            | Type        | Description                                         |
-| --------------- | ----------- | --------------------------------------------------- |
-| `_user`         | `address`   | Address of the user to claim rewards for            |
-| `_rewardTokens` | `address[]` | Addresses of the reward tokens to claim rewards for |
 
 ### \_updateMarketRewards
 
-Updates the reward accumulator for a given market
+Updates the reward accumulators for a given market
 
-_Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`_
+\*Executes when any of the following values are changed:
+
+- initial inflation rate per token,
+- reduction factor per token,
+- reward weights per market per token,
+- liquidity in the market\*
 
 ```solidity
 function _updateMarketRewards(address market) internal override;

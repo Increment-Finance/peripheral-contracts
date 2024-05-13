@@ -50,6 +50,7 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// @notice SafetyModule constructor
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _smRewardDistributor Address of the SMRewardDistributor contract, which distributes rewards to stakers
+    /// @param _governance Address of the governance contract, where unsold StakedToken funds are sent if there are no stakers
     constructor(address _auctionModule, address _smRewardDistributor, address _governance) payable {
         // Note: if the SafetyModule is ever re-deployed, the new contract should also set the array of staked tokens
         // in the constructor to avoid having to call `addStakedToken` for each staked token. Otherwise, unless the

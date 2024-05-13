@@ -185,18 +185,8 @@ interface IIncrementLimitOrderModule is IModule {
     /* ****************** */
 
     /// @notice Creates a new limit order
-    /// @dev The `tipFee` in ETH must be sent with the transaction
-    /// @param order The order's info, including:
-    ///        account: The trader's account
-    ///        side: The side of the order, e.g., LONG or SHORT
-    ///        orderType: The type of the order, e.g., LIMIT or STOP
-    ///        reduceOnly: Whether the order is reduce only
-    ///        marketIdx: The market's index in the clearing house
-    ///        targetPrice: The price at which to execute the order, 18 decimals
-    ///        amount: The amount in vQuote (if LONG) or vBase (if SHORT) to sell, 18 decimals
-    ///        expiry: The timestamp at which the order expires
-    ///        slippage: The maximum slippage percent allowed for the order, 18 decimals
-    ///        tipFee: The fee paid to the keeper who executes the order in ETH, 18 decimals
+    /// @dev The `order.tipFee` in ETH must be sent with the transaction
+    /// @param order The order's info
     /// @return orderId The order's unique identifier
     function createOrder(LimitOrder memory order) external payable returns (uint256 orderId);
 

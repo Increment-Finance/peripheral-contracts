@@ -6,6 +6,7 @@
 - [AdminControlledEcosystemReserve](AdminControlledEcosystemReserve.sol/abstract.AdminControlledEcosystemReserve.md)
 - [AuctionModule](AuctionModule.sol/contract.AuctionModule.md)
 - [EcosystemReserve](EcosystemReserve.sol/contract.EcosystemReserve.md)
+- [IncrementLimitOrderModule](IncrementLimitOrderModule.sol/contract.IncrementLimitOrderModule.md)
 - [PerpRewardDistributor](PerpRewardDistributor.sol/contract.PerpRewardDistributor.md)
 - [RewardController](RewardController.sol/abstract.RewardController.md)
 - [RewardDistributor](RewardDistributor.sol/abstract.RewardDistributor.md)

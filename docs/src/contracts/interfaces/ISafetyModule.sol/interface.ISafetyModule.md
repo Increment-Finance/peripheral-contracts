@@ -1,6 +1,6 @@
 # ISafetyModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/ISafetyModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/interfaces/ISafetyModule.sol)
 
 **Author:**
 webthethird
@@ -127,24 +127,6 @@ function getStakedTokenIdx(address token) external view returns (uint256);
 | -------- | --------- | ----------------------------------------------------- |
 | `<none>` | `uint256` | Index of the staked token in the `stakedTokens` array |
 
-### updatePosition
-
-Updates the position of a user for a given staked token and accrues rewards to the user
-
-_This function is called by the StakedToken contract whenever a user's position changes,
-and forwards the call to the SMRewardDistributor_
-
-```solidity
-function updatePosition(address stakedToken, address staker) external;
-```
-
-**Parameters**
-
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `stakedToken` | `address` | Address of the staked token |
-| `staker`      | `address` | Address of the staker       |
-
 ### slashAndStartAuction
 
 Slashes a portion of all users' staked tokens, capped by maxPercentUserLoss, then
@@ -156,7 +138,7 @@ function slashAndStartAuction(
     uint8 _numLots,
     uint128 _lotPrice,
     uint128 _initialLotSize,
-    uint64 _slashPercent,
+    uint256 _slashAmount,
     uint96 _lotIncreaseIncrement,
     uint16 _lotIncreasePeriod,
     uint32 _timeLimit
@@ -171,7 +153,7 @@ function slashAndStartAuction(
 | `_numLots`              | `uint8`   | Number of lots in the auction                                      |
 | `_lotPrice`             | `uint128` | Fixed price of each lot in the auction                             |
 | `_initialLotSize`       | `uint128` | Initial number of underlying tokens in each lot                    |
-| `_slashPercent`         | `uint64`  | Percentage of staked tokens to slash, normalized to 1e18           |
+| `_slashAmount`          | `uint256` | Amount of staked tokens to slash                                   |
 | `_lotIncreaseIncrement` | `uint96`  | Amount of tokens by which the lot size increases each period       |
 | `_lotIncreasePeriod`    | `uint16`  | Number of seconds between each lot size increase                   |
 | `_timeLimit`            | `uint32`  | Number of seconds before the auction ends if all lots are not sold |
@@ -211,25 +193,6 @@ function auctionEnded(uint256 _auctionId, uint256 _remainingBalance) external;
 | ------------------- | --------- | ------------------------------------------------------ |
 | `_auctionId`        | `uint256` | ID of the auction                                      |
 | `_remainingBalance` | `uint256` | Amount of underlying tokens remaining from the auction |
-
-### returnFunds
-
-Donates underlying tokens to a StakedToken contract, raising its exchange rate
-
-_Unsold tokens are returned automatically from the AuctionModule when one ends, so this is meant
-for transferring tokens from some other source, which must approve the StakedToken to transfer first_
-
-```solidity
-function returnFunds(address _stakedToken, address _from, uint256 _amount) external;
-```
-
-**Parameters**
-
-| Name           | Type      | Description                                                        |
-| -------------- | --------- | ------------------------------------------------------------------ |
-| `_stakedToken` | `address` | Address of the StakedToken contract to return underlying tokens to |
-| `_from`        | `address` | Address of the account to transfer funds from                      |
-| `_amount`      | `uint256` | Amount of underlying tokens to return                              |
 
 ### withdrawFundsRaisedFromAuction
 
@@ -311,20 +274,6 @@ Emitted when a staked token is added
 
 ```solidity
 event StakedTokenAdded(address indexed stakedToken);
-```
-
-**Parameters**
-
-| Name          | Type      | Description                 |
-| ------------- | --------- | --------------------------- |
-| `stakedToken` | `address` | Address of the staked token |
-
-### StakedTokenRemoved
-
-Emitted when a staked token is removed
-
-```solidity
-event StakedTokenRemoved(address indexed stakedToken);
 ```
 
 **Parameters**
@@ -422,20 +371,6 @@ event AuctionEnded(
 
 ## Errors
 
-### SafetyModule_CallerIsNotStakedToken
-
-Error returned when a caller other than a registered staked token tries to call a restricted function
-
-```solidity
-error SafetyModule_CallerIsNotStakedToken(address caller);
-```
-
-**Parameters**
-
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `caller` | `address` | Address of the caller |
-
 ### SafetyModule_CallerIsNotAuctionModule
 
 Error returned when a caller other than the auction module tries to call a restricted function
@@ -478,14 +413,6 @@ error SafetyModule_InvalidStakedToken(address invalidAddress);
 | ---------------- | --------- | ----------------------- |
 | `invalidAddress` | `address` | Address that was passed |
 
-### SafetyModule_InvalidSlashPercentTooHigh
-
-Error returned when passing a `slashPercent` value that is greater than 100% (1e18)
-
-```solidity
-error SafetyModule_InvalidSlashPercentTooHigh();
-```
-
 ### SafetyModule_InsufficientSlashedTokensForAuction
 
 Error returned when the maximum auctionable amount of underlying tokens is less than
@@ -502,3 +429,11 @@ error SafetyModule_InsufficientSlashedTokensForAuction(IERC20 token, uint256 amo
 | `token`     | `IERC20`  | The underlying ERC20 token                            |
 | `amount`    | `uint256` | The initial lot size multiplied by the number of lots |
 | `maxAmount` | `uint256` | The maximum auctionable amount of underlying tokens   |
+
+### SafetyModule_CannotReplaceAuctionModuleActiveAuction
+
+Error returned when trying to replace the AuctionModule while an auction is active
+
+```solidity
+error SafetyModule_CannotReplaceAuctionModuleActiveAuction();
+```
