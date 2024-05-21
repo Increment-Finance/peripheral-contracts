@@ -4,11 +4,13 @@ import "@matterlabs/hardhat-zksync-node";
 import "@matterlabs/hardhat-zksync-deploy";
 import "@matterlabs/hardhat-zksync-solc";
 import "@matterlabs/hardhat-zksync-verify";
+import "@nomicfoundation/hardhat-foundry";
+import "@nomicfoundation/hardhat-toolbox";
 
 const config: HardhatUserConfig = {
   defaultNetwork: "zkSyncSepoliaTestnet",
   paths: {
-    sources: "helpers",
+    sources: "./contracts",
   },
   networks: {
     zkSyncSepoliaTestnet: {

@@ -27,6 +27,8 @@
     "@matterlabs/hardhat-zksync-node": "^1.0.1",
     "@matterlabs/hardhat-zksync-solc": "^1.0.6",
     "@matterlabs/hardhat-zksync-verify": "^1.2.2",
+    "@nomicfoundation/hardhat-foundry": "^1.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "dotenv": "^16.3.1",
     "ethers": "^6.9.2",
     "hardhat": "^2.19.4",
