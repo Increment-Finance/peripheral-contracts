@@ -113,14 +113,14 @@ export default async function () {
   const emergencyAdminRole = await safetyModule.EMERGENCY_ADMIN();
   const roles = [
     {
-      roleId: governanceRole,
-      roleName: "GOVERNANCE",
-      recipient: governorAddress,
-    },
-    {
       roleId: emergencyAdminRole,
       roleName: "EMERGENCY_ADMIN",
       recipient: constants.addresses.EMERGENCY_ADMIN,
+    },
+    {
+      roleId: governanceRole,
+      roleName: "GOVERNANCE",
+      recipient: governorAddress,
     },
   ];
   const contracts = [
