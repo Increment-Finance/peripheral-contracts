@@ -4,7 +4,7 @@ pragma solidity 0.8.16;
 // contracts
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
+import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.sol";
 
 // interfaces
 import {ISafetyModule, ISMRewardDistributor} from "./interfaces/ISafetyModule.sol";
