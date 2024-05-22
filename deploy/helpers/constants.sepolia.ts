@@ -3,15 +3,15 @@ import { parseUnits, parseEther } from "ethers";
 export default {
   addresses: {
     USDC: "0xd88D19467f464e070Ebdb34a71D8b728CcE5E8c9",
-    UA: "0x76e3E4B8E7ad3e072218501269d4c65AE080dC88",
-    L2_GOVERNOR: "0x830c91140AD5851D5b765691e14c04101829Eaea",
-    EMERGENCY_ADMIN: "0x830c91140AD5851D5b765691e14c04101829Eaea",
-    CLEARING_HOUSE: "0x6C3388fc1dfa9733FeED87cD3639b463Ee072a8a",
+    UA: "0x0252Cc0C06ae36A5Fafb8324AeB7D87597d03814",
+    L2_GOVERNOR: "0x4E39DCdac1DCa1694897B5CB783Ab52683586962", // EOA owned by webthethird
+    EMERGENCY_ADMIN: "0x4E39DCdac1DCa1694897B5CB783Ab52683586962", // EOA owned by webthethird
+    CLEARING_HOUSE: "0xEb6cdC125EBeCa67233868580E8d70effEa07Ea6",
     PERPETUALS: {
       ETHUSD: {
-        PERPETUAL: "0x0F6CdB75CD0320942D8FDD1E92a711d7f5439516",
-        VBASE: "0x0x3343b2ef3A237A5dE6E0F4e159C27d833081CED4",
-        VQUOTE: "0x7d134dd523B0f2904C3F377f2a62d2b4cC90D185",
+        PERPETUAL: "0xc1a193559cEAE24e8d68c4C38bB1BCE882aBc14B",
+        VBASE: "0x4f37d168e211391DfdE64543ED96145567D987A4",
+        VQUOTE: "0x774B7751099f232A7ee819eC2d75C3969a1e9FCd",
       },
     },
   },
@@ -19,7 +19,7 @@ export default {
     initialInflationRate: parseEther("1171002.34"),
     initialReductionFactor: parseEther("1.189207115"),
     earlyWithdrawalThreshold: "864000", // 10 days
-    rewardWeights: [parseUnits("75", 2), parseUnits("25", 2)], // Assumes two Perpetuals
+    rewardWeights: [parseUnits("100", 2)], // Assumes only one Perpetuals
   },
   smRewardParams: {
     initialInflationRate: parseEther("292750.59"),
