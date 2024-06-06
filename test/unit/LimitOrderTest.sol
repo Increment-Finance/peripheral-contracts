@@ -887,7 +887,7 @@ contract LimitOrderTest is Deployed {
 
     function _fundAndPrepareClaveAccount(IClaveAccount account, uint256 amount) internal {
         uint256 usdcAmount = LibReserve.wadToToken(usdcMock.decimals(), amount);
-        usdcMock.mint(address(account), usdcAmount);
+        deal(address(usdcMock), address(account), usdcAmount);
         vm.startPrank(address(account));
         usdcMock.approve(address(ua), usdcAmount);
         ua.mintWithReserve(usdcMock, usdcAmount);
