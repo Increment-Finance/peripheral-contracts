@@ -103,7 +103,7 @@ contract SafetyModuleTest is Deployment, Utils {
         ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy safety module
-        safetyModule = new TestSafetyModule(address(0), address(0));
+        safetyModule = new TestSafetyModule(address(0), address(0), address(this));
 
         // Deploy auction module
         auctionModule = new AuctionModule(ISafetyModule(address(0)), IERC20(address(usdc)));

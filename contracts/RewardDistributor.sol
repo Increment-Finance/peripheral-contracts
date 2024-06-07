@@ -133,6 +133,9 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
             revert RewardController_AboveMaxRewardTokens(MAX_REWARD_TOKENS);
         }
 
+        // Emit before NewWeight events for subgraph indexing consistency
+        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
+
         uint256 totalWeight;
         uint256 numMarkets = _markets.length;
         for (uint256 i; i < numMarkets;) {
@@ -171,8 +174,6 @@ abstract contract RewardDistributor is IRewardDistributor, RewardController {
         _rewardInfoByToken[_rewardToken].initialInflationRate = _initialInflationRate;
         _rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
         _rewardInfoByToken[_rewardToken].marketAddresses = _markets;
-
-        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
 
     /// @inheritdoc IRewardDistributor

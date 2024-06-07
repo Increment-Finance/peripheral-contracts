@@ -1,0 +1,38 @@
+{
+  "name": "increment-peripheral-contracts",
+  "version": "1.0.0",
+  "description": "Peripheral contracts for Increment protocol, for reward distribution to liquidity providers and stakers, as well as slashing and auction mechanisms for the Safety Module.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "deploy": "hardhat deploy-zksync --script deploy.ts",
+    "deploy:sepolia": "hardhat deploy-zksync --network zkSyncSepoliaTestnet --script deploy.sepolia.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Increment-Finance/peripheral-contracts.git"
+  },
+  "author": "webthethird",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Increment-Finance/peripheral-contracts/issues"
+  },
+  "homepage": "https://github.com/Increment-Finance/peripheral-contracts#readme",
+  "devDependencies": {
+    "@matterlabs/hardhat-zksync-deploy": "^1.1.2",
+    "@matterlabs/hardhat-zksync-node": "^1.0.1",
+    "@matterlabs/hardhat-zksync-solc": "^1.0.6",
+    "@matterlabs/hardhat-zksync-verify": "^1.2.2",
+    "@nomicfoundation/hardhat-foundry": "^1.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.9.2",
+    "hardhat": "^2.19.4",
+    "zksync-ethers": "^6.0.0"
+  }
+}

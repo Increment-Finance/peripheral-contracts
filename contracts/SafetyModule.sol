@@ -4,7 +4,7 @@ pragma solidity 0.8.16;
 // contracts
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {IncreAccessControl} from "@increment/utils/IncreAccessControl.sol";
+import {IncreAccessControl} from "increment-protocol/utils/IncreAccessControl.sol";
 
 // interfaces
 import {ISafetyModule, ISMRewardDistributor} from "./interfaces/ISafetyModule.sol";
@@ -50,12 +50,12 @@ contract SafetyModule is ISafetyModule, IncreAccessControl, Pausable, Reentrancy
     /// @notice SafetyModule constructor
     /// @param _auctionModule Address of the auction module, which sells user funds in the event of an insolvency
     /// @param _smRewardDistributor Address of the SMRewardDistributor contract, which distributes rewards to stakers
-    constructor(address _auctionModule, address _smRewardDistributor) payable {
+    constructor(address _auctionModule, address _smRewardDistributor, address _governance) payable {
         // Note: if the SafetyModule is ever re-deployed, the new contract should also set the array of staked tokens
         // in the constructor to avoid having to call `addStakedToken` for each staked token. Otherwise, unless the
         // SMRewardDistributor is also redeployed, `addStakedToken` will revert when trying to re-initialize a staked
         // token in the SMRD which was already initialized when added to the previous SafetyModule.
-        governance = msg.sender;
+        governance = _governance;
         auctionModule = IAuctionModule(_auctionModule);
         smRewardDistributor = ISMRewardDistributor(_smRewardDistributor);
         emit AuctionModuleUpdated(address(0), _auctionModule);

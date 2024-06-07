@@ -78,6 +78,8 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
         _rewardInfoByToken[_rewardToken].reductionFactor = _initialReductionFactor;
         _rewardInfoByToken[_rewardToken].marketAddresses = new address[](numMarkets);
         uint256 totalWeight;
+        // Emit before NewWeight events for subgraph indexing consistency
+        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
         for (uint256 i; i < numMarkets;) {
             address market = _getMarketAddress(_getMarketIdx(i));
             uint256 weight = _initialRewardWeights[i];
@@ -97,7 +99,6 @@ contract PerpRewardDistributor is RewardDistributor, IPerpRewardDistributor {
             revert RewardController_IncorrectWeightsSum(totalWeight, MAX_BASIS_POINTS);
         }
         rewardTokens.push(_rewardToken);
-        emit RewardTokenAdded(_rewardToken, block.timestamp, _initialInflationRate, _initialReductionFactor);
     }
 
     /* ****************** */
