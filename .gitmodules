@@ -1,9 +1,15 @@
-[submodule "lib/increment-protocol"]
-	path = lib/increment-protocol
-	url = git@github.com:Increment-Finance/increment-protocol
 [submodule "lib/governance"]
 	path = lib/increment-governance
 	url = git@github.com:Increment-Finance/governance
 [submodule "lib/solidity-stringutils"]
 	path = lib/solidity-stringutils
 	url = git@github.com:Arachnid/solidity-stringutils
+[submodule "lib/increment-protocol"]
+	path = lib/increment-protocol
+	url = https://github.com/Increment-Finance/increment-protocol
+[submodule "lib/clave-contracts"]
+	path = lib/clave-contracts
+	url = https://github.com/getclave/clave-contracts
+[submodule "lib/nomad-xyz/ExcessivelySafeCall"]
+	path = lib/nomad-xyz/ExcessivelySafeCall
+	url = https://github.com/nomad-xyz/ExcessivelySafeCall

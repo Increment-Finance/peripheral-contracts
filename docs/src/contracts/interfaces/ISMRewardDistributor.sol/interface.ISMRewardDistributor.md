@@ -1,6 +1,6 @@
 # ISMRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/ISMRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/interfaces/ISMRewardDistributor.sol)
 
 **Inherits:**
 [IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md)
@@ -193,10 +193,24 @@ event SafetyModuleUpdated(address oldSafetyModule, address newSafetyModule);
 
 ### SMRD_CallerIsNotSafetyModule
 
-Error returned when the caller of `updatePosition` is not the SafetyModule
+Error returned when the caller of `initMarketStartTime` is not the SafetyModule
 
 ```solidity
 error SMRD_CallerIsNotSafetyModule(address caller);
+```
+
+**Parameters**
+
+| Name     | Type      | Description           |
+| -------- | --------- | --------------------- |
+| `caller` | `address` | Address of the caller |
+
+### SMRD_CallerIsNotStakedToken
+
+Error returned when the caller of `updatePosition` is not a registered StakedToken
+
+```solidity
+error SMRD_CallerIsNotStakedToken(address caller);
 ```
 
 **Parameters**

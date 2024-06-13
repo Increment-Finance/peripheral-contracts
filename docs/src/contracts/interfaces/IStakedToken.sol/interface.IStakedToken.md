@@ -1,6 +1,6 @@
 # IStakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IStakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/interfaces/IStakedToken.sol)
 
 **Inherits:**
 IERC20Metadata
@@ -25,6 +25,20 @@ function safetyModule() external view returns (ISafetyModule);
 | Name     | Type            | Description           |
 | -------- | --------------- | --------------------- |
 | `<none>` | `ISafetyModule` | SafetyModule contract |
+
+### smRewardDistributor
+
+Address of the SafetyModule's RewardDistributor contract
+
+```solidity
+function smRewardDistributor() external view returns (ISMRewardDistributor);
+```
+
+**Returns**
+
+| Name     | Type                   | Description                  |
+| -------- | ---------------------- | ---------------------------- |
+| `<none>` | `ISMRewardDistributor` | SMRewardDistributor contract |
 
 ### maxStakeAmount
 
@@ -172,6 +186,43 @@ function previewRedeem(uint256 amountToRedeem) external view returns (uint256);
 | -------- | --------- | ------------------------------------------------------------------------------- |
 | `<none>` | `uint256` | Amount of underlying tokens that would be received at the current exchange rate |
 
+### getNextCooldownTimestamp
+
+Calculates a new cooldown timestamp
+
+\*Calculation depends on the sender/receiver situation, as follows:
+
+- If the timestamp of the sender is "better" or the timestamp of the recipient is 0, we take the one of the recipient
+- Weighted average of from/to cooldown timestamps if:
+- The sender doesn't have the cooldown activated (timestamp 0).
+- The sender timestamp is expired
+- The sender has a "worse" timestamp
+- If the receiver's cooldown timestamp expired (too old), the next is 0\*
+
+```solidity
+function getNextCooldownTimestamp(
+    uint256 fromCooldownTimestamp,
+    uint256 amountToReceive,
+    address toAddress,
+    uint256 toBalance
+) external view returns (uint256);
+```
+
+**Parameters**
+
+| Name                    | Type      | Description                        |
+| ----------------------- | --------- | ---------------------------------- |
+| `fromCooldownTimestamp` | `uint256` | Cooldown timestamp of the sender   |
+| `amountToReceive`       | `uint256` | Amount of staked tokens to receive |
+| `toAddress`             | `address` | Address of the recipient           |
+| `toBalance`             | `uint256` | Current balance of the receiver    |
+
+**Returns**
+
+| Name     | Type      | Description                |
+| -------- | --------- | -------------------------- |
+| `<none>` | `uint256` | The new cooldown timestamp |
+
 ### stake
 
 Stakes tokens from the sender and starts earning rewards
@@ -292,6 +343,20 @@ Sets `isInPostSlashingState` to false, which re-enables staking, slashing and co
 ```solidity
 function settleSlashing() external;
 ```
+
+### setRewardDistributor
+
+Updates the stored SMRewardDistributor contract
+
+```solidity
+function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external;
+```
+
+**Parameters**
+
+| Name                    | Type                   | Description                                     |
+| ----------------------- | ---------------------- | ----------------------------------------------- |
+| `_newRewardDistributor` | `ISMRewardDistributor` | Address of the new SMRewardDistributor contract |
 
 ### setSafetyModule
 
@@ -521,15 +586,14 @@ Error returned when the caller tries to slash while the contract is in a post-sl
 error StakedToken_SlashingDisabledInPostSlashingState();
 ```
 
-### StakedToken_CooldownDisabledInPostSlashingState
+### StakedToken_NoStakingOnBehalfOfExistingStaker
 
-Error returned when the caller tries to activate the cooldown period while the contract is
-in a post-slashing state
+Error returned when the caller tries to stake on behalf of a user who has staked already
 
-_In a post-slashing state, users can redeem without waiting for the cooldown period_
+_Required to prevent griefing stakers by forcing them to accrue rewards at a lower multiplier_
 
 ```solidity
-error StakedToken_CooldownDisabledInPostSlashingState();
+error StakedToken_NoStakingOnBehalfOfExistingStaker();
 ```
 
 ### StakedToken_InsufficientCooldown

@@ -1,6 +1,11 @@
-@openzeppelin/=lib/increment-protocol/lib/openzeppelin-contracts/
+@openzeppelin/contracts-upgradeable/=lib/increment-governance/lib/openzeppelin-contracts-upgradeable/contracts/
+@openzeppelin/contracts/=lib/increment-protocol/lib/openzeppelin-contracts/contracts/
 prb-math/=lib/increment-protocol/lib/prb-math
 @increment/=lib/increment-protocol/contracts/
+increment-protocol/=lib/increment-protocol/contracts/
 @increment-governance/=lib/increment-governance/src/
 forge/=lib/increment-protocol/lib/forge-std/src/
 stringutils/=lib/solidity-stringutils/
+clave-contracts/=lib/clave-contracts/
+@matterlabs/zksync-contracts/l2/system-contracts/=lib/increment-protocol/lib/era-contracts/system-contracts/contracts/
+@nomad-xyz/excessively-safe-call/=lib/nomad-xyz/ExcessivelySafeCall/

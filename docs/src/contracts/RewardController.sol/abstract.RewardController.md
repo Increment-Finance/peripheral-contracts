@@ -1,6 +1,6 @@
 # RewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/RewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/RewardController.sol)
 
 **Inherits:**
 [IRewardController](/contracts/interfaces/IRewardController.sol/interface.IRewardController.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -38,6 +38,14 @@ Maximum number of reward tokens allowed
 
 ```solidity
 uint256 internal constant MAX_REWARD_TOKENS = 10;
+```
+
+### MAX_BASIS_POINTS
+
+100% in basis points
+
+```solidity
+uint256 internal constant MAX_BASIS_POINTS = 10000;
 ```
 
 ### rewardTokens
@@ -187,7 +195,7 @@ Gets the current inflation rate of a reward token (factoring in reduction factor
 _`inflationRate = initialInflationRate / reductionFactor^((block.timestamp - initialTimestamp) / secondsPerYear)`_
 
 ```solidity
-function getInflationRate(address rewardToken) external view returns (uint256);
+function getInflationRate(address rewardToken) public view returns (uint256);
 ```
 
 **Parameters**
@@ -393,9 +401,14 @@ function _togglePausedReward(address _rewardToken) internal;
 
 ### \_updateMarketRewards
 
-Updates the reward accumulator for a given market
+Updates the reward accumulators for a given market
 
-_Executes when any of the following variables are changed: `inflationRate`, `marketWeights`, `liquidity`_
+\*Executes when any of the following values are changed:
+
+- initial inflation rate per token,
+- reduction factor per token,
+- reward weights per market per token,
+- liquidity in the market\*
 
 ```solidity
 function _updateMarketRewards(address market) internal virtual;

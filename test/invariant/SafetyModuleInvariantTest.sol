@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.16;
+pragma solidity ^0.8.16;
 
 // contracts
 import {IncrementToken} from "@increment-governance/IncrementToken.sol";
@@ -110,7 +110,7 @@ contract SafetyModuleInvariantTest is Test {
         weights[1] = 5000;
 
         // Deploy safety module
-        safetyModule = new SafetyModule(address(0), address(0));
+        safetyModule = new SafetyModule(address(0), address(0), address(this));
 
         // Deploy auction module
         usdc = IERC20Metadata(USDC);

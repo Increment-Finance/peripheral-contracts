@@ -1,6 +1,6 @@
 # PerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/PerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/PerpRewardDistributor.sol)
 
 **Inherits:**
 [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [IPerpRewardDistributor](/contracts/interfaces/IPerpRewardDistributor.sol/interface.IPerpRewardDistributor.md)
@@ -88,10 +88,10 @@ function updatePosition(address market, address user) external virtual override 
 
 **Parameters**
 
-| Name     | Type      | Description                      |
-| -------- | --------- | -------------------------------- |
-| `market` | `address` | Address of the perpetual market  |
-| `user`   | `address` | Address of the liquidity provier |
+| Name     | Type      | Description                       |
+| -------- | --------- | --------------------------------- |
+| `market` | `address` | Address of the perpetual market   |
+| `user`   | `address` | Address of the liquidity provider |
 
 ### earlyWithdrawalThreshold
 
@@ -146,6 +146,22 @@ function paused() public view override returns (bool);
 | Name     | Type   | Description                     |
 | -------- | ------ | ------------------------------- |
 | `<none>` | `bool` | True if paused, false otherwise |
+
+### initMarketStartTime
+
+Sets the start time for accruing rewards to a market which has not been initialized yet
+
+_Only callable by governance_
+
+```solidity
+function initMarketStartTime(address _market) external onlyRole(GOVERNANCE);
+```
+
+**Parameters**
+
+| Name      | Type      | Description                                                     |
+| --------- | --------- | --------------------------------------------------------------- |
+| `_market` | `address` | Address of the market (i.e., perpetual market or staking token) |
 
 ### setEarlyWithdrawalThreshold
 
@@ -246,10 +262,10 @@ function _getCurrentPosition(address user, address market) internal view overrid
 
 ### \_accrueRewards
 
-Accrues rewards to a user for a given market
+Accrues rewards and updates the stored LP position of a user and the total liquidity in the market
 
-_Assumes LP position hasn't changed since last accrual, since updating rewards due to changes in
-LP position is handled by `updatePosition`_
+_Called by `updatePosition`, which can only be called by the ClearingHouse when an LP's position changes,
+and `claimRewards`, which always passes `msg.sender` as the user_
 
 ```solidity
 function _accrueRewards(address market, address user) internal virtual override;
