@@ -29,7 +29,7 @@ jobs:
           version: nightly
       
       - name: Log Vm.sol for debugging
-        run: cat /home/runner/work/peripheral-contracts/peripheral-contracts/lib/forge-std/src/Vm.sol
+        run: cat /home/runner/work/peripheral-contracts/peripheral-contracts/lib/increment-protocol/lib/forge-std/src/Vm.sol
 
       - name: Compile
         run: forge build
