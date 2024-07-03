@@ -1,6 +1,6 @@
 # IRewardController
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IRewardController.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/interfaces/IRewardController.sol)
 
 **Author:**
 webthethird
@@ -358,6 +358,34 @@ event RewardTokenRemoved(address indexed rewardToken, uint256 unclaimedRewards, 
 | `rewardToken`      | `address` | The reward token address                                      |
 | `unclaimedRewards` | `uint256` | The amount of reward tokens still claimable                   |
 | `remainingBalance` | `uint256` | The remaining balance of the reward token, sent to governance |
+
+### RewardTokenPaused
+
+Emitted when accrual for a reward token is paused
+
+```solidity
+event RewardTokenPaused(address indexed rewardToken);
+```
+
+**Parameters**
+
+| Name          | Type      | Description              |
+| ------------- | --------- | ------------------------ |
+| `rewardToken` | `address` | The reward token address |
+
+### RewardTokenUnpaused
+
+Emitted when accrual for a reward token is unpaused
+
+```solidity
+event RewardTokenUnpaused(address indexed rewardToken);
+```
+
+**Parameters**
+
+| Name          | Type      | Description              |
+| ------------- | --------- | ------------------------ |
+| `rewardToken` | `address` | The reward token address |
 
 ### MarketRemovedFromRewards
 

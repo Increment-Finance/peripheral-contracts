@@ -1,6 +1,6 @@
 # IRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/interfaces/IRewardDistributor.sol)
 
 **Inherits:**
 IRewardContract
@@ -247,35 +247,28 @@ function registerPositions(address[] calldata _markets) external;
 | ---------- | ----------- | ------------------------------------- |
 | `_markets` | `address[]` | Addresses of the markets to sync with |
 
-### claimRewardsFor
+### claimRewards
 
 Accrues and then distributes rewards for all markets and reward tokens
-and returns the amount of rewards that were not distributed to the given user
+and returns the amount of rewards that were not distributed to the user
 
 ```solidity
-function claimRewardsFor(address _user) external;
+function claimRewards() external;
 ```
 
-**Parameters**
-
-| Name    | Type      | Description                              |
-| ------- | --------- | ---------------------------------------- |
-| `_user` | `address` | Address of the user to claim rewards for |
-
-### claimRewardsFor
+### claimRewards
 
 Accrues and then distributes rewards for all markets that receive any of the provided reward tokens
-to the given user
+to the user
 
 ```solidity
-function claimRewardsFor(address _user, address[] memory _rewardTokens) external;
+function claimRewards(address[] memory _rewardTokens) external;
 ```
 
 **Parameters**
 
 | Name            | Type        | Description                                         |
 | --------------- | ----------- | --------------------------------------------------- |
-| `_user`         | `address`   | Address of the user to claim rewards for            |
 | `_rewardTokens` | `address[]` | Addresses of the reward tokens to claim rewards for |
 
 ## Events
@@ -396,28 +389,6 @@ error RewardDistributor_PositionAlreadyRegistered(address user, address market, 
 | `user`     | `address` | Address of the user   |
 | `market`   | `address` | Address of the market |
 | `position` | `uint256` | Position of the user  |
-
-### RewardDistributor_UserPositionMismatch
-
-Error returned if a user's position stored in the RewardDistributor does not match their current position in a given market
-
-_Only possible when the user had a pre-existing position in the market before the RewardDistributor
-was deployed, and has not called `registerPositions` yet_
-
-```solidity
-error RewardDistributor_UserPositionMismatch(
-    address user, address market, uint256 storedPosition, uint256 actualPosition
-);
-```
-
-**Parameters**
-
-| Name             | Type      | Description                              |
-| ---------------- | --------- | ---------------------------------------- |
-| `user`           | `address` | Address of the user                      |
-| `market`         | `address` | Address of the market                    |
-| `storedPosition` | `uint256` | Position stored in the RewardDistributor |
-| `actualPosition` | `uint256` | Current position of the user             |
 
 ### RewardDistributor_InvalidZeroAddress
 

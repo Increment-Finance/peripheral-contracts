@@ -1,6 +1,6 @@
 # SMRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/SMRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/SMRewardDistributor.sol)
 
 **Inherits:**
 [RewardDistributor](/contracts/RewardDistributor.sol/abstract.RewardDistributor.md), [ISMRewardDistributor](/contracts/interfaces/ISMRewardDistributor.sol/interface.ISMRewardDistributor.md)
@@ -52,7 +52,7 @@ mapping(address => mapping(address => uint256)) internal _multiplierStartTimeByU
 
 ### onlySafetyModule
 
-Modifier for functions that should only be called by the SafetyModule
+Modifier for functions that should only be called by the SafetyModule, i.e., `initMarketStartTime`
 
 ```solidity
 modifier onlySafetyModule();
@@ -81,22 +81,22 @@ constructor(ISafetyModule _safetyModule, uint256 _maxMultiplier, uint256 _smooth
 
 Accrues rewards and updates the stored stake position of a user and the total tokens staked
 
-_Executes whenever a user's stake is updated for any reason_
+_Only callable by a registered StakedToken, executes whenever a user's stake is updated for any reason_
 
 ```solidity
-function updatePosition(address market, address user) external virtual override onlySafetyModule;
+function updatePosition(address market, address user) external virtual override;
 ```
 
 **Parameters**
 
-| Name     | Type      | Description                                   |
-| -------- | --------- | --------------------------------------------- |
-| `market` | `address` | Address of the staked token in `stakedTokens` |
-| `user`   | `address` | Address of the staker                         |
+| Name     | Type      | Description                                                |
+| -------- | --------- | ---------------------------------------------------------- |
+| `market` | `address` | Address of the staked token in `SafetyModule.stakedTokens` |
+| `user`   | `address` | Address of the staker                                      |
 
 ### getMaxRewardMultiplier
 
-newRewards = user.lpBalance x (global.cumRewardPerLpToken - user.cumRewardPerLpToken) x user.rewardMultiplier
+Gets the maximum reward multiplier set by governance
 
 ```solidity
 function getMaxRewardMultiplier() external view returns (uint256);
@@ -186,18 +186,12 @@ function computeRewardMultiplier(address _user, address _stakedToken) public vie
 
 ### initMarketStartTime
 
-Multiplier formula:
-maxRewardMultiplier - 1 / ((1 / smoothingValue) _ deltaDays + (1 / (maxRewardMultiplier - 1)))
-= maxRewardMultiplier - smoothingValue / (deltaDays + (smoothingValue / (maxRewardMultiplier - 1)))
-= maxRewardMultiplier - (smoothingValue _ (maxRewardMultiplier - 1)) / ((deltaDays \* (maxRewardMultiplier - 1)) + smoothingValue)
+Sets the start time for accruing rewards to a market which has not been initialized yet
 
 _Can only be called by the SafetyModule_
 
 ```solidity
-function initMarketStartTime(address _market)
-    external
-    override(IRewardDistributor, RewardDistributor)
-    onlySafetyModule;
+function initMarketStartTime(address _market) external onlySafetyModule;
 ```
 
 **Parameters**
@@ -331,10 +325,10 @@ function _getCurrentPosition(address staker, address token) internal view virtua
 
 ### \_accrueRewards
 
-Accrues rewards to a user for a given staked token
+Accrues rewards and updates the stored stake position of a user and the total tokens staked
 
-_Assumes stake position hasn't changed since last accrual, since updating rewards due to changes in
-stake position is handled by `updatePosition`_
+_Called by `updatePosition`, which can only be called by a StakedToken when a user's stake changes,
+and `claimRewards`, which always passes `msg.sender` as the user_
 
 ```solidity
 function _accrueRewards(address market, address user) internal virtual override;

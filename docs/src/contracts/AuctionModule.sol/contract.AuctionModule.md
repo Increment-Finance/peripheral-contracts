@@ -1,6 +1,6 @@
 # AuctionModule
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/AuctionModule.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/AuctionModule.sol)
 
 **Inherits:**
 [IAuctionModule](/contracts/interfaces/IAuctionModule.sol/interface.IAuctionModule.md), IncreAccessControl, Pausable, ReentrancyGuard
@@ -37,6 +37,12 @@ ID of the next auction
 uint256 internal _nextAuctionId;
 ```
 
+### \_numCompletedAuctions
+
+```solidity
+uint256 internal _numCompletedAuctions;
+```
+
 ### \_auctions
 
 Mapping of auction IDs to auction information
@@ -59,6 +65,16 @@ Mapping of auction IDs to the number of payment tokens raised in that auction
 
 ```solidity
 mapping(uint256 => uint256) internal _fundsRaisedPerAuction;
+```
+
+### \_tokenBalancesInAuction
+
+Mapping of ERC20 tokens to the internally tracked balance of this contract
+
+_Used to enforce that only one auction may be active for a given token at a time_
+
+```solidity
+mapping(IERC20 => uint256) internal _tokenBalancesInAuction;
 ```
 
 ## Functions
@@ -328,6 +344,20 @@ function isAuctionActive(uint256 _auctionId) external view returns (bool);
 | -------- | ------ | ---------------------------------------------------- |
 | `<none>` | `bool` | True if the auction is still active, false otherwise |
 
+### isAnyAuctionActive
+
+Returns whether any auction is still active
+
+```solidity
+function isAnyAuctionActive() public view returns (bool);
+```
+
+**Returns**
+
+| Name     | Type   | Description                                          |
+| -------- | ------ | ---------------------------------------------------- |
+| `<none>` | `bool` | True if any auction is still active, false otherwise |
+
 ### buyLots
 
 Buys one or more lots at the current lot size, and ends the auction if all lots are sold
@@ -347,9 +377,20 @@ function buyLots(uint256 _auctionId, uint8 _numLotsToBuy) external nonReentrant 
 
 ### completeAuction
 
+Ends an auction after the time limit has been reached and approves the transfer of
+unsold tokens and funds raised
+
+_This function can be called by anyone, but only after the auction's end time has passed_
+
 ```solidity
 function completeAuction(uint256 _auctionId) external nonReentrant whenNotPaused;
 ```
+
+**Parameters**
+
+| Name         | Type      | Description       |
+| ------------ | --------- | ----------------- |
+| `_auctionId` | `uint256` | ID of the auction |
 
 ### paused
 

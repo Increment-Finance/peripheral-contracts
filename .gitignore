@@ -1,12 +1,22 @@
 # Compiler files
 cache/
+cache-zk/
+cache_hardhat-zk/
 out/
+zkout/
+artifacts-zk/
+typechain-types/
 
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*
 /broadcast/*/31337/
 
+# Ignore fuzzing logs
+fuzz-logs.txt
+
 .env
 .idea/
+.vscode/
 lib/*
+node_modules

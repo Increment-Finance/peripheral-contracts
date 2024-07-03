@@ -1,9 +1,9 @@
 # StakedToken
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/StakedToken.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/StakedToken.sol)
 
 **Inherits:**
-[IStakedToken](/contracts/interfaces/IStakedToken.sol/interface.IStakedToken.md), ERC20Permit, IncreAccessControl, Pausable, ReentrancyGuard
+[IStakedToken](/contracts/interfaces/IStakedToken.sol/interface.IStakedToken.md), ERC20Permit, IncreAccessControl, Pausable
 
 **Author:**
 webthethird
@@ -12,28 +12,28 @@ Based on Aave's StakedToken, but with reward management outsourced to the Safety
 
 ## State Variables
 
-### UNDERLYING_TOKEN
+### \_UNDERLYING_TOKEN
 
 Address of the underlying token to stake
 
 ```solidity
-IERC20 internal immutable UNDERLYING_TOKEN;
+IERC20 internal immutable _UNDERLYING_TOKEN;
 ```
 
-### COOLDOWN_SECONDS
+### \_COOLDOWN_SECONDS
 
 Seconds that user must wait between calling cooldown and redeem
 
 ```solidity
-uint256 internal immutable COOLDOWN_SECONDS;
+uint256 internal immutable _COOLDOWN_SECONDS;
 ```
 
-### UNSTAKE_WINDOW
+### \_UNSTAKE_WINDOW
 
 Seconds available to redeem once the cooldown period is fullfilled
 
 ```solidity
-uint256 internal immutable UNSTAKE_WINDOW;
+uint256 internal immutable _UNSTAKE_WINDOW;
 ```
 
 ### safetyModule
@@ -42,6 +42,14 @@ Address of the SafetyModule contract
 
 ```solidity
 ISafetyModule public safetyModule;
+```
+
+### smRewardDistributor
+
+Address of the SafetyModule's SMRewardDistributor contract
+
+```solidity
+ISMRewardDistributor public smRewardDistributor;
 ```
 
 ### isInPostSlashingState
@@ -73,6 +81,14 @@ but it can be lower if users' stakes have been slashed for an auction by the Saf
 
 ```solidity
 uint256 public exchangeRate;
+```
+
+### \_underlyingBalance
+
+Internal accounting of total underlying token balance
+
+```solidity
+uint256 internal _underlyingBalance;
 ```
 
 ### \_stakersCooldowns
@@ -228,7 +244,7 @@ function previewRedeem(uint256 amountToRedeem) public view returns (uint256);
 Stakes tokens from the sender and starts earning rewards
 
 ```solidity
-function stake(uint256 amount) external override;
+function stake(uint256 amount) external;
 ```
 
 **Parameters**
@@ -244,7 +260,7 @@ Stakes tokens on behalf of the given address, and starts earning rewards
 _Tokens are transferred from the transaction sender, not from the `onBehalfOf` address_
 
 ```solidity
-function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external override;
+function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external;
 ```
 
 **Parameters**
@@ -259,7 +275,7 @@ function stakeOnBehalfOf(address onBehalfOf, uint256 amount) external override;
 Redeems staked tokens, and stop earning rewards
 
 ```solidity
-function redeem(uint256 amount) external override;
+function redeem(uint256 amount) external;
 ```
 
 **Parameters**
@@ -275,7 +291,7 @@ Redeems staked tokens, and stop earning rewards
 _Staked tokens are redeemed from the sender, and underlying tokens are sent to the `to` address_
 
 ```solidity
-function redeemTo(address to, uint256 amount) external override;
+function redeemTo(address to, uint256 amount) external;
 ```
 
 **Parameters**
@@ -292,60 +308,7 @@ Activates the cooldown period to unstake
 _Can't be called if the user is not staking_
 
 ```solidity
-function cooldown() external override;
-```
-
-### slash
-
-Sends underlying tokens to the given address, lowers the exchange rate accordingly, and
-changes the contract's state to `POST_SLASHING`, which disables staking, cooldown period and
-further slashing until the state is returned to `RUNNING`
-
-_Only callable by the SafetyModule contract_
-
-```solidity
-function slash(address destination, uint256 amount) external onlySafetyModule returns (uint256);
-```
-
-**Parameters**
-
-| Name          | Type      | Description                                      |
-| ------------- | --------- | ------------------------------------------------ |
-| `destination` | `address` | Address to send the slashed underlying tokens to |
-| `amount`      | `uint256` | Amount of staked tokens to slash                 |
-
-**Returns**
-
-| Name     | Type      | Description                         |
-| -------- | --------- | ----------------------------------- |
-| `<none>` | `uint256` | Amount of underlying tokens slashed |
-
-### returnFunds
-
-Transfers underlying tokens from the given address to this contract and increases the
-exchange rate accordingly
-
-_Only callable by the SafetyModule contract_
-
-```solidity
-function returnFunds(address from, uint256 amount) external onlySafetyModule;
-```
-
-**Parameters**
-
-| Name     | Type      | Description                             |
-| -------- | --------- | --------------------------------------- |
-| `from`   | `address` | Address to transfer tokens from         |
-| `amount` | `uint256` | Amount of underlying tokens to transfer |
-
-### settleSlashing
-
-Sets `isInPostSlashingState` to false, which re-enables staking, slashing and cooldown period
-
-_Only callable by the SafetyModule contract_
-
-```solidity
-function settleSlashing() external onlySafetyModule;
+function cooldown() external whenNotPaused;
 ```
 
 ### getNextCooldownTimestamp
@@ -401,6 +364,73 @@ function paused() public view override returns (bool);
 | -------- | ------ | ------------------------------- |
 | `<none>` | `bool` | True if paused, false otherwise |
 
+### slash
+
+Sends underlying tokens to the given address, lowers the exchange rate accordingly, and
+changes the contract's state to `POST_SLASHING`, which disables staking, cooldown period and
+further slashing until the state is returned to `RUNNING`
+
+```solidity
+function slash(address destination, uint256 amount) external onlySafetyModule returns (uint256);
+```
+
+**Parameters**
+
+| Name          | Type      | Description                                      |
+| ------------- | --------- | ------------------------------------------------ |
+| `destination` | `address` | Address to send the slashed underlying tokens to |
+| `amount`      | `uint256` | Amount of staked tokens to slash                 |
+
+**Returns**
+
+| Name     | Type      | Description                         |
+| -------- | --------- | ----------------------------------- |
+| `<none>` | `uint256` | Amount of underlying tokens slashed |
+
+### returnFunds
+
+Transfers underlying tokens from the given address to this contract and increases the
+exchange rate accordingly
+
+_Only callable by the SafetyModule contract_
+
+```solidity
+function returnFunds(address from, uint256 amount) external onlySafetyModule;
+```
+
+**Parameters**
+
+| Name     | Type      | Description                             |
+| -------- | --------- | --------------------------------------- |
+| `from`   | `address` | Address to transfer tokens from         |
+| `amount` | `uint256` | Amount of underlying tokens to transfer |
+
+### settleSlashing
+
+Sets `isInPostSlashingState` to false, which re-enables staking, slashing and cooldown period
+
+_Only callable by the SafetyModule contract_
+
+```solidity
+function settleSlashing() external onlySafetyModule;
+```
+
+### setRewardDistributor
+
+Updates the stored SMRewardDistributor contract
+
+_Only callable by the SafetyModule contract in `SafetyModule.setRewardDistributor`_
+
+```solidity
+function setRewardDistributor(ISMRewardDistributor _newRewardDistributor) external onlySafetyModule;
+```
+
+**Parameters**
+
+| Name                    | Type                   | Description                                     |
+| ----------------------- | ---------------------- | ----------------------------------------------- |
+| `_newRewardDistributor` | `ISMRewardDistributor` | Address of the new SMRewardDistributor contract |
+
 ### setSafetyModule
 
 Changes the SafetyModule contract used for reward management
@@ -455,8 +485,9 @@ function unpause() external onlyRole(GOVERNANCE);
 
 ### \_updateExchangeRate
 
-Updates the exchange rate of the staked token, based on the current underlying token balance
-held by this contract and the total supply of the staked token
+Updates the exchange rate of the staked token,
+
+_Based on this contract's current underlying token balance and the total supply of the staked token_
 
 ```solidity
 function _updateExchangeRate(uint256 totalAssets, uint256 totalShares) internal;
@@ -483,12 +514,54 @@ function _transfer(address from, address to, uint256 amount) internal override w
 
 ### \_stake
 
+Internal staking function, accrues rewards after updating user's position
+
+_Transfers underlying tokens from the `from` address and mints staked tokens to the `to` address_
+
+_Reverts if any of the following conditions are met:_
+
+- _The contract is paused_
+- _The amount to stake is zero_
+- _The current exchange rate is zero (i.e., all underlying tokens have been slashed)_
+- _The contract is in a post-slashing state_
+- _The user's stake balance would exceed the max stake amount_
+- _The user's underlying token balance is insufficient_
+- _The user has not approved this contract to transfer the amount of underlying tokens_
+
 ```solidity
 function _stake(address from, address to, uint256 amount) internal whenNotPaused;
 ```
 
+**Parameters**
+
+| Name     | Type      | Description                                |
+| -------- | --------- | ------------------------------------------ |
+| `from`   | `address` | Address to transfer underlying tokens from |
+| `to`     | `address` | Address to mint staked tokens to           |
+| `amount` | `uint256` | Amount of underlying tokens to stake       |
+
 ### \_redeem
+
+Internal redeeming function, accrues rewards after updating user's position
+
+_Burns staked tokens from the `from` address and transfers underlying tokens to the `to` address_
+
+_Reverts if any of the following conditions are met:_
+
+- _The user's staked token balance is zero_
+- _The amount to redeem is zero_
+- _The current exchange rate is zero (i.e., all underlying tokens have been slashed)_
+- _The user's cooldown period is not over_
+- _The unstake window has passed\*_
 
 ```solidity
 function _redeem(address from, address to, uint256 amount) internal;
 ```
+
+**Parameters**
+
+| Name     | Type      | Description                              |
+| -------- | --------- | ---------------------------------------- |
+| `from`   | `address` | Address to burn staked tokens from       |
+| `to`     | `address` | Address to transfer underlying tokens to |
+| `amount` | `uint256` | Amount of staked tokens to redeem        |

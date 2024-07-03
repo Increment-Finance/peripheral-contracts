@@ -1,6 +1,6 @@
 # IPerpRewardDistributor
 
-[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/cf0cdb73c3067e3512acceef3935e48ab8394c32/contracts/interfaces/IPerpRewardDistributor.sol)
+[Git Source](https://github.com/Increment-Finance/peripheral-contracts/blob/7b4166bd3bb6b2c678b84df162bcaf7af66b042d/contracts/interfaces/IPerpRewardDistributor.sol)
 
 **Inherits:**
 [IRewardDistributor](/contracts/interfaces/IRewardDistributor.sol/interface.IRewardDistributor.md)
@@ -104,6 +104,41 @@ event EarlyWithdrawalThresholdUpdated(uint256 oldEarlyWithdrawalThreshold, uint2
 | ----------------------------- | --------- | ------------------------------ |
 | `oldEarlyWithdrawalThreshold` | `uint256` | Old early withdrawal threshold |
 | `newEarlyWithdrawalThreshold` | `uint256` | New early withdrawal threshold |
+
+### EarlyWithdrawalPenaltyApplied
+
+Emitted when a user incurs an early withdrawal penalty
+
+```solidity
+event EarlyWithdrawalPenaltyApplied(
+    address indexed user, address indexed market, address indexed token, uint256 penalty
+);
+```
+
+**Parameters**
+
+| Name      | Type      | Description                 |
+| --------- | --------- | --------------------------- |
+| `user`    | `address` | Address of the user         |
+| `market`  | `address` | Address of the market       |
+| `token`   | `address` | Address of the reward token |
+| `penalty` | `uint256` | Amount of penalty incurred  |
+
+### EarlyWithdrawalTimerReset
+
+Emitted when a user's early withdrawal timer is reset
+
+```solidity
+event EarlyWithdrawalTimerReset(address indexed user, address indexed market, uint256 expireTime);
+```
+
+**Parameters**
+
+| Name         | Type      | Description                                              |
+| ------------ | --------- | -------------------------------------------------------- |
+| `user`       | `address` | Address of the user                                      |
+| `market`     | `address` | Address of the market                                    |
+| `expireTime` | `uint256` | New expiration time of the user's early withdrawal timer |
 
 ## Errors
 
