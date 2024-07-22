@@ -71,8 +71,7 @@ interface IStakedToken is IERC20Metadata {
     error StakedToken_ZeroBalanceAtCooldown();
 
     /// @notice Error returned when the caller tries to stake or redeem tokens when the exchange rate is 0
-    /// @dev This can only happen if 100% of the underlying tokens have been slashed by the SafetyModule,
-    /// which should never occur in practice because the SafetyModule can only slash `maxPercentUserLoss`
+    /// @dev This can only happen if 100% of the underlying tokens have been slashed by the SafetyModule
     error StakedToken_ZeroExchangeRate();
 
     /// @notice Error returned when the caller tries to stake while the contract is in a post-slashing state
