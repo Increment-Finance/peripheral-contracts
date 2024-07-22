@@ -1,5 +1,6 @@
 [profile.default]
 ffi = true
+solc_version = '0.8.16'
 fuzz_runs = 256
 optimizer = true
 optimizer_runs = 999999
