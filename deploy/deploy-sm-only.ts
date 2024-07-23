@@ -154,7 +154,7 @@ export default async function () {
     }
   }
 
-  // 10. Create proposal to transfer 2.76M INCR tokens to the EcosystemReserve
+  // 10. Create proposal to transfer 1.84M INCR tokens to the EcosystemReserve
   const governorArtifact = await hre.artifacts.readArtifact("IGovernor");
   const governor = new Contract(
     constants.addresses.L2_GOVERNOR,
@@ -183,11 +183,11 @@ export default async function () {
   const proposalCalldatas = [
     erc20Interface.encodeFunctionData("transfer", [
       ecosystemReserveAddress,
-      parseEther("2760000"),
+      parseEther("1840000"),
     ]),
   ];
   const proposalDescription =
-    "Transfer 2.76M INCR to EcosystemReserve and enable LP rewards";
+    "Transfer 1.84M INCR to EcosystemReserve and enable LP rewards";
 
   const proposalId = await governor.propose.staticCall(
     proposalTargets,
