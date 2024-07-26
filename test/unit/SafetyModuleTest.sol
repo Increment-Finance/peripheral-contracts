@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity 0.8.16;
+pragma solidity ^0.8.16;
 
 // contracts
 import {Deployment} from "../../lib/increment-protocol/test/helpers/Deployment.MainnetFork.sol";
@@ -103,7 +103,7 @@ contract SafetyModuleTest is Deployment, Utils {
         ecosystemReserve = new EcosystemReserve(address(this));
 
         // Deploy safety module
-        safetyModule = new TestSafetyModule(address(0), address(0));
+        safetyModule = new TestSafetyModule(address(0), address(0), address(this));
 
         // Deploy auction module
         auctionModule = new AuctionModule(ISafetyModule(address(0)), IERC20(address(usdc)));

@@ -1,0 +1,41 @@
+import { parseUnits, parseEther } from "ethers";
+
+export default {
+  addresses: {
+    USDC: "0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4",
+    UA: "0xfc840c55b791a1DbAF5C588116a8fC0b4859d227",
+    L2_GOVERNOR: "0xd5843D3B16EB07CD13483a9692205d1C38c7A6e4",
+    L2_TOKEN: "0xb2c5a37A4C37c16DDd21181F6Ddbc989c3D36cDC",
+    UNDERLYING_TOKEN: "0x92f1d196885141B6c81fDc20b7Eb4E67CBeEF771", // SyncSwap WETH/INCR-A
+    EMERGENCY_ADMIN: "0x4f05E10B7e60D5b18c38a723d9469b4962C288D9",
+    ECOSYSTEM_RESERVE: "0x45C7a43C00742f76205b8cc0333426981ce84a5a", // Placeholder
+    CLEARING_HOUSE: "0x9200536A28b0Bf5d02b7d8966cd441EDc173dE61",
+    PERPETUALS: {
+      ETHUSD: {
+        PERPETUAL: "0xeda91B6d87A257d209e947BD7f1bC25FC49272B6",
+        VBASE: "0xFF4Dd1A9839065885d3313Ca525aC35213af69C5",
+        VQUOTE: "0x9a2658635e7000231e1480F2112e5c7d67F8e486",
+      },
+    },
+  },
+  perpRewardParams: {
+    initialInflationRate: parseEther("1171002.34").toString(),
+    initialReductionFactor: parseEther("1.189207115").toString(),
+    earlyWithdrawalThreshold: "864000", // 10 days
+    rewardWeights: [parseUnits("100", 2).toString()], // Assumes only one Perpetual
+  },
+  smRewardParams: {
+    initialInflationRate: parseEther("292750.59").toString(),
+    initialReductionFactor: parseEther("1.189207115").toString(),
+    maxMultiplier: parseUnits("4", 18).toString(),
+    smoothingValue: parseUnits("30", 18).toString(),
+    rewardWeights: [parseUnits("100", 2).toString()], // Assumes only one StakedToken
+  },
+  stakedTokenParams: {
+    cooldownSeconds: "864000", // 10 days
+    unstakeWindow: "172800", // 2 days
+    maxStakeAmount: parseEther("1000000").toString(),
+    name: "Staked Increment Syncswap Pool Token",
+    symbol: "stkISPT",
+  },
+};
