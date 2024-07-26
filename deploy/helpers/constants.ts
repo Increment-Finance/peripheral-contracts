@@ -8,7 +8,7 @@ export default {
     L2_TOKEN: "0xb2c5a37A4C37c16DDd21181F6Ddbc989c3D36cDC",
     UNDERLYING_TOKEN: "0x92f1d196885141B6c81fDc20b7Eb4E67CBeEF771", // SyncSwap WETH/INCR-A
     EMERGENCY_ADMIN: "0x4f05E10B7e60D5b18c38a723d9469b4962C288D9",
-    ECOSYSTEM_RESERVE: "0x00000000000000000000000000000000deadbeef", // Placeholder
+    ECOSYSTEM_RESERVE: "0x45C7a43C00742f76205b8cc0333426981ce84a5a", // Placeholder
     CLEARING_HOUSE: "0x9200536A28b0Bf5d02b7d8966cd441EDc173dE61",
     PERPETUALS: {
       ETHUSD: {
@@ -19,22 +19,22 @@ export default {
     },
   },
   perpRewardParams: {
-    initialInflationRate: parseEther("1171002.34"),
-    initialReductionFactor: parseEther("1.189207115"),
+    initialInflationRate: parseEther("1171002.34").toString(),
+    initialReductionFactor: parseEther("1.189207115").toString(),
     earlyWithdrawalThreshold: "864000", // 10 days
-    rewardWeights: [parseUnits("100", 2)], // Assumes only one Perpetual
+    rewardWeights: [parseUnits("100", 2).toString()], // Assumes only one Perpetual
   },
   smRewardParams: {
-    initialInflationRate: parseEther("292750.59"),
-    initialReductionFactor: parseEther("1.189207115"),
-    maxMultiplier: parseUnits("4", 18),
-    smoothingValue: parseUnits("30", 18),
-    rewardWeights: [parseUnits("100", 2)], // Assumes only one StakedToken
+    initialInflationRate: parseEther("292750.59").toString(),
+    initialReductionFactor: parseEther("1.189207115").toString(),
+    maxMultiplier: parseUnits("4", 18).toString(),
+    smoothingValue: parseUnits("30", 18).toString(),
+    rewardWeights: [parseUnits("100", 2).toString()], // Assumes only one StakedToken
   },
   stakedTokenParams: {
     cooldownSeconds: "864000", // 10 days
     unstakeWindow: "172800", // 2 days
-    maxStakeAmount: parseEther("1000000"),
+    maxStakeAmount: parseEther("1000000").toString(),
     name: "Staked Increment Syncswap Pool Token",
     symbol: "stkISPT",
   },
